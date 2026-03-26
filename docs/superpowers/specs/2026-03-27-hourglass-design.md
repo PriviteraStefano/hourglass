@@ -378,6 +378,22 @@ DELETE /time-entries/:id
 POST /time-entries/:id/submit
   Response: { time_entry }
 
+POST /time-entries/submit-month
+  Body: { month, year }
+  Response: { submitted_count, entries[] }
+
+GET /time-entries/pending-approval
+  Query: ?page, ?limit, ?user_id, ?month, ?year
+  Response: { entries[], total, grouped_by_user_month }
+
+POST /time-entries/batch-approve
+  Body: { entry_ids, comment? }
+  Response: { entries[] }
+
+POST /time-entries/batch-reject
+  Body: { entry_ids, comment }
+  Response: { entries[] }
+
 GET /time-entries/pending-approval
   Query: ?page, ?limit
   Response: { entries[], total }
@@ -435,9 +451,23 @@ DELETE /expenses/:id
 POST /expenses/:id/submit
   Response: { expense }
 
+POST /expenses/submit-month
+  Body: { month, year }
+  Response: { submitted_count, expenses[] }
+
 GET /expenses/pending-approval
-  Query: ?page, ?limit
-  Response: { expenses[], total }
+  Query: ?page, ?limit, ?user_id, ?month, ?year
+  Response: { expenses[], total, grouped_by_user_month }
+
+POST /expenses/batch-approve
+  Body: { expense_ids, comment? }
+  Response: { expenses[] }
+
+POST /expenses/batch-reject
+  Body: { expense_ids, comment }
+  Response: { expenses[] }
+
+GET /expenses/pending-approval
 
 POST /expenses/:id/approve
   Body: { comment? }
@@ -503,12 +533,39 @@ GET /customer/contracts/:id/summary
 
 **Employee → Manager → Finance**
 
+### Monthly Draft Workflow
+
+Users typically create entries throughout the month without submitting them until the last working day:
+
+1. Employee creates entries in `draft` status throughout the month
+2. Multiple drafts accumulate per day/project
+3. On last working day (or when ready), employee reviews and submits
+
 ### Submission Flow
 
-1. Employee creates entry in `draft` status
-2. Employee submits → status → `submitted`, `submitted_at` set
+Two submission modes:
+
+**Single Entry Submission:**
+1. Employee opens draft entry
+2. Employee clicks "Submit" → status → `submitted`, `submitted_at` set
 3. System queries org members with eligible roles
 4. Entry enters first pending approval level
+
+**Batch Submission (Submit All for Month):**
+1. Employee views monthly summary showing all drafts
+2. Employee clicks "Submit All Entries for [Month]"
+3. All draft entries for that month transition to `submitted`
+4. Each entry enters the approval chain independently
+
+### Batch Review for Approvers
+
+When multiple entries are submitted together:
+
+- Approver sees all pending entries for a user/month grouped together
+- Approver can review batch as a unit or expand to individual entries
+- Approver can approve all, reject all, or handle individually (hybrid)
+- Individual reject within batch: only that entry returns to author
+- Batch approval: all entries move to next approval level together
 
 ### Approval Actions
 
