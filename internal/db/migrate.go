@@ -2,13 +2,13 @@ package db
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 )
 
 func (db *DB) MigrateUp(migrationsDir string) error {
-	files, err := ioutil.ReadDir(migrationsDir)
+	files, err := os.ReadDir(migrationsDir)
 	if err != nil {
 		return fmt.Errorf("failed to read migrations directory: %w", err)
 	}
@@ -23,7 +23,7 @@ func (db *DB) MigrateUp(migrationsDir string) error {
 	sort.Strings(upFiles)
 
 	for _, f := range upFiles {
-		content, err := ioutil.ReadFile(filepath.Join(migrationsDir, f))
+		content, err := os.ReadFile(filepath.Join(migrationsDir, f))
 		if err != nil {
 			return fmt.Errorf("failed to read migration %s: %w", f, err)
 		}
@@ -38,7 +38,7 @@ func (db *DB) MigrateUp(migrationsDir string) error {
 }
 
 func (db *DB) MigrateDown(migrationsDir string) error {
-	files, err := ioutil.ReadDir(migrationsDir)
+	files, err := os.ReadDir(migrationsDir)
 	if err != nil {
 		return fmt.Errorf("failed to read migrations directory: %w", err)
 	}
@@ -53,7 +53,7 @@ func (db *DB) MigrateDown(migrationsDir string) error {
 	sort.Sort(sort.Reverse(sort.StringSlice(downFiles)))
 
 	for _, f := range downFiles {
-		content, err := ioutil.ReadFile(filepath.Join(migrationsDir, f))
+		content, err := os.ReadFile(filepath.Join(migrationsDir, f))
 		if err != nil {
 			return fmt.Errorf("failed to read migration %s: %w", f, err)
 		}
