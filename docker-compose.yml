@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: hourglass-postgres
+    environment:
+      POSTGRES_USER: hourglass
+      POSTGRES_PASSWORD: hourglass
+      POSTGRES_DB: hourglass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hourglass"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: hourglass-app
+    environment:
+      DATABASE_URL: postgres://hourglass:hourglass@postgres:5432/hourglass?sslmode=disable
+      JWT_SECRET: dev-secret-change-in-production
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+
+volumes:
+  postgres_data:
