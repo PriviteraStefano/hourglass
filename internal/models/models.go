@@ -127,3 +127,84 @@ type ProjectAdoption struct {
 	OrganizationID uuid.UUID `json:"organization_id"`
 	AdoptedAt      time.Time `json:"adopted_at"`
 }
+
+type EntryStatus string
+
+const (
+	StatusDraft          EntryStatus = "draft"
+	StatusSubmitted      EntryStatus = "submitted"
+	StatusPendingManager EntryStatus = "pending_manager"
+	StatusPendingFinance EntryStatus = "pending_finance"
+	StatusApproved       EntryStatus = "approved"
+	StatusRejected       EntryStatus = "rejected"
+)
+
+func (s EntryStatus) IsValid() bool {
+	switch s {
+	case StatusDraft, StatusSubmitted, StatusPendingManager, StatusPendingFinance, StatusApproved, StatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+type TimeEntry struct {
+	ID                  uuid.UUID       `json:"id"`
+	UserID              uuid.UUID       `json:"user_id"`
+	OrganizationID      uuid.UUID       `json:"organization_id"`
+	Date                time.Time       `json:"date"`
+	Status              EntryStatus     `json:"status"`
+	CurrentApproverRole *string         `json:"current_approver_role,omitempty"`
+	SubmittedAt         *time.Time      `json:"submitted_at,omitempty"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+	Items               []TimeEntryItem `json:"items,omitempty"`
+}
+
+type TimeEntryItem struct {
+	ID          uuid.UUID `json:"id"`
+	TimeEntryID uuid.UUID `json:"time_entry_id"`
+	ProjectID   uuid.UUID `json:"project_id"`
+	ProjectName string    `json:"project_name,omitempty"`
+	Hours       float64   `json:"hours"`
+	Description string    `json:"description,omitempty"`
+}
+
+type TimeEntryCreateRequest struct {
+	Date  string                       `json:"date"`
+	Items []TimeEntryItemCreateRequest `json:"items"`
+}
+
+type TimeEntryItemCreateRequest struct {
+	ProjectID   string  `json:"project_id"`
+	Hours       float64 `json:"hours"`
+	Description string  `json:"description,omitempty"`
+}
+
+type TimeEntryUpdateRequest struct {
+	Items []TimeEntryItemCreateRequest `json:"items"`
+}
+
+type TimeEntryMonthlySummary struct {
+	Days   []TimeEntryDaySummary `json:"days"`
+	Totals map[string]float64    `json:"totals"`
+	Matrix []TimeEntryMatrixRow  `json:"matrix"`
+}
+
+type TimeEntryDaySummary struct {
+	Date       string                    `json:"date"`
+	TotalHours float64                   `json:"total_hours"`
+	Projects   []TimeEntryProjectSummary `json:"projects"`
+}
+
+type TimeEntryProjectSummary struct {
+	ProjectID   string  `json:"project_id"`
+	ProjectName string  `json:"project_name"`
+	Hours       float64 `json:"hours"`
+}
+
+type TimeEntryMatrixRow struct {
+	Project string             `json:"project"`
+	Days    map[string]float64 `json:"days"`
+	Total   float64            `json:"total"`
+}

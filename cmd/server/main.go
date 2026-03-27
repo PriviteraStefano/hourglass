@@ -34,6 +34,7 @@ func main() {
 	orgHandler := handlers.NewOrganizationHandler(database.DB, authService)
 	contractHandler := handlers.NewContractHandler(database.DB)
 	projectHandler := handlers.NewProjectHandler(database.DB)
+	timeEntryHandler := handlers.NewTimeEntryHandler(database.DB)
 
 	mux := http.NewServeMux()
 
@@ -55,6 +56,13 @@ func main() {
 	mux.HandleFunc("POST /projects", middleware.Auth(authService, projectHandler.Create))
 	mux.HandleFunc("GET /projects/{id}", middleware.Auth(authService, projectHandler.Get))
 	mux.HandleFunc("POST /projects/{id}/adopt", middleware.Auth(authService, projectHandler.Adopt))
+
+	mux.HandleFunc("GET /time-entries", middleware.Auth(authService, timeEntryHandler.List))
+	mux.HandleFunc("POST /time-entries", middleware.Auth(authService, timeEntryHandler.Create))
+	mux.HandleFunc("GET /time-entries/{id}", middleware.Auth(authService, timeEntryHandler.Get))
+	mux.HandleFunc("PUT /time-entries/{id}", middleware.Auth(authService, timeEntryHandler.Update))
+	mux.HandleFunc("DELETE /time-entries/{id}", middleware.Auth(authService, timeEntryHandler.Delete))
+	mux.HandleFunc("GET /time-entries/monthly-summary", middleware.Auth(authService, timeEntryHandler.MonthlySummary))
 
 	port := os.Getenv("PORT")
 	if port == "" {
