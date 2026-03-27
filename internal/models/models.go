@@ -56,3 +56,74 @@ type UserWithMembership struct {
 	Membership   OrganizationMembership `json:"membership"`
 	Organization Organization           `json:"organization"`
 }
+
+type GovernanceModel string
+
+const (
+	GovernanceCreatorControlled GovernanceModel = "creator_controlled"
+	GovernanceUnanimous         GovernanceModel = "unanimous"
+	GovernanceMajority          GovernanceModel = "majority"
+)
+
+func (g GovernanceModel) IsValid() bool {
+	switch g {
+	case GovernanceCreatorControlled, GovernanceUnanimous, GovernanceMajority:
+		return true
+	default:
+		return false
+	}
+}
+
+type ProjectType string
+
+const (
+	ProjectTypeBillable ProjectType = "billable"
+	ProjectTypeInternal ProjectType = "internal"
+)
+
+func (p ProjectType) IsValid() bool {
+	switch p {
+	case ProjectTypeBillable, ProjectTypeInternal:
+		return true
+	default:
+		return false
+	}
+}
+
+type Contract struct {
+	ID              uuid.UUID       `json:"id"`
+	Name            string          `json:"name"`
+	KmRate          float64         `json:"km_rate"`
+	Currency        string          `json:"currency"`
+	GovernanceModel GovernanceModel `json:"governance_model"`
+	CreatedByOrgID  uuid.UUID       `json:"created_by_org_id"`
+	IsShared        bool            `json:"is_shared"`
+	IsActive        bool            `json:"is_active"`
+	CreatedAt       time.Time       `json:"created_at"`
+}
+
+type Project struct {
+	ID              uuid.UUID       `json:"id"`
+	Name            string          `json:"name"`
+	Type            ProjectType     `json:"type"`
+	ContractID      uuid.UUID       `json:"contract_id"`
+	GovernanceModel GovernanceModel `json:"governance_model"`
+	CreatedByOrgID  uuid.UUID       `json:"created_by_org_id"`
+	IsShared        bool            `json:"is_shared"`
+	IsActive        bool            `json:"is_active"`
+	CreatedAt       time.Time       `json:"created_at"`
+}
+
+type ContractAdoption struct {
+	ID             uuid.UUID `json:"id"`
+	ContractID     uuid.UUID `json:"contract_id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	AdoptedAt      time.Time `json:"adopted_at"`
+}
+
+type ProjectAdoption struct {
+	ID             uuid.UUID `json:"id"`
+	ProjectID      uuid.UUID `json:"project_id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	AdoptedAt      time.Time `json:"adopted_at"`
+}

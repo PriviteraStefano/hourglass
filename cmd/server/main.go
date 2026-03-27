@@ -32,6 +32,8 @@ func main() {
 
 	userHandler := handlers.NewUserHandler(database.DB, authService)
 	orgHandler := handlers.NewOrganizationHandler(database.DB, authService)
+	contractHandler := handlers.NewContractHandler(database.DB)
+	projectHandler := handlers.NewProjectHandler(database.DB)
 
 	mux := http.NewServeMux()
 
@@ -42,6 +44,17 @@ func main() {
 
 	mux.HandleFunc("POST /organizations", middleware.Auth(authService, orgHandler.Create))
 	mux.HandleFunc("GET /organizations/{id}", middleware.Auth(authService, orgHandler.Get))
+	mux.HandleFunc("POST /organizations/{id}/invite", middleware.Auth(authService, orgHandler.Invite))
+
+	mux.HandleFunc("GET /contracts", middleware.Auth(authService, contractHandler.List))
+	mux.HandleFunc("POST /contracts", middleware.Auth(authService, contractHandler.Create))
+	mux.HandleFunc("GET /contracts/{id}", middleware.Auth(authService, contractHandler.Get))
+	mux.HandleFunc("POST /contracts/{id}/adopt", middleware.Auth(authService, contractHandler.Adopt))
+
+	mux.HandleFunc("GET /projects", middleware.Auth(authService, projectHandler.List))
+	mux.HandleFunc("POST /projects", middleware.Auth(authService, projectHandler.Create))
+	mux.HandleFunc("GET /projects/{id}", middleware.Auth(authService, projectHandler.Get))
+	mux.HandleFunc("POST /projects/{id}/adopt", middleware.Auth(authService, projectHandler.Adopt))
 
 	port := os.Getenv("PORT")
 	if port == "" {
