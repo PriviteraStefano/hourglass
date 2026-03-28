@@ -24,12 +24,9 @@ func NewTimeEntryHandler(db *sql.DB) *TimeEntryHandler {
 }
 
 func (h *TimeEntryHandler) List(w http.ResponseWriter, r *http.Request) {
-	userIDStr := middleware.GetUserID(r.Context())
-	orgIDStr := middleware.GetOrganizationID(r.Context())
+	userID := middleware.GetUserID(r.Context())
+	orgID := middleware.GetOrganizationID(r.Context())
 	role := middleware.GetRole(r.Context())
-
-	userID, _ := uuid.Parse(userIDStr)
-	orgID, _ := uuid.Parse(orgIDStr)
 
 	query := `
 		SELECT te.id, te.user_id, te.organization_id, te.date, te.status, 
@@ -57,7 +54,7 @@ func (h *TimeEntryHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	filterUserID := r.URL.Query().Get("user_id")
 	if filterUserID != "" {
-		if role == string(models.RoleEmployee) && filterUserID != userIDStr {
+		if role == string(models.RoleEmployee) && filterUserID != userID.String() {
 			api.RespondWithError(w, http.StatusForbidden, "can only view own entries")
 			return
 		}
@@ -126,11 +123,8 @@ func (h *TimeEntryHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TimeEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
-	userIDStr := middleware.GetUserID(r.Context())
-	orgIDStr := middleware.GetOrganizationID(r.Context())
-
-	userID, _ := uuid.Parse(userIDStr)
-	orgID, _ := uuid.Parse(orgIDStr)
+	userID := middleware.GetUserID(r.Context())
+	orgID := middleware.GetOrganizationID(r.Context())
 
 	var req models.TimeEntryCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -233,11 +227,9 @@ func (h *TimeEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TimeEntryHandler) Get(w http.ResponseWriter, r *http.Request) {
-	userIDStr := middleware.GetUserID(r.Context())
-	orgIDStr := middleware.GetOrganizationID(r.Context())
+	userID := middleware.GetUserID(r.Context())
+	orgID := middleware.GetOrganizationID(r.Context())
 	role := middleware.GetRole(r.Context())
-
-	orgID, _ := uuid.Parse(orgIDStr)
 
 	entryIDStr := r.PathValue("id")
 	entryID, err := uuid.Parse(entryIDStr)
@@ -268,7 +260,7 @@ func (h *TimeEntryHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if role == string(models.RoleEmployee) && entryUserID.String() != userIDStr {
+	if role == string(models.RoleEmployee) && entryUserID.String() != userID.String() {
 		api.RespondWithError(w, http.StatusForbidden, "can only view own entries")
 		return
 	}
@@ -290,10 +282,8 @@ func (h *TimeEntryHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TimeEntryHandler) Update(w http.ResponseWriter, r *http.Request) {
-	userIDStr := middleware.GetUserID(r.Context())
-	orgIDStr := middleware.GetOrganizationID(r.Context())
-
-	orgID, _ := uuid.Parse(orgIDStr)
+	userID := middleware.GetUserID(r.Context())
+	orgID := middleware.GetOrganizationID(r.Context())
 
 	entryIDStr := r.PathValue("id")
 	entryID, err := uuid.Parse(entryIDStr)
@@ -321,7 +311,7 @@ func (h *TimeEntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if entryUserID.String() != userIDStr {
+	if entryUserID.String() != userID.String() {
 		api.RespondWithError(w, http.StatusForbidden, "can only update own entries")
 		return
 	}
@@ -428,10 +418,8 @@ func (h *TimeEntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TimeEntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	userIDStr := middleware.GetUserID(r.Context())
-	orgIDStr := middleware.GetOrganizationID(r.Context())
-
-	orgID, _ := uuid.Parse(orgIDStr)
+	userID := middleware.GetUserID(r.Context())
+	orgID := middleware.GetOrganizationID(r.Context())
 
 	entryIDStr := r.PathValue("id")
 	entryID, err := uuid.Parse(entryIDStr)
@@ -459,7 +447,7 @@ func (h *TimeEntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if entryUserID.String() != userIDStr {
+	if entryUserID.String() != userID.String() {
 		api.RespondWithError(w, http.StatusForbidden, "can only delete own entries")
 		return
 	}
@@ -474,11 +462,9 @@ func (h *TimeEntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TimeEntryHandler) MonthlySummary(w http.ResponseWriter, r *http.Request) {
-	userIDStr := middleware.GetUserID(r.Context())
-	orgIDStr := middleware.GetOrganizationID(r.Context())
+	userID := middleware.GetUserID(r.Context())
+	orgID := middleware.GetOrganizationID(r.Context())
 	role := middleware.GetRole(r.Context())
-
-	orgID, _ := uuid.Parse(orgIDStr)
 
 	monthStr := r.URL.Query().Get("month")
 	yearStr := r.URL.Query().Get("year")
@@ -493,7 +479,7 @@ func (h *TimeEntryHandler) MonthlySummary(w http.ResponseWriter, r *http.Request
 	year, _ := strconv.Atoi(yearStr)
 
 	if role == string(models.RoleEmployee) {
-		userFilter = userIDStr
+		userFilter = userID.String()
 	}
 
 	query := `

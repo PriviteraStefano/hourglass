@@ -140,19 +140,13 @@ func (h *OrganizationHandler) Invite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inviterUUID, err := uuid.Parse(userID)
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "invalid user id")
-		return
-	}
-
 	membershipID := uuid.New()
 	now := time.Now()
 
-	_, err = h.db.Exec(`
+	_, err := h.db.Exec(`
 		INSERT INTO organization_memberships (id, user_id, organization_id, role, is_active, invited_by, invited_at)
 		VALUES ($1, NULL, $2, $3, $4, $5, $6)
-	`, membershipID, orgID, req.Role, true, inviterUUID, now)
+	`, membershipID, orgID, req.Role, true, userID, now)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to create invitation")
 		return

@@ -34,12 +34,7 @@ type ProjectResponse struct {
 }
 
 func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
-	orgIDStr := middleware.GetOrganizationID(r.Context())
-	orgID, err := uuid.Parse(orgIDStr)
-	if err != nil {
-		api.RespondWithError(w, http.StatusBadRequest, "invalid organization id")
-		return
-	}
+	orgID := middleware.GetOrganizationID(r.Context())
 
 	scope := r.URL.Query().Get("scope")
 	if scope == "" {
@@ -81,7 +76,7 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	query += ` ORDER BY p.created_at DESC`
 
-	rows, err = h.db.Query(query, args...)
+	rows, err := h.db.Query(query, args...)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch projects")
 		return
@@ -115,12 +110,7 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
-	orgIDStr := middleware.GetOrganizationID(r.Context())
-	orgID, err := uuid.Parse(orgIDStr)
-	if err != nil {
-		api.RespondWithError(w, http.StatusBadRequest, "invalid organization id")
-		return
-	}
+	orgID := middleware.GetOrganizationID(r.Context())
 
 	var req CreateProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -231,12 +221,7 @@ func (h *ProjectHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProjectHandler) Adopt(w http.ResponseWriter, r *http.Request) {
-	orgIDStr := middleware.GetOrganizationID(r.Context())
-	orgID, err := uuid.Parse(orgIDStr)
-	if err != nil {
-		api.RespondWithError(w, http.StatusBadRequest, "invalid organization id")
-		return
-	}
+	orgID := middleware.GetOrganizationID(r.Context())
 
 	projectIDStr := r.PathValue("id")
 	projectID, err := uuid.Parse(projectIDStr)

@@ -33,12 +33,8 @@ type ContractResponse struct {
 }
 
 func (h *ContractHandler) List(w http.ResponseWriter, r *http.Request) {
-	orgIDStr := middleware.GetOrganizationID(r.Context())
-	orgID, err := uuid.Parse(orgIDStr)
-	if err != nil {
-		api.RespondWithError(w, http.StatusBadRequest, "invalid organization id")
-		return
-	}
+	orgID := middleware.GetOrganizationID(r.Context())
+	
 
 	scope := r.URL.Query().Get("scope")
 	if scope == "" {
@@ -46,7 +42,7 @@ func (h *ContractHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var rows *sql.Rows
-
+	var err error
 	switch scope {
 	case "adopted":
 		rows, err = h.db.Query(`
@@ -103,12 +99,7 @@ func (h *ContractHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ContractHandler) Create(w http.ResponseWriter, r *http.Request) {
-	orgIDStr := middleware.GetOrganizationID(r.Context())
-	orgID, err := uuid.Parse(orgIDStr)
-	if err != nil {
-		api.RespondWithError(w, http.StatusBadRequest, "invalid organization id")
-		return
-	}
+	orgID := middleware.GetOrganizationID(r.Context())
 
 	var req CreateContractRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -131,7 +122,7 @@ func (h *ContractHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var contract models.Contract
-	err = h.db.QueryRow(`
+	err := h.db.QueryRow(`
 		INSERT INTO contracts (name, km_rate, currency, governance_model, created_by_org_id, is_shared, is_active)
 		VALUES ($1, $2, $3, $4, $5, $6, true)
 		RETURNING id, name, km_rate, currency, governance_model, created_by_org_id, is_shared, is_active, created_at
@@ -186,12 +177,7 @@ func (h *ContractHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ContractHandler) Adopt(w http.ResponseWriter, r *http.Request) {
-	orgIDStr := middleware.GetOrganizationID(r.Context())
-	orgID, err := uuid.Parse(orgIDStr)
-	if err != nil {
-		api.RespondWithError(w, http.StatusBadRequest, "invalid organization id")
-		return
-	}
+	orgID := middleware.GetOrganizationID(r.Context())
 
 	contractIDStr := r.PathValue("id")
 	contractID, err := uuid.Parse(contractIDStr)
