@@ -208,3 +208,199 @@ type TimeEntryMatrixRow struct {
 	Days    map[string]float64 `json:"days"`
 	Total   float64            `json:"total"`
 }
+
+type ExpenseCategory string
+
+const (
+	CategoryMileage       ExpenseCategory = "mileage"
+	CategoryMeal          ExpenseCategory = "meal"
+	CategoryAccommodation ExpenseCategory = "accommodation"
+	CategoryOther         ExpenseCategory = "other"
+)
+
+func (c ExpenseCategory) IsValid() bool {
+	switch c {
+	case CategoryMileage, CategoryMeal, CategoryAccommodation, CategoryOther:
+		return true
+	default:
+		return false
+	}
+}
+
+type Expense struct {
+	ID                  uuid.UUID     `json:"id"`
+	UserID              uuid.UUID     `json:"user_id"`
+	OrganizationID      uuid.UUID     `json:"organization_id"`
+	Date                time.Time     `json:"date"`
+	Status              EntryStatus   `json:"status"`
+	CurrentApproverRole *string       `json:"current_approver_role,omitempty"`
+	SubmittedAt         *time.Time    `json:"submitted_at,omitempty"`
+	CreatedAt           time.Time     `json:"created_at"`
+	UpdatedAt           time.Time     `json:"updated_at"`
+	Items               []ExpenseItem `json:"items,omitempty"`
+}
+
+type ExpenseItem struct {
+	ID          uuid.UUID        `json:"id"`
+	ExpenseID   uuid.UUID        `json:"expense_id"`
+	ProjectID   uuid.UUID        `json:"project_id"`
+	ProjectName string           `json:"project_name,omitempty"`
+	Category    ExpenseCategory  `json:"category"`
+	Amount      float64          `json:"amount"`
+	KmDistance  *float64         `json:"km_distance,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Receipts    []ExpenseReceipt `json:"receipts,omitempty"`
+}
+
+type ExpenseReceipt struct {
+	ID               uuid.UUID `json:"id"`
+	ExpenseItemID    uuid.UUID `json:"expense_item_id"`
+	FilePath         string    `json:"file_path"`
+	OriginalFilename string    `json:"original_filename"`
+	UploadedAt       time.Time `json:"uploaded_at"`
+}
+
+type ExpenseCreateRequest struct {
+	Date  string                     `json:"date"`
+	Items []ExpenseItemCreateRequest `json:"items"`
+}
+
+type ExpenseItemCreateRequest struct {
+	ProjectID   string          `json:"project_id"`
+	Category    ExpenseCategory `json:"category"`
+	Amount      float64         `json:"amount"`
+	KmDistance  *float64        `json:"km_distance,omitempty"`
+	Description string          `json:"description,omitempty"`
+}
+
+type ExpenseUpdateRequest struct {
+	Items []ExpenseItemCreateRequest `json:"items"`
+}
+
+type ExpenseMonthlySummary struct {
+	Days       []ExpenseDaySummary `json:"days"`
+	Totals     map[string]float64  `json:"totals"`
+	Categories map[string]float64  `json:"categories"`
+}
+
+type ExpenseDaySummary struct {
+	Date        string               `json:"date"`
+	TotalAmount float64              `json:"total_amount"`
+	Items       []ExpenseItemSummary `json:"items"`
+}
+
+type ExpenseItemSummary struct {
+	ProjectID   string  `json:"project_id"`
+	ProjectName string  `json:"project_name"`
+	Category    string  `json:"category"`
+	Amount      float64 `json:"amount"`
+}
+
+type ApprovalAction string
+
+const (
+	ActionSubmit         ApprovalAction = "submit"
+	ActionApprove        ApprovalAction = "approve"
+	ActionReject         ApprovalAction = "reject"
+	ActionEditApprove    ApprovalAction = "edit_approve"
+	ActionEditReturn     ApprovalAction = "edit_return"
+	ActionPartialApprove ApprovalAction = "partial_approve"
+	ActionDelegate       ApprovalAction = "delegate"
+)
+
+type TimeEntryApproval struct {
+	ID          uuid.UUID      `json:"id"`
+	TimeEntryID uuid.UUID      `json:"time_entry_id"`
+	Action      ApprovalAction `json:"action"`
+	ActorUserID uuid.UUID      `json:"actor_user_id"`
+	ActorRole   string         `json:"actor_role"`
+	Changes     string         `json:"changes,omitempty"`
+	Comment     string         `json:"comment,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+}
+
+type ExpenseApproval struct {
+	ID          uuid.UUID      `json:"id"`
+	ExpenseID   uuid.UUID      `json:"expense_id"`
+	Action      ApprovalAction `json:"action"`
+	ActorUserID uuid.UUID      `json:"actor_user_id"`
+	ActorRole   string         `json:"actor_role"`
+	Changes     string         `json:"changes,omitempty"`
+	Comment     string         `json:"comment,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+}
+
+type BackupApprover struct {
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	Role           Role      `json:"role"`
+	UserID         uuid.UUID `json:"user_id"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type PendingEntryGroup struct {
+	UserID   uuid.UUID      `json:"user_id"`
+	UserName string         `json:"user_name"`
+	Month    int            `json:"month"`
+	Year     int            `json:"year"`
+	Entries  []PendingEntry `json:"entries"`
+}
+
+type PendingEntry struct {
+	ID                  uuid.UUID   `json:"id"`
+	Date                time.Time   `json:"date"`
+	Status              EntryStatus `json:"status"`
+	CurrentApproverRole string      `json:"current_approver_role,omitempty"`
+	Items               interface{} `json:"items"`
+}
+
+type SubmitRequest struct {
+	Comment string `json:"comment,omitempty"`
+}
+
+type SubmitMonthRequest struct {
+	Month   int    `json:"month"`
+	Year    int    `json:"year"`
+	Comment string `json:"comment,omitempty"`
+}
+
+type RejectRequest struct {
+	Comment string `json:"comment"`
+}
+
+type EditApproveRequest struct {
+	Items        []TimeEntryItemCreateRequest `json:"items,omitempty"`
+	ExpenseItems []ExpenseItemCreateRequest   `json:"expense_items,omitempty"`
+	Comment      string                       `json:"comment,omitempty"`
+}
+
+type EditReturnRequest struct {
+	Items        []TimeEntryItemCreateRequest `json:"items,omitempty"`
+	ExpenseItems []ExpenseItemCreateRequest   `json:"expense_items,omitempty"`
+	Comment      string                       `json:"comment"`
+}
+
+type PartialApproveRequest struct {
+	ApprovedItemIDs []string `json:"approved_item_ids"`
+	Comment         string   `json:"comment,omitempty"`
+}
+
+type DelegateRequest struct {
+	DelegateToUserID uuid.UUID `json:"delegate_to_user_id"`
+	Comment          string    `json:"comment,omitempty"`
+}
+
+type BatchApproveRequest struct {
+	EntryIDs []uuid.UUID `json:"entry_ids"`
+	Comment  string      `json:"comment,omitempty"`
+}
+
+type BatchRejectRequest struct {
+	EntryIDs []uuid.UUID `json:"entry_ids"`
+	Comment  string      `json:"comment"`
+}
+
+type BackupApproverCreateRequest struct {
+	UserID uuid.UUID `json:"user_id"`
+	Role   Role      `json:"role"`
+}
