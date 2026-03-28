@@ -23,7 +23,7 @@ export function Header() {
     .toUpperCase() ?? 'U'
 
   return (
-    <header className="h-14 border-b bg-background px-6 flex items-center justify-between">
+    <div className="flex flex-1 items-center justify-between">
       <div className="flex items-center gap-3">
         <h1 className="text-lg font-semibold">Hourglass</h1>
         {user?.organization && (
@@ -72,6 +72,6 @@ export function Header() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </header>
+    </div>
   )
 }

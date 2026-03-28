@@ -1,6 +1,7 @@
-import {createFileRoute, Outlet, redirect} from '@tanstack/react-router'
+import {createFileRoute, Outlet} from '@tanstack/react-router'
 import {AppShell} from "@/src/components/layout/app-shell.tsx";
 import {AuthApis} from "@/src/api/auth.ts";
+import {LoaderIcon} from "lucide-react";
 
 
 export const Route = createFileRoute('/_authenticated')({
@@ -14,6 +15,11 @@ export const Route = createFileRoute('/_authenticated')({
   component: () => (
     <AppShell>
       <Outlet/>
+    </AppShell>
+  ),
+  pendingComponent: () => (
+    <AppShell>
+      <LoaderIcon className="animate-spin m-auto"/>
     </AppShell>
   ),
 })

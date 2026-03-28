@@ -12,8 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedTimeEntriesIndexRouteImport } from './routes/_authenticated/time-entries/index'
+import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects/index'
+import { Route as AuthenticatedContractsIndexRouteImport } from './routes/_authenticated/contracts/index'
 import { Route as authRegisterIndexRouteImport } from './routes/(auth)/register/index'
 import { Route as authLoginIndexRouteImport } from './routes/(auth)/login/index'
+import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects/$id'
+import { Route as AuthenticatedContractsIdIndexRouteImport } from './routes/_authenticated/contracts/$id/index'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
@@ -30,6 +34,18 @@ const AuthenticatedTimeEntriesIndexRoute =
     path: '/time-entries/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedProjectsIndexRoute =
+  AuthenticatedProjectsIndexRouteImport.update({
+    id: '/projects/',
+    path: '/projects/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedContractsIndexRoute =
+  AuthenticatedContractsIndexRouteImport.update({
+    id: '/contracts/',
+    path: '/contracts/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const authRegisterIndexRoute = authRegisterIndexRouteImport.update({
   id: '/(auth)/register/',
   path: '/register/',
@@ -40,39 +56,82 @@ const authLoginIndexRoute = authLoginIndexRouteImport.update({
   path: '/login/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedProjectsIdRoute = AuthenticatedProjectsIdRouteImport.update({
+  id: '/projects/$id',
+  path: '/projects/$id',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedContractsIdIndexRoute =
+  AuthenticatedContractsIdIndexRouteImport.update({
+    id: '/contracts/$id/',
+    path: '/contracts/$id/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
+  '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/login/': typeof authLoginIndexRoute
   '/register/': typeof authRegisterIndexRoute
+  '/contracts/': typeof AuthenticatedContractsIndexRoute
+  '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/time-entries/': typeof AuthenticatedTimeEntriesIndexRoute
+  '/contracts/$id/': typeof AuthenticatedContractsIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
+  '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/login': typeof authLoginIndexRoute
   '/register': typeof authRegisterIndexRoute
+  '/contracts': typeof AuthenticatedContractsIndexRoute
+  '/projects': typeof AuthenticatedProjectsIndexRoute
   '/time-entries': typeof AuthenticatedTimeEntriesIndexRoute
+  '/contracts/$id': typeof AuthenticatedContractsIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/(auth)/login/': typeof authLoginIndexRoute
   '/(auth)/register/': typeof authRegisterIndexRoute
+  '/_authenticated/contracts/': typeof AuthenticatedContractsIndexRoute
+  '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/_authenticated/time-entries/': typeof AuthenticatedTimeEntriesIndexRoute
+  '/_authenticated/contracts/$id/': typeof AuthenticatedContractsIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login/' | '/register/' | '/time-entries/'
+  fullPaths:
+    | '/'
+    | '/projects/$id'
+    | '/login/'
+    | '/register/'
+    | '/contracts/'
+    | '/projects/'
+    | '/time-entries/'
+    | '/contracts/$id/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/register' | '/time-entries'
+  to:
+    | '/'
+    | '/projects/$id'
+    | '/login'
+    | '/register'
+    | '/contracts'
+    | '/projects'
+    | '/time-entries'
+    | '/contracts/$id'
   id:
     | '__root__'
     | '/_authenticated'
     | '/_authenticated/'
+    | '/_authenticated/projects/$id'
     | '/(auth)/login/'
     | '/(auth)/register/'
+    | '/_authenticated/contracts/'
+    | '/_authenticated/projects/'
     | '/_authenticated/time-entries/'
+    | '/_authenticated/contracts/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -104,6 +163,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTimeEntriesIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/projects/': {
+      id: '/_authenticated/projects/'
+      path: '/projects'
+      fullPath: '/projects/'
+      preLoaderRoute: typeof AuthenticatedProjectsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/contracts/': {
+      id: '/_authenticated/contracts/'
+      path: '/contracts'
+      fullPath: '/contracts/'
+      preLoaderRoute: typeof AuthenticatedContractsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/(auth)/register/': {
       id: '/(auth)/register/'
       path: '/register'
@@ -118,17 +191,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authLoginIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/projects/$id': {
+      id: '/_authenticated/projects/$id'
+      path: '/projects/$id'
+      fullPath: '/projects/$id'
+      preLoaderRoute: typeof AuthenticatedProjectsIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/contracts/$id/': {
+      id: '/_authenticated/contracts/$id/'
+      path: '/contracts/$id'
+      fullPath: '/contracts/$id/'
+      preLoaderRoute: typeof AuthenticatedContractsIdIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
 interface AuthenticatedRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedProjectsIdRoute: typeof AuthenticatedProjectsIdRoute
+  AuthenticatedContractsIndexRoute: typeof AuthenticatedContractsIndexRoute
+  AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
   AuthenticatedTimeEntriesIndexRoute: typeof AuthenticatedTimeEntriesIndexRoute
+  AuthenticatedContractsIdIndexRoute: typeof AuthenticatedContractsIdIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedProjectsIdRoute: AuthenticatedProjectsIdRoute,
+  AuthenticatedContractsIndexRoute: AuthenticatedContractsIndexRoute,
+  AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
   AuthenticatedTimeEntriesIndexRoute: AuthenticatedTimeEntriesIndexRoute,
+  AuthenticatedContractsIdIndexRoute: AuthenticatedContractsIdIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
