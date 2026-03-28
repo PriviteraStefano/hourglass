@@ -33,14 +33,34 @@ export interface UserWithMembership extends User {
   organization: Organization
 }
 
+export interface Contract {
+  id: string
+  name: string
+  km_rate: number
+  currency: string
+  governance_model: 'creator_controlled' | 'unanimous' | 'majority'
+  is_shared: boolean
+  is_active: boolean
+  created_by_org_id: string
+  created_by_org_name?: string
+  adoption_count?: number
+  is_adopted?: boolean
+  created_at: string
+}
+
 export interface Project {
   id: string
   name: string
   type: 'billable' | 'internal'
   contract_id: string
   contract_name?: string
+  governance_model: 'creator_controlled' | 'unanimous' | 'majority'
   is_shared: boolean
   is_active: boolean
+  created_by_org_id: string
+  created_by_org_name?: string
+  adoption_count?: number
+  is_adopted?: boolean
   created_at: string
 }
 
