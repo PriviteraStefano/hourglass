@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
@@ -29,8 +30,10 @@ type CreateProjectRequest struct {
 
 type ProjectResponse struct {
 	models.Project
-	ContractName  string `json:"contract_name,omitempty"`
-	AdoptionCount int    `json:"adoption_count,omitempty"`
+	ContractName     string `json:"contract_name,omitempty"`
+	CreatedByOrgName string `json:"created_by_org_name,omitempty"`
+	AdoptionCount    int    `json:"adoption_count,omitempty"`
+	IsAdopted        bool   `json:"is_adopted,omitempty"`
 }
 
 func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -44,39 +47,49 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 	contractID := r.URL.Query().Get("contract_id")
 
 	var rows *sql.Rows
+	var err error
 
-	query := `
+	selectClause := `
 		SELECT p.id, p.name, p.type, p.contract_id, p.governance_model,
 			   p.created_by_org_id, p.is_shared, p.is_active, p.created_at,
-			   c.name as contract_name
+			   c.name as contract_name,
+			   o.name as created_by_org_name`
+	fromClause := `
 		FROM projects p
 		LEFT JOIN contracts c ON p.contract_id = c.id
+		LEFT JOIN organizations o ON p.created_by_org_id = o.id
 		WHERE p.is_active = true
 	`
+	baseQuery := selectClause + fromClause
 	args := []interface{}{}
 	argIndex := 1
 
 	switch scope {
 	case "adopted":
-		query += ` AND p.id IN (SELECT project_id FROM project_adoptions WHERE organization_id = $` + string(rune('0'+argIndex))
+		baseQuery += ` AND p.id IN (SELECT project_id FROM project_adoptions WHERE organization_id = $` + strconv.Itoa(argIndex) + `)`
 		args = append(args, orgID)
 		argIndex++
 	case "all":
-		query += ` AND p.is_shared = true`
+		selectClause += ", EXISTS(SELECT 1 FROM project_adoptions WHERE project_id = p.id AND organization_id = $" + strconv.Itoa(argIndex) + ") as is_adopted"
+		baseQuery = selectClause + fromClause
+		baseQuery += ` AND p.is_shared = true`
+		args = append(args, orgID)
+		argIndex++
 	default:
-		query += ` AND p.created_by_org_id = $` + string(rune('0'+argIndex))
+		baseQuery += ` AND p.created_by_org_id = $` + strconv.Itoa(argIndex)
 		args = append(args, orgID)
 		argIndex++
 	}
 
 	if contractID != "" {
-		query += ` AND p.contract_id = $` + string(rune('0'+argIndex))
+		baseQuery += ` AND p.contract_id = $` + strconv.Itoa(argIndex)
 		args = append(args, contractID)
+		argIndex++
 	}
 
-	query += ` ORDER BY p.created_at DESC`
+	baseQuery += ` ORDER BY p.created_at DESC`
 
-	rows, err := h.db.Query(query, args...)
+	rows, err = h.db.Query(baseQuery, args...)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch projects")
 		return
@@ -87,19 +100,40 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var p models.Project
 		var contractName sql.NullString
-		err := rows.Scan(
-			&p.ID, &p.Name, &p.Type, &p.ContractID, &p.GovernanceModel,
-			&p.CreatedByOrgID, &p.IsShared, &p.IsActive, &p.CreatedAt,
-			&contractName,
-		)
-		if err != nil {
+		var orgName sql.NullString
+		var isAdopted sql.NullBool
+
+		var scanErr error
+		if scope == "all" {
+			scanErr = rows.Scan(
+				&p.ID, &p.Name, &p.Type, &p.ContractID, &p.GovernanceModel,
+				&p.CreatedByOrgID, &p.IsShared, &p.IsActive, &p.CreatedAt,
+				&contractName, &orgName, &isAdopted,
+			)
+		} else {
+			scanErr = rows.Scan(
+				&p.ID, &p.Name, &p.Type, &p.ContractID, &p.GovernanceModel,
+				&p.CreatedByOrgID, &p.IsShared, &p.IsActive, &p.CreatedAt,
+				&contractName, &orgName,
+			)
+		}
+		if scanErr != nil {
 			api.RespondWithError(w, http.StatusInternalServerError, "failed to scan project")
 			return
 		}
-		projects = append(projects, ProjectResponse{
-			Project:      p,
-			ContractName: contractName.String,
-		})
+
+		resp := ProjectResponse{Project: p}
+		if contractName.Valid {
+			resp.ContractName = contractName.String
+		}
+		if orgName.Valid {
+			resp.CreatedByOrgName = orgName.String
+		}
+		if scope == "all" {
+			resp.IsAdopted = isAdopted.Valid && isAdopted.Bool
+		}
+
+		projects = append(projects, resp)
 	}
 
 	if projects == nil {
@@ -142,7 +176,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var contractExists bool
 	err = h.db.QueryRow(`
 		SELECT EXISTS(
-			SELECT 1 FROM contracts 
+			SELECT 1 FROM contracts
 			WHERE id = $1 AND is_active = true
 			AND (created_by_org_id = $2 OR is_shared = true OR id IN (
 				SELECT contract_id FROM contract_adoptions WHERE organization_id = $2
@@ -160,24 +194,37 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var project models.Project
+	var contractName sql.NullString
+	var orgName sql.NullString
 	err = h.db.QueryRow(`
 		INSERT INTO projects (name, type, contract_id, governance_model, created_by_org_id, is_shared, is_active)
 		VALUES ($1, $2, $3, $4, $5, $6, true)
-		RETURNING id, name, type, contract_id, governance_model, created_by_org_id, is_shared, is_active, created_at
+		RETURNING id, name, type, contract_id, governance_model, created_by_org_id, is_shared, is_active, created_at,
+		(SELECT name FROM contracts WHERE id = $3),
+		(SELECT name FROM organizations WHERE id = $5)
 	`, req.Name, req.Type, contractID, req.GovernanceModel, orgID, req.IsShared).Scan(
 		&project.ID, &project.Name, &project.Type, &project.ContractID,
 		&project.GovernanceModel, &project.CreatedByOrgID, &project.IsShared,
-		&project.IsActive, &project.CreatedAt,
+		&project.IsActive, &project.CreatedAt, &contractName, &orgName,
 	)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to create project")
 		return
 	}
 
-	api.RespondWithJSON(w, http.StatusCreated, project)
+	resp := ProjectResponse{Project: project}
+	if contractName.Valid {
+		resp.ContractName = contractName.String
+	}
+	if orgName.Valid {
+		resp.CreatedByOrgName = orgName.String
+	}
+
+	api.RespondWithJSON(w, http.StatusCreated, resp)
 }
 
 func (h *ProjectHandler) Get(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrganizationID(r.Context())
 	projectIDStr := r.PathValue("id")
 	projectID, err := uuid.Parse(projectIDStr)
 	if err != nil {
@@ -187,17 +234,20 @@ func (h *ProjectHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	var project models.Project
 	var contractName sql.NullString
+	var orgName sql.NullString
 	err = h.db.QueryRow(`
 		SELECT p.id, p.name, p.type, p.contract_id, p.governance_model,
 			   p.created_by_org_id, p.is_shared, p.is_active, p.created_at,
-			   c.name as contract_name
+			   c.name as contract_name,
+			   o.name as created_by_org_name
 		FROM projects p
 		LEFT JOIN contracts c ON p.contract_id = c.id
+		LEFT JOIN organizations o ON p.created_by_org_id = o.id
 		WHERE p.id = $1 AND p.is_active = true
 	`, projectID).Scan(
 		&project.ID, &project.Name, &project.Type, &project.ContractID,
 		&project.GovernanceModel, &project.CreatedByOrgID, &project.IsShared,
-		&project.IsActive, &project.CreatedAt, &contractName,
+		&project.IsActive, &project.CreatedAt, &contractName, &orgName,
 	)
 	if err == sql.ErrNoRows {
 		api.RespondWithError(w, http.StatusNotFound, "project not found")
@@ -213,11 +263,24 @@ func (h *ProjectHandler) Get(w http.ResponseWriter, r *http.Request) {
 		SELECT COUNT(*) FROM project_adoptions WHERE project_id = $1
 	`, projectID).Scan(&adoptionCount)
 
-	api.RespondWithJSON(w, http.StatusOK, ProjectResponse{
+	var isAdopted bool
+	h.db.QueryRow(`
+		SELECT EXISTS(SELECT 1 FROM project_adoptions WHERE project_id = $1 AND organization_id = $2)
+	`, projectID, orgID).Scan(&isAdopted)
+
+	resp := ProjectResponse{
 		Project:       project,
-		ContractName:  contractName.String,
 		AdoptionCount: adoptionCount,
-	})
+		IsAdopted:     isAdopted,
+	}
+	if contractName.Valid {
+		resp.ContractName = contractName.String
+	}
+	if orgName.Valid {
+		resp.CreatedByOrgName = orgName.String
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, resp)
 }
 
 func (h *ProjectHandler) Adopt(w http.ResponseWriter, r *http.Request) {
