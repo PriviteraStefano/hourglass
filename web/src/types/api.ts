@@ -1,6 +1,4 @@
 import type {UserWithMembership} from "@/src/types/models.ts";
-import {z} from "zod";
-
 // export function createApiResponseSchema<T extends z.ZodTypeAny>(t: T) {
 //   return (
 //     z.discriminatedUnion(
@@ -64,4 +62,20 @@ export interface UpdateTimeEntryRequest {
 export interface ApiError {
   message: string
   error?: string
+}
+
+export interface CreateContractRequest {
+  name: string
+  km_rate: number
+  currency: string
+  governance_model: 'creator_controlled' | 'unanimous' | 'majority'
+  is_shared: boolean
+}
+
+export interface CreateProjectRequest {
+  name: string
+  type: 'billable' | 'internal'
+  contract_id: string
+  governance_model: 'creator_controlled' | 'unanimous' | 'majority'
+  is_shared: boolean
 }

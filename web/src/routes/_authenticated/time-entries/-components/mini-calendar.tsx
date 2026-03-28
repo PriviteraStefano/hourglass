@@ -1,14 +1,10 @@
-import { useMemo } from 'react'
-import { type TimeEntryMonthlySummary, type EntryStatus } from '@/src/types'
-import { Calendar } from '@/src/components/ui/calendar'
+import {useMemo} from 'react'
+import {type EntryStatus} from '@/src/types'
+import {Calendar} from '@/src/components/ui/calendar'
+import {useNavigate, useSearch} from "@tanstack/react-router";
+import {useSuspenseQuery} from "@tanstack/react-query";
+import {TimeEntriesApis} from "@/src/api/time-entries.ts";
 
-interface MiniCalendarProps {
-  month: Date
-  selectedDate: Date
-  onSelectDate: (date: Date) => void
-  onMonthChange: (date: Date) => void
-  summary: TimeEntryMonthlySummary | undefined
-}
 
 interface DaySummary {
   date: string
@@ -26,7 +22,13 @@ function inferStatus(day: DaySummary): EntryStatus | null {
   return null
 }
 
-export function MiniCalendar({ month, selectedDate, onSelectDate, onMonthChange, summary }: MiniCalendarProps) {
+export function MiniCalendar() {
+  const navigate = useNavigate()
+  const {month, date} = useSearch({from: "/_authenticated/time-entries/"})
+  const {data: summary} = useSuspenseQuery(TimeEntriesApis.timeEntriesMonthlySummaryQueryOpts(
+    month.getMonth() + 1,
+    month.getFullYear()
+  ))
   const statusByDate = useMemo(() => {
     const map = new Map<string, EntryStatus>()
     summary?.days.forEach((d: DaySummary) => {
@@ -40,7 +42,7 @@ export function MiniCalendar({ month, selectedDate, onSelectDate, onMonthChange,
 
   const modifiers = useMemo(() => {
     const datesByStatus = new Map<EntryStatus, Date[]>()
-    
+
     statusByDate.forEach((status: EntryStatus, dateStr: string) => {
       const date = new Date(dateStr)
       const dates = datesByStatus.get(status) || []
@@ -57,36 +59,42 @@ export function MiniCalendar({ month, selectedDate, onSelectDate, onMonthChange,
   }, [statusByDate])
 
   return (
-    <div className="w-80 p-4 border rounded-lg">
+    <div className="w-fit p-4 border rounded-lg">
       <Calendar
         mode="single"
-        selected={selectedDate}
-        onSelect={(d) => d && onSelectDate(d)}
+        selected={date}
+        onSelect={(d) => d && navigate({
+          to: "/time-entries",
+          search: {date: d, month: month}
+        })}
         month={month}
-        onMonthChange={onMonthChange}
+        onMonthChange={(m) => navigate({
+          to: "/time-entries",
+          search: {date: date, month: m}
+        })}
         modifiers={modifiers}
         modifiersStyles={{
-          draft: { backgroundColor: '#fef3c7' },
-          submitted: { backgroundColor: '#d1fae5' },
-          approved: { backgroundColor: '#dbeafe' },
-          rejected: { backgroundColor: '#fee2e2' },
+          draft: {backgroundColor: '#fef3c7'},
+          submitted: {backgroundColor: '#d1fae5'},
+          approved: {backgroundColor: '#dbeafe'},
+          rejected: {backgroundColor: '#fee2e2'},
         }}
       />
-      <div className="mt-3 flex flex-wrap gap-3 text-xs">
+      <div className="mt-3 flex flex-col gap-3 text-xs">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-yellow-100" />
+          <div className="w-3 h-3 rounded bg-yellow-100"/>
           <span>Draft</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-green-100" />
+          <div className="w-3 h-3 rounded bg-green-100"/>
           <span>Submitted</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-blue-100" />
+          <div className="w-3 h-3 rounded bg-blue-100"/>
           <span>Approved</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-red-100" />
+          <div className="w-3 h-3 rounded bg-red-100"/>
           <span>Rejected</span>
         </div>
       </div>

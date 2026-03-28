@@ -1,5 +1,4 @@
 import { type TimeEntryItem } from '@/src/types'
-import { useProjects } from '@/src/hooks'
 import { Input } from '@/src/components/ui/input'
 import { Button } from '@/src/components/ui/button'
 import { XIcon } from 'lucide-react'
@@ -11,7 +10,7 @@ import {
   SelectValue,
 } from '@/src/components/ui/select'
 import type {ChangeEvent} from "react";
-import {useQuery} from "@tanstack/react-query";
+import {useQuery, useSuspenseQuery} from "@tanstack/react-query";
 import {ProjectsApis} from "@/src/api/projects.ts";
 
 interface EntryRowProps {
@@ -23,7 +22,7 @@ interface EntryRowProps {
 }
 
 export function EntryRow({ item, index, editable, onUpdate, onRemove }: EntryRowProps) {
-  const { data: projects } = useQuery(ProjectsApis.projectsQueryOpts)
+  const { data: projects } = useSuspenseQuery(ProjectsApis.projectsQueryOpts("all"))
 
   return (
     <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">

@@ -1,18 +1,17 @@
-import { useState } from 'react'
-import { format } from 'date-fns'
-import { type TimeEntry, type TimeEntryItem } from '@/src/types'
-import { Button } from '@/src/components/ui/button.tsx'
-import { StatusBadge } from './status-badge.tsx'
-import { EntryRow } from './entry-row.tsx'
-import {useMutation} from "@tanstack/react-query";
+import {useState} from 'react'
+import {format} from 'date-fns'
+import {type TimeEntryItem} from '@/src/types'
+import {Button} from '@/src/components/ui/button.tsx'
+import {StatusBadge} from './status-badge.tsx'
+import {EntryRow} from './entry-row.tsx'
+import {useMutation, useSuspenseQuery} from "@tanstack/react-query";
 import {TimeEntriesApis} from "@/src/api/time-entries.ts";
+import {useSearch} from "@tanstack/react-router";
 
-interface EntryDetailProps {
-  date: Date
-  entry: TimeEntry | null | undefined
-}
 
-export function EntryDetail({ date, entry }: EntryDetailProps) {
+export function EntryDetail() {
+  const {date} = useSearch({from: "/_authenticated/time-entries/"})
+  const {data: entry} = useSuspenseQuery(TimeEntriesApis.timeEntryQueryOpts(date))
   const createEntry = useMutation(TimeEntriesApis.createTimeEntryMutationOpts)
   const updateEntry = useMutation(TimeEntriesApis.updateTimeEntryMutationOpts)
   const deleteEntry = useMutation(TimeEntriesApis.deleteTimeEntryMutationOpts)
