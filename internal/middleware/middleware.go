@@ -3,8 +3,7 @@ package middleware
 import (
 	"context"
 	"net/http"
-	"strings"
-
+	"github.com/google/uuid"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
 	"github.com/stefanoprivitera/hourglass/pkg/api"
 )
@@ -20,19 +19,13 @@ const (
 
 func Auth(authService *auth.Service, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			api.RespondWithError(w, http.StatusUnauthorized, "missing authorization header")
+		cookie, err := r.Cookie("access_token")
+		if err != nil {
+			api.RespondWithError(w, http.StatusUnauthorized, "missing access token")
 			return
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			api.RespondWithError(w, http.StatusUnauthorized, "invalid authorization header format")
-			return
-		}
-
-		claims, err := authService.ValidateToken(parts[1])
+		claims, err := authService.ValidateToken(cookie.Value)
 		if err != nil {
 			api.RespondWithError(w, http.StatusUnauthorized, "invalid or expired token")
 			return
@@ -68,18 +61,17 @@ func RequireRole(roles []string, next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func GetUserID(ctx context.Context) string {
-	if userID, ok := ctx.Value(UserIDKey).(string); ok {
-		return userID
-	}
-	return ""
+func GetUserID(ctx context.Context) uuid.UUID {
+    if userID, ok := ctx.Value(UserIDKey).(uuid.UUID); ok {
+        return userID
+    }
+    return uuid.UUID{}
 }
-
-func GetOrganizationID(ctx context.Context) string {
-	if orgID, ok := ctx.Value(OrganizationIDKey).(string); ok {
-		return orgID
-	}
-	return ""
+func GetOrganizationID(ctx context.Context) uuid.UUID {
+    if orgID, ok := ctx.Value(OrganizationIDKey).(uuid.UUID); ok {
+        return orgID
+    }
+    return uuid.UUID{}
 }
 
 func GetRole(ctx context.Context) string {

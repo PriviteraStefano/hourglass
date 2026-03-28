@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/stefanoprivitera/hourglass/internal/auth"
 	"github.com/stefanoprivitera/hourglass/internal/db"
@@ -35,6 +36,8 @@ func main() {
 	contractHandler := handlers.NewContractHandler(database.DB)
 	projectHandler := handlers.NewProjectHandler(database.DB)
 	timeEntryHandler := handlers.NewTimeEntryHandler(database.DB)
+	expenseHandler := handlers.NewExpenseHandler(database.DB)
+	approvalHandler := handlers.NewApprovalHandler(database.DB)
 
 	mux := http.NewServeMux()
 
@@ -42,6 +45,8 @@ func main() {
 	mux.HandleFunc("POST /auth/login", userHandler.Login)
 	mux.HandleFunc("POST /auth/logout", userHandler.Logout)
 	mux.HandleFunc("POST /auth/activate", userHandler.Activate)
+	mux.HandleFunc("POST /auth/refresh", userHandler.Refresh)
+	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, userHandler.GetProfile))
 
 	mux.HandleFunc("POST /organizations", middleware.Auth(authService, orgHandler.Create))
 	mux.HandleFunc("GET /organizations/{id}", middleware.Auth(authService, orgHandler.Get))
@@ -64,28 +69,85 @@ func main() {
 	mux.HandleFunc("DELETE /time-entries/{id}", middleware.Auth(authService, timeEntryHandler.Delete))
 	mux.HandleFunc("GET /time-entries/monthly-summary", middleware.Auth(authService, timeEntryHandler.MonthlySummary))
 
+	mux.HandleFunc("GET /expenses", middleware.Auth(authService, expenseHandler.List))
+	mux.HandleFunc("POST /expenses", middleware.Auth(authService, expenseHandler.Create))
+	mux.HandleFunc("GET /expenses/{id}", middleware.Auth(authService, expenseHandler.Get))
+	mux.HandleFunc("PUT /expenses/{id}", middleware.Auth(authService, expenseHandler.Update))
+	mux.HandleFunc("DELETE /expenses/{id}", middleware.Auth(authService, expenseHandler.Delete))
+	mux.HandleFunc("GET /expenses/monthly-summary", middleware.Auth(authService, expenseHandler.MonthlySummary))
+	mux.HandleFunc("GET /expenses/receipts/{id}", middleware.Auth(authService, expenseHandler.GetReceipt))
+
+	mux.HandleFunc("POST /time-entries/{id}/submit", middleware.Auth(authService, approvalHandler.SubmitTimeEntry))
+	mux.HandleFunc("POST /time-entries/submit-month", middleware.Auth(authService, approvalHandler.SubmitTimeEntryMonth))
+	mux.HandleFunc("POST /expenses/{id}/submit", middleware.Auth(authService, approvalHandler.SubmitExpense))
+	mux.HandleFunc("POST /expenses/submit-month", middleware.Auth(authService, approvalHandler.SubmitExpenseMonth))
+
+	mux.HandleFunc("GET /time-entries/pending-approval", middleware.Auth(authService, approvalHandler.GetPendingTimeEntries))
+	mux.HandleFunc("GET /expenses/pending-approval", middleware.Auth(authService, approvalHandler.GetPendingExpenses))
+
+	mux.HandleFunc("POST /time-entries/{id}/approve", middleware.Auth(authService, approvalHandler.ApproveTimeEntry))
+	mux.HandleFunc("POST /time-entries/{id}/reject", middleware.Auth(authService, approvalHandler.RejectTimeEntry))
+	mux.HandleFunc("POST /expenses/{id}/approve", middleware.Auth(authService, approvalHandler.ApproveExpense))
+	mux.HandleFunc("POST /expenses/{id}/reject", middleware.Auth(authService, approvalHandler.RejectExpense))
+
+	mux.HandleFunc("POST /time-entries/{id}/edit-approve", middleware.Auth(authService, approvalHandler.EditApproveTimeEntry))
+	mux.HandleFunc("POST /time-entries/{id}/edit-return", middleware.Auth(authService, approvalHandler.EditReturnTimeEntry))
+	mux.HandleFunc("POST /expenses/{id}/edit-approve", middleware.Auth(authService, approvalHandler.EditApproveExpense))
+	mux.HandleFunc("POST /expenses/{id}/edit-return", middleware.Auth(authService, approvalHandler.EditReturnExpense))
+
+	mux.HandleFunc("POST /time-entries/{id}/partial-approve", middleware.Auth(authService, approvalHandler.PartialApproveTimeEntry))
+	mux.HandleFunc("POST /time-entries/{id}/delegate", middleware.Auth(authService, approvalHandler.DelegateTimeEntry))
+	mux.HandleFunc("POST /time-entries/batch-approve", middleware.Auth(authService, approvalHandler.BatchApproveTimeEntries))
+	mux.HandleFunc("POST /time-entries/batch-reject", middleware.Auth(authService, approvalHandler.BatchRejectTimeEntries))
+	mux.HandleFunc("POST /expenses/{id}/partial-approve", middleware.Auth(authService, approvalHandler.PartialApproveExpense))
+	mux.HandleFunc("POST /expenses/{id}/delegate", middleware.Auth(authService, approvalHandler.DelegateExpense))
+	mux.HandleFunc("POST /expenses/batch-approve", middleware.Auth(authService, approvalHandler.BatchApproveExpenses))
+	mux.HandleFunc("POST /expenses/batch-reject", middleware.Auth(authService, approvalHandler.BatchRejectExpenses))
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
+	allowedOriginsEnv := os.Getenv("ALLOWED_ORIGINS")
+	var allowedOrigins []string
+	if allowedOriginsEnv != "" {
+		allowedOrigins = strings.Split(allowedOriginsEnv, ",")
+	} else {
+		allowedOrigins = []string{"http://localhost:3000"}
+	}
+
 	log.Printf("Server starting on port %s", port)
-	if err := http.ListenAndServe(":"+port, corsMiddleware(mux)); err != nil {
+	if err := http.ListenAndServe(":"+port, corsMiddleware(allowedOrigins)(mux)); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
 
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			allowed := false
+			for _, o := range allowedOrigins {
+				if o == origin || o == "*" {
+					allowed = true
+					break
+				}
+			}
 
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
+			if allowed {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			}
 
-		next.ServeHTTP(w, r)
-	})
+			if r.Method == "OPTIONS" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }

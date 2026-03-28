@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
+	"github.com/stefanoprivitera/hourglass/internal/cookies"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
 	"github.com/stefanoprivitera/hourglass/internal/models"
 	"github.com/stefanoprivitera/hourglass/pkg/api"
@@ -44,8 +45,7 @@ type ActivateRequest struct {
 }
 
 type AuthResponse struct {
-	User  models.UserWithMembership `json:"user"`
-	Token string                    `json:"token"`
+	User models.UserWithMembership `json:"user"`
 }
 
 func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
@@ -113,16 +113,36 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	accessToken, err := h.authService.GenerateToken(userID, orgID, string(models.RoleFinance), req.Email)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate access token")
+		return
+	}
+
+	refreshToken, err := h.authService.GenerateRefreshToken()
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate refresh token")
+		return
+	}
+
+	refreshTokenHash := auth.HashRefreshToken(refreshToken)
+	_, err = tx.Exec(`
+		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+		VALUES ($1, $2, $3)
+	`, userID, refreshTokenHash, now.Add(auth.RefreshTokenExpiry))
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to store refresh token")
+		return
+	}
+
 	if err = tx.Commit(); err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to commit transaction")
 		return
 	}
 
-	token, err := h.authService.GenerateToken(userID, orgID, string(models.RoleFinance), req.Email)
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate token")
-		return
-	}
+	secure := cookies.IsSecureRequest(r)
+	cookies.SetAccessTokenCookie(w, accessToken, secure)
+	cookies.SetRefreshTokenCookie(w, refreshToken, secure)
 
 	response := AuthResponse{
 		User: models.UserWithMembership{
@@ -146,7 +166,6 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 				CreatedAt: now,
 			},
 		},
-		Token: token,
 	}
 
 	api.RespondWithJSON(w, http.StatusCreated, response)
@@ -213,11 +232,32 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.authService.GenerateToken(userID, orgID, role, req.Email)
+	accessToken, err := h.authService.GenerateToken(userID, orgID, role, req.Email)
 	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate token")
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate access token")
 		return
 	}
+
+	refreshToken, err := h.authService.GenerateRefreshToken()
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate refresh token")
+		return
+	}
+
+	refreshTokenHash := auth.HashRefreshToken(refreshToken)
+	now := time.Now()
+	_, err = h.db.Exec(`
+		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+		VALUES ($1, $2, $3)
+	`, userID, refreshTokenHash, now.Add(auth.RefreshTokenExpiry))
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to store refresh token")
+		return
+	}
+
+	secure := cookies.IsSecureRequest(r)
+	cookies.SetAccessTokenCookie(w, accessToken, secure)
+	cookies.SetRefreshTokenCookie(w, refreshToken, secure)
 
 	var orgName string
 	err = h.db.QueryRow(`SELECT name FROM organizations WHERE id = $1`, orgID).Scan(&orgName)
@@ -246,13 +286,19 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 				Name: orgName,
 			},
 		},
-		Token: token,
 	}
 
 	api.RespondWithJSON(w, http.StatusOK, response)
 }
 
 func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	refreshToken, err := cookies.GetRefreshTokenFromCookie(r)
+	if err == nil {
+		tokenHash := auth.HashRefreshToken(refreshToken)
+		_, _ = h.db.Exec(`UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = $1`, tokenHash)
+	}
+
+	cookies.ClearAuthCookies(w)
 	api.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "logged out successfully"})
 }
 
@@ -340,6 +386,135 @@ func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		User: models.UserWithMembership{
 			User:         user,
 			Organization: org,
+		},
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, response)
+}
+
+func (h *UserHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	refreshToken, err := cookies.GetRefreshTokenFromCookie(r)
+	if err != nil {
+		api.RespondWithError(w, http.StatusUnauthorized, "missing refresh token")
+		return
+	}
+
+	tokenHash := auth.HashRefreshToken(refreshToken)
+
+	var userID uuid.UUID
+	var expiresAt time.Time
+	var revokedAt sql.NullTime
+
+	err = h.db.QueryRow(`
+		SELECT user_id, expires_at, revoked_at
+		FROM refresh_tokens
+		WHERE token_hash = $1
+	`, tokenHash).Scan(&userID, &expiresAt, &revokedAt)
+	if err == sql.ErrNoRows {
+		api.RespondWithError(w, http.StatusUnauthorized, "invalid refresh token")
+		return
+	}
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+
+	if revokedAt.Valid {
+		api.RespondWithError(w, http.StatusUnauthorized, "refresh token has been revoked")
+		return
+	}
+
+	if time.Now().After(expiresAt) {
+		api.RespondWithError(w, http.StatusUnauthorized, "refresh token has expired")
+		return
+	}
+
+	var email string
+	var name string
+	err = h.db.QueryRow(`SELECT email, name FROM users WHERE id = $1`, userID).Scan(&email, &name)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch user")
+		return
+	}
+
+	var membershipID uuid.UUID
+	var orgID uuid.UUID
+	var role string
+	err = h.db.QueryRow(`
+		SELECT id, organization_id, role
+		FROM organization_memberships
+		WHERE user_id = $1 AND is_active = true
+		LIMIT 1
+	`, userID).Scan(&membershipID, &orgID, &role)
+	if err == sql.ErrNoRows {
+		api.RespondWithError(w, http.StatusInternalServerError, "no active organization membership")
+		return
+	}
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+
+	accessToken, err := h.authService.GenerateToken(userID, orgID, role, email)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate access token")
+		return
+	}
+
+	newRefreshToken, err := h.authService.GenerateRefreshToken()
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate refresh token")
+		return
+	}
+
+	newTokenHash := auth.HashRefreshToken(newRefreshToken)
+	_, err = h.db.Exec(`
+		UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = $1
+	`, tokenHash)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to revoke old token")
+		return
+	}
+
+	_, err = h.db.Exec(`
+		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+		VALUES ($1, $2, $3)
+	`, userID, newTokenHash, time.Now().Add(auth.RefreshTokenExpiry))
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to store new refresh token")
+		return
+	}
+
+	secure := cookies.IsSecureRequest(r)
+	cookies.SetAccessTokenCookie(w, accessToken, secure)
+	cookies.SetRefreshTokenCookie(w, newRefreshToken, secure)
+
+	var orgName string
+	err = h.db.QueryRow(`SELECT name FROM organizations WHERE id = $1`, orgID).Scan(&orgName)
+	if err != nil {
+		orgName = ""
+	}
+
+	response := AuthResponse{
+		User: models.UserWithMembership{
+			User: models.User{
+				ID:        userID,
+				Email:     email,
+				Name:      name,
+				IsActive:  true,
+				CreatedAt: time.Now(),
+			},
+			Membership: models.OrganizationMembership{
+				ID:             membershipID,
+				UserID:         userID,
+				OrganizationID: orgID,
+				Role:           models.Role(role),
+				IsActive:       true,
+			},
+			Organization: models.Organization{
+				ID:   orgID,
+				Name: orgName,
+			},
 		},
 	}
 
