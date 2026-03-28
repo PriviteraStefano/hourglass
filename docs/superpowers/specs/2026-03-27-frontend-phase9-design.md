@@ -36,7 +36,7 @@ This phase delivers a working frontend for the most common user journey: logging
 | Build Tool | Vite |
 | Routing | TanStack Router |
 | State Management | TanStack Query (server state) |
-| Forms | TanStack Form + Zod |
+| Forms | React Hook Form + Zod |
 | Styling | Tailwind CSS |
 | UI Components | Shadcn/UI (Radix-based) |
 | Date Handling | date-fns |
@@ -46,23 +46,43 @@ This phase delivers a working frontend for the most common user journey: logging
 ```json
 {
   "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "@tanstack/react-router": "^1.x",
-    "@tanstack/react-query": "^5.x",
-    "@tanstack/react-form": "^0.x",
-    "zod": "^3.x",
-    "tailwindcss": "^4.x",
-    "date-fns": "^3.x",
-    "@radix-ui/react-dropdown-menu": "^2.x",
-    "@radix-ui/react-dialog": "^1.x",
-    "@radix-ui/react-select": "^2.x"
+    "@base-ui/react": "^1.3.0",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@hookform/resolvers": "^5.2.2",
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/react-query": "^5.95.2",
+    "@tanstack/react-router": "^1.168.7",
+    "@tanstack/router-plugin": "^1.167.8",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^1.7.0",
+    "next-themes": "^0.4.6",
+    "react": "^19.2.4",
+    "react-day-picker": "^9.14.0",
+    "react-dom": "^19.2.4",
+    "react-hook-form": "^7.72.0",
+    "shadcn": "^4.1.1",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.2",
+    "tw-animate-css": "^1.4.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "vite": "^6.x",
-    "typescript": "^5.x",
-    "@types/react": "^19.x",
-    "@types/react-dom": "^19.x"
+    "@eslint/js": "^9.39.4",
+    "@tanstack/eslint-plugin-query": "^5.95.2",
+    "@types/node": "^24.12.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.57.0",
+    "vite": "^8.0.1"
   }
 }
 ```
@@ -75,58 +95,45 @@ This phase delivers a working frontend for the most common user journey: logging
 web/
 ├── src/
 │   ├── components/
-│   │   ├── ui/                    # Shadcn/UI components
-│   │   │   ├── button.tsx
-│   │   │   ├── input.tsx
-│   │   │   ├── select.tsx
-│   │   │   ├── dialog.tsx
-│   │   │   └── toast.tsx
-│   │   ├── layout/
-│   │   │   ├── AppShell.tsx       # Main layout wrapper
-│   │   │   ├── Sidebar.tsx        # Navigation sidebar
-│   │   │   └── Header.tsx         # Top bar with user menu
-│   │   ├── time-entries/
-│   │   │   ├── MiniCalendar.tsx   # Month grid for navigation
-│   │   │   ├── EntryDetail.tsx    # Selected day's entry editor
-│   │   │   ├── EntryRow.tsx       # Single project/hours row
-│   │   │   ├── StatusBadge.tsx    # Draft/submitted/approved badge
-│   │   │   └── MonthSummaryBar.tsx # Totals and status counts
-│   │   └── auth/
-│   │       ├── LoginForm.tsx
-│   │       └── RegisterForm.tsx
-│   ├── pages/
-│   │   ├── LoginPage.tsx
-│   │   ├── RegisterPage.tsx
-│   │   ├── TimeEntriesPage.tsx    # Main calendar view
-│   │   └── DashboardPage.tsx      # Landing after login
+│   │   ├── layout/                # app-shell, header, sidebar
+│   │   └── ui/                    # Shadcn/UI components
 │   ├── routes/
-│   │   ├── __root.tsx             # Root layout
-│   │   ├── _authenticated.tsx     # Protected route group
-│   │   ├── login.tsx
-│   │   ├── register.tsx
-│   │   └── _authenticated/
-│   │       ├── index.tsx          # Dashboard
-│   │       └── time-entries.tsx
+│   │   ├── __root.tsx             # Root layout + QueryClient context
+│   │   ├── _authenticated.tsx     # Protected route guard
+│   │   ├── _authenticated/
+│   │   │   ├── index.tsx          # Dashboard placeholder
+│   │   │   └── time-entries/
+│   │   │       ├── index.tsx      # Time entries page
+│   │   │       └── -components/   # mini-calendar, entry-detail, etc.
+│   │   └── (auth)/
+│   │       ├── login/
+│   │       │   ├── index.tsx      # Login route
+│   │       │   └── -components/
+│   │       └── register/
+│   │           ├── index.tsx      # Register route
+│   │           └── -components/
+│   ├── api/
+│   │   ├── auth.ts               # Auth query/mutation options
+│   │   ├── projects.ts           # Project query options
+│   │   └── time-entries.ts       # Time entry query/mutation options
 │   ├── hooks/
-│   │   ├── useAuth.ts             # Auth state + actions
-│   │   ├── useTimeEntries.ts      # Monthly summary query
-│   │   ├── useTimeEntry.ts        # Single entry query
-│   │   └── useProjects.ts         # Projects for dropdown
+│   │   ├── index.ts              # Thin hook re-exports
+│   │   ├── useProjects.ts        # Wrapper around ProjectsApis
+│   │   └── useTimeEntries.ts     # Wrappers around TimeEntriesApis
 │   ├── lib/
-│   │   ├── api.ts                 # Base fetch wrapper
-│   │   ├── query-client.ts        # TanStack Query config
-│   │   └── utils.ts               # Helper functions
+│   │   ├── api.ts                # Base fetch wrapper (returns response.data)
+│   │   ├── query-client.ts       # Preset QueryClient config
+│   │   └── utils.ts              # Helper functions
 │   ├── types/
-│   │   ├── api.ts                 # API response types
-│   │   └── models.ts              # Domain models
-│   ├── main.tsx                   # Entry point
-│   └── routeTree.gen.ts           # Generated by TanStack Router
+│   │   ├── api.ts                # API response types
+│   │   └── models.ts            # Domain models
+│   ├── main.tsx                 # Entry point
+│   └── routeTree.gen.ts         # Generated by TanStack Router
 ├── index.html
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
-├── tailwind.config.js
-└── components.json                # Shadcn/UI config
+└── components.json              # Shadcn/UI config
 ```
 
 ---
@@ -138,38 +145,48 @@ TanStack Router with type-safe routes and built-in loader support.
 ### Route Tree
 
 ```
-/                           → Redirect to /time-entries (if authed) or /login
-/login                      → LoginPage (public)
-/register                   → RegisterPage (public)
-/_authenticated             → Layout with AppShell
-  /_authenticated/          → DashboardPage (placeholder)
-  /_authenticated/time-entries → TimeEntriesPage
+/(auth)/login               → LoginForm (public)
+/(auth)/register            → RegisterForm (public)
+/_authenticated             → Layout with AppShell + auth hydration
+  /_authenticated/          → Dashboard (placeholder)
+  /_authenticated/time-entries/ → TimeEntriesPage
 ```
 
 ### Route Definitions
 
 **`routes/__root.tsx`**
 ```tsx
-import { createRootRoute, Outlet } from '@tanstack/react-router'
+import {createRootRouteWithContext, Outlet} from '@tanstack/react-router'
+import {Toaster} from '@/src/components/ui/sonner.tsx'
+import type {QueryClient} from '@tanstack/react-query'
 
-export const Route = createRootRoute({
-  component: () => <Outlet />,
+interface RouterContext {
+  client: QueryClient
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({
+  component: () => (
+    <>
+      <Outlet />
+      <Toaster />
+    </>
+  ),
 })
 ```
 
 **`routes/_authenticated.tsx`**
 ```tsx
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
-import { AppShell } from '@/components/layout/AppShell'
-import { getAuth } from '@/lib/api'
+import {createFileRoute, Outlet, redirect} from '@tanstack/react-router'
+import {AppShell} from '@/src/components/layout/app-shell.tsx'
+import {AuthApis} from '@/src/api/auth.ts'
 
 export const Route = createFileRoute('/_authenticated')({
-  beforeLoad: async () => {
-    const auth = await getAuth()
-    if (!auth) {
-      throw redirect({ to: '/login' })
+  beforeLoad: async ({context: {client}}) => {
+    try {
+      await client.fetchQuery(AuthApis.profileQueryOpts)
+    } catch {
+      throw redirect({to: '/login'})
     }
-    return { auth }
   },
   component: () => (
     <AppShell>
@@ -179,18 +196,23 @@ export const Route = createFileRoute('/_authenticated')({
 })
 ```
 
-**`routes/login.tsx`**
+**`routes/(auth)/login/index.tsx`**
 ```tsx
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { LoginPage } from '@/pages/LoginPage'
+import {createFileRoute, redirect} from '@tanstack/react-router'
+import {getAuthToken} from '@/src/lib/api.ts'
+import {LoginForm} from '@/src/routes/(auth)/login/-components/login-form.tsx'
 
-export const Route = createFileRoute('/login')({
-  beforeLoad: async ({ context }) => {
-    if (context.auth) {
-      throw redirect({ to: '/time-entries' })
+export const Route = createFileRoute('/(auth)/login/')({
+  beforeLoad: async () => {
+    if (getAuthToken()) {
+      throw redirect({to: '/time-entries'})
     }
   },
-  component: LoginPage,
+  component: () => (
+    <div className="min-h-screen flex items-center justify-center bg-muted/30">
+      <LoginForm />
+    </div>
+  ),
 })
 ```
 
@@ -200,11 +222,11 @@ export const Route = createFileRoute('/login')({
 
 ### Auth Flow
 
-1. **Register**: POST `/auth/register` → creates org + admin user → returns JWT
+1. **Register**: POST `/auth/register` → creates an organization and initial membership → returns JWT
 2. **Login**: POST `/auth/login` → returns JWT
 3. **Token Storage**: localStorage (`auth_token`)
-4. **Auth Check**: GET `/auth/me` (or decode JWT locally)
-5. **Logout**: Clear localStorage, redirect to `/login`
+4. **Auth Check**: `AuthApis.profileQueryOpts` calls GET `/auth/me` during `/_authenticated` `beforeLoad` (the route is not yet registered in `cmd/server/main.go`)
+5. **Logout**: `AuthApis.logoutMutationOpts` clears the query cache and token; the server also acknowledges `POST /auth/logout`
 
 ### API Client
 
@@ -238,42 +260,35 @@ export async function api<T>(
     throw new Error(error.message || error.error || 'Request failed')
   }
 
-  return res.json()
+  return (await res.json()).data
 }
 ```
 
-### useAuth Hook
+### Auth API Modules
 
 ```tsx
-export function useAuth() {
-  const queryClient = useQueryClient()
-  
-  const { data: user, isLoading } = useQuery({
+export const AuthApis = {
+  profileQueryOpts: queryOptions({
     queryKey: ['auth', 'me'],
-    queryFn: () => api<User>('/auth/me'),
+    queryFn: () => api<UserWithMembership>('/auth/me'),
     retry: false,
-    staleTime: Infinity,
-  })
-
-  const login = useMutation({
-    mutationFn: (creds: { email: string; password: string }) =>
-      api<{ user: UserWithMembership; token: string }>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(creds),
-      }),
-    onSuccess: ({ user, token }) => {
-      localStorage.setItem('auth_token', token)
-      queryClient.setQueryData(['auth', 'me'], user)
-    },
-  })
-
-  const logout = () => {
-    localStorage.removeItem('auth_token')
-    queryClient.clear()
-    router.navigate({ to: '/login' })
-  }
-
-  return { user, isLoading, login, logout }
+    staleTime: 5 * 60 * 1000,
+  }),
+  loginMutationOpts: mutationOptions({
+    mutationFn: (creds: LoginRequest) => api<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(creds),
+    }),
+  }),
+  registerMutationOpts: mutationOptions({
+    mutationFn: (data: RegisterRequest) => api<AuthResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  }),
+  logoutMutationOpts: mutationOptions({
+    mutationFn: () => api<{ message: string }>('/auth/logout', { method: 'POST' }),
+  }),
 }
 ```
 
@@ -451,33 +466,64 @@ interface MiniCalendarProps {
   month: Date
   selectedDate: Date
   onSelectDate: (date: Date) => void
+  onMonthChange: (date: Date) => void
   summary: TimeEntryMonthlySummary | undefined
 }
 
-export function MiniCalendar({ month, selectedDate, onSelectDate, summary }: MiniCalendarProps) {
-  const days = getDaysInMonth(month)
+interface DaySummary {
+  date: string
+  has_approved: boolean
+  has_rejected: boolean
+  has_submitted: boolean
+  has_draft: boolean
+}
+
+function inferStatus(day: DaySummary): EntryStatus | null {
+  if (day.has_approved) return 'approved'
+  if (day.has_rejected) return 'rejected'
+  if (day.has_submitted) return 'submitted'
+  if (day.has_draft) return 'draft'
+  return null
+}
+
+export function MiniCalendar({ month, selectedDate, onSelectDate, onMonthChange, summary }: MiniCalendarProps) {
   const statusByDate = useMemo(() => {
     const map = new Map<string, EntryStatus>()
-    summary?.days.forEach(d => {
-      map.set(d.date, inferStatus(d))
+    summary?.days.forEach((d: DaySummary) => {
+      const status = inferStatus(d)
+      if (status) {
+        map.set(d.date, status)
+      }
     })
     return map
   }, [summary])
 
+  const modifiers = useMemo(() => {
+    const datesByStatus = new Map<EntryStatus, Date[]>()
+    statusByDate.forEach((status: EntryStatus, dateStr: string) => {
+      const date = new Date(dateStr)
+      const dates = datesByStatus.get(status) || []
+      dates.push(date)
+      datesByStatus.set(status, dates)
+    })
+
+    return {
+      draft: datesByStatus.get('draft') || [],
+      submitted: datesByStatus.get('submitted') || [],
+      approved: datesByStatus.get('approved') || [],
+      rejected: datesByStatus.get('rejected') || [],
+    }
+  }, [statusByDate])
+
   return (
-    <div className="w-64 p-4 border rounded-lg">
+    <div className="w-80 p-4 border rounded-lg">
       <Calendar
         mode="single"
         selected={selectedDate}
         onSelect={(d) => d && onSelectDate(d)}
         month={month}
-        onMonthChange={() => {}}
-        modifiers={{
-          draft: datesWithStatus('draft', statusByDate),
-          submitted: datesWithStatus('submitted', statusByDate),
-          approved: datesWithStatus('approved', statusByDate),
-          rejected: datesWithStatus('rejected', statusByDate),
-        }}
+        onMonthChange={onMonthChange}
+        modifiers={modifiers}
         modifiersStyles={{
           draft: { backgroundColor: '#fef3c7' },
           submitted: { backgroundColor: '#d1fae5' },
@@ -485,11 +531,23 @@ export function MiniCalendar({ month, selectedDate, onSelectDate, summary }: Min
           rejected: { backgroundColor: '#fee2e2' },
         }}
       />
-      <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        <Legend color="bg-yellow-100" label="Draft" />
-        <Legend color="bg-green-100" label="Submitted" />
-        <Legend color="bg-blue-100" label="Approved" />
-        <Legend color="bg-red-100" label="Rejected" />
+      <div className="mt-3 flex flex-wrap gap-3 text-xs">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded bg-yellow-100" />
+          <span>Draft</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded bg-green-100" />
+          <span>Submitted</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded bg-blue-100" />
+          <span>Approved</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded bg-red-100" />
+          <span>Rejected</span>
+        </div>
       </div>
     </div>
   )
@@ -516,23 +574,69 @@ export function EntryDetail({ date, entry }: EntryDetailProps) {
   const updateEntry = useUpdateTimeEntry()
   const deleteEntry = useDeleteTimeEntry()
   const submitEntry = useSubmitEntry()
-  
-  const form = useForm({
-    defaultValues: {
-      items: entry?.items ?? [{ projectId: '', hours: 0, description: '' }]
-    },
-    validators: {
-      onChange: entrySchema
-    }
-  })
+
+  const [items, setItems] = useState<TimeEntryItem[]>(
+    entry?.items ?? [{ id: '', time_entry_id: '', project_id: '', hours: 0, description: '' }]
+  )
 
   const isEditable = !entry || entry.status === 'draft' || entry.status === 'rejected'
-  
+  const totalHours = items.reduce((sum, item) => sum + item.hours, 0)
+
+  const handleCreate = () => {
+    createEntry.mutate({
+      date: format(date, 'yyyy-MM-dd'),
+      items: items.map((item) => ({
+        project_id: item.project_id,
+        hours: item.hours,
+        description: item.description,
+      })),
+    })
+  }
+
+  const handleUpdate = () => {
+    if (entry) {
+      updateEntry.mutate({
+        id: entry.id,
+        items: items.map((item) => ({
+          project_id: item.project_id,
+          hours: item.hours,
+          description: item.description,
+        })),
+      })
+    }
+  }
+
+  const handleDelete = () => {
+    if (entry && confirm('Are you sure you want to delete this entry?')) {
+      deleteEntry.mutate(entry.id)
+    }
+  }
+
+  const handleSubmit = () => {
+    if (entry) {
+      submitEntry.mutate(entry.id)
+    }
+  }
+
+  const handleAddRow = () => {
+    setItems([...items, { id: '', time_entry_id: '', project_id: '', hours: 0, description: '' }])
+  }
+
+  const handleRemoveRow = (index: number) => {
+    setItems(items.filter((_, i) => i !== index))
+  }
+
+  const handleUpdateItem = (index: number, field: keyof TimeEntryItem, value: string | number) => {
+    const newItems = [...items]
+    newItems[index] = { ...newItems[index], [field]: value }
+    setItems(newItems)
+  }
+
   if (!entry) {
     return (
-      <div className="flex-1 flex items-center justify-center border rounded-lg">
-        <Button onClick={() => createEntry.mutate({ date })}>
-          Create Entry for {format(date, 'MMMM d')}
+      <div className="flex-1 flex items-center justify-center border rounded-lg p-8">
+        <Button onClick={handleCreate} disabled={createEntry.isPending}>
+          {createEntry.isPending ? 'Creating...' : `Create Entry for ${format(date, 'MMMM d')}`}
         </Button>
       </div>
     )
@@ -548,52 +652,53 @@ export function EntryDetail({ date, entry }: EntryDetailProps) {
           <div className="flex items-center gap-2 mt-1">
             <StatusBadge status={entry.status} />
             <span className="text-sm text-muted-foreground">
-              Total: {calculateTotal(entry.items)}h
+              Total: {totalHours}h
             </span>
           </div>
         </div>
         {isEditable && (
-          <Button variant="destructive" size="sm" onClick={() => deleteEntry.mutate(entry.id)}>
+          <Button variant="destructive" size="sm" onClick={handleDelete}>
             Delete
           </Button>
         )}
       </div>
 
-      <form onSubmit={form.handleSubmit(onSubmit)}>
-        <div className="space-y-2">
-          {form.field('items').map((item, index) => (
-            <EntryRow
-              key={index}
-              item={item}
-              index={index}
-              editable={isEditable}
-              onRemove={() => form.removeItem(index)}
-            />
-          ))}
-        </div>
+      <div className="space-y-2">
+        {items.map((item, index) => (
+          <EntryRow
+            key={index}
+            item={item}
+            index={index}
+            editable={isEditable}
+            onUpdate={handleUpdateItem}
+            onRemove={handleRemoveRow}
+          />
+        ))}
+      </div>
 
-        {isEditable && (
-          <Button variant="outline" size="sm" className="mt-3" onClick={addRow}>
-            + Add Project Row
+      {isEditable && (
+        <Button variant="outline" size="sm" className="mt-3" onClick={handleAddRow}>
+          + Add Project Row
+        </Button>
+      )}
+
+      {isEditable && (
+        <div className="mt-4 flex gap-2">
+          <Button 
+            onClick={handleUpdate}
+            disabled={totalHours === 0 || updateEntry.isPending}
+          >
+            {updateEntry.isPending ? 'Saving...' : 'Save Draft'}
           </Button>
-        )}
-
-        {isEditable && (
-          <div className="mt-4 flex gap-2">
-            <Button type="submit" disabled={totalHours === 0}>
-              Save Draft
-            </Button>
-            <Button 
-              type="button"
-              variant="default"
-              disabled={totalHours === 0}
-              onClick={() => submitEntry.mutate(entry.id)}
-            >
-              Submit Entry
-            </Button>
-          </div>
-        )}
-      </form>
+          <Button
+            variant="default"
+            disabled={totalHours === 0 || submitEntry.isPending}
+            onClick={handleSubmit}
+          >
+            {submitEntry.isPending ? 'Submitting...' : 'Submit Entry'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -675,25 +780,9 @@ const entrySchema = z.object({
 })
 ```
 
-### TanStack Form Integration
+### Form Handling
 
-```tsx
-const form = useForm({
-  defaultValues: {
-    items: entry?.items ?? [{ projectId: '', hours: 0, description: '' }]
-  },
-  validators: {
-    onChange: entrySchema
-  },
-  onSubmit: async ({ value }) => {
-    if (entry) {
-      await updateEntry.mutateAsync({ id: entry.id, ...value })
-    } else {
-      await createEntry.mutateAsync({ date, ...value })
-    }
-  }
-})
-```
+The time-entry editor keeps row state locally with `useState`, computes `totalHours` from the current rows, and only enables save/submit actions when the entry has at least one valid hour. Validation is enforced through UI guards rather than a shared schema-driven form controller.
 
 ---
 
@@ -702,30 +791,23 @@ const form = useForm({
 ### Query Hooks
 
 ```tsx
-export function useTimeEntries(month: number, year: number) {
-  return useQuery({
-    queryKey: ['time-entries', 'monthly', month, year],
-    queryFn: () => api<TimeEntryMonthlySummary>(
-      `/time-entries/monthly-summary?month=${month}&year=${year}`
-    ),
-  })
-}
-
-export function useTimeEntry(date: Date) {
-  return useQuery({
-    queryKey: ['time-entries', format(date, 'yyyy-MM-dd')],
-    queryFn: () => api<TimeEntry>(
-      `/time-entries?date=${format(date, 'yyyy-MM-dd')}`
-    ),
-  })
-}
-
-export function useProjects() {
-  return useQuery({
+export const ProjectsApis = {
+  projectsQueryOpts: queryOptions({
     queryKey: ['projects'],
     queryFn: () => api<Project[]>('/projects?scope=all'),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  })
+    staleTime: 5 * 60 * 1000,
+  }),
+}
+
+export const TimeEntriesApis = {
+  timeEntriesMonthlySummaryQueryOpts: (month: number, year: number) => queryOptions({
+    queryKey: ['time-entries', 'monthly', month, year],
+    queryFn: () => api<TimeEntryMonthlySummary>(`/time-entries/monthly-summary?month=${month}&year=${year}`),
+  }),
+  timeEntryQueryOpts: (date: Date) => queryOptions({
+    queryKey: ['time-entries', format(date, 'yyyy-MM-dd')],
+    queryFn: () => api<TimeEntry>(`/time-entries?date=${format(date, 'yyyy-MM-dd')}`),
+  }),
 }
 ```
 
@@ -733,75 +815,27 @@ export function useProjects() {
 
 ```tsx
 export function useCreateTimeEntry() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: (data: CreateEntryRequest) =>
-      api<TimeEntry>('/time-entries', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['time-entries'] })
-    },
-  })
+  return useMutation(TimeEntriesApis.createTimeEntryMutationOpts)
 }
 
 export function useUpdateTimeEntry() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: ({ id, ...data }: UpdateEntryRequest) =>
-      api<TimeEntry>(`/time-entries/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['time-entries'] })
-    },
-  })
+  return useMutation(TimeEntriesApis.updateTimeEntryMutationOpts)
 }
 
 export function useDeleteTimeEntry() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: (id: string) =>
-      api(`/time-entries/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['time-entries'] })
-    },
-  })
+  return useMutation(TimeEntriesApis.deleteTimeEntryMutationOpts)
 }
 
 export function useSubmitEntry() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: (id: string) =>
-      api<TimeEntry>(`/time-entries/${id}/submit`, { method: 'POST' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['time-entries'] })
-      toast.success('Entry submitted for approval')
-    },
-  })
+  return useMutation(TimeEntriesApis.submitTimeEntryMutationOpts)
 }
 
 export function useSubmitMonth() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: ({ month, year }: { month: number; year: number }) =>
-      api(`/time-entries/submit-month?month=${month}&year=${year}`, {
-        method: 'POST',
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['time-entries'] })
-      toast.success('All drafts submitted')
-    },
-  })
+  return useMutation(TimeEntriesApis.submitMonthMutationOpts)
 }
 ```
+
+`web/src/hooks/index.ts` stays as a thin compatibility layer, while the actual query and mutation definitions live in `web/src/api/*.ts`.
 
 ---
 
@@ -812,7 +846,7 @@ export function useSubmitMonth() {
 ```tsx
 function MonthSummaryBar({ month, onMonthChange, summary }: MonthSummaryBarProps) {
   const submitMonth = useSubmitMonth()
-  const draftCount = summary?.days.filter(d => d.hasDraft).length ?? 0
+  const draftCount = summary?.days.filter((d: { has_draft: boolean }) => d.has_draft).length ?? 0
   
   return (
     <div className="flex items-center justify-between">

@@ -1,2 +1,11 @@
 bin/
 main
+
+# Frontend dependencies and generated artifacts
+web/node_modules/
+web/dist/
+web/.tanstack/
+
+# OS/editor noise
+.DS_Store
+web/.DS_Store
