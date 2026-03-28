@@ -1,12 +1,19 @@
 package auth
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+)
+
+const (
+	AccessTokenExpiry  = 15 * time.Minute
+	RefreshTokenExpiry = 7 * 24 * time.Hour
 )
 
 var (
@@ -52,7 +59,7 @@ func (s *Service) GenerateToken(userID, organizationID uuid.UUID, role, email st
 		Role:           role,
 		Email:          email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTokenExpiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 		},
@@ -87,6 +94,11 @@ func (s *Service) ValidateToken(tokenString string) (*Claims, error) {
 
 func (s *Service) GenerateRefreshToken() (string, error) {
 	return uuid.New().String(), nil
+}
+
+func HashRefreshToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
 }
 
 func (s *Service) GenerateActivationToken() (string, error) {
