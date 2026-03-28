@@ -45,7 +45,7 @@ Durable decisions that apply across all phases:
 
 ---
 
-## Phase 1: Project Foundation & Auth
+## Phase 1: Project Foundation & Auth ✅
 
 **User stories**: User registration, login, organization creation, multi-tenant isolation
 
@@ -55,22 +55,28 @@ Set up the Go backend project with PostgreSQL connection, run migrations, and im
 
 ### Acceptance criteria
 
-- [ ] Go project initialized with stdlib net/http server
-- [ ] PostgreSQL connection pool configured
-- [ ] Migration runner set up (plain SQL files)
-- [ ] `users` table created
-- [ ] `organizations` table created
-- [ ] `organization_memberships` table created
-- [ ] `POST /auth/register` - creates org + admin user, returns JWT
-- [ ] `POST /auth/login` - validates credentials, returns JWT
-- [ ] `POST /auth/logout` - invalidates token (optional: token blocklist)
-- [ ] JWT middleware extracts user ID and org membership
-- [ ] RBAC middleware checks role per endpoint
-- [ ] All queries filter by `organization_id` where applicable
+- [x] Go project initialized with stdlib net/http server
+- [x] PostgreSQL connection pool configured
+- [x] Migration runner set up (plain SQL files)
+- [x] `users` table created
+- [x] `organizations` table created
+- [x] `organization_memberships` table created
+- [x] `POST /auth/register` - creates org + admin user, returns JWT
+- [x] `POST /auth/login` - validates credentials, returns JWT
+- [x] `POST /auth/logout` - invalidates token (refresh token revocation)
+- [x] JWT middleware extracts user ID and org membership
+- [x] RBAC middleware checks role per endpoint
+- [x] All queries filter by `organization_id` where applicable
+
+**Additional implemented:**
+- [x] `GET /auth/me` - get current user profile
+- [x] `POST /auth/refresh` - refresh tokens
+- [x] `POST /auth/activate` - activate invited user account
+- [x] Refresh tokens stored in `refresh_tokens` table with httpOnly cookies
 
 ---
 
-## Phase 2: Contract & Project Management (Shared Resources)
+## Phase 2: Contract & Project Management (Shared Resources) ✅
 
 **User stories**: Create contracts, create projects, adopt shared resources, governance model metadata
 
@@ -80,23 +86,23 @@ Implement the shared resources catalog. Users can create contracts and projects 
 
 ### Acceptance criteria
 
-- [ ] `contracts` table created
-- [ ] `projects` table created
-- [ ] `contract_adoptions` table created
-- [ ] `project_adoptions` table created
-- [ ] `POST /contracts` - create contract with governance_model, is_shared
-- [ ] `GET /contracts?scope=owned|adopted|all` - list contracts
-- [ ] `GET /contracts/:id` - get contract details
-- [ ] `POST /contracts/:id/adopt` - adopt a shared contract
-- [ ] `POST /projects` - create project linked to contract
-- [ ] `GET /projects?scope=owned|adopted|all&contract_id` - list projects
-- [ ] `GET /projects/:id` - get project details
-- [ ] `POST /projects/:id/adopt` - adopt a shared project
-- [ ] Adopted resources appear in org's workspace but entries remain org-scoped
+- [x] `contracts` table created
+- [x] `projects` table created
+- [x] `contract_adoptions` table created
+- [x] `project_adoptions` table created
+- [x] `POST /contracts` - create contract with governance_model, is_shared
+- [x] `GET /contracts?scope=owned|adopted|all` - list contracts
+- [x] `GET /contracts/:id` - get contract details
+- [x] `POST /contracts/:id/adopt` - adopt a shared contract
+- [x] `POST /projects` - create project linked to contract
+- [x] `GET /projects?scope=owned|adopted|all&contract_id` - list projects
+- [x] `GET /projects/:id` - get project details
+- [x] `POST /projects/:id/adopt` - adopt a shared project
+- [x] Adopted resources appear in org's workspace but entries remain org-scoped
 
 ---
 
-## Phase 3: Time Entry CRUD + Draft Workflow
+## Phase 3: Time Entry CRUD + Draft Workflow ✅
 
 **User stories**: Create daily time entries, edit drafts, view monthly summary, delete drafts
 
@@ -106,21 +112,21 @@ Implement time tracking with multiple project entries per day. Users can create,
 
 ### Acceptance criteria
 
-- [ ] `time_entries` table created
-- [ ] `time_entry_items` table created
-- [ ] `POST /time-entries` - create entry with multiple items (draft status)
-- [ ] `GET /time-entries?date=X` - list entries for a date
-- [ ] `GET /time-entries/:id` - get entry with items
-- [ ] `PUT /time-entries/:id` - update items (draft only)
-- [ ] `DELETE /time-entries/:id` - delete draft entry
-- [ ] `GET /time-entries/monthly-summary?month=X&year=Y` - calendar view with totals
-- [ ] Validation: max 24 hours per day per user
-- [ ] Employees can only see/edit own entries
-- [ ] Managers/Finance can view team/all entries
+- [x] `time_entries` table created
+- [x] `time_entry_items` table created
+- [x] `POST /time-entries` - create entry with multiple items (draft status)
+- [x] `GET /time-entries?date=X` - list entries for a date
+- [x] `GET /time-entries/:id` - get entry with items
+- [x] `PUT /time-entries/:id` - update items (draft only)
+- [x] `DELETE /time-entries/:id` - delete draft entry
+- [x] `GET /time-entries/monthly-summary?month=X&year=Y` - calendar view with totals
+- [x] Validation: max 24 hours per day per user
+- [x] Employees can only see/edit own entries
+- [x] Managers/Finance can view team/all entries
 
 ---
 
-## Phase 4: Expense Entry CRUD + Receipts
+## Phase 4: Expense Entry CRUD + Receipts ✅
 
 **User stories**: Create daily expenses with receipts, edit drafts, view monthly summary
 
@@ -130,23 +136,26 @@ Implement expense tracking with file upload support. Users can create expense en
 
 ### Acceptance criteria
 
-- [ ] `expenses` table created
-- [ ] `expense_items` table created
-- [ ] `expense_receipts` table created
-- [ ] `POST /expenses` (multipart) - create entry with items + receipt files
-- [ ] `GET /expenses?date=X` - list entries for a date
-- [ ] `GET /expenses/:id` - get entry with items and receipts
-- [ ] `PUT /expenses/:id` (multipart) - update items + receipts (draft only)
-- [ ] `DELETE /expenses/:id` - delete draft entry
-- [ ] `GET /expenses/monthly-summary?month=X&year=Y` - summary by category
-- [ ] File upload: save to `/uploads/receipts/{year}/{month}/{uuid}.{ext}`
-- [ ] File validation: jpg, png, pdf only, max 10MB
-- [ ] Mileage auto-calc: `amount = km_distance * contract.km_rate`
-- [ ] Employees can only see/edit own entries
+- [x] `expenses` table created
+- [x] `expense_items` table created
+- [x] `expense_receipts` table created
+- [x] `POST /expenses` (multipart) - create entry with items + receipt files
+- [x] `GET /expenses?date=X` - list entries for a date
+- [x] `GET /expenses/:id` - get entry with items and receipts
+- [x] `PUT /expenses/:id` (multipart) - update items + receipts (draft only)
+- [x] `DELETE /expenses/:id` - delete draft entry
+- [x] `GET /expenses/monthly-summary?month=X&year=Y` - summary by category
+- [x] File upload: save to `/uploads/receipts/{year}/{month}/{uuid}.{ext}`
+- [x] File validation: jpg, png, pdf only, max 10MB
+- [x] Mileage auto-calc: `amount = km_distance * contract.km_rate`
+- [x] Employees can only see/edit own entries
+
+**Additional implemented:**
+- [x] `GET /expenses/receipts/{id}` - download receipt file
 
 ---
 
-## Phase 5: Approval Workflow
+## Phase 5: Approval Workflow ✅ (Backend)
 
 **User stories**: Submit entries, manager approval, finance approval, rejection, edit & return, batch operations, delegate, partial approval
 
@@ -156,32 +165,35 @@ Implement the full approval chain from draft to approved. Users submit entries i
 
 ### Acceptance criteria
 
-- [ ] `time_entry_approvals` table created
-- [ ] `expense_approvals` table created
-- [ ] Add `pending_manager`, `pending_finance` statuses to entry tables
-- [ ] Add `current_approver_role` column to entry tables
-- [ ] `POST /time-entries/:id/submit` - single entry → pending_manager
-- [ ] `POST /time-entries/submit-month` - batch submit all drafts for month
-- [ ] `POST /expenses/:id/submit` - single expense → pending_manager
-- [ ] `POST /expenses/submit-month` - batch submit all drafts for month
-- [ ] `GET /time-entries/pending-approval` - list grouped by user/month
-- [ ] `GET /expenses/pending-approval` - list grouped by user/month
-- [ ] `POST /time-entries/:id/approve` - pass to next level or finalize
-- [ ] `POST /time-entries/:id/reject` - return to author with comment
-- [ ] `POST /time-entries/:id/edit-approve` - modify then approve
-- [ ] `POST /time-entries/:id/edit-return` - modify, send back for confirmation
-- [ ] `POST /time-entries/:id/partial-approve` - approve some items, flag others
-- [ ] `POST /time-entries/:id/delegate` - forward to another approver at same level
-- [ ] `POST /time-entries/batch-approve` - approve multiple entries
-- [ ] `POST /time-entries/batch-reject` - reject multiple entries
-- [ ] Same endpoints for expenses
-- [ ] Auto-skip: if author is manager, skip manager level
-- [ ] Auto-skip: if author is finance, skip finance level
-- [ ] Audit trail: every action creates approval record with changes (JSONB)
+- [x] `time_entry_approvals` table created
+- [x] `expense_approvals` table created
+- [x] Add `pending_manager`, `pending_finance` statuses to entry tables
+- [x] Add `current_approver_role` column to entry tables
+- [x] `POST /time-entries/:id/submit` - single entry → pending_manager
+- [x] `POST /time-entries/submit-month` - batch submit all drafts for month
+- [x] `POST /expenses/:id/submit` - single expense → pending_manager
+- [x] `POST /expenses/submit-month` - batch submit all drafts for month
+- [x] `GET /time-entries/pending-approval` - list grouped by user/month
+- [x] `GET /expenses/pending-approval` - list grouped by user/month
+- [x] `POST /time-entries/:id/approve` - pass to next level or finalize
+- [x] `POST /time-entries/:id/reject` - return to author with comment
+- [x] `POST /time-entries/:id/edit-approve` - modify then approve
+- [x] `POST /time-entries/:id/edit-return` - modify, send back for confirmation
+- [x] `POST /time-entries/:id/partial-approve` - approve some items, flag others
+- [x] `POST /time-entries/:id/delegate` - forward to another approver at same level
+- [x] `POST /time-entries/batch-approve` - approve multiple entries
+- [x] `POST /time-entries/batch-reject` - reject multiple entries
+- [x] Same endpoints for expenses
+- [x] Auto-skip: if author is manager, skip manager level
+- [x] Auto-skip: if author is finance, skip finance level
+- [x] Audit trail: every action creates approval record with changes (JSONB)
+
+**Additional implemented:**
+- [x] `backup_approvers` table for delegation targets
 
 ---
 
-## Phase 6: Governance Edit Flow
+## Phase 6: Governance Edit Flow ⏳
 
 **User stories**: Request edits to shared contracts/projects, voting, approval thresholds
 
@@ -207,9 +219,11 @@ Implement the edit request flow for shared resources. Users propose changes, eli
 - [ ] Same endpoints for projects
 - [ ] Platform admin role can force approve/reject
 
+**Note:** Database schema supports governance models (`creator_controlled`, `unanimous`, `majority`) but edit request workflow not implemented.
+
 ---
 
-## Phase 7: Customer Access
+## Phase 7: Customer Access ⏳
 
 **User stories**: Admin invites customer, customer activation, customer view-only access
 
@@ -222,16 +236,18 @@ Implement the customer role with restricted access. Admins create customer accou
 - [ ] `customer_contract_access` table created
 - [ ] `POST /organizations/:id/invite-customer` - create customer with assigned contracts
 - [ ] Generate activation token, store in `organization_memberships.invited_at`
-- [ ] `POST /auth/activate` - customer sets password, activates account
+- [x] `POST /auth/activate` - customer sets password, activates account (backend exists)
 - [ ] Activation link expires after 7 days
 - [ ] `GET /customer/contracts` - list assigned contracts only
 - [ ] `GET /customer/contracts/:id/summary?month=X&year=Y` - time/expense totals
 - [ ] Customer role cannot see other org members, settings, or unassigned contracts
 - [ ] Customer cannot submit, approve, or edit anything
 
+**Note:** `customer` role exists in DB. `OrganizationHandler.InviteCustomer` stub exists but not wired to route.
+
 ---
 
-## Phase 8: CSV Exports
+## Phase 8: CSV Exports ⏳
 
 **User stories**: Export timesheets, expenses, combined report
 
@@ -255,7 +271,7 @@ Implement CSV export endpoints matching the spec column format. Access is contro
 
 ---
 
-## Phase 9: Frontend Foundation
+## Phase 9: Frontend Foundation ✅
 
 **User stories**: Login UI, org creation, basic navigation
 
@@ -265,22 +281,22 @@ Set up the React frontend with auth flow, organization context, and basic layout
 
 ### Acceptance criteria
 
-- [ ] React 19 + TypeScript + Vite project initialized
-- [ ] Shadcn/UI + BaseUI components configured
-- [ ] React Query for data fetching
-- [ ] React Hook Form + Zod for form validation
-- [ ] Login page with email/password
-- [ ] Register page (creates org + admin user)
+- [x] React 19 + TypeScript + Vite project initialized
+- [x] Shadcn/UI + BaseUI components configured
+- [x] React Query for data fetching
+- [x] React Hook Form + Zod for form validation
+- [x] Login page with email/password
+- [x] Register page (creates org + admin user)
 - [ ] Activation page for invited users/customers
-- [ ] Auth state persisted (localStorage)
-- [ ] Organization context provider
-- [ ] Layout with sidebar navigation
-- [ ] Protected routes requiring auth
-- [ ] Logout functionality
+- [x] Auth state persisted (localStorage)
+- [x] Organization context provider
+- [x] Layout with sidebar navigation
+- [x] Protected routes requiring auth
+- [x] Logout functionality
 
 ---
 
-## Phase 10: Frontend - Time Entry & Expense Entry
+## Phase 10: Frontend - Time Entry & Expense Entry ⏳ (Time Entry Done)
 
 **User stories**: Time entry form, expense entry form with receipts, monthly calendar view, submit all for month
 
@@ -290,19 +306,23 @@ Implement the core entry forms for time and expenses. Users see a monthly calend
 
 ### Acceptance criteria
 
-- [ ] Monthly calendar view showing days with entries
-- [ ] Time entry form with multiple project rows
+#### Time Entry (Done)
+- [x] Monthly calendar view showing days with entries
+- [x] Time entry form with multiple project rows
+- [x] Draft entries highlighted in calendar
+- [x] Click day to view/edit entries
+- [x] Entry status badges (draft, pending, approved, rejected)
+- [x] Form validation (max 24 hours, required fields)
+
+#### Expense Entry (Not Done)
 - [ ] Expense entry form with category dropdown, km distance input, file dropzone
-- [ ] Draft entries highlighted in calendar
-- [ ] Click day to view/edit entries
 - [ ] Receipt preview/download
 - [ ] "Submit All for Month" button with confirmation
-- [ ] Entry status badges (draft, pending, approved, rejected)
-- [ ] Form validation (max 24 hours, required fields, file type/size)
+- [ ] File type/size validation UI
 
 ---
 
-## Phase 11: Frontend - Approval Workflow
+## Phase 11: Frontend - Approval Workflow ⏳
 
 **User stories**: Pending approval list, approve/reject actions, batch operations, edit & return, partial approval
 
@@ -327,7 +347,7 @@ Implement the approver dashboard. Managers and Finance see pending entries group
 
 ---
 
-## Phase 12: Frontend - Contracts & Projects
+## Phase 12: Frontend - Contracts & Projects ✅
 
 **User stories**: Create/adopt contracts and projects, view shared catalog, governance model selection
 
@@ -337,19 +357,27 @@ Implement the shared resources management UI. Users can view owned/adopted/all c
 
 ### Acceptance criteria
 
-- [ ] Contracts list with tabs: Owned, Adopted, All (shared catalog)
-- [ ] Projects list with tabs and filter by contract
-- [ ] Create Contract modal: name, km_rate, currency, governance_model, is_shared checkbox
-- [ ] Create Project modal: name, type, contract selector, governance_model, is_shared
-- [ ] "Adopt" button on shared resources
-- [ ] Adopted badge on adopted resources
-- [ ] Governance model explanation tooltip
-- [ ] Contract/Project detail page
-- [ ] Edit button (creates edit request for shared resources)
+- [x] Contracts list with tabs: Owned, Adopted, All (shared catalog)
+- [x] Projects list with tabs and filter by contract
+- [x] Create Contract modal: name, km_rate, currency, governance_model, is_shared checkbox
+- [x] Create Project modal: name, type, contract selector, governance_model, is_shared
+- [x] "Adopt" button on shared resources
+- [x] Adopted badge on adopted resources
+- [x] Governance model explanation tooltip
+- [x] Contract/Project detail page
+- [x] Edit button (disabled, "Coming soon" tooltip - edit flow for shared resources is Phase 6)
+
+**Additional implemented:**
+- [x] Search by name for contracts and projects
+- [x] "Already adopted" badge in All tab for adopted items
+- [x] Adopted from [Org Name] text in Adopted tab
+- [x] Shared/private indicator (icon) on list rows
+- [x] Type badge (Billable/Internal) on project rows
+- [x] Backend updated to include `created_by_org_name` and `is_adopted`
 
 ---
 
-## Phase 13: Frontend - Customer View & Exports
+## Phase 13: Frontend - Customer View & Exports ⏳
 
 **User stories**: Customer dashboard, admin customer management, CSV downloads
 
@@ -368,3 +396,32 @@ Implement the customer experience and export functionality. Customers see their 
 - [ ] Download CSV triggers browser download
 - [ ] Combined export option
 - [ ] Export respects role permissions (filtered data)
+
+---
+
+## Summary
+
+| Phase | Description | Backend | Frontend | Status |
+|-------|-------------|---------|----------|--------|
+| 1 | Auth & Foundation | ✅ | ✅ | **Complete** |
+| 2 | Contracts & Projects | ✅ | ✅ | **Complete** |
+| 3 | Time Entry CRUD | ✅ | ✅ | **Complete** |
+| 4 | Expense Entry CRUD | ✅ | ❌ | **Backend Done** |
+| 5 | Approval Workflow | ✅ | ❌ | **Backend Done** |
+| 6 | Governance Edit Flow | ❌ | ❌ | Not Started |
+| 7 | Customer Access | ⚠️ | ❌ | Partial (activation only) |
+| 8 | CSV Exports | ❌ | ❌ | Not Started |
+| 9 | Frontend Foundation | - | ✅ | **Complete** |
+| 10 | Time/Expense Entry UI | - | ⚠️ | Time Entry Done |
+| 11 | Approval Workflow UI | - | ❌ | Not Started |
+| 12 | Contracts & Projects UI | - | ✅ | **Complete** |
+| 13 | Customer & Exports UI | - | ❌ | Not Started |
+
+### Next Steps (Priority Order)
+
+1. **Phase 10 (Frontend Expenses)** - Complete expense entry UI
+2. **Phase 11 (Frontend Approvals)** - Approver dashboard for managers/finance
+3. **Phase 8 (Backend Exports)** - CSV export endpoints
+4. **Phase 7 (Customer Access)** - Complete customer invitation flow
+5. **Phase 6 (Governance)** - Edit request workflow for shared resources
+6. **Phase 13 (Frontend Customer/Exports)** - Customer view and export UI
