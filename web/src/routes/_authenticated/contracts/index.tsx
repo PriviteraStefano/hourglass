@@ -6,5 +6,6 @@ export const Route = createFileRoute('/_authenticated/contracts/')({
   component: ContractList,
   validateSearch: z.object({
     tab: tabsSchema.optional().default('owned'),
+    searchQuery: z.string().optional().default(''),
   })
 })

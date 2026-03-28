@@ -1,9 +1,9 @@
 import {useState} from 'react'
 import {useNavigate} from '@tanstack/react-router'
-import {useQuery, useMutation} from '@tanstack/react-query'
-import {Button} from '@/src/components/ui/button'
-import {Input} from '@/src/components/ui/input'
-import {Checkbox} from '@/src/components/ui/checkbox'
+import {useMutation, useQuery} from '@tanstack/react-query'
+import {Button} from '@/components/ui/button'
+import {Input} from '@/components/ui/input'
+import {Checkbox} from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -11,17 +11,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/src/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/src/components/ui/select'
-import {ProjectsApis} from '@/src/api/projects'
-import {ContractsApis} from '@/src/api/contracts'
-import type {Project} from '@/src/types/models'
+} from '@/components/ui/dialog'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from '@/components/ui/select'
+import {ProjectsApis} from '@/api/projects'
+import {ContractsApis} from '@/api/contracts'
+import type {Project} from '@/types/models'
 
 const GOVERNANCE_OPTIONS = [
   {
@@ -167,7 +161,7 @@ export function CreateProjectDialog({open, onOpenChange, onSuccess}: CreateProje
             <Checkbox
               id="project-is-shared"
               checked={isShared}
-              onCheckedChange={(checked) => setIsShared(checked === true)}
+              onCheckedChange={(checked) => setIsShared(checked)}
             />
             <label htmlFor="project-is-shared" className="text-sm">
               Share with other organizations

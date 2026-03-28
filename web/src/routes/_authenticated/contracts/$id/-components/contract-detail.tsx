@@ -1,12 +1,12 @@
 import {useNavigate} from '@tanstack/react-router'
 import {useSuspenseQuery} from '@tanstack/react-query'
 import {ArrowLeftIcon, GlobeIcon, LockIcon} from 'lucide-react'
-import {Button} from '@/src/components/ui/button.tsx'
-import {Badge} from '@/src/components/ui/badge.tsx'
-import {Card, CardContent, CardHeader, CardTitle} from '@/src/components/ui/card.tsx'
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,} from '@/src/components/ui/tooltip.tsx'
-import {ContractsApis} from '@/src/api/contracts.ts'
-import {Route} from "@/src/routes/_authenticated/contracts/$id";
+import {Button} from '@/components/ui/button.tsx'
+import {Badge} from '@/components/ui/badge.tsx'
+import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card.tsx'
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,} from '@/components/ui/tooltip.tsx'
+import {ContractsApis} from '@/api/contracts.ts'
+import {Route} from "@/routes/_authenticated/contracts/$id";
 
 export function ContractDetail() {
   const {id} = Route.useParams()

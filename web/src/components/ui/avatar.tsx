@@ -1,7 +1,9 @@
-import * as React from "react"
-import { Avatar as AvatarPrimitive } from "@base-ui/react/avatar"
+"use client"
 
-import { cn } from "@/lib/utils.ts"
+import * as React from "react"
+import {Avatar as AvatarPrimitive} from "@base-ui/react/avatar"
+
+import {cn} from "@/lib/utils"
 
 function Avatar({
   className,

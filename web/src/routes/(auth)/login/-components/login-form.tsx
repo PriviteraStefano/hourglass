@@ -1,12 +1,12 @@
 import {useForm} from 'react-hook-form'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {z} from 'zod'
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/src/components/ui/card'
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card'
 import {Link, useNavigate} from '@tanstack/react-router'
-import {Button} from "@/src/components/ui/button.tsx";
-import {Input} from "@/src/components/ui/input.tsx";
+import {Button} from "@/components/ui/button.tsx";
+import {Input} from "@/components/ui/input.tsx";
 import {useMutation} from "@tanstack/react-query";
-import {AuthApis} from "@/src/api/auth.ts";
+import {AuthApis} from "@/api/auth.ts";
 import {toast} from "sonner";
 
 const loginSchema = z.object({

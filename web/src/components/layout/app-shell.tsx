@@ -1,11 +1,7 @@
-import { AppSidebar } from './sidebar.tsx'
-import { Header } from './header.tsx'
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from '@/src/components/ui/sidebar'
-import { Separator } from '@/src/components/ui/separator'
+import {AppSidebar} from './sidebar.tsx'
+import {Header} from './header.tsx'
+import {SidebarInset, SidebarProvider, SidebarTrigger,} from '@/components/ui/sidebar'
+import {Separator} from '@/components/ui/separator'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (

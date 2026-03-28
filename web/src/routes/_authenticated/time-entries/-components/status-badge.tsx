@@ -1,5 +1,5 @@
-import { type EntryStatus } from '@/src/types'
-import { cn } from '@/lib/utils.ts'
+import {type EntryStatus} from '@/types'
+import {cn} from '@/lib/utils.ts'
 
 interface StatusBadgeProps {
   status: EntryStatus

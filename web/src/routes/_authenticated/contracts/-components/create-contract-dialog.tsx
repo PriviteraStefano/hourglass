@@ -1,9 +1,6 @@
 import {useState} from 'react'
 import {useNavigate} from '@tanstack/react-router'
 import {useMutation} from '@tanstack/react-query'
-import {Button} from '@/src/components/ui/button'
-import {Input} from '@/src/components/ui/input'
-import {Checkbox} from '@/src/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -11,16 +8,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/src/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/src/components/ui/select'
-import {ContractsApis} from '@/src/api/contracts'
-import type {Contract} from '@/src/types/models'
+} from '@/components/ui/dialog.tsx'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from '@/components/ui/select'
+import {ContractsApis} from '@/api/contracts'
+import type {Contract} from '@/types/models'
+import {Button} from "@/components/ui/button.tsx";
+import {Input} from "@/components/ui/input.tsx";
+import {Checkbox} from "@/components/ui/checkbox.tsx";
 
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD']
 
@@ -105,6 +99,7 @@ export function CreateContractDialog({open, onOpenChange, onSuccess}: CreateCont
           <div className="space-y-2">
             <label className="text-sm font-medium">Name *</label>
             <Input
+
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Contract name"
@@ -161,7 +156,7 @@ export function CreateContractDialog({open, onOpenChange, onSuccess}: CreateCont
             <Checkbox
               id="is-shared"
               checked={isShared}
-              onCheckedChange={(checked) => setIsShared(checked === true)}
+              onCheckedChange={(checked) => setIsShared(checked)}
             />
             <label htmlFor="is-shared" className="text-sm">
               Share with other organizations

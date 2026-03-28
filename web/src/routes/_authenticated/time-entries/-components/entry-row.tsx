@@ -1,17 +1,11 @@
-import { type TimeEntryItem } from '@/src/types'
-import { Input } from '@/src/components/ui/input'
-import { Button } from '@/src/components/ui/button'
-import { XIcon } from 'lucide-react'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/src/components/ui/select'
+import {type TimeEntryItem} from '@/types'
+import {Input} from '@/components/ui/input'
+import {Button} from '@/components/ui/button'
+import {XIcon} from 'lucide-react'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from '@/components/ui/select'
 import type {ChangeEvent} from "react";
-import {useQuery, useSuspenseQuery} from "@tanstack/react-query";
-import {ProjectsApis} from "@/src/api/projects.ts";
+import {useSuspenseQuery} from "@tanstack/react-query";
+import {ProjectsApis} from "@/api/projects.ts";
 
 interface EntryRowProps {
   item: TimeEntryItem

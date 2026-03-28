@@ -1,8 +1,8 @@
 import {createFileRoute} from '@tanstack/react-router'
-import {TimeEntriesPage} from "@/src/routes/_authenticated/time-entries/-components/time-entries-page.tsx";
+import {TimeEntriesPage} from "@/routes/_authenticated/time-entries/-components/time-entries-page.tsx";
 import {z} from "zod";
-import {TimeEntriesApis} from "@/src/api/time-entries.ts";
-import {ProjectsApis} from "@/src/api/projects.ts";
+import {TimeEntriesApis} from "@/api/time-entries.ts";
+import {ProjectsApis} from "@/api/projects.ts";
 
 export const Route = createFileRoute('/_authenticated/time-entries/')({
   validateSearch: z.object({

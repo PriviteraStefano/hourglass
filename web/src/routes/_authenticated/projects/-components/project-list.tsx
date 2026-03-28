@@ -1,11 +1,11 @@
 import {useState} from 'react'
 import {useNavigate} from '@tanstack/react-router'
-import {useQuery, useMutation} from '@tanstack/react-query'
-import {PlusIcon, SearchIcon, GlobeIcon, LockIcon} from 'lucide-react'
-import {Button} from '@/src/components/ui/button'
-import {Input} from '@/src/components/ui/input'
-import {Badge} from '@/src/components/ui/badge'
-import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/src/components/ui/tabs'
+import {useMutation, useQuery} from '@tanstack/react-query'
+import {GlobeIcon, LockIcon, PlusIcon, SearchIcon} from 'lucide-react'
+import {Button} from '@/components/ui/button'
+import {Input} from '@/components/ui/input'
+import {Badge} from '@/components/ui/badge'
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -13,8 +13,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/src/components/ui/dialog'
-import {ProjectsApis} from '@/src/api/projects'
+} from '@/components/ui/dialog'
+import {ProjectsApis} from '@/api/projects'
 import {CreateProjectDialog} from './create-project-dialog'
 import type {Project} from '@/src/types/models'
 

@@ -1,16 +1,11 @@
 import {useNavigate} from '@tanstack/react-router'
 import {useQuery} from '@tanstack/react-query'
 import {ArrowLeftIcon, GlobeIcon, LockIcon} from 'lucide-react'
-import {Button} from '@/src/components/ui/button'
-import {Badge} from '@/src/components/ui/badge'
-import {Card, CardContent, CardHeader, CardTitle} from '@/src/components/ui/card'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/src/components/ui/tooltip'
-import {ProjectsApis} from '@/src/api/projects'
+import {Button} from '@/components/ui/button'
+import {Badge} from '@/components/ui/badge'
+import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card'
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,} from '@/components/ui/tooltip'
+import {ProjectsApis} from '@/api/projects'
 import type {Project} from '@/src/types/models'
 
 interface ProjectDetailProps {

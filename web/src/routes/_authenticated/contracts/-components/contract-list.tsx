@@ -1,11 +1,10 @@
 import {useState} from 'react'
 import {useNavigate, useSearch} from '@tanstack/react-router'
-import {useQuery, useMutation, useSuspenseQuery} from '@tanstack/react-query'
-import {PlusIcon, SearchIcon, GlobeIcon, LockIcon} from 'lucide-react'
-import {Button} from '@/src/components/ui/button'
-import {Input} from '@/src/components/ui/input'
-import {Badge} from '@/src/components/ui/badge'
-import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/src/components/ui/tabs'
+import {useMutation, useSuspenseQuery} from '@tanstack/react-query'
+import {GlobeIcon, LockIcon, PlusIcon, SearchIcon} from 'lucide-react'
+import {Button} from '@/components/ui/button'
+import {Badge} from '@/components/ui/badge'
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -13,20 +12,20 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/src/components/ui/dialog'
-import {ContractsApis} from '@/src/api/contracts'
+} from '@/components/ui/dialog'
+import {ContractsApis} from '@/api/contracts'
 import {CreateContractDialog} from './create-contract-dialog'
-import type {Contract} from '@/src/types/models'
+import type {Contract} from '@/types/models'
 import {z} from "zod";
+import {InputGroup, InputGroupAddon, InputGroupInput,} from "@/components/ui/input-group.tsx"
 
 export const tabsSchema = z.enum(['owned', 'adopted', 'all'])
 export type TabType = z.infer<typeof tabsSchema>
 
 export function ContractList() {
   const navigate = useNavigate()
-  const {tab} = useSearch({from: "/_authenticated/contracts/"})
+  const {tab, searchQuery} = useSearch({from: "/_authenticated/contracts/"})
 
-  const [searchQuery, setSearchQuery] = useState('')
   const [adoptDialogOpen, setAdoptDialogOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
@@ -70,17 +69,21 @@ export function ContractList() {
   return (
     <>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold">Contracts</h1>
+        <h1 className="text-lg font-semibold">Contracts</h1>
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground"/>
-            <Input
+          <InputGroup>
+            <InputGroupInput
               placeholder="Search contracts..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-64 pl-8"
+              onChange={(e) => navigate({
+                to: '/contracts',
+                search: {tab, searchQuery: e.target.value}
+              })}
             />
-          </div>
+            <InputGroupAddon>
+              <SearchIcon/>
+            </InputGroupAddon>
+          </InputGroup>
           {tab === 'owned' && (
             <Button onClick={() => setCreateDialogOpen(true)}>
               <PlusIcon className="w-4 h-4 mr-1"/>

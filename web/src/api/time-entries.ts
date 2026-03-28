@@ -1,13 +1,8 @@
 import {mutationOptions, queryOptions} from '@tanstack/react-query'
 import {format} from 'date-fns'
 import {toast} from 'sonner'
-import {api} from '@/src/lib/api.ts'
-import type {
-  CreateTimeEntryRequest,
-  TimeEntry,
-  TimeEntryMonthlySummary,
-  UpdateTimeEntryRequest,
-} from '@/src/types'
+import {api} from '@/lib/api.ts'
+import type {CreateTimeEntryRequest, TimeEntry, TimeEntryMonthlySummary, UpdateTimeEntryRequest,} from '@/types'
 
 function timeEntriesQueryKey(month: number, year: number) {
   return ['time-entries', 'monthly', month, year] as const

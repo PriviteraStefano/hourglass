@@ -1,11 +1,11 @@
 import {useState} from 'react'
 import {format} from 'date-fns'
-import {type TimeEntryItem} from '@/src/types'
-import {Button} from '@/src/components/ui/button.tsx'
+import {type TimeEntryItem} from '@/types'
+import {Button} from '@/components/ui/button.tsx'
 import {StatusBadge} from './status-badge.tsx'
 import {EntryRow} from './entry-row.tsx'
 import {useMutation, useSuspenseQuery} from "@tanstack/react-query";
-import {TimeEntriesApis} from "@/src/api/time-entries.ts";
+import {TimeEntriesApis} from "@/api/time-entries.ts";
 import {useSearch} from "@tanstack/react-router";
 
 

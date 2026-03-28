@@ -1,4 +1,4 @@
-import type {UserWithMembership} from "@/src/types/models.ts";
+import type {UserWithMembership} from "@/types/models.ts";
 // export function createApiResponseSchema<T extends z.ZodTypeAny>(t: T) {
 //   return (
 //     z.discriminatedUnion(

@@ -1,9 +1,9 @@
 import {useMemo} from 'react'
-import {type EntryStatus} from '@/src/types'
-import {Calendar} from '@/src/components/ui/calendar'
+import {type EntryStatus} from '@/types'
+import {Calendar} from '@/components/ui/calendar'
 import {useNavigate, useSearch} from "@tanstack/react-router";
 import {useSuspenseQuery} from "@tanstack/react-query";
-import {TimeEntriesApis} from "@/src/api/time-entries.ts";
+import {TimeEntriesApis} from "@/api/time-entries.ts";
 
 
 interface DaySummary {
@@ -72,6 +72,7 @@ export function MiniCalendar() {
           to: "/time-entries",
           search: {date: date, month: m}
         })}
+        className="p-0 [--cell-size:--spacing(9.5)]"
         modifiers={modifiers}
         modifiersStyles={{
           draft: {backgroundColor: '#fef3c7'},

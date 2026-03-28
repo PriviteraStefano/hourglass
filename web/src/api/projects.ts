@@ -1,8 +1,8 @@
 import {mutationOptions, queryOptions} from '@tanstack/react-query'
 import {toast} from 'sonner'
-import {api} from '@/src/lib/api.ts'
-import type {ApiResponse, CreateProjectRequest} from '@/src/types'
-import type {Project} from '@/src/types/models'
+import {api} from '@/lib/api.ts'
+import type {CreateProjectRequest} from '@/types'
+import type {Project} from '@/types/models'
 
 function projectsQueryKey(scope: 'owned' | 'adopted' | 'all', contractId?: string) {
   return ['projects', scope, contractId] as const

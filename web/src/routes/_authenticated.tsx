@@ -1,6 +1,6 @@
 import {createFileRoute, Outlet} from '@tanstack/react-router'
-import {AppShell} from "@/src/components/layout/app-shell.tsx";
-import {AuthApis} from "@/src/api/auth.ts";
+import {AppShell} from "@/components/layout/app-shell.tsx";
+import {AuthApis} from "@/api/auth.ts";
 import {LoaderIcon} from "lucide-react";
 
 

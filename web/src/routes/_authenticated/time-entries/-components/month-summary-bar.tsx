@@ -1,7 +1,7 @@
 import {addMonths, format, subMonths} from 'date-fns'
-import {Button} from '@/src/components/ui/button'
+import {Button} from '@/components/ui/button'
 import {useMutation, useSuspenseQuery} from "@tanstack/react-query";
-import {TimeEntriesApis} from "@/src/api/time-entries.ts";
+import {TimeEntriesApis} from "@/api/time-entries.ts";
 import {Link, useSearch} from "@tanstack/react-router";
 
 export function MonthSummaryBar() {

@@ -1,7 +1,7 @@
 import {createRootRouteWithContext, Outlet} from '@tanstack/react-router'
-import {Toaster} from "@/src/components/ui/sonner.tsx";
-import {TooltipProvider} from "@/src/components/ui/tooltip.tsx";
-import {ThemeProvider} from "@/src/components/theme-provider.tsx";
+import {Toaster} from "@/components/ui/sonner.tsx";
+import {TooltipProvider} from "@/components/ui/tooltip.tsx";
+import {ThemeProvider} from "@/components/theme-provider.tsx";
 import type {QueryClient} from "@tanstack/react-query";
 
 interface RouterContext {

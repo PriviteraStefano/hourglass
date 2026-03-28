@@ -1,11 +1,11 @@
 import {
-  ClockIcon,
-  ReceiptIcon,
   CheckCircleIcon,
+  ClockIcon,
   FileTextIcon,
   FolderIcon,
-  SettingsIcon,
-  type LucideIcon
+  type LucideIcon,
+  ReceiptIcon,
+  SettingsIcon
 } from 'lucide-react'
 import {Link} from '@tanstack/react-router'
 import {
@@ -18,8 +18,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
-} from '@/src/components/ui/sidebar'
-import {ThemeToggle} from '@/src/components/theme-toggle.tsx'
+} from '@/components/ui/sidebar'
+import {ThemeToggle} from '@/components/theme-toggle.tsx'
 
 const navItems: Array<{ label: string; href: string; icon: LucideIcon; disabled?: boolean }> = [
   {label: 'Time', href: '/time-entries', icon: ClockIcon},

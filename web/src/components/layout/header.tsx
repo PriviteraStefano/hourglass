@@ -1,5 +1,5 @@
 import {LogOutIcon, UserIcon} from 'lucide-react'
-import {Button} from '@/src/components/ui/button'
+import {Button} from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,10 +7,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/src/components/ui/dropdown-menu'
-import {Avatar, AvatarFallback} from '@/src/components/ui/avatar'
+} from '@/components/ui/dropdown-menu'
+import {Avatar, AvatarFallback} from '@/components/ui/avatar'
 import {useMutation, useSuspenseQuery} from "@tanstack/react-query";
-import {AuthApis} from "@/src/api/auth.ts";
+import {AuthApis} from "@/api/auth.ts";
 
 export function Header() {
   const {data: user} = useSuspenseQuery(AuthApis.profileQueryOpts)

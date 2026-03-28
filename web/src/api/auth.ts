@@ -1,6 +1,6 @@
 import {mutationOptions, queryOptions} from '@tanstack/react-query'
-import {api} from "@/src/lib/api.ts";
-import type {AuthResponse, LoginRequest, RegisterRequest, UserWithMembership} from "@/src/types";
+import {api} from "@/lib/api.ts";
+import type {AuthResponse, LoginRequest, RegisterRequest, UserWithMembership} from "@/types";
 
 const profileQueryOpts = queryOptions({
   queryKey: ['auth', 'me'],
