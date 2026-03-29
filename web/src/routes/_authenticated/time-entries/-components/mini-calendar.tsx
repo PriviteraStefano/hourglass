@@ -4,6 +4,8 @@ import {Calendar} from '@/components/ui/calendar'
 import {useNavigate, useSearch} from "@tanstack/react-router";
 import {useSuspenseQuery} from "@tanstack/react-query";
 import {TimeEntriesApis} from "@/api/time-entries.ts";
+import {Separator} from "@/components/ui/separator.tsx";
+import {Label} from "@/components/ui/label.tsx";
 
 
 interface DaySummary {
@@ -59,9 +61,15 @@ export function MiniCalendar() {
   }, [statusByDate])
 
   return (
-    <div className="w-fit p-4 border rounded-lg">
+    <div className="w-fit p-3 bg-accent space-y-2 rounded-xl">
       <Calendar
         mode="single"
+        classNames={{
+          "root": "rounded-xl p-1.5",
+        }}
+        weekStartsOn={1}
+        showOutsideDays={false}
+        showWeekNumber={true}
         selected={date}
         onSelect={(d) => d && navigate({
           to: "/time-entries",
@@ -72,30 +80,32 @@ export function MiniCalendar() {
           to: "/time-entries",
           search: {date: date, month: m}
         })}
-        className="p-0 [--cell-size:--spacing(9.5)]"
+        className="p-0 [--cell-size:--spacing(11)]"
         modifiers={modifiers}
         modifiersStyles={{
-          draft: {backgroundColor: '#fef3c7'},
-          submitted: {backgroundColor: '#d1fae5'},
-          approved: {backgroundColor: '#dbeafe'},
-          rejected: {backgroundColor: '#fee2e2'},
+          draft: {backgroundColor: 'yellow'},
+          submitted: {backgroundColor: 'lightblue'},
+          approved: {backgroundColor: 'green'},
+          rejected: {backgroundColor: 'red'},
         }}
       />
+      <Separator/>
+      <Label>Legend</Label>
       <div className="mt-3 flex flex-col gap-3 text-xs">
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-yellow-100"/>
+        <div className="flex items-center gap-1.5">
+          <div className="size-4 rounded" style={{backgroundColor: 'yellow'}}/>
           <span>Draft</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-green-100"/>
+        <div className="flex items-center gap-1.5">
+          <div className="size-4 rounded" style={{backgroundColor: 'lightblue'}}/>
           <span>Submitted</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-blue-100"/>
+        <div className="flex items-center gap-1.5">
+          <div className="size-4 rounded" style={{backgroundColor: 'green'}}/>
           <span>Approved</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-red-100"/>
+        <div className="flex items-center gap-1.5">
+          <div className="size-4 rounded" style={{backgroundColor: 'red'}}/>
           <span>Rejected</span>
         </div>
       </div>

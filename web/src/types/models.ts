@@ -28,7 +28,8 @@ export interface OrganizationMembership {
   activated_at?: string
 }
 
-export interface UserWithMembership extends User {
+export interface UserWithMembership  {
+  user: User
   membership: OrganizationMembership
   organization: Organization
 }

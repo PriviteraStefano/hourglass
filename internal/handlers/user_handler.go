@@ -44,10 +44,6 @@ type ActivateRequest struct {
 	Password string `json:"password"`
 }
 
-type AuthResponse struct {
-	User models.UserWithMembership `json:"user"`
-}
-
 func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -144,27 +140,25 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	cookies.SetAccessTokenCookie(w, accessToken, secure)
 	cookies.SetRefreshTokenCookie(w, refreshToken, secure)
 
-	response := AuthResponse{
-		User: models.UserWithMembership{
-			User: models.User{
-				ID:        userID,
-				Email:     req.Email,
-				Name:      req.Name,
-				IsActive:  true,
-				CreatedAt: now,
-			},
-			Membership: models.OrganizationMembership{
-				ID:             membershipID,
-				UserID:         userID,
-				OrganizationID: orgID,
-				Role:           models.RoleFinance,
-				IsActive:       true,
-			},
-			Organization: models.Organization{
-				ID:        orgID,
-				Name:      req.OrganizationName,
-				CreatedAt: now,
-			},
+	response := models.UserWithMembership{
+		User: models.User{
+			ID:        userID,
+			Email:     req.Email,
+			Name:      req.Name,
+			IsActive:  true,
+			CreatedAt: now,
+		},
+		Membership: models.OrganizationMembership{
+			ID:             membershipID,
+			UserID:         userID,
+			OrganizationID: orgID,
+			Role:           models.RoleFinance,
+			IsActive:       true,
+		},
+		Organization: models.Organization{
+			ID:        orgID,
+			Name:      req.OrganizationName,
+			CreatedAt: now,
 		},
 	}
 
@@ -265,26 +259,24 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		orgName = ""
 	}
 
-	response := AuthResponse{
-		User: models.UserWithMembership{
-			User: models.User{
-				ID:        userID,
-				Email:     req.Email,
-				Name:      name,
-				IsActive:  true,
-				CreatedAt: time.Now(),
-			},
-			Membership: models.OrganizationMembership{
-				ID:             membershipID,
-				UserID:         userID,
-				OrganizationID: orgID,
-				Role:           models.Role(role),
-				IsActive:       true,
-			},
-			Organization: models.Organization{
-				ID:   orgID,
-				Name: orgName,
-			},
+	response := models.UserWithMembership{
+		User: models.User{
+			ID:        userID,
+			Email:     req.Email,
+			Name:      name,
+			IsActive:  true,
+			CreatedAt: time.Now(),
+		},
+		Membership: models.OrganizationMembership{
+			ID:             membershipID,
+			UserID:         userID,
+			OrganizationID: orgID,
+			Role:           models.Role(role),
+			IsActive:       true,
+		},
+		Organization: models.Organization{
+			ID:   orgID,
+			Name: orgName,
 		},
 	}
 
@@ -382,11 +374,9 @@ func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := AuthResponse{
-		User: models.UserWithMembership{
-			User:         user,
-			Organization: org,
-		},
+	response := models.UserWithMembership{
+		User:         user,
+		Organization: org,
 	}
 
 	api.RespondWithJSON(w, http.StatusOK, response)
@@ -495,26 +485,24 @@ func (h *UserHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		orgName = ""
 	}
 
-	response := AuthResponse{
-		User: models.UserWithMembership{
-			User: models.User{
-				ID:        userID,
-				Email:     email,
-				Name:      name,
-				IsActive:  true,
-				CreatedAt: time.Now(),
-			},
-			Membership: models.OrganizationMembership{
-				ID:             membershipID,
-				UserID:         userID,
-				OrganizationID: orgID,
-				Role:           models.Role(role),
-				IsActive:       true,
-			},
-			Organization: models.Organization{
-				ID:   orgID,
-				Name: orgName,
-			},
+	response := models.UserWithMembership{
+		User: models.User{
+			ID:        userID,
+			Email:     email,
+			Name:      name,
+			IsActive:  true,
+			CreatedAt: time.Now(),
+		},
+		Membership: models.OrganizationMembership{
+			ID:             membershipID,
+			UserID:         userID,
+			OrganizationID: orgID,
+			Role:           models.Role(role),
+			IsActive:       true,
+		},
+		Organization: models.Organization{
+			ID:   orgID,
+			Name: orgName,
 		},
 	}
 

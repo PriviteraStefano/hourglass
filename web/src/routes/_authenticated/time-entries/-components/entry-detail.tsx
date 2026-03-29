@@ -8,7 +8,6 @@ import {useMutation, useSuspenseQuery} from "@tanstack/react-query";
 import {TimeEntriesApis} from "@/api/time-entries.ts";
 import {useSearch} from "@tanstack/react-router";
 
-
 export function EntryDetail() {
   const {date} = useSearch({from: "/_authenticated/time-entries/"})
   const {data: entry} = useSuspenseQuery(TimeEntriesApis.timeEntryQueryOpts(date))
@@ -16,13 +15,13 @@ export function EntryDetail() {
   const updateEntry = useMutation(TimeEntriesApis.updateTimeEntryMutationOpts)
   const deleteEntry = useMutation(TimeEntriesApis.deleteTimeEntryMutationOpts)
   const submitEntry = useMutation(TimeEntriesApis.submitTimeEntryMutationOpts)
-  
+
   const [items, setItems] = useState<TimeEntryItem[]>(
     entry?.items ?? [{ id: '', time_entry_id: '', project_id: '', hours: 0, description: '' }]
   )
 
   const isEditable = !entry || entry.status === 'draft' || entry.status === 'rejected'
-  
+
   const totalHours = items.reduce((sum, item) => sum + item.hours, 0)
 
   const handleCreate = () => {
@@ -77,7 +76,7 @@ export function EntryDetail() {
 
   if (!entry) {
     return (
-      <div className="flex-1 flex items-center justify-center border rounded-lg p-8">
+      <div className="flex-1 flex items-center justify-center  rounded-lg p-8">
         <Button onClick={handleCreate} disabled={createEntry.isPending}>
           {createEntry.isPending ? 'Creating...' : `Create Entry for ${format(date, 'MMMM d')}`}
         </Button>
@@ -86,7 +85,7 @@ export function EntryDetail() {
   }
 
   return (
-    <div className="flex-1 border rounded-lg p-4">
+    <div className="flex-1 rounded-lg p-4">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-semibold">
@@ -127,7 +126,7 @@ export function EntryDetail() {
 
       {isEditable && (
         <div className="mt-4 flex gap-2">
-          <Button 
+          <Button
             onClick={handleUpdate}
             disabled={totalHours === 0 || updateEntry.isPending}
           >

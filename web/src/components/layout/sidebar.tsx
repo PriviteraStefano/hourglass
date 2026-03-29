@@ -2,7 +2,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   FileTextIcon,
-  FolderIcon,
+  FolderIcon, HourglassIcon,
   type LucideIcon,
   ReceiptIcon,
   SettingsIcon
@@ -14,12 +14,14 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
 } from '@/components/ui/sidebar'
 import {ThemeToggle} from '@/components/theme-toggle.tsx'
+import {ProfileMenu} from "@/components/app/profile-menu.tsx";
 
 const navItems: Array<{ label: string; href: string; icon: LucideIcon; disabled?: boolean }> = [
   {label: 'Time', href: '/time-entries', icon: ClockIcon},
@@ -39,6 +41,21 @@ const settingsItems: Array<{ label: string; href: string; icon: LucideIcon; disa
 export function AppSidebar() {
   return (
     <Sidebar variant="inset" collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size={"lg"}
+              render={
+                <Link to={"/"}>
+                  <HourglassIcon className={"size-5! ml-1.5"}/>
+                  <span className="text-base font-semibold">Hourglass</span>
+                </Link>
+              }
+            />
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
@@ -102,7 +119,8 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <ThemeToggle />
+        <ProfileMenu/>
+        <ThemeToggle/>
       </SidebarFooter>
     </Sidebar>
   )
