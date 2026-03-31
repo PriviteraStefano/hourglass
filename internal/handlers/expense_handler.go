@@ -41,12 +41,13 @@ func (h *ExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrganizationID(r.Context())
 	role := middleware.GetRole(r.Context())
 
-
 	query := `
-		SELECT e.id, e.user_id, e.organization_id, e.date, e.status,
-			   e.current_approver_role, e.submitted_at, e.created_at, e.updated_at
+		SELECT e.id, e.user_id, e.organization_id, e.project_id, e.customer_id, e.date, 
+			   e.type, e.amount, e.km_distance, e.description, e.status, 
+			   e.current_approver_role, e.submitted_at, e.deleted_at, 
+			   e.created_at, e.updated_at
 		FROM expenses e
-		WHERE e.organization_id = $1
+		WHERE e.organization_id = $1 AND e.deleted_at IS NULL
 	`
 	args := []interface{}{orgID}
 	argIndex := 2
@@ -88,6 +89,20 @@ func (h *ExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
 		argIndex++
 	}
 
+	expenseType := r.URL.Query().Get("type")
+	if expenseType != "" {
+		query += fmt.Sprintf(" AND e.type = $%d", argIndex)
+		args = append(args, expenseType)
+		argIndex++
+	}
+
+	projectID := r.URL.Query().Get("project_id")
+	if projectID != "" {
+		query += fmt.Sprintf(" AND e.project_id = $%d", argIndex)
+		args = append(args, projectID)
+		argIndex++
+	}
+
 	query += " ORDER BY e.date DESC, e.created_at DESC"
 
 	rows, err := h.db.Query(query, args...)
@@ -102,9 +117,17 @@ func (h *ExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
 		var e models.Expense
 		var currentApproverRole sql.NullString
 		var submittedAt sql.NullTime
+		var deletedAt sql.NullTime
+		var projectID sql.NullString
+		var customerID sql.NullString
+		var expenseType sql.NullString
+		var amount sql.NullFloat64
+		var kmDistance sql.NullFloat64
+		var description sql.NullString
 		err := rows.Scan(
-			&e.ID, &e.UserID, &e.OrganizationID, &e.Date,
-			&e.Status, &currentApproverRole, &submittedAt,
+			&e.ID, &e.UserID, &e.OrganizationID, &projectID, &customerID, &e.Date,
+			&expenseType, &amount, &kmDistance, &description, &e.Status,
+			&currentApproverRole, &submittedAt, &deletedAt,
 			&e.CreatedAt, &e.UpdatedAt,
 		)
 		if err != nil {
@@ -117,16 +140,31 @@ func (h *ExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
 		if submittedAt.Valid {
 			e.SubmittedAt = &submittedAt.Time
 		}
-		expenses = append(expenses, e)
-	}
-
-	for i := range expenses {
-		items, err := h.getExpenseItems(expenses[i].ID)
-		if err != nil {
-			api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch expense items")
-			return
+		if deletedAt.Valid {
+			e.DeletedAt = &deletedAt.Time
 		}
-		expenses[i].Items = items
+		if projectID.Valid {
+			pid, _ := uuid.Parse(projectID.String)
+			e.ProjectID = &pid
+		}
+		if customerID.Valid {
+			cid, _ := uuid.Parse(customerID.String)
+			e.CustomerID = &cid
+		}
+		if expenseType.Valid {
+			et := models.ExpenseCategory(expenseType.String)
+			e.Type = &et
+		}
+		if amount.Valid {
+			e.Amount = &amount.Float64
+		}
+		if kmDistance.Valid {
+			e.KmDistance = &kmDistance.Float64
+		}
+		if description.Valid {
+			e.Description = description.String
+		}
+		expenses = append(expenses, e)
 	}
 
 	if expenses == nil {
@@ -309,7 +347,6 @@ func (h *ExpenseHandler) Get(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrganizationID(r.Context())
 	role := middleware.GetRole(r.Context())
 
-
 	expenseIDStr := r.PathValue("id")
 	expenseID, err := uuid.Parse(expenseIDStr)
 	if err != nil {
@@ -363,7 +400,6 @@ func (h *ExpenseHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *ExpenseHandler) Update(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	orgID := middleware.GetOrganizationID(r.Context())
-
 
 	expenseIDStr := r.PathValue("id")
 	expenseID, err := uuid.Parse(expenseIDStr)
@@ -571,9 +607,10 @@ func (h *ExpenseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	var status string
 	var expenseUserID uuid.UUID
+	var deletedAt sql.NullTime
 	err = h.db.QueryRow(`
-		SELECT status, user_id FROM expenses WHERE id = $1 AND organization_id = $2
-	`, expenseID, orgID).Scan(&status, &expenseUserID)
+		SELECT status, user_id, deleted_at FROM expenses WHERE id = $1 AND organization_id = $2
+	`, expenseID, orgID).Scan(&status, &expenseUserID, &deletedAt)
 	if err == sql.ErrNoRows {
 		api.RespondWithError(w, http.StatusNotFound, "expense not found")
 		return
@@ -583,8 +620,13 @@ func (h *ExpenseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if status != string(models.StatusDraft) {
-		api.RespondWithError(w, http.StatusBadRequest, "can only delete draft expenses")
+	if deletedAt.Valid {
+		api.RespondWithError(w, http.StatusNotFound, "expense not found")
+		return
+	}
+
+	if status != string(models.StatusDraft) && status != string(models.StatusRejected) {
+		api.RespondWithError(w, http.StatusBadRequest, "can only delete draft or rejected expenses")
 		return
 	}
 
@@ -593,13 +635,14 @@ func (h *ExpenseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.db.Exec(`DELETE FROM expenses WHERE id = $1`, expenseID)
+	now := time.Now()
+	_, err = h.db.Exec(`UPDATE expenses SET deleted_at = $1 WHERE id = $2`, now, expenseID)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to delete expense")
 		return
 	}
 
-	api.RespondWithJSON(w, http.StatusOK, map[string]bool{"success": true})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *ExpenseHandler) MonthlySummary(w http.ResponseWriter, r *http.Request) {
