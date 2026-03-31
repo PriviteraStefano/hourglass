@@ -39,6 +39,7 @@ func main() {
 	expenseHandler := handlers.NewExpenseHandler(database.DB)
 	approvalHandler := handlers.NewApprovalHandler(database.DB)
 	healthHandler := handlers.NewHealthHandler()
+	customerHandler := handlers.NewCustomerHandler(database.DB)
 
 	mux := http.NewServeMux()
 
@@ -59,6 +60,12 @@ func main() {
 	mux.HandleFunc("GET /organizations/{id}/settings", middleware.Auth(authService, orgHandler.GetSettings))
 	mux.HandleFunc("PUT /organizations/{id}/settings", middleware.Auth(authService, orgHandler.UpdateSettings))
 	mux.HandleFunc("POST /organizations/{id}/invite", middleware.Auth(authService, orgHandler.Invite))
+
+	mux.HandleFunc("GET /customers", middleware.Auth(authService, customerHandler.List))
+	mux.HandleFunc("POST /customers", middleware.Auth(authService, customerHandler.Create))
+	mux.HandleFunc("GET /customers/{id}", middleware.Auth(authService, customerHandler.Get))
+	mux.HandleFunc("PUT /customers/{id}", middleware.Auth(authService, customerHandler.Update))
+	mux.HandleFunc("DELETE /customers/{id}", middleware.Auth(authService, customerHandler.Delete))
 
 	mux.HandleFunc("GET /contracts", middleware.Auth(authService, contractHandler.List))
 	mux.HandleFunc("POST /contracts", middleware.Auth(authService, contractHandler.Create))
