@@ -3,7 +3,9 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -94,40 +96,28 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	_, err = tx.Exec(`
 		INSERT INTO users (id, email, password_hash, name, is_active, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
-	`, userID, req.Email, passwordHash, req.Name, true, now)
+	`, userID, req.Email, passwordHash, req.Name, false, now)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to create user")
+		return
+	}
+
+	verificationToken := generateVerificationToken()
+	_, err = tx.Exec(`
+		INSERT INTO verification_tokens (user_id, token, type, expires_at)
+		VALUES ($1, $2, 'email_verification', $3)
+	`, userID, verificationToken, now.Add(24*time.Hour))
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to create verification token")
 		return
 	}
 
 	_, err = tx.Exec(`
 		INSERT INTO organization_memberships (id, user_id, organization_id, role, is_active, activated_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
-	`, membershipID, userID, orgID, models.RoleFinance, true, now)
+	`, membershipID, userID, orgID, models.RoleFinance, false, nil)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to create membership")
-		return
-	}
-
-	accessToken, err := h.authService.GenerateToken(userID, orgID, string(models.RoleFinance), req.Email)
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate access token")
-		return
-	}
-
-	refreshToken, err := h.authService.GenerateRefreshToken()
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate refresh token")
-		return
-	}
-
-	refreshTokenHash := auth.HashRefreshToken(refreshToken)
-	_, err = tx.Exec(`
-		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-		VALUES ($1, $2, $3)
-	`, userID, refreshTokenHash, now.Add(auth.RefreshTokenExpiry))
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to store refresh token")
 		return
 	}
 
@@ -136,30 +126,15 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secure := cookies.IsSecureRequest(r)
-	cookies.SetAccessTokenCookie(w, accessToken, secure)
-	cookies.SetRefreshTokenCookie(w, refreshToken, secure)
+	env := os.Getenv("ENV")
+	if env == "" || env == "development" {
+		log.Printf("Verification token for %s: %s", req.Email, verificationToken)
+	}
 
-	response := models.UserWithMembership{
-		User: models.User{
-			ID:        userID,
-			Email:     req.Email,
-			Name:      req.Name,
-			IsActive:  true,
-			CreatedAt: now,
-		},
-		Membership: models.OrganizationMembership{
-			ID:             membershipID,
-			UserID:         userID,
-			OrganizationID: orgID,
-			Role:           models.RoleFinance,
-			IsActive:       true,
-		},
-		Organization: models.Organization{
-			ID:        orgID,
-			Name:      req.OrganizationName,
-			CreatedAt: now,
-		},
+	response := map[string]interface{}{
+		"message":      "registration successful, please check your email to verify your account",
+		"email":        req.Email,
+		"verify_token": verificationToken,
 	}
 
 	api.RespondWithJSON(w, http.StatusCreated, response)
@@ -294,6 +269,165 @@ func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	api.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "logged out successfully"})
 }
 
+type VerifyRequest struct {
+	Token string `json:"token"`
+}
+
+func (h *UserHandler) Verify(w http.ResponseWriter, r *http.Request) {
+	var req VerifyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Token == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "token is required")
+		return
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to begin transaction")
+		return
+	}
+	defer tx.Rollback()
+
+	var userID uuid.UUID
+	err = tx.QueryRow(`
+		SELECT user_id FROM verification_tokens
+		WHERE token = $1 AND type = 'email_verification' AND expires_at > NOW()
+	`, req.Token).Scan(&userID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid or expired verification token")
+		return
+	}
+
+	_, err = tx.Exec("UPDATE users SET is_active = true WHERE id = $1", userID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to activate user")
+		return
+	}
+
+	_, err = tx.Exec("DELETE FROM verification_tokens WHERE token = $1", req.Token)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to delete verification token")
+		return
+	}
+
+	if err = tx.Commit(); err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to commit transaction")
+		return
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "email verified successfully"})
+}
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+func (h *UserHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req ForgotPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Email == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "email is required")
+		return
+	}
+
+	var userID uuid.UUID
+	err := h.db.QueryRow("SELECT id FROM users WHERE email = $1", req.Email).Scan(&userID)
+	if err != nil {
+		api.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "if the email exists, a reset link has been sent"})
+		return
+	}
+
+	resetToken := generateVerificationToken()
+	_, err = h.db.Exec(`
+		INSERT INTO verification_tokens (user_id, token, type, expires_at)
+		VALUES ($1, $2, 'password_reset', NOW() + INTERVAL '1 hour')
+	`, userID, resetToken)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to create reset token")
+		return
+	}
+
+	env := os.Getenv("ENV")
+	if env == "" || env == "development" {
+		log.Printf("Password reset token for %s: %s", req.Email, resetToken)
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "if the email exists, a reset link has been sent"})
+}
+
+type ResetPasswordRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var req ResetPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Token == "" || req.Password == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "token and password are required")
+		return
+	}
+
+	if len(req.Password) < 8 {
+		api.RespondWithError(w, http.StatusBadRequest, "password must be at least 8 characters")
+		return
+	}
+
+	passwordHash, err := h.authService.HashPassword(req.Password)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to hash password")
+		return
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to begin transaction")
+		return
+	}
+	defer tx.Rollback()
+
+	var userID uuid.UUID
+	err = tx.QueryRow(`
+		SELECT user_id FROM verification_tokens
+		WHERE token = $1 AND type = 'password_reset' AND expires_at > NOW()
+	`, req.Token).Scan(&userID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid or expired reset token")
+		return
+	}
+
+	_, err = tx.Exec("UPDATE users SET password_hash = $1 WHERE id = $2", passwordHash, userID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to update password")
+		return
+	}
+
+	_, err = tx.Exec("DELETE FROM verification_tokens WHERE token = $1", req.Token)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to delete reset token")
+		return
+	}
+
+	if err = tx.Commit(); err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to commit transaction")
+		return
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "password reset successfully"})
+}
+
 func (h *UserHandler) Activate(w http.ResponseWriter, r *http.Request) {
 	var req ActivateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -348,6 +482,10 @@ func generateSlug(name string) string {
 		slug = slug[:50]
 	}
 	return slug
+}
+
+func generateVerificationToken() string {
+	return uuid.New().String()
 }
 
 func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {

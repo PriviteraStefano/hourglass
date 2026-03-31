@@ -2,7 +2,10 @@ package middleware
 
 import (
 	"context"
+	"log"
 	"net/http"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
 	"github.com/stefanoprivitera/hourglass/pkg/api"
@@ -62,16 +65,16 @@ func RequireRole(roles []string, next http.HandlerFunc) http.HandlerFunc {
 }
 
 func GetUserID(ctx context.Context) uuid.UUID {
-    if userID, ok := ctx.Value(UserIDKey).(uuid.UUID); ok {
-        return userID
-    }
-    return uuid.UUID{}
+	if userID, ok := ctx.Value(UserIDKey).(uuid.UUID); ok {
+		return userID
+	}
+	return uuid.UUID{}
 }
 func GetOrganizationID(ctx context.Context) uuid.UUID {
-    if orgID, ok := ctx.Value(OrganizationIDKey).(uuid.UUID); ok {
-        return orgID
-    }
-    return uuid.UUID{}
+	if orgID, ok := ctx.Value(OrganizationIDKey).(uuid.UUID); ok {
+		return orgID
+	}
+	return uuid.UUID{}
 }
 
 func GetRole(ctx context.Context) string {
@@ -86,4 +89,26 @@ func GetEmail(ctx context.Context) string {
 		return email
 	}
 	return ""
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func Logging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(rw, r)
+
+		duration := time.Since(start)
+		log.Printf("%s %s %d %dms", r.Method, r.URL.Path, rw.statusCode, duration.Milliseconds())
+	})
 }

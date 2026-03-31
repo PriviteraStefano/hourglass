@@ -38,10 +38,16 @@ func main() {
 	timeEntryHandler := handlers.NewTimeEntryHandler(database.DB)
 	expenseHandler := handlers.NewExpenseHandler(database.DB)
 	approvalHandler := handlers.NewApprovalHandler(database.DB)
+	healthHandler := handlers.NewHealthHandler()
 
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("GET /health", healthHandler.ServeHTTP)
+
 	mux.HandleFunc("POST /auth/register", userHandler.Register)
+	mux.HandleFunc("POST /auth/verify", userHandler.Verify)
+	mux.HandleFunc("POST /auth/forgot-password", userHandler.ForgotPassword)
+	mux.HandleFunc("POST /auth/reset-password", userHandler.ResetPassword)
 	mux.HandleFunc("POST /auth/login", userHandler.Login)
 	mux.HandleFunc("POST /auth/logout", userHandler.Logout)
 	mux.HandleFunc("POST /auth/activate", userHandler.Activate)
@@ -117,8 +123,11 @@ func main() {
 		allowedOrigins = []string{"http://localhost:3000"}
 	}
 
+	rateLimiter := middleware.NewRateLimiter(10, 100)
+
 	log.Printf("Server starting on port %s", port)
-	if err := http.ListenAndServe(":"+port, corsMiddleware(allowedOrigins)(mux)); err != nil {
+	handler := rateLimiter.Middleware(middleware.Logging(corsMiddleware(allowedOrigins)(mux)))
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
