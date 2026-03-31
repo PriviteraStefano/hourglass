@@ -29,10 +29,11 @@ func (h *TimeEntryHandler) List(w http.ResponseWriter, r *http.Request) {
 	role := middleware.GetRole(r.Context())
 
 	query := `
-		SELECT te.id, te.user_id, te.organization_id, te.date, te.status, 
-			   te.current_approver_role, te.submitted_at, te.created_at, te.updated_at
+		SELECT te.id, te.user_id, te.organization_id, te.project_id, te.date, te.hours, 
+			   te.description, te.status, te.current_approver_role, te.submitted_at, 
+			   te.deleted_at, te.created_at, te.updated_at
 		FROM time_entries te
-		WHERE te.organization_id = $1
+		WHERE te.organization_id = $1 AND te.deleted_at IS NULL
 	`
 	args := []interface{}{orgID}
 	argIndex := 2
@@ -88,10 +89,14 @@ func (h *TimeEntryHandler) List(w http.ResponseWriter, r *http.Request) {
 		var te models.TimeEntry
 		var currentApproverRole sql.NullString
 		var submittedAt sql.NullTime
+		var deletedAt sql.NullTime
+		var projectID sql.NullString
+		var hours sql.NullFloat64
+		var description sql.NullString
 		err := rows.Scan(
-			&te.ID, &te.UserID, &te.OrganizationID, &te.Date,
-			&te.Status, &currentApproverRole, &submittedAt,
-			&te.CreatedAt, &te.UpdatedAt,
+			&te.ID, &te.UserID, &te.OrganizationID, &projectID, &te.Date,
+			&hours, &description, &te.Status, &currentApproverRole, &submittedAt,
+			&deletedAt, &te.CreatedAt, &te.UpdatedAt,
 		)
 		if err != nil {
 			api.RespondWithError(w, http.StatusInternalServerError, "failed to scan time entry")
@@ -103,16 +108,20 @@ func (h *TimeEntryHandler) List(w http.ResponseWriter, r *http.Request) {
 		if submittedAt.Valid {
 			te.SubmittedAt = &submittedAt.Time
 		}
-		entries = append(entries, te)
-	}
-
-	for i := range entries {
-		items, err := h.getItems(entries[i].ID)
-		if err != nil {
-			api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch entry items")
-			return
+		if deletedAt.Valid {
+			te.DeletedAt = &deletedAt.Time
 		}
-		entries[i].Items = items
+		if projectID.Valid {
+			pid, _ := uuid.Parse(projectID.String)
+			te.ProjectID = &pid
+		}
+		if hours.Valid {
+			te.Hours = &hours.Float64
+		}
+		if description.Valid {
+			te.Description = description.String
+		}
+		entries = append(entries, te)
 	}
 
 	if entries == nil {
@@ -132,8 +141,8 @@ func (h *TimeEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Date == "" || len(req.Items) == 0 {
-		api.RespondWithError(w, http.StatusBadRequest, "date and items are required")
+	if req.Date == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "date is required")
 		return
 	}
 
@@ -143,17 +152,12 @@ func (h *TimeEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var totalHours float64
-	for _, item := range req.Items {
-		totalHours += item.Hours
-	}
-	if totalHours > 24 {
-		api.RespondWithError(w, http.StatusBadRequest, "total hours cannot exceed 24 per day")
-		return
-	}
+	var projectID *uuid.UUID
+	var hours float64
+	var description string
 
-	for _, item := range req.Items {
-		projectID, err := uuid.Parse(item.ProjectID)
+	if req.ProjectID != "" && req.Hours != nil {
+		pid, err := uuid.Parse(req.ProjectID)
 		if err != nil {
 			api.RespondWithError(w, http.StatusBadRequest, "invalid project id")
 			return
@@ -168,60 +172,120 @@ func (h *TimeEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 					SELECT project_id FROM project_adoptions WHERE organization_id = $2
 				))
 			)
-		`, projectID, orgID).Scan(&accessible)
+		`, pid, orgID).Scan(&accessible)
 		if err != nil || !accessible {
 			api.RespondWithError(w, http.StatusBadRequest, "project not found or not accessible")
 			return
 		}
-	}
 
-	tx, err := h.db.Begin()
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to begin transaction")
+		projectID = &pid
+		hours = *req.Hours
+		description = req.Description
+
+		if hours <= 0 || hours > 24 {
+			api.RespondWithError(w, http.StatusBadRequest, "hours must be greater than 0 and not exceed 24")
+			return
+		}
+	} else if len(req.Items) > 0 {
+		var totalHours float64
+		for _, item := range req.Items {
+			totalHours += item.Hours
+		}
+		if totalHours > 24 {
+			api.RespondWithError(w, http.StatusBadRequest, "total hours cannot exceed 24 per day")
+			return
+		}
+
+		for _, item := range req.Items {
+			pid, err := uuid.Parse(item.ProjectID)
+			if err != nil {
+				api.RespondWithError(w, http.StatusBadRequest, "invalid project id")
+				return
+			}
+
+			var accessible bool
+			err = h.db.QueryRow(`
+				SELECT EXISTS(
+					SELECT 1 FROM projects p
+					WHERE p.id = $1 AND p.is_active = true
+					AND (p.created_by_org_id = $2 OR p.is_shared = true OR p.id IN (
+						SELECT project_id FROM project_adoptions WHERE organization_id = $2
+					))
+				)
+			`, pid, orgID).Scan(&accessible)
+			if err != nil || !accessible {
+				api.RespondWithError(w, http.StatusBadRequest, "project not found or not accessible")
+				return
+			}
+		}
+	} else {
+		api.RespondWithError(w, http.StatusBadRequest, "either project_id/hours or items are required")
 		return
 	}
-	defer tx.Rollback()
 
 	entryID := uuid.New()
 	now := time.Now()
 
-	_, err = tx.Exec(`
-		INSERT INTO time_entries (id, user_id, organization_id, date, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $6)
-	`, entryID, userID, orgID, entryDate, models.StatusDraft, now)
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to create time entry")
-		return
-	}
-
-	for _, item := range req.Items {
-		projectID, _ := uuid.Parse(item.ProjectID)
-		_, err = tx.Exec(`
-			INSERT INTO time_entry_items (time_entry_id, project_id, hours, description)
-			VALUES ($1, $2, $3, $4)
-		`, entryID, projectID, item.Hours, item.Description)
+	if projectID != nil {
+		_, err = h.db.Exec(`
+			INSERT INTO time_entries (id, user_id, organization_id, project_id, hours, description, date, status, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+		`, entryID, userID, orgID, projectID, hours, description, entryDate, models.StatusDraft, now)
 		if err != nil {
-			api.RespondWithError(w, http.StatusInternalServerError, "failed to create time entry item")
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to create time entry")
 			return
 		}
-	}
+	} else {
+		tx, err := h.db.Begin()
+		if err != nil {
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to begin transaction")
+			return
+		}
+		defer tx.Rollback()
 
-	if err := tx.Commit(); err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to commit transaction")
-		return
+		_, err = tx.Exec(`
+			INSERT INTO time_entries (id, user_id, organization_id, date, status, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $6)
+		`, entryID, userID, orgID, entryDate, models.StatusDraft, now)
+		if err != nil {
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to create time entry")
+			return
+		}
+
+		for _, item := range req.Items {
+			pid, _ := uuid.Parse(item.ProjectID)
+			_, err = tx.Exec(`
+				INSERT INTO time_entry_items (time_entry_id, project_id, hours, description)
+				VALUES ($1, $2, $3, $4)
+			`, entryID, pid, item.Hours, item.Description)
+			if err != nil {
+				api.RespondWithError(w, http.StatusInternalServerError, "failed to create time entry item")
+				return
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to commit transaction")
+			return
+		}
 	}
 
 	entry := models.TimeEntry{
 		ID:             entryID,
 		UserID:         userID,
 		OrganizationID: orgID,
+		ProjectID:      projectID,
 		Date:           entryDate,
+		Hours:          &hours,
+		Description:    description,
 		Status:         models.StatusDraft,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
 
-	entry.Items, _ = h.getItems(entryID)
+	if projectID == nil {
+		entry.Items, _ = h.getItems(entryID)
+	}
 
 	api.RespondWithJSON(w, http.StatusCreated, entry)
 }
@@ -430,9 +494,10 @@ func (h *TimeEntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	var status string
 	var entryUserID uuid.UUID
+	var deletedAt sql.NullTime
 	err = h.db.QueryRow(`
-		SELECT status, user_id FROM time_entries WHERE id = $1 AND organization_id = $2
-	`, entryID, orgID).Scan(&status, &entryUserID)
+		SELECT status, user_id, deleted_at FROM time_entries WHERE id = $1 AND organization_id = $2
+	`, entryID, orgID).Scan(&status, &entryUserID, &deletedAt)
 	if err == sql.ErrNoRows {
 		api.RespondWithError(w, http.StatusNotFound, "time entry not found")
 		return
@@ -442,8 +507,13 @@ func (h *TimeEntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if status != string(models.StatusDraft) {
-		api.RespondWithError(w, http.StatusBadRequest, "can only delete draft entries")
+	if deletedAt.Valid {
+		api.RespondWithError(w, http.StatusNotFound, "time entry not found")
+		return
+	}
+
+	if status != string(models.StatusDraft) && status != string(models.StatusRejected) {
+		api.RespondWithError(w, http.StatusBadRequest, "can only delete draft or rejected entries")
 		return
 	}
 
@@ -452,13 +522,14 @@ func (h *TimeEntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.db.Exec(`DELETE FROM time_entries WHERE id = $1`, entryID)
+	now := time.Now()
+	_, err = h.db.Exec(`UPDATE time_entries SET deleted_at = $1 WHERE id = $2`, now, entryID)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to delete time entry")
 		return
 	}
 
-	api.RespondWithJSON(w, http.StatusOK, map[string]bool{"success": true})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *TimeEntryHandler) MonthlySummary(w http.ResponseWriter, r *http.Request) {
