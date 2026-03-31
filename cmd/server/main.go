@@ -70,7 +70,9 @@ func main() {
 	mux.HandleFunc("GET /contracts", middleware.Auth(authService, contractHandler.List))
 	mux.HandleFunc("POST /contracts", middleware.Auth(authService, contractHandler.Create))
 	mux.HandleFunc("GET /contracts/{id}", middleware.Auth(authService, contractHandler.Get))
+	mux.HandleFunc("PUT /contracts/{id}", middleware.Auth(authService, contractHandler.Update))
 	mux.HandleFunc("POST /contracts/{id}/adopt", middleware.Auth(authService, contractHandler.Adopt))
+	mux.HandleFunc("POST /contracts/{id}/recalculate-mileage", middleware.Auth(authService, contractHandler.RecalculateMileage))
 
 	mux.HandleFunc("GET /projects", middleware.Auth(authService, projectHandler.List))
 	mux.HandleFunc("POST /projects", middleware.Auth(authService, projectHandler.Create))
