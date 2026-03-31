@@ -95,11 +95,36 @@ type Contract struct {
 	Name            string          `json:"name"`
 	KmRate          float64         `json:"km_rate"`
 	Currency        string          `json:"currency"`
+	CustomerID      *uuid.UUID      `json:"customer_id,omitempty"`
 	GovernanceModel GovernanceModel `json:"governance_model"`
 	CreatedByOrgID  uuid.UUID       `json:"created_by_org_id"`
 	IsShared        bool            `json:"is_shared"`
 	IsActive        bool            `json:"is_active"`
 	CreatedAt       time.Time       `json:"created_at"`
+}
+
+type Customer struct {
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	CompanyName    string    `json:"company_name"`
+	ContactName    string    `json:"contact_name,omitempty"`
+	Email          string    `json:"email,omitempty"`
+	Phone          string    `json:"phone,omitempty"`
+	VATNumber      string    `json:"vat_number,omitempty"`
+	Address        string    `json:"address,omitempty"`
+	IsActive       bool      `json:"is_active"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type OrganizationSettings struct {
+	OrganizationID     uuid.UUID `json:"organization_id"`
+	DefaultKmRate      *float64  `json:"default_km_rate,omitempty"`
+	Currency           string    `json:"currency"`
+	WeekStartDay       int       `json:"week_start_day"`
+	Timezone           string    `json:"timezone"`
+	ShowApprovalHistory bool      `json:"show_approval_history"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 type Project struct {
@@ -128,6 +153,13 @@ type ProjectAdoption struct {
 	AdoptedAt      time.Time `json:"adopted_at"`
 }
 
+type ProjectManager struct {
+	ID        uuid.UUID `json:"id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type EntryStatus string
 
 const (
@@ -152,10 +184,14 @@ type TimeEntry struct {
 	ID                  uuid.UUID       `json:"id"`
 	UserID              uuid.UUID       `json:"user_id"`
 	OrganizationID      uuid.UUID       `json:"organization_id"`
+	ProjectID           *uuid.UUID      `json:"project_id,omitempty"`
 	Date                time.Time       `json:"date"`
+	Hours               *float64        `json:"hours,omitempty"`
+	Description         string          `json:"description,omitempty"`
 	Status              EntryStatus     `json:"status"`
 	CurrentApproverRole *string         `json:"current_approver_role,omitempty"`
 	SubmittedAt         *time.Time      `json:"submitted_at,omitempty"`
+	DeletedAt           *time.Time      `json:"deleted_at,omitempty"`
 	CreatedAt           time.Time       `json:"created_at"`
 	UpdatedAt           time.Time       `json:"updated_at"`
 	Items               []TimeEntryItem `json:"items,omitempty"`
@@ -171,8 +207,11 @@ type TimeEntryItem struct {
 }
 
 type TimeEntryCreateRequest struct {
-	Date  string                       `json:"date"`
-	Items []TimeEntryItemCreateRequest `json:"items"`
+	Date        string                       `json:"date"`
+	ProjectID   string                       `json:"project_id,omitempty"`
+	Hours       *float64                     `json:"hours,omitempty"`
+	Description string                       `json:"description,omitempty"`
+	Items       []TimeEntryItemCreateRequest `json:"items"`
 }
 
 type TimeEntryItemCreateRequest struct {
@@ -182,7 +221,10 @@ type TimeEntryItemCreateRequest struct {
 }
 
 type TimeEntryUpdateRequest struct {
-	Items []TimeEntryItemCreateRequest `json:"items"`
+	ProjectID   string                       `json:"project_id,omitempty"`
+	Hours       *float64                     `json:"hours,omitempty"`
+	Description string                       `json:"description,omitempty"`
+	Items       []TimeEntryItemCreateRequest `json:"items"`
 }
 
 type TimeEntryMonthlySummary struct {
@@ -215,12 +257,17 @@ const (
 	CategoryMileage       ExpenseCategory = "mileage"
 	CategoryMeal          ExpenseCategory = "meal"
 	CategoryAccommodation ExpenseCategory = "accommodation"
+	CategoryParking       ExpenseCategory = "parking"
+	CategoryTravelTickets ExpenseCategory = "travel_tickets"
+	CategoryTolls         ExpenseCategory = "tolls"
+	CategoryTaxi          ExpenseCategory = "taxi"
+	CategoryEquipment     ExpenseCategory = "equipment"
 	CategoryOther         ExpenseCategory = "other"
 )
 
 func (c ExpenseCategory) IsValid() bool {
 	switch c {
-	case CategoryMileage, CategoryMeal, CategoryAccommodation, CategoryOther:
+	case CategoryMileage, CategoryMeal, CategoryAccommodation, CategoryParking, CategoryTravelTickets, CategoryTolls, CategoryTaxi, CategoryEquipment, CategoryOther:
 		return true
 	default:
 		return false
@@ -231,10 +278,17 @@ type Expense struct {
 	ID                  uuid.UUID     `json:"id"`
 	UserID              uuid.UUID     `json:"user_id"`
 	OrganizationID      uuid.UUID     `json:"organization_id"`
+	ProjectID           *uuid.UUID    `json:"project_id,omitempty"`
+	CustomerID          *uuid.UUID    `json:"customer_id,omitempty"`
 	Date                time.Time     `json:"date"`
+	Type                *ExpenseCategory `json:"type,omitempty"`
+	Amount              *float64      `json:"amount,omitempty"`
+	KmDistance          *float64      `json:"km_distance,omitempty"`
+	Description         string        `json:"description,omitempty"`
 	Status              EntryStatus   `json:"status"`
 	CurrentApproverRole *string       `json:"current_approver_role,omitempty"`
 	SubmittedAt         *time.Time    `json:"submitted_at,omitempty"`
+	DeletedAt           *time.Time    `json:"deleted_at,omitempty"`
 	CreatedAt           time.Time     `json:"created_at"`
 	UpdatedAt           time.Time     `json:"updated_at"`
 	Items               []ExpenseItem `json:"items,omitempty"`
@@ -254,15 +308,24 @@ type ExpenseItem struct {
 
 type ExpenseReceipt struct {
 	ID               uuid.UUID `json:"id"`
-	ExpenseItemID    uuid.UUID `json:"expense_item_id"`
-	FilePath         string    `json:"file_path"`
-	OriginalFilename string    `json:"original_filename"`
+	ExpenseID        uuid.UUID `json:"expense_id,omitempty"`
+	ExpenseItemID    uuid.UUID `json:"expense_item_id,omitempty"`
+	ReceiptData      []byte    `json:"receipt_data,omitempty"`
+	MimeType         string    `json:"mime_type,omitempty"`
+	FilePath         string    `json:"file_path,omitempty"`
+	OriginalFilename string    `json:"original_filename,omitempty"`
 	UploadedAt       time.Time `json:"uploaded_at"`
 }
 
 type ExpenseCreateRequest struct {
-	Date  string                     `json:"date"`
-	Items []ExpenseItemCreateRequest `json:"items"`
+	Date        string                     `json:"date"`
+	ProjectID   string                     `json:"project_id,omitempty"`
+	CustomerID  string                     `json:"customer_id,omitempty"`
+	Type        ExpenseCategory            `json:"type,omitempty"`
+	Amount      *float64                   `json:"amount,omitempty"`
+	KmDistance  *float64                   `json:"km_distance,omitempty"`
+	Description string                     `json:"description,omitempty"`
+	Items       []ExpenseItemCreateRequest `json:"items"`
 }
 
 type ExpenseItemCreateRequest struct {
@@ -274,7 +337,13 @@ type ExpenseItemCreateRequest struct {
 }
 
 type ExpenseUpdateRequest struct {
-	Items []ExpenseItemCreateRequest `json:"items"`
+	ProjectID   string                     `json:"project_id,omitempty"`
+	CustomerID  string                     `json:"customer_id,omitempty"`
+	Type        ExpenseCategory            `json:"type,omitempty"`
+	Amount      *float64                   `json:"amount,omitempty"`
+	KmDistance  *float64                   `json:"km_distance,omitempty"`
+	Description string                     `json:"description,omitempty"`
+	Items       []ExpenseItemCreateRequest `json:"items"`
 }
 
 type ExpenseMonthlySummary struct {
