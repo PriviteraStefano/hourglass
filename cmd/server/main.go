@@ -126,7 +126,7 @@ func main() {
 	rateLimiter := middleware.NewRateLimiter(10, 100)
 
 	log.Printf("Server starting on port %s", port)
-	handler := rateLimiter.Middleware(middleware.Logging(corsMiddleware(allowedOrigins)(mux)))
+	handler := rateLimiter.Middleware(middleware.Logging(middleware.APIVersion(corsMiddleware(allowedOrigins)(mux))))
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
