@@ -117,10 +117,12 @@ func main() {
 	mux.HandleFunc("POST /time-entries/{id}/delegate", middleware.Auth(authService, approvalHandler.DelegateTimeEntry))
 	mux.HandleFunc("POST /time-entries/batch-approve", middleware.Auth(authService, approvalHandler.BatchApproveTimeEntries))
 	mux.HandleFunc("POST /time-entries/batch-reject", middleware.Auth(authService, approvalHandler.BatchRejectTimeEntries))
+	mux.HandleFunc("POST /time-entries/bulk-edit-approve", middleware.Auth(authService, approvalHandler.BulkEditApproveTimeEntries))
 	mux.HandleFunc("POST /expenses/{id}/partial-approve", middleware.Auth(authService, approvalHandler.PartialApproveExpense))
 	mux.HandleFunc("POST /expenses/{id}/delegate", middleware.Auth(authService, approvalHandler.DelegateExpense))
 	mux.HandleFunc("POST /expenses/batch-approve", middleware.Auth(authService, approvalHandler.BatchApproveExpenses))
 	mux.HandleFunc("POST /expenses/batch-reject", middleware.Auth(authService, approvalHandler.BatchRejectExpenses))
+	mux.HandleFunc("POST /expenses/bulk-edit-approve", middleware.Auth(authService, approvalHandler.BulkEditApproveExpenses))
 
 	port := os.Getenv("PORT")
 	if port == "" {

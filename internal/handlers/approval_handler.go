@@ -2153,3 +2153,246 @@ func (h *ApprovalHandler) BatchRejectExpenses(w http.ResponseWriter, r *http.Req
 	tx.Commit()
 	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{"rejected_count": rejectedCount, "requested_count": len(req.EntryIDs)})
 }
+
+type BulkEditApproveRequest struct {
+	EntryIDs []uuid.UUID `json:"entry_ids"`
+	Field    string      `json:"field"`
+	Value    interface{} `json:"value"`
+	Comment  string      `json:"comment,omitempty"`
+}
+
+func (h *ApprovalHandler) BulkEditApproveTimeEntries(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	orgID := middleware.GetOrganizationID(r.Context())
+
+	var req BulkEditApproveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if len(req.EntryIDs) == 0 {
+		api.RespondWithError(w, http.StatusBadRequest, "entry_ids are required")
+		return
+	}
+
+	if req.Field == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "field is required")
+		return
+	}
+
+	validFields := map[string]bool{"project_id": true, "hours": true, "description": true}
+	if !validFields[req.Field] {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid field. Must be project_id, hours, or description")
+		return
+	}
+
+	var userRole string
+	h.db.QueryRow(`SELECT role FROM organization_memberships WHERE user_id = $1 AND organization_id = $2 AND is_active = true`, userID, orgID).Scan(&userRole)
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to begin transaction")
+		return
+	}
+	defer tx.Rollback()
+
+	now := time.Now()
+	updatedCount := 0
+
+	for _, entryID := range req.EntryIDs {
+		var entryStatus string
+		var currentApproverRole sql.NullString
+		err := tx.QueryRow(`SELECT status, current_approver_role FROM time_entries WHERE id = $1 AND organization_id = $2 FOR UPDATE`, entryID, orgID).Scan(&entryStatus, &currentApproverRole)
+		if err != nil {
+			continue
+		}
+
+		if entryStatus != string(models.StatusPendingManager) && entryStatus != string(models.StatusPendingFinance) {
+			continue
+		}
+		if !currentApproverRole.Valid {
+			continue
+		}
+		if userRole != currentApproverRole.String && !h.isBackupApprover(orgID, userID, currentApproverRole.String) {
+			continue
+		}
+
+		if req.Field == "project_id" {
+			projectID, ok := req.Value.(string)
+			if !ok {
+				continue
+			}
+			pid, err := uuid.Parse(projectID)
+			if err != nil {
+				continue
+			}
+			_, err = tx.Exec(`UPDATE time_entries SET project_id = $1, updated_at = $2 WHERE id = $3`, pid, now, entryID)
+			if err != nil {
+				continue
+			}
+		} else if req.Field == "hours" {
+			hours, ok := req.Value.(float64)
+			if !ok {
+				continue
+			}
+			_, err := tx.Exec(`UPDATE time_entries SET hours = $1, updated_at = $2 WHERE id = $3`, hours, now, entryID)
+			if err != nil {
+				continue
+			}
+		} else if req.Field == "description" {
+			desc, ok := req.Value.(string)
+			if !ok {
+				continue
+			}
+			_, err := tx.Exec(`UPDATE time_entries SET description = $1, updated_at = $2 WHERE id = $3`, desc, now, entryID)
+			if err != nil {
+				continue
+			}
+		}
+
+		var newStatus models.EntryStatus
+		var nextApproverRole *string
+		if entryStatus == string(models.StatusPendingManager) {
+			if h.countUsersWithRole(orgID, string(models.RoleFinance)) == 0 {
+				newStatus = models.StatusApproved
+			} else {
+				newStatus = models.StatusPendingFinance
+				fr := string(models.RoleFinance)
+				nextApproverRole = &fr
+			}
+		} else {
+			newStatus = models.StatusApproved
+		}
+
+		changesJSON, _ := json.Marshal(map[string]interface{}{req.Field: req.Value})
+		tx.Exec(`UPDATE time_entries SET status = $1, current_approver_role = $2, updated_at = $3 WHERE id = $4`, newStatus, nextApproverRole, now, entryID)
+		tx.Exec(`INSERT INTO time_entry_approvals (time_entry_id, action, actor_user_id, actor_role, changes, comment) VALUES ($1, $2, $3, $4, $5, $6)`, entryID, models.ActionApprove, userID, userRole, string(changesJSON), req.Comment)
+		updatedCount++
+	}
+
+	if err := tx.Commit(); err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to commit transaction")
+		return
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{"updated_count": updatedCount, "requested_count": len(req.EntryIDs)})
+}
+
+func (h *ApprovalHandler) BulkEditApproveExpenses(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	orgID := middleware.GetOrganizationID(r.Context())
+
+	var req BulkEditApproveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if len(req.EntryIDs) == 0 {
+		api.RespondWithError(w, http.StatusBadRequest, "entry_ids are required")
+		return
+	}
+
+	if req.Field == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "field is required")
+		return
+	}
+
+	validFields := map[string]bool{"project_id": true, "amount": true, "description": true}
+	if !validFields[req.Field] {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid field. Must be project_id, amount, or description")
+		return
+	}
+
+	var userRole string
+	h.db.QueryRow(`SELECT role FROM organization_memberships WHERE user_id = $1 AND organization_id = $2 AND is_active = true`, userID, orgID).Scan(&userRole)
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to begin transaction")
+		return
+	}
+	defer tx.Rollback()
+
+	now := time.Now()
+	updatedCount := 0
+
+	for _, entryID := range req.EntryIDs {
+		var entryStatus string
+		var currentApproverRole sql.NullString
+		err := tx.QueryRow(`SELECT status, current_approver_role FROM expenses WHERE id = $1 AND organization_id = $2 FOR UPDATE`, entryID, orgID).Scan(&entryStatus, &currentApproverRole)
+		if err != nil {
+			continue
+		}
+
+		if entryStatus != string(models.StatusPendingManager) && entryStatus != string(models.StatusPendingFinance) {
+			continue
+		}
+		if !currentApproverRole.Valid {
+			continue
+		}
+		if userRole != currentApproverRole.String && !h.isBackupApprover(orgID, userID, currentApproverRole.String) {
+			continue
+		}
+
+		if req.Field == "project_id" {
+			projectID, ok := req.Value.(string)
+			if !ok {
+				continue
+			}
+			pid, err := uuid.Parse(projectID)
+			if err != nil {
+				continue
+			}
+			_, err = tx.Exec(`UPDATE expenses SET project_id = $1, updated_at = $2 WHERE id = $3`, pid, now, entryID)
+			if err != nil {
+				continue
+			}
+		} else if req.Field == "amount" {
+			amount, ok := req.Value.(float64)
+			if !ok {
+				continue
+			}
+			_, err := tx.Exec(`UPDATE expenses SET amount = $1, updated_at = $2 WHERE id = $3`, amount, now, entryID)
+			if err != nil {
+				continue
+			}
+		} else if req.Field == "description" {
+			desc, ok := req.Value.(string)
+			if !ok {
+				continue
+			}
+			_, err := tx.Exec(`UPDATE expenses SET description = $1, updated_at = $2 WHERE id = $3`, desc, now, entryID)
+			if err != nil {
+				continue
+			}
+		}
+
+		var newStatus models.EntryStatus
+		var nextApproverRole *string
+		if entryStatus == string(models.StatusPendingManager) {
+			if h.countUsersWithRole(orgID, string(models.RoleFinance)) == 0 {
+				newStatus = models.StatusApproved
+			} else {
+				newStatus = models.StatusPendingFinance
+				fr := string(models.RoleFinance)
+				nextApproverRole = &fr
+			}
+		} else {
+			newStatus = models.StatusApproved
+		}
+
+		changesJSON, _ := json.Marshal(map[string]interface{}{req.Field: req.Value})
+		tx.Exec(`UPDATE expenses SET status = $1, current_approver_role = $2, updated_at = $3 WHERE id = $4`, newStatus, nextApproverRole, now, entryID)
+		tx.Exec(`INSERT INTO expense_approvals (expense_id, action, actor_user_id, actor_role, changes, comment) VALUES ($1, $2, $3, $4, $5, $6)`, entryID, models.ActionApprove, userID, userRole, string(changesJSON), req.Comment)
+		updatedCount++
+	}
+
+	if err := tx.Commit(); err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to commit transaction")
+		return
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{"updated_count": updatedCount, "requested_count": len(req.EntryIDs)})
+}
