@@ -338,3 +338,153 @@ func (h *ProjectHandler) Adopt(w http.ResponseWriter, r *http.Request) {
 
 	api.RespondWithJSON(w, http.StatusCreated, adoption)
 }
+
+type ProjectManagerResponse struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+	UserID    string `json:"user_id"`
+	UserName  string `json:"user_name"`
+	Email     string `json:"email"`
+	CreatedAt string `json:"created_at"`
+}
+
+func (h *ProjectHandler) ListManagers(w http.ResponseWriter, r *http.Request) {
+	projectIDStr := r.PathValue("id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+
+	rows, err := h.db.Query(`
+		SELECT pm.id, pm.project_id, pm.user_id, u.name, u.email, pm.created_at
+		FROM project_managers pm
+		JOIN users u ON pm.user_id = u.id
+		WHERE pm.project_id = $1
+		ORDER BY pm.created_at ASC
+	`, projectID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch managers")
+		return
+	}
+	defer rows.Close()
+
+	managers := []ProjectManagerResponse{}
+	for rows.Next() {
+		var m ProjectManagerResponse
+		err := rows.Scan(&m.ID, &m.ProjectID, &m.UserID, &m.UserName, &m.Email, &m.CreatedAt)
+		if err != nil {
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to scan manager")
+			return
+		}
+		managers = append(managers, m)
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, managers)
+}
+
+func (h *ProjectHandler) AddManager(w http.ResponseWriter, r *http.Request) {
+	userRole := middleware.GetRole(r.Context())
+	if userRole != string(models.RoleFinance) {
+		api.RespondWithError(w, http.StatusForbidden, "only finance users can add project managers")
+		return
+	}
+
+	projectIDStr := r.PathValue("id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+
+	var req struct {
+		UserID string `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	userID, err := uuid.Parse(req.UserID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+
+	var exists bool
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND is_active = true)", userID).Scan(&exists)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to verify user")
+		return
+	}
+	if !exists {
+		api.RespondWithError(w, http.StatusBadRequest, "user not found")
+		return
+	}
+
+	var managerID uuid.UUID
+	err = h.db.QueryRow(`
+		INSERT INTO project_managers (project_id, user_id)
+		VALUES ($1, $2)
+		ON CONFLICT (project_id, user_id) DO NOTHING
+		RETURNING id
+	`, projectID, userID).Scan(&managerID)
+	if err == sql.ErrNoRows {
+		api.RespondWithError(w, http.StatusConflict, "user is already a manager of this project")
+		return
+	}
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to add manager")
+		return
+	}
+
+	var manager ProjectManagerResponse
+	err = h.db.QueryRow(`
+		SELECT pm.id, pm.project_id, pm.user_id, u.name, u.email, pm.created_at
+		FROM project_managers pm
+		JOIN users u ON pm.user_id = u.id
+		WHERE pm.id = $1
+	`, managerID).Scan(&manager.ID, &manager.ProjectID, &manager.UserID, &manager.UserName, &manager.Email, &manager.CreatedAt)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch added manager")
+		return
+	}
+
+	api.RespondWithJSON(w, http.StatusCreated, manager)
+}
+
+func (h *ProjectHandler) RemoveManager(w http.ResponseWriter, r *http.Request) {
+	userRole := middleware.GetRole(r.Context())
+	if userRole != string(models.RoleFinance) {
+		api.RespondWithError(w, http.StatusForbidden, "only finance users can remove project managers")
+		return
+	}
+
+	projectIDStr := r.PathValue("id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+
+	userIDStr := r.PathValue("user_id")
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+
+	result, err := h.db.Exec("DELETE FROM project_managers WHERE project_id = $1 AND user_id = $2", projectID, userID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to remove manager")
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		api.RespondWithError(w, http.StatusNotFound, "manager assignment not found")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

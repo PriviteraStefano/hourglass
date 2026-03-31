@@ -76,6 +76,9 @@ func main() {
 	mux.HandleFunc("POST /projects", middleware.Auth(authService, projectHandler.Create))
 	mux.HandleFunc("GET /projects/{id}", middleware.Auth(authService, projectHandler.Get))
 	mux.HandleFunc("POST /projects/{id}/adopt", middleware.Auth(authService, projectHandler.Adopt))
+	mux.HandleFunc("GET /projects/{id}/managers", middleware.Auth(authService, projectHandler.ListManagers))
+	mux.HandleFunc("POST /projects/{id}/managers", middleware.Auth(authService, projectHandler.AddManager))
+	mux.HandleFunc("DELETE /projects/{id}/managers/{user_id}", middleware.Auth(authService, projectHandler.RemoveManager))
 
 	mux.HandleFunc("GET /time-entries", middleware.Auth(authService, timeEntryHandler.List))
 	mux.HandleFunc("POST /time-entries", middleware.Auth(authService, timeEntryHandler.Create))
