@@ -56,6 +56,8 @@ func main() {
 
 	mux.HandleFunc("POST /organizations", middleware.Auth(authService, orgHandler.Create))
 	mux.HandleFunc("GET /organizations/{id}", middleware.Auth(authService, orgHandler.Get))
+	mux.HandleFunc("GET /organizations/{id}/settings", middleware.Auth(authService, orgHandler.GetSettings))
+	mux.HandleFunc("PUT /organizations/{id}/settings", middleware.Auth(authService, orgHandler.UpdateSettings))
 	mux.HandleFunc("POST /organizations/{id}/invite", middleware.Auth(authService, orgHandler.Invite))
 
 	mux.HandleFunc("GET /contracts", middleware.Auth(authService, contractHandler.List))
