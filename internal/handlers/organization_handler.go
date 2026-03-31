@@ -292,3 +292,201 @@ func isValidCurrency(code string) bool {
 	}
 	return validCurrencies[code]
 }
+
+func (h *OrganizationHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrganizationID(r.Context())
+
+	rows, err := h.db.Query(`
+		SELECT om.id, om.user_id, om.role, om.is_active, om.invited_by, om.invited_at, om.activated_at,
+			   COALESCE(u.name, '') as user_name, COALESCE(u.email, '') as user_email
+		FROM organization_memberships om
+		LEFT JOIN users u ON om.user_id = u.id
+		WHERE om.organization_id = $1
+		ORDER BY om.created_at DESC
+	`, orgID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch members")
+		return
+	}
+	defer rows.Close()
+
+	var members []map[string]interface{}
+	for rows.Next() {
+		var id, userID sql.NullString
+		var role string
+		var isActive bool
+		var invitedBy, invitedAt, activatedAt sql.NullString
+		var userName, userEmail sql.NullString
+		err := rows.Scan(&id, &userID, &role, &isActive, &invitedBy, &invitedAt, &activatedAt, &userName, &userEmail)
+		if err != nil {
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to scan member")
+			return
+		}
+
+		member := map[string]interface{}{
+			"id":           id.String,
+			"user_id":      userID.String,
+			"role":         role,
+			"is_active":    isActive,
+			"user_name":    userName.String,
+			"user_email":   userEmail.String,
+		}
+		if invitedBy.Valid {
+			member["invited_by"] = invitedBy.String
+		}
+		if invitedAt.Valid {
+			member["invited_at"] = invitedAt.String
+		}
+		if activatedAt.Valid {
+			member["activated_at"] = activatedAt.String
+		}
+		members = append(members, member)
+	}
+
+	if members == nil {
+		members = []map[string]interface{}{}
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, members)
+}
+
+type UpdateRolesRequest struct {
+	Roles []string `json:"roles"`
+}
+
+func (h *OrganizationHandler) UpdateMemberRoles(w http.ResponseWriter, r *http.Request) {
+	userRole := middleware.GetRole(r.Context())
+	if userRole != string(models.RoleFinance) {
+		api.RespondWithError(w, http.StatusForbidden, "only finance users can update member roles")
+		return
+	}
+
+	orgID := middleware.GetOrganizationID(r.Context())
+	memberIDStr := r.PathValue("member_id")
+	memberID, err := uuid.Parse(memberIDStr)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid member id")
+		return
+	}
+
+	var req UpdateRolesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if len(req.Roles) == 0 {
+		api.RespondWithError(w, http.StatusBadRequest, "at least one role is required")
+		return
+	}
+
+	for _, role := range req.Roles {
+		if !models.Role(role).IsValid() {
+			api.RespondWithError(w, http.StatusBadRequest, "invalid role: "+role)
+			return
+		}
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to begin transaction")
+		return
+	}
+	defer tx.Rollback()
+
+	var existingRoles []string
+	rows, err := tx.Query(`SELECT role FROM organization_memberships WHERE id = $1 AND organization_id = $2`, memberID, orgID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch existing roles")
+		return
+	}
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			rows.Close()
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to scan role")
+			return
+		}
+		existingRoles = append(existingRoles, role)
+	}
+	rows.Close()
+
+	if len(existingRoles) == 0 {
+		api.RespondWithError(w, http.StatusNotFound, "member not found")
+		return
+	}
+
+	_, err = tx.Exec(`DELETE FROM organization_memberships WHERE id = $1`, memberID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to delete existing roles")
+		return
+	}
+
+	for _, role := range req.Roles {
+		_, err = tx.Exec(`
+			INSERT INTO organization_memberships (id, user_id, organization_id, role, is_active, invited_by, invited_at)
+			VALUES ($1, (SELECT user_id FROM organization_memberships WHERE id = $1 LIMIT 1), $2, $3, true, NULL, NULL)
+		`, memberID, orgID, role)
+		if err != nil {
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to insert role")
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to commit transaction")
+		return
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{"id": memberIDStr, "roles": req.Roles})
+}
+
+func (h *OrganizationHandler) DeactivateMember(w http.ResponseWriter, r *http.Request) {
+	userRole := middleware.GetRole(r.Context())
+	if userRole != string(models.RoleFinance) {
+		api.RespondWithError(w, http.StatusForbidden, "only finance users can deactivate members")
+		return
+	}
+
+	orgID := middleware.GetOrganizationID(r.Context())
+	memberIDStr := r.PathValue("member_id")
+	memberID, err := uuid.Parse(memberIDStr)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid member id")
+		return
+	}
+
+	var financeCount int
+	err = h.db.QueryRow(`
+		SELECT COUNT(*) FROM organization_memberships 
+		WHERE organization_id = $1 AND role = $2 AND is_active = true
+	`, orgID, models.RoleFinance).Scan(&financeCount)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to count finance users")
+		return
+	}
+
+	var memberRole string
+	err = h.db.QueryRow(`SELECT role FROM organization_memberships WHERE id = $1`, memberID).Scan(&memberRole)
+	if err == sql.ErrNoRows {
+		api.RespondWithError(w, http.StatusNotFound, "member not found")
+		return
+	}
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch member")
+		return
+	}
+
+	if memberRole == string(models.RoleFinance) && financeCount <= 1 {
+		api.RespondWithError(w, http.StatusBadRequest, "cannot deactivate the last finance user in the organization")
+		return
+	}
+
+	_, err = h.db.Exec(`UPDATE organization_memberships SET is_active = false WHERE id = $1`, memberID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to deactivate member")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

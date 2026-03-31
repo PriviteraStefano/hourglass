@@ -53,6 +53,7 @@ func main() {
 	mux.HandleFunc("POST /auth/logout", userHandler.Logout)
 	mux.HandleFunc("POST /auth/activate", userHandler.Activate)
 	mux.HandleFunc("POST /auth/refresh", userHandler.Refresh)
+	mux.HandleFunc("POST /auth/switch-org", middleware.Auth(authService, userHandler.SwitchOrg))
 	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, userHandler.GetProfile))
 
 	mux.HandleFunc("POST /organizations", middleware.Auth(authService, orgHandler.Create))
@@ -60,6 +61,9 @@ func main() {
 	mux.HandleFunc("GET /organizations/{id}/settings", middleware.Auth(authService, orgHandler.GetSettings))
 	mux.HandleFunc("PUT /organizations/{id}/settings", middleware.Auth(authService, orgHandler.UpdateSettings))
 	mux.HandleFunc("POST /organizations/{id}/invite", middleware.Auth(authService, orgHandler.Invite))
+	mux.HandleFunc("GET /organizations/{id}/members", middleware.Auth(authService, orgHandler.ListMembers))
+	mux.HandleFunc("PUT /organizations/{id}/members/{member_id}/roles", middleware.Auth(authService, orgHandler.UpdateMemberRoles))
+	mux.HandleFunc("DELETE /organizations/{id}/members/{member_id}", middleware.Auth(authService, orgHandler.DeactivateMember))
 
 	mux.HandleFunc("GET /customers", middleware.Auth(authService, customerHandler.List))
 	mux.HandleFunc("POST /customers", middleware.Auth(authService, customerHandler.Create))

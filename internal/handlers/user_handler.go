@@ -646,3 +646,81 @@ func (h *UserHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	api.RespondWithJSON(w, http.StatusOK, response)
 }
+
+func (h *UserHandler) SwitchOrg(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+
+	var req struct {
+		OrganizationID string `json:"organization_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.OrganizationID == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "organization_id is required")
+		return
+	}
+
+	orgID, err := uuid.Parse(req.OrganizationID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid organization id")
+		return
+	}
+
+	var membership models.OrganizationMembership
+	var role string
+	err = h.db.QueryRow(`
+		SELECT id, user_id, organization_id, role, is_active
+		FROM organization_memberships
+		WHERE user_id = $1 AND organization_id = $2 AND is_active = true
+	`, userID, orgID).Scan(&membership.ID, &membership.UserID, &membership.OrganizationID, &role, &membership.IsActive)
+	if err == sql.ErrNoRows {
+		api.RespondWithError(w, http.StatusForbidden, "you do not have access to this organization")
+		return
+	}
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to verify membership")
+		return
+	}
+
+	accessToken, err := h.authService.GenerateToken(userID, orgID, role, "")
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+
+	refreshToken, err := h.authService.GenerateRefreshToken()
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate refresh token")
+		return
+	}
+
+	refreshTokenHash := auth.HashRefreshToken(refreshToken)
+	now := time.Now()
+	_, err = h.db.Exec(`
+		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+		VALUES ($1, $2, $3)
+	`, userID, refreshTokenHash, now.Add(auth.RefreshTokenExpiry))
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to store refresh token")
+		return
+	}
+
+	secure := cookies.IsSecureRequest(r)
+	cookies.SetAccessTokenCookie(w, accessToken, secure)
+	cookies.SetRefreshTokenCookie(w, refreshToken, secure)
+
+	var org models.Organization
+	err = h.db.QueryRow(`SELECT id, name, slug, created_at FROM organizations WHERE id = $1`, orgID).Scan(&org.ID, &org.Name, &org.Slug, &org.CreatedAt)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch organization")
+		return
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"organization": org,
+		"role":         role,
+	})
+}
