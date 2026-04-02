@@ -1,0 +1,147 @@
+HOURGLASS DOCUMENTATION VAULT
+=============================
+
+Generated: 2026-04-02
+Total Files: 18 comprehensive markdown documents
+Total Content: ~7,215 lines of documentation
+
+DOCUMENTATION STRUCTURE
+=======================
+
+FOUNDATION (Getting Started)
+├── 00-Index.md                    - Central hub and navigation
+├── 01-System-Overview.md          - Business logic, features, workflows
+├── 02-Architecture.md             - Tech stack, system design, components
+├── 03-Database-Schema.md          - Complete ERD, table references
+└── 15-Development-Setup.md        - Local environment setup guide
+
+BACKEND DEVELOPMENT
+├── 04-Backend-Patterns.md         - Handler pattern, API conventions
+├── 05-Auth-System.md              - JWT, password hashing, token flows
+└── 06-Middleware.md               - Request processing pipeline
+
+FRONTEND DEVELOPMENT
+├── 07-Frontend-Architecture.md    - React, TanStack Router, components
+└── 08-API-Client.md               - HTTP client, React Query patterns
+
+FEATURE DOCUMENTATION (Functional Domains)
+├── 10-Time-Entries.md             - Time tracking, approval workflow
+├── 11-Expenses.md                 - Expense management, categories
+├── 12-Contracts-Projects.md       - Shared resources, governance models
+├── 13-Organization-Users.md       - Multi-tenancy, roles, user management
+└── 14-CSV-Exports.md              - Reports, role-based data scoping
+
+OPERATIONS & DEPLOYMENT
+├── 16-Database-Migrations.md      - Schema versioning, migration patterns
+├── 17-Testing.md                  - Backend and frontend test strategies
+└── 18-Deployment.md               - Docker, Kubernetes, infrastructure
+
+KEY FEATURES DOCUMENTED
+=======================
+
+✓ Complete API endpoint reference with examples
+✓ Data models and database schema
+✓ Authentication and JWT token management
+✓ Role-based access control (employee, manager, finance, customer)
+✓ Approval workflows for time entries and expenses
+✓ Multi-tenancy with organization isolation
+✓ Shared resources (contracts/projects)
+✓ Frontend component patterns and hooks
+✓ React Query integration
+✓ Testing strategies (unit, integration, E2E)
+✓ Docker and Kubernetes deployment
+✓ Database migration system
+✓ CSV export and reporting
+
+DOCUMENTATION HIGHLIGHTS
+========================
+
+• Hyperlinked navigation - Easy cross-reference between topics
+• Code examples - Go, TypeScript, SQL, Bash
+• Architecture diagrams - System flow and component relationships
+• Business rules - Permissions, validation, workflows
+• Common workflows - Step-by-step usage patterns
+• Best practices - Conventions, patterns, recommendations
+• Troubleshooting - Common issues and solutions
+• Type definitions - TypeScript interfaces and Go structs
+
+USAGE GUIDE
+===========
+
+FOR DEVELOPERS
+- Start: 01-System-Overview → 15-Development-Setup
+- Backend: 04-Backend-Patterns → 05-Auth-System → 06-Middleware
+- Frontend: 07-Frontend-Architecture → 08-API-Client
+- Features: 10-Time-Entries, 11-Expenses, 12-Contracts-Projects, etc.
+
+FOR OPERATIONS
+- Deployment: 18-Deployment → 16-Database-Migrations
+- Setup: 15-Development-Setup → 18-Deployment
+- Monitoring: Check health endpoints in 18-Deployment
+
+FOR TESTING
+- Backend: 17-Testing (Go testing patterns)
+- Frontend: 17-Testing (React/TypeScript patterns)
+- Integration: End-to-end workflow examples
+
+FOR NEW FEATURE DEVELOPMENT
+1. Review 04-Backend-Patterns and 07-Frontend-Architecture
+2. Check relevant feature doc (10-Time-Entries, etc.)
+3. Follow established patterns in codebase
+4. Add tests (see 17-Testing)
+5. Update documentation (add to feature doc)
+
+CROSS-REFERENCES
+================
+
+All documents are interconnected with:
+- [[Document-Name]] wiki-style links
+- "See also" sections
+- Navigation between related topics
+- "Next" pointers for learning sequences
+
+MAINTENANCE
+===========
+
+When updating code:
+- Reflect changes in corresponding documentation
+- Update code examples if patterns change
+- Add new features to feature docs
+- Update architecture diagrams if design changes
+- Keep AGENTS.md in sync with this vault
+
+Version Control:
+- Documentation lives in hourglass-vault/ (Obsidian vault)
+- Can be versioned separately or with code
+- Markdown format for easy diffs and version control
+
+OBSIDIAN VAULT SETUP
+====================
+
+This vault is fully compatible with Obsidian:
+- All files are plain markdown
+- Wiki-style links work natively
+- Graph view shows connections between docs
+- Backlinks show where each doc is referenced
+- Tags can be added for additional organization
+
+To use in Obsidian:
+1. Open Obsidian
+2. "Open vault" → select hourglass-vault/
+3. Use left sidebar for navigation
+4. Use graph view to explore connections
+5. Create new notes as needed
+
+STATISTICS
+==========
+
+Content breakdown:
+- Architecture & Design: 4 documents, ~1,500 lines
+- Backend Development: 3 documents, ~1,200 lines
+- Frontend Development: 2 documents, ~1,500 lines
+- Features: 5 documents, ~1,700 lines
+- Operations: 3 documents, ~1,300 lines
+- Navigation: 1 document, ~200 lines
+
+Total effort: 18 comprehensive documents with examples, diagrams, and patterns
+
