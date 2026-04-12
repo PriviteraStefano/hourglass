@@ -14,12 +14,9 @@ DEFINE TABLE organizations SCHEMAFULL
 DEFINE FIELD id ON TABLE organizations TYPE string;
 DEFINE FIELD name ON TABLE organizations TYPE string ASSERT $value != NONE;
 DEFINE FIELD slug ON TABLE organizations TYPE string ASSERT $value != NONE;
-DEFINE FIELD description ON TABLE organizations TYPE string;
-DEFINE FIELD financial_cutoff_days ON TABLE organizations TYPE number DEFAULT 7;
-DEFINE FIELD financial_cutoff_config ON TABLE organizations TYPE object DEFAULT {
-    cutoff_day_of_month: 28,
-    grace_days: 7
-};
+DEFINE FIELD description ON TABLE organizations TYPE option<string>;
+DEFINE FIELD financial_cutoff_days ON TABLE organizations TYPE option<number>;
+DEFINE FIELD financial_cutoff_config ON TABLE organizations TYPE option<object>;
 DEFINE FIELD created_at ON TABLE organizations TYPE datetime DEFAULT time::now();
 DEFINE FIELD updated_at ON TABLE organizations TYPE datetime DEFAULT time::now();
 
@@ -37,10 +34,10 @@ DEFINE TABLE units SCHEMAFULL
 DEFINE FIELD id ON TABLE units TYPE string;
 DEFINE FIELD org_id ON TABLE units TYPE record<organizations> ASSERT $value != NONE;
 DEFINE FIELD name ON TABLE units TYPE string ASSERT $value != NONE;
-DEFINE FIELD description ON TABLE units TYPE string;
+DEFINE FIELD description ON TABLE units TYPE option<string>;
 DEFINE FIELD parent_unit_id ON TABLE units TYPE option<record<units>>;
 DEFINE FIELD hierarchy_level ON TABLE units TYPE number DEFAULT 0;
-DEFINE FIELD code ON TABLE units TYPE string;
+DEFINE FIELD code ON TABLE units TYPE option<string>;
 DEFINE FIELD created_at ON TABLE units TYPE datetime DEFAULT time::now();
 DEFINE FIELD updated_at ON TABLE units TYPE datetime DEFAULT time::now();
 
@@ -60,7 +57,7 @@ DEFINE TABLE users SCHEMAFULL
 DEFINE FIELD id ON TABLE users TYPE string;
 DEFINE FIELD email ON TABLE users TYPE string ASSERT $value != NONE;
 DEFINE FIELD name ON TABLE users TYPE string ASSERT $value != NONE;
-DEFINE FIELD password_hash ON TABLE users TYPE string;
+DEFINE FIELD password_hash ON TABLE users TYPE option<string>;
 DEFINE FIELD is_active ON TABLE users TYPE bool DEFAULT true;
 DEFINE FIELD created_at ON TABLE users TYPE datetime DEFAULT time::now();
 DEFINE FIELD updated_at ON TABLE users TYPE datetime DEFAULT time::now();
@@ -90,4 +87,4 @@ DEFINE INDEX um_org ON TABLE unit_memberships COLUMNS org_id;
 DEFINE INDEX um_user ON TABLE unit_memberships COLUMNS user_id;
 DEFINE INDEX um_unit ON TABLE unit_memberships COLUMNS unit_id;
 DEFINE INDEX um_user_org ON TABLE unit_memberships COLUMNS user_id, org_id;
-DEFINE INDEX um_primary ON TABLE unit_memberships COLUMNS user_id, is_primary WHERE is_primary == true;
+DEFINE INDEX um_primary ON TABLE unit_memberships COLUMNS user_id, is_primary;

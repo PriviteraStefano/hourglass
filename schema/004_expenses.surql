@@ -19,7 +19,7 @@ DEFINE FIELD unit_id ON TABLE expenses TYPE record<units> ASSERT $value != NONE;
 DEFINE FIELD category ON TABLE expenses TYPE string ASSERT $value IN ['mileage', 'meal', 'accommodation', 'other'] AND $value != NONE;
 DEFINE FIELD amount ON TABLE expenses TYPE number ASSERT $value > 0;
 DEFINE FIELD currency ON TABLE expenses TYPE string DEFAULT 'EUR';
-DEFINE FIELD description ON TABLE expenses TYPE string;
+DEFINE FIELD description ON TABLE expenses TYPE option<string>;
 DEFINE FIELD expense_date ON TABLE expenses TYPE datetime ASSERT $value != NONE;
 DEFINE FIELD receipt_url ON TABLE expenses TYPE option<string>;
 DEFINE FIELD receipt_ocr_data ON TABLE expenses TYPE option<object>;

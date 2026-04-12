@@ -35,7 +35,7 @@ DEFINE INDEX te_unit ON TABLE time_entries COLUMNS unit_id;
 DEFINE INDEX te_status ON TABLE time_entries COLUMNS status;
 DEFINE INDEX te_date ON TABLE time_entries COLUMNS entry_date;
 DEFINE INDEX te_user_date ON TABLE time_entries COLUMNS user_id, entry_date;
-DEFINE INDEX te_not_deleted ON TABLE time_entries COLUMNS is_deleted WHERE is_deleted == false;
+DEFINE INDEX te_not_deleted ON TABLE time_entries COLUMNS is_deleted;
 
 -- ============================================================================
 -- AUDIT LAYER (immutable, single source of truth)
