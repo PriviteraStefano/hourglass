@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   surrealdb:
-    image: surrealdb/surrealdb:v2.0.0
+    image: surrealdb/surrealdb:v3.0.5
     container_name: hourglass-surrealdb
     command: ["start", "--log", "debug", "--user", "root", "--pass", "root", "memory"]
     ports:
