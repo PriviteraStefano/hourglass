@@ -1,6 +1,18 @@
 version: '3.8'
 
 services:
+  surrealdb:
+    image: surrealdb/surrealdb:v2.0.0
+    container_name: hourglass-surrealdb
+    command: ["start", "--log", "debug", "--user", "root", "--pass", "root", "memory"]
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   postgres:
     image: postgres:15-alpine
     container_name: hourglass-postgres
@@ -18,18 +30,25 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    profiles:
+      - postgres
 
   app:
     build: .
     container_name: hourglass-app
     environment:
+      SURREALDB_URL: ws://surrealdb:8000/rpc
+      SURREALDB_USER: root
+      SURREALDB_PASS: root
+      SURREALDB_NS: hourglass
+      SURREALDB_DB: main
       DATABASE_URL: postgres://hourglass:hourglass@postgres:5432/hourglass?sslmode=disable
       JWT_SECRET: dev-secret-change-in-production
       PORT: 8080
     ports:
       - "8080:8080"
     depends_on:
-      postgres:
+      surrealdb:
         condition: service_healthy
     volumes:
       - ./uploads:/app/uploads
