@@ -46,6 +46,13 @@ func main() {
 	mux.HandleFunc("POST /auth/logout", authHandler.Logout)
 	mux.HandleFunc("POST /auth/refresh", authHandler.Refresh)
 	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, authHandler.GetProfile))
+	mux.HandleFunc("POST /auth/bootstrap", authHandler.Bootstrap)
+
+	invitationHandler := handlers.NewInvitationHandler(sdb)
+	mux.HandleFunc("POST /invitations", invitationHandler.Create)
+	mux.HandleFunc("GET /invitations/validate/code/{code}", invitationHandler.ValidateCode)
+	mux.HandleFunc("GET /invitations/validate/token/{token}", invitationHandler.ValidateToken)
+	mux.HandleFunc("POST /invitations/accept", invitationHandler.Accept)
 
 	mux.HandleFunc("GET /units", middleware.Auth(authService, unitHandler.List))
 	mux.HandleFunc("POST /units", middleware.Auth(authService, unitHandler.Create))
