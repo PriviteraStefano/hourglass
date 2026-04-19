@@ -195,6 +195,55 @@ func TestSurrealAuthHandler_Login(t *testing.T) {
 	}
 }
 
+func TestSurrealAuthHandler_Bootstrap(t *testing.T) {
+	if os.Getenv("SURREALDB_URL") == "" {
+		t.Skip("SURREALDB_URL not set, skipping integration test")
+	}
+
+	sdb, err := db.NewSurrealDB()
+	if err != nil {
+		t.Fatalf("Failed to connect to SurrealDB: %v", err)
+	}
+	defer sdb.Close()
+
+	authService := auth.NewService("test-secret-key")
+	handler := NewAuthHandler(sdb, authService)
+
+	// Bootstrap request
+	bootstrapPayload := BootstrapRequest{
+		OrgName:   "Bootstrap Test Org",
+		Email:     "admin-" + uniqueID() + "@example.com",
+		Username:  "admin-" + uniqueID(),
+		Firstname: "Admin",
+		Lastname:  "User",
+		Password:  "password123",
+	}
+	body, _ := json.Marshal(bootstrapPayload)
+	req := httptest.NewRequest(http.MethodPost, "/auth/bootstrap", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.Bootstrap(rec, req)
+
+	t.Logf("Bootstrap response: %d, body: %s", rec.Code, rec.Body.String())
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var responseBody map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &responseBody); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	data, ok := responseBody["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected data in response, got: %+v", responseBody)
+	}
+	if data["token"] == "" {
+		t.Error("expected token in response (auto-login)")
+	}
+}
+
 func TestSurrealAuthHandler_LoginWithUsername(t *testing.T) {
 	if os.Getenv("SURREALDB_URL") == "" {
 		t.Skip("SURREALDB_URL not set, skipping integration test")

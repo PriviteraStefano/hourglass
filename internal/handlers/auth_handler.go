@@ -41,6 +41,15 @@ type RegisterRequest struct {
 	InviteToken string `json:"invite_token,omitempty"`
 }
 
+type BootstrapRequest struct {
+	OrgName   string `json:"org_name"`
+	Email     string `json:"email"`
+	Username  string `json:"username"`
+	Firstname string `json:"firstname"`
+	Lastname  string `json:"lastname"`
+	Password  string `json:"password"`
+}
+
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -194,6 +203,180 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		"email":   createdUser["email"],
 		"name":    createdUser["name"],
 		"message": "registration successful",
+	})
+}
+
+func (h *AuthHandler) Bootstrap(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req BootstrapRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.OrgName == "" || req.Email == "" || req.Password == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "org_name, email, and password are required")
+		return
+	}
+
+	if req.Username != "" && len(req.Username) < 3 {
+		api.RespondWithError(w, http.StatusBadRequest, "username must be at least 3 characters")
+		return
+	}
+
+	if len(req.Password) < 8 {
+		api.RespondWithError(w, http.StatusBadRequest, "password must be at least 8 characters")
+		return
+	}
+
+	checkQuery := `SELECT count() FROM users WHERE email = $email GROUP ALL`
+	checkVars := map[string]interface{}{"email": req.Email}
+	checkResult, err := h.sdb.Query(ctx, checkQuery, checkVars)
+	if err == nil && len(*checkResult) > 0 && (*checkResult)[0].Result != nil {
+		var counts []map[string]interface{}
+		checkBytes, _ := json.Marshal((*checkResult)[0].Result)
+		if json.Unmarshal(checkBytes, &counts) == nil && len(counts) > 0 {
+			if count, ok := counts[0]["count"].(float64); ok && count > 0 {
+				api.RespondWithError(w, http.StatusConflict, "email already registered")
+				return
+			}
+		}
+	}
+
+	if req.Username != "" {
+		usernameCheckQuery := `SELECT count() FROM users WHERE username = $username GROUP ALL`
+		usernameCheckVars := map[string]interface{}{"username": req.Username}
+		usernameCheckResult, err := h.sdb.Query(ctx, usernameCheckQuery, usernameCheckVars)
+		if err == nil && len(*usernameCheckResult) > 0 && (*usernameCheckResult)[0].Result != nil {
+			var counts []map[string]interface{}
+			checkBytes, _ := json.Marshal((*usernameCheckResult)[0].Result)
+			if json.Unmarshal(checkBytes, &counts) == nil && len(counts) > 0 {
+				if count, ok := counts[0]["count"].(float64); ok && count > 0 {
+					api.RespondWithError(w, http.StatusConflict, "username already taken")
+					return
+				}
+			}
+		}
+	}
+
+	passwordHash, err := h.authService.HashPassword(req.Password)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to hash password")
+		return
+	}
+
+	now := time.Now()
+	orgSlug := generateSlug(req.OrgName)
+	displayName := ""
+	if req.Firstname != "" || req.Lastname != "" {
+		displayName = strings.TrimSpace(req.Firstname + " " + req.Lastname)
+	}
+
+	userData := map[string]interface{}{
+		"email":         req.Email,
+		"firstname":     req.Firstname,
+		"lastname":      req.Lastname,
+		"name":          displayName,
+		"password_hash": passwordHash,
+		"is_active":     true,
+		"created_at":    now,
+		"updated_at":    now,
+	}
+	if req.Username != "" {
+		userData["username"] = req.Username
+	}
+
+	setParts := []string{}
+	vars := map[string]interface{}{}
+	for key, value := range userData {
+		setParts = append(setParts, key+" = $"+key)
+		vars[key] = value
+	}
+	userQuery := `CREATE users SET ` + strings.Join(setParts, ", ")
+
+	orgQuery := `
+		CREATE organizations SET
+			name = $name,
+			slug = $slug,
+			description = $description,
+			financial_cutoff_days = 7,
+			financial_cutoff_config = { cutoff_day_of_month: 28, grace_days: 7 },
+			created_at = $now,
+			updated_at = $now
+	`
+
+	txQueries := []string{orgQuery, userQuery}
+	txVars := []map[string]interface{}{
+		{"name": req.OrgName, "slug": orgSlug, "description": "Bootstrap organization", "now": now},
+		vars,
+	}
+
+	var orgID string
+	var createdUser map[string]interface{}
+	for i, query := range txQueries {
+		results, err := h.sdb.Query(ctx, query, txVars[i])
+		if err != nil {
+			slog.Error("failed to execute query", "query", query, "err", err)
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to create bootstrap organization")
+			return
+		}
+
+		var items []interface{}
+		resultBytes, _ := json.Marshal((*results)[0].Result)
+		if json.Unmarshal(resultBytes, &items) == nil && len(items) > 0 {
+			if item, ok := items[0].(map[string]interface{}); ok {
+				if i == 0 {
+					if id, ok := item["id"].(map[string]interface{}); ok {
+						if idStr, ok := id["ID"].(string); ok {
+							if idx := strings.LastIndex(idStr, ":"); idx >= 0 {
+								orgID = idStr[idx+1:]
+							} else {
+								orgID = idStr
+							}
+						}
+					}
+				} else {
+					createdUser = item
+				}
+			}
+		}
+	}
+
+	if createdUser == nil || orgID == "" {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to create bootstrap organization")
+		return
+	}
+
+	userIDraw, _ := createdUser["id"].(map[string]interface{})
+	var userID string
+	if userIDraw != nil {
+		if id, ok := userIDraw["ID"].(string); ok {
+			if idx := strings.LastIndex(id, ":"); idx >= 0 {
+				userID = id[idx+1:]
+			}
+		}
+	}
+
+	tokenUserID := uuid.NewMD5(uuid.Nil, []byte(userID))
+	token, err := h.authService.GenerateToken(tokenUserID, uuid.Nil, "admin", req.Email)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+
+	api.RespondWithJSON(w, http.StatusCreated, map[string]interface{}{
+		"token": token,
+		"user": map[string]interface{}{
+			"id":       userID,
+			"email":    req.Email,
+			"username": req.Username,
+			"name":     displayName,
+		},
+		"organization": map[string]interface{}{
+			"id":   orgID,
+			"name": req.OrgName,
+		},
 	})
 }
 
