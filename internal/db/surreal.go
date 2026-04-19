@@ -28,7 +28,7 @@ func NewSurrealDB() (*SurrealDB, error) {
 		ns := getEnvOrDefault("SURREALDB_NS", "hourglass")
 		dbName := getEnvOrDefault("SURREALDB_DB", "main")
 
-		db, err := surrealdb.FromEndpointURLString(ctx,url)
+		db, err := surrealdb.FromEndpointURLString(ctx, url)
 		if err != nil {
 			initErr = fmt.Errorf("failed to connect to SurrealDB: %w", err)
 			return
@@ -64,8 +64,8 @@ func (s *SurrealDB) Close() error {
 	return s.db.Close(context.Background())
 }
 
-func (s *SurrealDB) Query(ctx context.Context, query string, vars map[string]interface{}) (*[]surrealdb.QueryResult[map[string]any], error) {
-	return surrealdb.Query[map[string]any](ctx, s.db, query, vars)
+func (s *SurrealDB) Query(ctx context.Context, query string, vars map[string]interface{}) (*[]surrealdb.QueryResult[interface{}], error) {
+	return surrealdb.Query[interface{}](ctx, s.db, query, vars)
 }
 
 func (s *SurrealDB) Create(ctx context.Context, table string, data interface{}) (*map[string]any, error) {

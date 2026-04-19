@@ -10,7 +10,7 @@ import {AuthApis} from "@/api/auth.ts";
 import {toast} from "sonner";
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  identifier: z.string().min(1, 'Username or email is required'),
   password: z.string().min(1, 'Password is required'),
 })
 
@@ -23,7 +23,7 @@ export function LoginForm() {
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: '',
+      identifier: '',
       password: '',
     },
   })
@@ -53,18 +53,19 @@ export function LoginForm() {
       <CardContent>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="email">
-              Email
+            <label className="text-sm font-medium" htmlFor="identifier">
+              Username or Email
             </label>
             <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              {...form.register('email')}
+              id="identifier"
+              type="text"
+              placeholder="you@example.com or username"
+              autoComplete="username"
+              {...form.register('identifier')}
             />
-            {form.formState.errors.email && (
+            {form.formState.errors.identifier && (
               <p className="text-sm text-destructive">
-                {form.formState.errors.email.message}
+                {form.formState.errors.identifier.message}
               </p>
             )}
           </div>
