@@ -48,6 +48,10 @@ func main() {
 	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, authHandler.GetProfile))
 	mux.HandleFunc("POST /auth/bootstrap", authHandler.Bootstrap)
 
+	passwordResetHandler := handlers.NewPasswordResetHandler(sdb, authService)
+	mux.HandleFunc("POST /auth/password-reset/request", passwordResetHandler.Request)
+	mux.HandleFunc("POST /auth/password-reset/verify", passwordResetHandler.Verify)
+
 	invitationHandler := handlers.NewInvitationHandler(sdb)
 	mux.HandleFunc("POST /invitations", invitationHandler.Create)
 	mux.HandleFunc("GET /invitations/validate/code/{code}", invitationHandler.ValidateCode)
