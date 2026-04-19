@@ -17,6 +17,8 @@ DEFINE FIELD slug ON TABLE organizations TYPE string ASSERT $value != NONE;
 DEFINE FIELD description ON TABLE organizations TYPE option<string>;
 DEFINE FIELD financial_cutoff_days ON TABLE organizations TYPE option<number>;
 DEFINE FIELD financial_cutoff_config ON TABLE organizations TYPE option<object>;
+DEFINE FIELD financial_cutoff_config.cutoff_day_of_month ON TABLE organizations TYPE int;
+DEFINE FIELD financial_cutoff_config.grace_days ON TABLE organizations TYPE int;
 DEFINE FIELD created_at ON TABLE organizations TYPE datetime DEFAULT time::now();
 DEFINE FIELD updated_at ON TABLE organizations TYPE datetime DEFAULT time::now();
 
@@ -88,3 +90,29 @@ DEFINE INDEX um_user ON TABLE unit_memberships COLUMNS user_id;
 DEFINE INDEX um_unit ON TABLE unit_memberships COLUMNS unit_id;
 DEFINE INDEX um_user_org ON TABLE unit_memberships COLUMNS user_id, org_id;
 DEFINE INDEX um_primary ON TABLE unit_memberships COLUMNS user_id, is_primary;
+
+-- Verification Tokens (email verification, password reset)
+DEFINE TABLE verification_tokens SCHEMAFULL;
+
+DEFINE FIELD id ON TABLE verification_tokens TYPE string;
+DEFINE FIELD user_id ON TABLE verification_tokens TYPE record<users> ASSERT $value != NONE;
+DEFINE FIELD token ON TABLE verification_tokens TYPE string ASSERT $value != NONE;
+DEFINE FIELD type ON TABLE verification_tokens TYPE string ASSERT $value IN ['email_verification', 'password_reset'];
+DEFINE FIELD expires_at ON TABLE verification_tokens TYPE datetime ASSERT $value != NONE;
+DEFINE FIELD created_at ON TABLE verification_tokens TYPE datetime DEFAULT time::now();
+
+DEFINE INDEX vt_token ON TABLE verification_tokens COLUMNS token UNIQUE;
+DEFINE INDEX vt_user ON TABLE verification_tokens COLUMNS user_id;
+
+-- Refresh Tokens (JWT refresh)
+DEFINE TABLE refresh_tokens SCHEMAFULL;
+
+DEFINE FIELD id ON TABLE refresh_tokens TYPE string;
+DEFINE FIELD user_id ON TABLE refresh_tokens TYPE record<users> ASSERT $value != NONE;
+DEFINE FIELD token_hash ON TABLE refresh_tokens TYPE string ASSERT $value != NONE;
+DEFINE FIELD expires_at ON TABLE refresh_tokens TYPE datetime ASSERT $value != NONE;
+DEFINE FIELD revoked_at ON TABLE refresh_tokens TYPE option<datetime>;
+DEFINE FIELD created_at ON TABLE refresh_tokens TYPE datetime DEFAULT time::now();
+
+DEFINE INDEX rt_token_hash ON TABLE refresh_tokens COLUMNS token_hash UNIQUE;
+DEFINE INDEX rt_user ON TABLE refresh_tokens COLUMNS user_id;

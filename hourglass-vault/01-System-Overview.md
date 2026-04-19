@@ -48,18 +48,18 @@ Organization
 
 ## Key Features (Implemented)
 
-| Issue | Feature | Description |
-|-------|---------|-------------|
-| #2 | Infrastructure & Auth Hardening | JWT tokens, bcrypt hashing, secure headers |
-| #4 | Organization Settings | Timezone, currency, km rate, week start day |
-| #5 | Customer Management | CRUD for company contacts linked to contracts |
-| #6 | Project Manager Assignment | Assign managers to specific projects |
-| #7 | Time Entries (Flattened Schema) | Redesigned entry structure for Phase 2 |
-| #8 | Expenses (Flattened Schema) | Mileage, meal, accommodation, other categories |
-| #10 | Batch Approvals | edit-approve endpoints for bulk operations |
-| #11 | Contract Updates & Mileage | Update contract details, recalculate mileage costs |
-| #12 | User Management & Org Switching | Multiple org membership, easy org switching |
-| #13 | CSV Exports | Role-based report generation |
+| Issue | Feature                         | Description                                        |
+| ----- | ------------------------------- | -------------------------------------------------- |
+| #2    | Infrastructure & Auth Hardening | JWT tokens, bcrypt hashing, secure headers         |
+| #4    | Organization Settings           | Timezone, currency, km rate, week start day        |
+| #5    | Customer Management             | CRUD for company contacts linked to contracts      |
+| #6    | Project Manager Assignment      | Assign managers to specific projects               |
+| #7    | Time Entries (Flattened Schema) | Redesigned entry structure for Phase 2             |
+| #8    | Expenses (Flattened Schema)     | Mileage, meal, accommodation, other categories     |
+| #10   | Batch Approvals                 | edit-approve endpoints for bulk operations         |
+| #11   | Contract Updates & Mileage      | Update contract details, recalculate mileage costs |
+| #12   | User Management & Org Switching | Multiple org membership, easy org switching        |
+| #13   | CSV Exports                     | Role-based report generation                       |
 
 ## System Architecture
 

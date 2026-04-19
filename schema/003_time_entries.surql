@@ -8,7 +8,7 @@ DEFINE TABLE time_entries SCHEMAFULL
         FOR select WHERE $auth.id == user_id OR $auth.role IN ['wg_manager', 'org_manager', 'finance', 'admin']
         FOR create WHERE $auth.id == user_id OR $auth.role IN ['wg_manager', 'admin']
         FOR update WHERE $auth.id == user_id OR $auth.role IN ['wg_manager', 'org_manager', 'finance', 'admin']
-        FOR delete WHERE false
+        FOR delete WHERE $auth.id == user_id OR $auth.role IN ['admin']
 ;
 
 DEFINE FIELD id ON TABLE time_entries TYPE string;

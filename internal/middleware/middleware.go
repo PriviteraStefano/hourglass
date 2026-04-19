@@ -91,6 +91,22 @@ func GetEmail(ctx context.Context) string {
 	return ""
 }
 
+func SetUserID(ctx context.Context, userID uuid.UUID) context.Context {
+	return context.WithValue(ctx, UserIDKey, userID)
+}
+
+func SetOrganizationID(ctx context.Context, orgID uuid.UUID) context.Context {
+	return context.WithValue(ctx, OrganizationIDKey, orgID)
+}
+
+func SetRole(ctx context.Context, role string) context.Context {
+	return context.WithValue(ctx, RoleKey, role)
+}
+
+func SetEmail(ctx context.Context, email string) context.Context {
+	return context.WithValue(ctx, EmailKey, email)
+}
+
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int

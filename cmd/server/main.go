@@ -13,127 +13,66 @@ import (
 )
 
 func main() {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		databaseURL = "postgres://hourglass:hourglass@localhost:5432/hourglass?sslmode=disable"
-	}
-
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		jwtSecret = "dev-secret-change-in-production"
 	}
 
-	database, err := db.New(databaseURL)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer database.Close()
-
 	authService := auth.NewService(jwtSecret)
 
-	userHandler := handlers.NewUserHandler(database.DB, authService)
-	orgHandler := handlers.NewOrganizationHandler(database.DB, authService)
-	contractHandler := handlers.NewContractHandler(database.DB)
-	projectHandler := handlers.NewProjectHandler(database.DB)
-	timeEntryHandler := handlers.NewTimeEntryHandler(database.DB)
-	expenseHandler := handlers.NewExpenseHandler(database.DB)
-	approvalHandler := handlers.NewApprovalHandler(database.DB)
+	var sdb *db.SurrealDB
+	var err error
+
+	sdb, err = db.NewSurrealDB()
+	if err != nil {
+		log.Fatalf("Failed to connect to SurrealDB: %v", err)
+	}
+	defer sdb.Close()
+	log.Println("Using SurrealDB")
+
 	healthHandler := handlers.NewHealthHandler()
-	customerHandler := handlers.NewCustomerHandler(database.DB)
-	exportHandler := handlers.NewExportHandler(database.DB)
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", healthHandler.ServeHTTP)
 
-	mux.HandleFunc("POST /auth/register", userHandler.Register)
-	mux.HandleFunc("POST /auth/verify", userHandler.Verify)
-	mux.HandleFunc("POST /auth/forgot-password", userHandler.ForgotPassword)
-	mux.HandleFunc("POST /auth/reset-password", userHandler.ResetPassword)
-	mux.HandleFunc("POST /auth/login", userHandler.Login)
-	mux.HandleFunc("POST /auth/logout", userHandler.Logout)
-	mux.HandleFunc("POST /auth/activate", userHandler.Activate)
-	mux.HandleFunc("POST /auth/refresh", userHandler.Refresh)
-	mux.HandleFunc("POST /auth/switch-org", middleware.Auth(authService, userHandler.SwitchOrg))
-	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, userHandler.GetProfile))
+	unitHandler := handlers.NewUnitHandler(sdb)
+	wgHandler := handlers.NewWorkingGroupHandler(sdb)
+	timeEntryHandler := handlers.NewSurrealTimeEntryHandler(sdb)
+	authHandler := handlers.NewAuthHandler(sdb, authService)
 
-	mux.HandleFunc("POST /organizations", middleware.Auth(authService, orgHandler.Create))
-	mux.HandleFunc("GET /organizations/{id}", middleware.Auth(authService, orgHandler.Get))
-	mux.HandleFunc("GET /organizations/{id}/settings", middleware.Auth(authService, orgHandler.GetSettings))
-	mux.HandleFunc("PUT /organizations/{id}/settings", middleware.Auth(authService, orgHandler.UpdateSettings))
-	mux.HandleFunc("POST /organizations/{id}/invite", middleware.Auth(authService, orgHandler.Invite))
-	mux.HandleFunc("GET /organizations/{id}/members", middleware.Auth(authService, orgHandler.ListMembers))
-	mux.HandleFunc("PUT /organizations/{id}/members/{member_id}/roles", middleware.Auth(authService, orgHandler.UpdateMemberRoles))
-	mux.HandleFunc("DELETE /organizations/{id}/members/{member_id}", middleware.Auth(authService, orgHandler.DeactivateMember))
+	mux.HandleFunc("POST /auth/register", authHandler.Register)
+	mux.HandleFunc("POST /auth/login", authHandler.Login)
+	mux.HandleFunc("POST /auth/logout", authHandler.Logout)
+	mux.HandleFunc("POST /auth/refresh", authHandler.Refresh)
+	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, authHandler.GetProfile))
 
-	mux.HandleFunc("GET /customers", middleware.Auth(authService, customerHandler.List))
-	mux.HandleFunc("POST /customers", middleware.Auth(authService, customerHandler.Create))
-	mux.HandleFunc("GET /customers/{id}", middleware.Auth(authService, customerHandler.Get))
-	mux.HandleFunc("PUT /customers/{id}", middleware.Auth(authService, customerHandler.Update))
-	mux.HandleFunc("DELETE /customers/{id}", middleware.Auth(authService, customerHandler.Delete))
+	mux.HandleFunc("GET /units", middleware.Auth(authService, unitHandler.List))
+	mux.HandleFunc("POST /units", middleware.Auth(authService, unitHandler.Create))
+	mux.HandleFunc("GET /units/{id}", middleware.Auth(authService, unitHandler.Get))
+	mux.HandleFunc("PUT /units/{id}", middleware.Auth(authService, unitHandler.Update))
+	mux.HandleFunc("DELETE /units/{id}", middleware.Auth(authService, unitHandler.Delete))
+	mux.HandleFunc("GET /units/tree", middleware.Auth(authService, unitHandler.GetTree))
+	mux.HandleFunc("GET /units/{id}/descendants", middleware.Auth(authService, unitHandler.GetDescendants))
 
-	mux.HandleFunc("GET /contracts", middleware.Auth(authService, contractHandler.List))
-	mux.HandleFunc("POST /contracts", middleware.Auth(authService, contractHandler.Create))
-	mux.HandleFunc("GET /contracts/{id}", middleware.Auth(authService, contractHandler.Get))
-	mux.HandleFunc("PUT /contracts/{id}", middleware.Auth(authService, contractHandler.Update))
-	mux.HandleFunc("POST /contracts/{id}/adopt", middleware.Auth(authService, contractHandler.Adopt))
-	mux.HandleFunc("POST /contracts/{id}/recalculate-mileage", middleware.Auth(authService, contractHandler.RecalculateMileage))
-
-	mux.HandleFunc("GET /projects", middleware.Auth(authService, projectHandler.List))
-	mux.HandleFunc("POST /projects", middleware.Auth(authService, projectHandler.Create))
-	mux.HandleFunc("GET /projects/{id}", middleware.Auth(authService, projectHandler.Get))
-	mux.HandleFunc("POST /projects/{id}/adopt", middleware.Auth(authService, projectHandler.Adopt))
-	mux.HandleFunc("GET /projects/{id}/managers", middleware.Auth(authService, projectHandler.ListManagers))
-	mux.HandleFunc("POST /projects/{id}/managers", middleware.Auth(authService, projectHandler.AddManager))
-	mux.HandleFunc("DELETE /projects/{id}/managers/{user_id}", middleware.Auth(authService, projectHandler.RemoveManager))
+	mux.HandleFunc("GET /working-groups", middleware.Auth(authService, wgHandler.List))
+	mux.HandleFunc("POST /working-groups", middleware.Auth(authService, wgHandler.Create))
+	mux.HandleFunc("GET /working-groups/{id}", middleware.Auth(authService, wgHandler.Get))
+	mux.HandleFunc("PUT /working-groups/{id}", middleware.Auth(authService, wgHandler.Update))
+	mux.HandleFunc("DELETE /working-groups/{id}", middleware.Auth(authService, wgHandler.Delete))
+	mux.HandleFunc("GET /working-groups/{id}/members", middleware.Auth(authService, wgHandler.ListMembers))
+	mux.HandleFunc("POST /working-groups/{id}/members", middleware.Auth(authService, wgHandler.AddMember))
+	mux.HandleFunc("DELETE /working-groups/{id}/members/{member_id}", middleware.Auth(authService, wgHandler.RemoveMember))
 
 	mux.HandleFunc("GET /time-entries", middleware.Auth(authService, timeEntryHandler.List))
 	mux.HandleFunc("POST /time-entries", middleware.Auth(authService, timeEntryHandler.Create))
 	mux.HandleFunc("GET /time-entries/{id}", middleware.Auth(authService, timeEntryHandler.Get))
 	mux.HandleFunc("PUT /time-entries/{id}", middleware.Auth(authService, timeEntryHandler.Update))
 	mux.HandleFunc("DELETE /time-entries/{id}", middleware.Auth(authService, timeEntryHandler.Delete))
-	mux.HandleFunc("GET /time-entries/monthly-summary", middleware.Auth(authService, timeEntryHandler.MonthlySummary))
-
-	mux.HandleFunc("GET /expenses", middleware.Auth(authService, expenseHandler.List))
-	mux.HandleFunc("POST /expenses", middleware.Auth(authService, expenseHandler.Create))
-	mux.HandleFunc("GET /expenses/{id}", middleware.Auth(authService, expenseHandler.Get))
-	mux.HandleFunc("PUT /expenses/{id}", middleware.Auth(authService, expenseHandler.Update))
-	mux.HandleFunc("DELETE /expenses/{id}", middleware.Auth(authService, expenseHandler.Delete))
-	mux.HandleFunc("GET /expenses/monthly-summary", middleware.Auth(authService, expenseHandler.MonthlySummary))
-	mux.HandleFunc("GET /expenses/receipts/{id}", middleware.Auth(authService, expenseHandler.GetReceipt))
-
-	mux.HandleFunc("POST /time-entries/{id}/submit", middleware.Auth(authService, approvalHandler.SubmitTimeEntry))
-	mux.HandleFunc("POST /time-entries/submit-month", middleware.Auth(authService, approvalHandler.SubmitTimeEntryMonth))
-	mux.HandleFunc("POST /expenses/{id}/submit", middleware.Auth(authService, approvalHandler.SubmitExpense))
-	mux.HandleFunc("POST /expenses/submit-month", middleware.Auth(authService, approvalHandler.SubmitExpenseMonth))
-
-	mux.HandleFunc("GET /time-entries/pending-approval", middleware.Auth(authService, approvalHandler.GetPendingTimeEntries))
-	mux.HandleFunc("GET /expenses/pending-approval", middleware.Auth(authService, approvalHandler.GetPendingExpenses))
-
-	mux.HandleFunc("POST /time-entries/{id}/approve", middleware.Auth(authService, approvalHandler.ApproveTimeEntry))
-	mux.HandleFunc("POST /time-entries/{id}/reject", middleware.Auth(authService, approvalHandler.RejectTimeEntry))
-	mux.HandleFunc("POST /expenses/{id}/approve", middleware.Auth(authService, approvalHandler.ApproveExpense))
-	mux.HandleFunc("POST /expenses/{id}/reject", middleware.Auth(authService, approvalHandler.RejectExpense))
-
-	mux.HandleFunc("POST /time-entries/{id}/edit-approve", middleware.Auth(authService, approvalHandler.EditApproveTimeEntry))
-	mux.HandleFunc("POST /time-entries/{id}/edit-return", middleware.Auth(authService, approvalHandler.EditReturnTimeEntry))
-	mux.HandleFunc("POST /expenses/{id}/edit-approve", middleware.Auth(authService, approvalHandler.EditApproveExpense))
-	mux.HandleFunc("POST /expenses/{id}/edit-return", middleware.Auth(authService, approvalHandler.EditReturnExpense))
-
-	mux.HandleFunc("POST /time-entries/{id}/partial-approve", middleware.Auth(authService, approvalHandler.PartialApproveTimeEntry))
-	mux.HandleFunc("POST /time-entries/{id}/delegate", middleware.Auth(authService, approvalHandler.DelegateTimeEntry))
-	mux.HandleFunc("POST /time-entries/batch-approve", middleware.Auth(authService, approvalHandler.BatchApproveTimeEntries))
-	mux.HandleFunc("POST /time-entries/batch-reject", middleware.Auth(authService, approvalHandler.BatchRejectTimeEntries))
-	mux.HandleFunc("POST /time-entries/bulk-edit-approve", middleware.Auth(authService, approvalHandler.BulkEditApproveTimeEntries))
-	mux.HandleFunc("POST /expenses/{id}/partial-approve", middleware.Auth(authService, approvalHandler.PartialApproveExpense))
-	mux.HandleFunc("POST /expenses/{id}/delegate", middleware.Auth(authService, approvalHandler.DelegateExpense))
-	mux.HandleFunc("POST /expenses/batch-approve", middleware.Auth(authService, approvalHandler.BatchApproveExpenses))
-	mux.HandleFunc("POST /expenses/batch-reject", middleware.Auth(authService, approvalHandler.BatchRejectExpenses))
-	mux.HandleFunc("POST /expenses/bulk-edit-approve", middleware.Auth(authService, approvalHandler.BulkEditApproveExpenses))
-
-	mux.HandleFunc("GET /exports/timesheets", middleware.Auth(authService, exportHandler.Timesheets))
-	mux.HandleFunc("GET /exports/expenses", middleware.Auth(authService, exportHandler.Expenses))
-	mux.HandleFunc("GET /exports/combined", middleware.Auth(authService, exportHandler.Combined))
+	mux.HandleFunc("POST /time-entries/{id}/submit", middleware.Auth(authService, timeEntryHandler.Submit))
+	mux.HandleFunc("POST /time-entries/{id}/approve", middleware.Auth(authService, timeEntryHandler.Approve))
+	mux.HandleFunc("POST /time-entries/{id}/reject", middleware.Auth(authService, timeEntryHandler.Reject))
+	mux.HandleFunc("GET /time-entries/pending", middleware.Auth(authService, timeEntryHandler.ListPending))
 
 	port := os.Getenv("PORT")
 	if port == "" {

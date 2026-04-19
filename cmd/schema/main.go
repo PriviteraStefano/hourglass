@@ -21,7 +21,7 @@ func main() {
 
 	ctx := context.Background()
 
-	db, err := surrealdb.New(url)
+	db, err := surrealdb.FromEndpointURLString(ctx,url)
 	if err != nil {
 		log.Fatalf("Failed to connect to SurrealDB: %v", err)
 	}

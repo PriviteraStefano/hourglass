@@ -28,7 +28,7 @@ func NewSurrealDB() (*SurrealDB, error) {
 		ns := getEnvOrDefault("SURREALDB_NS", "hourglass")
 		dbName := getEnvOrDefault("SURREALDB_DB", "main")
 
-		db, err := surrealdb.New(url)
+		db, err := surrealdb.FromEndpointURLString(ctx,url)
 		if err != nil {
 			initErr = fmt.Errorf("failed to connect to SurrealDB: %w", err)
 			return
