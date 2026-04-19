@@ -1,6 +1,6 @@
 import {mutationOptions, queryOptions} from '@tanstack/react-query'
 import {api} from "@/lib/api.ts";
-import type {AuthResponse, LoginRequest, RegisterRequest, UserWithMembership} from "@/types";
+import type {AuthResponse, BootstrapRequest, InvitationResponse, LoginRequest, PasswordResetRequest, PasswordResetVerify, RegisterRequest, UserWithMembership} from "@/types";
 
 const profileQueryOpts = queryOptions({
   queryKey: ['auth', 'me'],
@@ -32,6 +32,16 @@ const registerMutationOpts = mutationOptions({
     client.setQueryData(['auth', 'me'], result.user),
 })
 
+const bootstrapMutationOpts = mutationOptions({
+  mutationFn: (data: BootstrapRequest) =>
+    api<AuthResponse>('/auth/bootstrap', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  onSuccess: (result: AuthResponse, _, __, {client}) =>
+    client.setQueryData(['auth', 'me'], result.user),
+})
+
 const logoutMutationOpts = mutationOptions({
   mutationFn: () =>
     api<{ message: string }>('/auth/logout', {
@@ -53,10 +63,61 @@ const refreshMutationOpts = mutationOptions({
   },
 })
 
+const createInvitationMutationOpts = mutationOptions({
+  mutationFn: (data: { organization_id: string; email?: string }) =>
+    api<InvitationResponse>('/invitations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+})
+
+const validateInvitationCodeQueryOpts = (code: string) => queryOptions({
+  queryKey: ['invitations', 'code', code],
+  queryFn: async () => api<InvitationResponse>(`/invitations/validate/code/${code}`),
+  enabled: !!code,
+})
+
+const validateInvitationTokenQueryOpts = (token: string) => queryOptions({
+  queryKey: ['invitations', 'token', token],
+  queryFn: async () => api<InvitationResponse>(`/invitations/validate/token/${token}`),
+  enabled: !!token,
+})
+
+const acceptInvitationMutationOpts = mutationOptions({
+  mutationFn: (data: { token: string; email: string; username: string; password: string }) =>
+    api<{ message: string }>('/invitations/accept', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+})
+
+const requestPasswordResetMutationOpts = mutationOptions({
+  mutationFn: (data: PasswordResetRequest) =>
+    api<{ message: string; code?: string }>('/auth/password-reset/request', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+})
+
+const verifyPasswordResetMutationOpts = mutationOptions({
+  mutationFn: (data: PasswordResetVerify) =>
+    api<{ message: string }>('/auth/password-reset/verify', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+})
+
 export const AuthApis = {
   profileQueryOpts,
   loginMutationOpts,
   registerMutationOpts,
+  bootstrapMutationOpts,
   logoutMutationOpts,
   refreshMutationOpts,
+  createInvitationMutationOpts,
+  validateInvitationCodeQueryOpts,
+  validateInvitationTokenQueryOpts,
+  acceptInvitationMutationOpts,
+  requestPasswordResetMutationOpts,
+  verifyPasswordResetMutationOpts,
 }

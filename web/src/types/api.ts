@@ -40,6 +40,39 @@ export interface RegisterRequest {
   name: string
   organization_name?: string
   invite_token?: string
+  username?: string
+  firstname?: string
+  lastname?: string
+}
+
+export interface BootstrapRequest {
+  org_name: string
+  email: string
+  username: string
+  firstname: string
+  lastname: string
+  password: string
+}
+
+export interface InvitationResponse {
+  id: string
+  code: string
+  token: string
+  link: string
+  email?: string
+  status: string
+  expires_at: string
+  organization_id: string
+}
+
+export interface PasswordResetRequest {
+  identifier: string
+}
+
+export interface PasswordResetVerify {
+  identifier: string
+  code: string
+  password: string
 }
 
 export interface CreateTimeEntryRequest {
