@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
+	"github.com/stefanoprivitera/hourglass/internal/core/domain/password_reset"
 	"github.com/surrealdb/surrealdb.go/pkg/models"
 )
 
@@ -139,6 +140,20 @@ type SurrealPasswordReset struct {
 	ExpiresAt time.Time       `json:"expires_at"`
 	UsedAt    *time.Time      `json:"used_at,omitempty"`
 	CreatedAt time.Time       `json:"created_at"`
+}
+
+func (pr *SurrealPasswordReset) ToDomain() *password_reset.PasswordReset {
+	if pr == nil {
+		return nil
+	}
+	return &password_reset.PasswordReset{
+		ID:        recordIDToUUID(pr.ID),
+		UserID:    recordIDToUUID(pr.UserID),
+		CodeHash:  pr.CodeHash,
+		ExpiresAt: pr.ExpiresAt,
+		UsedAt:    pr.UsedAt,
+		CreatedAt: pr.CreatedAt,
+	}
 }
 
 type SurrealUnit struct {

@@ -16,4 +16,5 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*auth.User, error)
 	EmailExists(ctx context.Context, email string) (bool, error)
 	UsernameExists(ctx context.Context, username string) (bool, error)
+	UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error
 }

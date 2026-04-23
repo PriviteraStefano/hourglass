@@ -79,22 +79,22 @@ func (r *UserRepository) EmailExists(ctx context.Context, email string) (bool, e
 }
 
 func (r *UserRepository) UsernameExists(ctx context.Context, username string) (bool, error) {
-	results, err := sdb.Query[[]SurrealUserCount](ctx, r.db,
-		"SELECT count() FROM users WHERE username = $username GROUP ALL",
-		map[string]any{"username": username})
+	result, err := sdb.Query[[]SurrealUser](ctx, r.db,
+		"SELECT id FROM users WHERE username = $username LIMIT 1",
+		map[string]interface{}{"username": username})
 	if err != nil {
 		return false, wrapErr(err, "check username exists")
 	}
-	if results == nil || len(*results) == 0 {
+	if result == nil || len(*result) == 0 {
 		return false, nil
 	}
-	resultData := *results
-	if len(resultData) == 0 {
-		return false, nil
-	}
-	resultItems := resultData[0].Result
-	if len(resultItems) == 0 {
-		return false, nil
-	}
-	return resultItems[0].Count > 0, nil
+	return len((*result)[0].Result) > 0, nil
+}
+
+func (r *UserRepository) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
+	recordID := uuidToRecordID("users", userID)
+	_, err := sdb.Merge[map[string]interface{}](ctx, r.db, recordID, map[string]interface{}{
+		"password_hash": passwordHash,
+	})
+	return wrapErr(err, "update password")
 }

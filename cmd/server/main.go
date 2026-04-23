@@ -11,6 +11,7 @@ import (
 	"github.com/stefanoprivitera/hourglass/internal/auth"
 	hexsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
+	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
 	"github.com/stefanoprivitera/hourglass/internal/db"
 	"github.com/stefanoprivitera/hourglass/internal/handlers"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
@@ -67,9 +68,13 @@ func main() {
 	invitationService := invitationsvc.NewService(invitationRepo)
 	hexInvitationHandler := http.NewInvitationHandler(invitationService)
 
-	passwordResetHandler := handlers.NewPasswordResetHandler(sdbConn.DB(), authService)
-	mux.HandleFunc("POST /auth/password-reset/request", passwordResetHandler.Request)
-	mux.HandleFunc("POST /auth/password-reset/verify", passwordResetHandler.Verify)
+	passwordResetRepo := hexauth.NewPasswordResetRepository(sdbConn.DB())
+	userFinder := hexauth.NewUserFinder(sdbConn.DB())
+	passwordResetService := passwordresetsvc.NewService(passwordResetRepo, userRepo, userFinder, passwordHasher, hexauth.NewTokenService(authService))
+	hexPasswordResetHandler := http.NewPasswordResetHandler(passwordResetService)
+
+	mux.HandleFunc("POST /auth/password-reset/request", hexPasswordResetHandler.Request)
+	mux.HandleFunc("POST /auth/password-reset/verify", hexPasswordResetHandler.Verify)
 
 	mux.HandleFunc("POST /invitations", hexInvitationHandler.Create)
 	mux.HandleFunc("GET /invitations/validate/code/{code}", hexInvitationHandler.ValidateCode)
