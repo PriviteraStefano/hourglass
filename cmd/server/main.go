@@ -10,6 +10,7 @@ import (
 	hexauth "github.com/stefanoprivitera/hourglass/internal/adapters/secondary/surrealdb"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
 	hexsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
+	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
 	"github.com/stefanoprivitera/hourglass/internal/db"
 	"github.com/stefanoprivitera/hourglass/internal/handlers"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
@@ -62,15 +63,18 @@ func main() {
 	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, hexAuthHandler.GetProfile))
 	mux.HandleFunc("POST /auth/bootstrap", hexAuthHandler.Bootstrap)
 
+	invitationRepo := hexauth.NewInvitationRepository(sdbConn.DB())
+	invitationService := invitationsvc.NewService(invitationRepo)
+	hexInvitationHandler := http.NewInvitationHandler(invitationService)
+
 	passwordResetHandler := handlers.NewPasswordResetHandler(sdbConn.DB(), authService)
 	mux.HandleFunc("POST /auth/password-reset/request", passwordResetHandler.Request)
 	mux.HandleFunc("POST /auth/password-reset/verify", passwordResetHandler.Verify)
 
-	invitationHandler := handlers.NewInvitationHandler(sdbConn.DB())
-	mux.HandleFunc("POST /invitations", invitationHandler.Create)
-	mux.HandleFunc("GET /invitations/validate/code/{code}", invitationHandler.ValidateCode)
-	mux.HandleFunc("GET /invitations/validate/token/{token}", invitationHandler.ValidateToken)
-	mux.HandleFunc("POST /invitations/accept", invitationHandler.Accept)
+	mux.HandleFunc("POST /invitations", hexInvitationHandler.Create)
+	mux.HandleFunc("GET /invitations/validate/code/{code}", hexInvitationHandler.ValidateCode)
+	mux.HandleFunc("GET /invitations/validate/token/{token}", hexInvitationHandler.ValidateToken)
+	mux.HandleFunc("POST /invitations/accept", hexInvitationHandler.Accept)
 
 	mux.HandleFunc("GET /units", middleware.Auth(authService, unitHandler.List))
 	mux.HandleFunc("POST /units", middleware.Auth(authService, unitHandler.Create))
