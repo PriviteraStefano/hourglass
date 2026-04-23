@@ -12,6 +12,7 @@ import (
 	hexsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
+	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
 	unitsvc "github.com/stefanoprivitera/hourglass/internal/core/services/unit"
 	wgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/working_group"
 	"github.com/stefanoprivitera/hourglass/internal/db"
@@ -40,7 +41,10 @@ func main() {
 
 	mux.HandleFunc("GET /health", healthHandler.ServeHTTP)
 
-	timeEntryHandler := handlers.NewSurrealTimeEntryHandler(sdbConn.DB())
+	timeEntryRepo := hexauth.NewTimeEntryRepository(sdbConn.DB())
+	auditLogRepo := hexauth.NewAuditLogRepository(sdbConn.DB())
+	teService := tesvc.NewService(timeEntryRepo, auditLogRepo)
+	hexTEHandler := http.NewTimeEntryHandler(teService)
 
 	userRepo := hexauth.NewUserRepository(sdbConn.DB())
 	orgRepo := hexauth.NewOrganizationRepository(sdbConn.DB())
@@ -106,15 +110,15 @@ func main() {
 	mux.HandleFunc("POST /working-groups/{id}/members", middleware.Auth(authService, hexWGHandler.AddMember))
 	mux.HandleFunc("DELETE /working-groups/{id}/members/{member_id}", middleware.Auth(authService, hexWGHandler.RemoveMember))
 
-	mux.HandleFunc("GET /time-entries", middleware.Auth(authService, timeEntryHandler.List))
-	mux.HandleFunc("POST /time-entries", middleware.Auth(authService, timeEntryHandler.Create))
-	mux.HandleFunc("GET /time-entries/{id}", middleware.Auth(authService, timeEntryHandler.Get))
-	mux.HandleFunc("PUT /time-entries/{id}", middleware.Auth(authService, timeEntryHandler.Update))
-	mux.HandleFunc("DELETE /time-entries/{id}", middleware.Auth(authService, timeEntryHandler.Delete))
-	mux.HandleFunc("POST /time-entries/{id}/submit", middleware.Auth(authService, timeEntryHandler.Submit))
-	mux.HandleFunc("POST /time-entries/{id}/approve", middleware.Auth(authService, timeEntryHandler.Approve))
-	mux.HandleFunc("POST /time-entries/{id}/reject", middleware.Auth(authService, timeEntryHandler.Reject))
-	mux.HandleFunc("GET /time-entries/pending", middleware.Auth(authService, timeEntryHandler.ListPending))
+	mux.HandleFunc("GET /time-entries", middleware.Auth(authService, hexTEHandler.List))
+	mux.HandleFunc("POST /time-entries", middleware.Auth(authService, hexTEHandler.Create))
+	mux.HandleFunc("GET /time-entries/{id}", middleware.Auth(authService, hexTEHandler.Get))
+	mux.HandleFunc("PUT /time-entries/{id}", middleware.Auth(authService, hexTEHandler.Update))
+	mux.HandleFunc("DELETE /time-entries/{id}", middleware.Auth(authService, hexTEHandler.Delete))
+	mux.HandleFunc("POST /time-entries/{id}/submit", middleware.Auth(authService, hexTEHandler.Submit))
+	mux.HandleFunc("POST /time-entries/{id}/approve", middleware.Auth(authService, hexTEHandler.Approve))
+	mux.HandleFunc("POST /time-entries/{id}/reject", middleware.Auth(authService, hexTEHandler.Reject))
+	mux.HandleFunc("GET /time-entries/pending", middleware.Auth(authService, hexTEHandler.ListPending))
 
 	port := os.Getenv("PORT")
 	if port == "" {

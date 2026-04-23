@@ -5,6 +5,7 @@ import (
 
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/password_reset"
+	"github.com/stefanoprivitera/hourglass/internal/core/domain/time_entry"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/unit"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/working_group"
 	"github.com/surrealdb/surrealdb.go/pkg/models"
@@ -323,6 +324,52 @@ type SurrealTimeEntry struct {
 	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
+func (ste *SurrealTimeEntry) ToDomain() *time_entry.TimeEntry {
+	if ste == nil {
+		return nil
+	}
+	return &time_entry.TimeEntry{
+		ID:                 recordIDToUUID(ste.ID),
+		OrgID:              recordIDToUUID(ste.OrgID),
+		UserID:             recordIDToUUID(ste.UserID),
+		ProjectID:          recordIDToUUID(ste.ProjectID),
+		SubprojectID:       recordIDToUUID(ste.SubprojectID),
+		WGID:               recordIDToUUID(ste.WGID),
+		UnitID:             recordIDToUUID(ste.UnitID),
+		Hours:              ste.Hours,
+		Description:        ste.Description,
+		EntryDate:          ste.EntryDate,
+		Status:             ste.Status,
+		IsDeleted:          ste.IsDeleted,
+		CreatedFromEntryID: recordIDToUUIDPtr(ste.CreatedFromEntryID),
+		CreatedAt:          ste.CreatedAt,
+		UpdatedAt:          ste.UpdatedAt,
+	}
+}
+
+func SurrealTimeEntryFromDomain(e *time_entry.TimeEntry) *SurrealTimeEntry {
+	if e == nil {
+		return nil
+	}
+	return &SurrealTimeEntry{
+		ID:                 uuidToRecordID("time_entries", e.ID),
+		OrgID:              uuidToRecordID("organizations", e.OrgID),
+		UserID:             uuidToRecordID("users", e.UserID),
+		ProjectID:          uuidToRecordID("projects", e.ProjectID),
+		SubprojectID:       uuidToRecordID("subprojects", e.SubprojectID),
+		WGID:               uuidToRecordID("working_groups", e.WGID),
+		UnitID:             uuidToRecordID("units", e.UnitID),
+		Hours:              e.Hours,
+		Description:        e.Description,
+		EntryDate:          e.EntryDate,
+		Status:             e.Status,
+		IsDeleted:          e.IsDeleted,
+		CreatedFromEntryID: uuidToRecordIDPtr("time_entries", e.CreatedFromEntryID),
+		CreatedAt:          e.CreatedAt,
+		UpdatedAt:          e.UpdatedAt,
+	}
+}
+
 type SurrealAuditLog struct {
 	ID        models.RecordID `json:"id,omitempty"`
 	OrgID     models.RecordID `json:"org_id"`
@@ -335,4 +382,22 @@ type SurrealAuditLog struct {
 	Changes   map[string]any  `json:"changes,omitempty"`
 	Timestamp time.Time       `json:"timestamp"`
 	IPAddress string          `json:"ip_address,omitempty"`
+}
+
+func (sal *SurrealAuditLog) ToDomain() *time_entry.AuditLog {
+	if sal == nil {
+		return nil
+	}
+	return &time_entry.AuditLog{
+		ID:        recordIDToUUID(sal.ID),
+		OrgID:     recordIDToUUID(sal.OrgID),
+		EntryID:   sal.EntryID,
+		EntryType: sal.EntryType,
+		Action:    sal.Action,
+		ActorRole: sal.ActorRole,
+		ActorID:   recordIDToUUID(sal.ActorID),
+		Reason:    sal.Reason,
+		Changes:   sal.Changes,
+		Timestamp: sal.Timestamp,
+	}
 }
