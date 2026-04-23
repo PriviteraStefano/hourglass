@@ -119,3 +119,95 @@ type QueryResponse[T any] struct {
 type QueryResultWrapper struct {
 	Result []map[string]any `json:"result"`
 }
+
+type SurrealInvitation struct {
+	ID             models.RecordID `json:"id,omitempty"`
+	OrganizationID models.RecordID `json:"organization_id"`
+	Code           string          `json:"code"`
+	InviteToken    string          `json:"invite_token"`
+	Email          string          `json:"email,omitempty"`
+	Status         string          `json:"status"`
+	ExpiresAt      time.Time       `json:"expires_at"`
+	CreatedBy      string          `json:"created_by"`
+	CreatedAt      time.Time       `json:"created_at"`
+}
+
+type SurrealPasswordReset struct {
+	ID        models.RecordID `json:"id,omitempty"`
+	UserID    models.RecordID `json:"user_id"`
+	CodeHash  string          `json:"code_hash"`
+	ExpiresAt time.Time       `json:"expires_at"`
+	UsedAt    *time.Time      `json:"used_at,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
+}
+
+type SurrealUnit struct {
+	ID             models.RecordID `json:"id,omitempty"`
+	OrgID          models.RecordID `json:"org_id"`
+	Name           string          `json:"name"`
+	Description    string          `json:"description,omitempty"`
+	ParentUnitID   models.RecordID `json:"parent_unit_id,omitempty"`
+	HierarchyLevel int             `json:"hierarchy_level"`
+	Code           string          `json:"code,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+}
+
+type SurrealWorkingGroup struct {
+	ID               models.RecordID `json:"id,omitempty"`
+	OrgID            models.RecordID `json:"org_id"`
+	SubprojectID     models.RecordID `json:"subproject_id"`
+	Name             string          `json:"name"`
+	Description      string          `json:"description,omitempty"`
+	UnitIDs          []string        `json:"unit_ids"`
+	EnforceUnitTuple bool            `json:"enforce_unit_tuple"`
+	ManagerID        models.RecordID `json:"manager_id"`
+	DelegateIDs      []string        `json:"delegate_ids,omitempty"`
+	IsActive         bool            `json:"is_active"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
+}
+
+type SurrealWorkingGroupMember struct {
+	ID                  models.RecordID `json:"id,omitempty"`
+	WGID                models.RecordID `json:"wg_id"`
+	UserID              models.RecordID `json:"user_id"`
+	UnitID              models.RecordID `json:"unit_id"`
+	Role                string          `json:"role"`
+	IsDefaultSubproject bool            `json:"is_default_subproject"`
+	StartDate           time.Time       `json:"start_date"`
+	EndDate             *time.Time      `json:"end_date,omitempty"`
+	CreatedAt           time.Time       `json:"created_at"`
+}
+
+type SurrealTimeEntry struct {
+	ID                 models.RecordID `json:"id,omitempty"`
+	OrgID              models.RecordID `json:"org_id"`
+	UserID             models.RecordID `json:"user_id"`
+	ProjectID          models.RecordID `json:"project_id"`
+	SubprojectID       models.RecordID `json:"subproject_id"`
+	WGID               models.RecordID `json:"wg_id"`
+	UnitID             models.RecordID `json:"unit_id"`
+	Hours              float64         `json:"hours"`
+	Description        string          `json:"description"`
+	EntryDate          time.Time       `json:"entry_date"`
+	Status             string          `json:"status"`
+	IsDeleted          bool            `json:"is_deleted"`
+	CreatedFromEntryID models.RecordID `json:"created_from_entry_id,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+}
+
+type SurrealAuditLog struct {
+	ID        models.RecordID `json:"id,omitempty"`
+	OrgID     models.RecordID `json:"org_id"`
+	EntryID   string          `json:"entry_id"`
+	EntryType string          `json:"entry_type"`
+	Action    string          `json:"action"`
+	ActorRole string          `json:"actor_role"`
+	ActorID   models.RecordID `json:"actor_id"`
+	Reason    string          `json:"reason,omitempty"`
+	Changes   map[string]any  `json:"changes,omitempty"`
+	Timestamp time.Time       `json:"timestamp"`
+	IPAddress string          `json:"ip_address,omitempty"`
+}

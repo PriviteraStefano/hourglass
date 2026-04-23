@@ -8,16 +8,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stefanoprivitera/hourglass/internal/db"
+	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/surrealdb"
 	"github.com/stefanoprivitera/hourglass/pkg/api"
+
+	sdb "github.com/surrealdb/surrealdb.go"
+	"github.com/surrealdb/surrealdb.go/pkg/models"
 )
 
 type InvitationHandler struct {
-	sdb *db.SurrealDB
+	db *sdb.DB
 }
 
-func NewInvitationHandler(sdb *db.SurrealDB) *InvitationHandler {
-	return &InvitationHandler{sdb: sdb}
+func NewInvitationHandler(db *sdb.DB) *InvitationHandler {
+	return &InvitationHandler{db: db}
 }
 
 type CreateInvitationRequest struct {
@@ -75,132 +78,100 @@ func (h *InvitationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	expiresAt := time.Now().Add(time.Duration(expiresInDays) * 24 * time.Hour)
 
-	invitationQuery := `
-		CREATE invitations SET
-			organization_id = $organization_id,
-			code = $code,
-			invite_token = $invite_token,
-			email = $email,
-			status = 'pending',
-			expires_at = $expires_at,
-			created_at = $created_at
-	`
-	invitationVars := map[string]interface{}{
-		"organization_id": req.OrganizationID,
-		"code":            code,
-		"invite_token":    token,
-		"email":           req.Email,
-		"status":          "pending",
-		"expires_at":      expiresAt,
-		"created_by":      "system",
-		"created_at":      time.Now(),
+	invitation := &surrealdb.SurrealInvitation{
+		OrganizationID: models.NewRecordID("organizations", req.OrganizationID),
+		Code:           code,
+		InviteToken:    token,
+		Email:          req.Email,
+		Status:         "pending",
+		ExpiresAt:      expiresAt,
+		CreatedBy:      "system",
+		CreatedAt:      time.Now(),
 	}
 
-	results, err := h.sdb.Query(ctx, invitationQuery, invitationVars)
+	created, err := sdb.Create[surrealdb.SurrealInvitation](ctx, h.db, models.Table("invitations"), invitation)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to create invitation: "+err.Error())
 		return
 	}
 
-	if len(*results) == 0 || (*results)[0].Result == nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to create invitation: no result")
-		return
-	}
-
-	var invitations []interface{}
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if json.Unmarshal(resultBytes, &invitations) != nil || len(invitations) == 0 {
-		return
-	}
-
-	if invitation, ok := invitations[0].(map[string]interface{}); ok {
-		idStr := ""
-		if id, ok := invitation["id"].(map[string]interface{}); ok {
-			if s, ok := id["ID"].(string); ok {
-				idStr = s
-			}
-		}
-		link := "https://app.example.com/invite/" + token
-		api.RespondWithJSON(w, http.StatusCreated, map[string]interface{}{
-			"id":              idStr,
-			"code":            code,
-			"token":           token,
-			"link":            link,
-			"email":           req.Email,
-			"status":          "pending",
-			"expires_at":      expiresAt,
-			"organization_id": req.OrganizationID,
-		})
-		return
-	}
-
-	api.RespondWithError(w, http.StatusInternalServerError, "failed to create invitation")
+	link := "https://app.example.com/invite/" + token
+	api.RespondWithJSON(w, http.StatusCreated, map[string]interface{}{
+		"id":              recordIDToString(created.ID),
+		"code":            code,
+		"token":           token,
+		"link":            link,
+		"email":           req.Email,
+		"status":          "pending",
+		"expires_at":      expiresAt,
+		"organization_id": req.OrganizationID,
+	})
 }
 
 func (h *InvitationHandler) ValidateCode(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	code := strings.TrimPrefix(r.PathValue("code"), "/")
 
-	query := `SELECT * FROM invitations WHERE code = $code LIMIT 1`
-	vars := map[string]interface{}{"code": code}
-
-	results, err := h.sdb.Query(ctx, query, vars)
-	if err != nil || len(*results) == 0 || (*results)[0].Result == nil {
+	results, err := sdb.Query[[]surrealdb.SurrealInvitation](ctx, h.db,
+		"SELECT * FROM invitations WHERE code = $code LIMIT 1",
+		map[string]interface{}{"code": code})
+	if err != nil || results == nil || len(*results) == 0 {
+		api.RespondWithError(w, http.StatusNotFound, "invitation not found")
+		return
+	}
+	resultItems := (*results)[0].Result
+	if len(resultItems) == 0 {
 		api.RespondWithError(w, http.StatusNotFound, "invitation not found")
 		return
 	}
 
-	var invitations []interface{}
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if json.Unmarshal(resultBytes, &invitations) == nil && len(invitations) > 0 {
-		if invitation, ok := invitations[0].(map[string]interface{}); ok {
-			if status, ok := invitation["status"].(string); ok && status == "expired" {
-				api.RespondWithError(w, http.StatusGone, "invitation has expired")
-				return
-			}
-			if expiresAt, ok := invitation["expires_at"].(time.Time); ok && expiresAt.Before(time.Now()) {
-				api.RespondWithError(w, http.StatusGone, "invitation has expired")
-				return
-			}
-			api.RespondWithJSON(w, http.StatusOK, invitation)
-			return
-		}
+	invitation := resultItems[0]
+	if invitation.Status == "expired" || invitation.ExpiresAt.Before(time.Now()) {
+		api.RespondWithError(w, http.StatusGone, "invitation has expired")
+		return
 	}
 
-	api.RespondWithError(w, http.StatusInternalServerError, "failed to validate invitation")
+	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"id":              recordIDToString(invitation.ID),
+		"code":            invitation.Code,
+		"email":           invitation.Email,
+		"status":          invitation.Status,
+		"expires_at":      invitation.ExpiresAt,
+		"organization_id": recordIDToString(invitation.OrganizationID),
+	})
 }
 
 func (h *InvitationHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	token := strings.TrimPrefix(r.PathValue("token"), "/")
 
-	query := `SELECT * FROM invitations WHERE invite_token = $invite_token LIMIT 1`
-	vars := map[string]interface{}{"invite_token": token}
-
-	results, err := h.sdb.Query(ctx, query, vars)
-	if err != nil || len(*results) == 0 || (*results)[0].Result == nil {
+	results, err := sdb.Query[[]surrealdb.SurrealInvitation](ctx, h.db,
+		"SELECT * FROM invitations WHERE invite_token = $invite_token LIMIT 1",
+		map[string]interface{}{"invite_token": token})
+	if err != nil || results == nil || len(*results) == 0 {
+		api.RespondWithError(w, http.StatusNotFound, "invitation not found")
+		return
+	}
+	resultItems := (*results)[0].Result
+	if len(resultItems) == 0 {
 		api.RespondWithError(w, http.StatusNotFound, "invitation not found")
 		return
 	}
 
-	var invitations []interface{}
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if json.Unmarshal(resultBytes, &invitations) == nil && len(invitations) > 0 {
-		if invitation, ok := invitations[0].(map[string]interface{}); ok {
-			if status, ok := invitation["status"].(string); ok && status == "expired" {
-				api.RespondWithError(w, http.StatusGone, "invitation has expired")
-				return
-			}
-			if expiresAt, ok := invitation["expires_at"].(time.Time); ok && expiresAt.Before(time.Now()) {
-				api.RespondWithError(w, http.StatusGone, "invitation has expired")
-				return
-			}
-			api.RespondWithJSON(w, http.StatusOK, invitation)
-			return
-		}
+	invitation := resultItems[0]
+	if invitation.Status == "expired" || invitation.ExpiresAt.Before(time.Now()) {
+		api.RespondWithError(w, http.StatusGone, "invitation has expired")
+		return
 	}
 
-	api.RespondWithError(w, http.StatusInternalServerError, "failed to validate invitation")
+	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"id":              recordIDToString(invitation.ID),
+		"code":            invitation.Code,
+		"email":           invitation.Email,
+		"status":          invitation.Status,
+		"expires_at":      invitation.ExpiresAt,
+		"organization_id": recordIDToString(invitation.OrganizationID),
+	})
 }
 
 func (h *InvitationHandler) Accept(w http.ResponseWriter, r *http.Request) {
@@ -227,40 +198,41 @@ func (h *InvitationHandler) Accept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := `SELECT * FROM invitations WHERE invite_token = $invite_token LIMIT 1`
-	vars := map[string]interface{}{"invite_token": req.Token}
-
-	results, err := h.sdb.Query(ctx, query, vars)
-	if err != nil || len(*results) == 0 || (*results)[0].Result == nil {
+	results, err := sdb.Query[[]surrealdb.SurrealInvitation](ctx, h.db,
+		"SELECT * FROM invitations WHERE invite_token = $invite_token LIMIT 1",
+		map[string]interface{}{"invite_token": req.Token})
+	if err != nil || results == nil || len(*results) == 0 {
+		api.RespondWithError(w, http.StatusNotFound, "invitation not found")
+		return
+	}
+	resultItems := (*results)[0].Result
+	if len(resultItems) == 0 {
 		api.RespondWithError(w, http.StatusNotFound, "invitation not found")
 		return
 	}
 
-	var invitations []interface{}
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if json.Unmarshal(resultBytes, &invitations) != nil || len(invitations) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to process invitation")
-		return
-	}
-
-	invitation, ok := invitations[0].(map[string]interface{})
-	if !ok {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to process invitation")
-		return
-	}
-
-	if status, ok := invitation["status"].(string); ok && status != "pending" {
+	invitation := resultItems[0]
+	if invitation.Status != "pending" {
 		api.RespondWithError(w, http.StatusGone, "invitation already used")
 		return
 	}
 
-	if expiresAt, ok := invitation["expires_at"].(time.Time); ok && expiresAt.Before(time.Now()) {
+	if invitation.ExpiresAt.Before(time.Now()) {
 		api.RespondWithError(w, http.StatusGone, "invitation has expired")
 		return
 	}
 
 	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"message":         "invitation valid, user creation would proceed here",
-		"organization_id": invitation["organization_id"],
+		"organization_id": recordIDToString(invitation.OrganizationID),
 	})
+}
+
+func recordIDToString(id models.RecordID) string {
+	switch v := id.ID.(type) {
+	case string:
+		return v
+	default:
+		return ""
+	}
 }

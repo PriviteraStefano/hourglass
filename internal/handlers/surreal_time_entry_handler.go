@@ -6,18 +6,22 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/stefanoprivitera/hourglass/internal/db"
+	"github.com/google/uuid"
+	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/surrealdb"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
 	"github.com/stefanoprivitera/hourglass/internal/models"
 	"github.com/stefanoprivitera/hourglass/pkg/api"
+
+	sdb "github.com/surrealdb/surrealdb.go"
+	sdkmodels "github.com/surrealdb/surrealdb.go/pkg/models"
 )
 
 type SurrealTimeEntryHandler struct {
-	sdb *db.SurrealDB
+	db *sdb.DB
 }
 
-func NewSurrealTimeEntryHandler(sdb *db.SurrealDB) *SurrealTimeEntryHandler {
-	return &SurrealTimeEntryHandler{sdb: sdb}
+func NewSurrealTimeEntryHandler(db *sdb.DB) *SurrealTimeEntryHandler {
+	return &SurrealTimeEntryHandler{db: db}
 }
 
 func (h *SurrealTimeEntryHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -26,11 +30,7 @@ func (h *SurrealTimeEntryHandler) List(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrganizationID(ctx)
 	role := middleware.GetRole(ctx)
 
-	query := `
-		SELECT * FROM time_entries 
-		WHERE org_id = $org_id 
-		AND is_deleted = false
-	`
+	query := `SELECT * FROM time_entries WHERE org_id = $org_id AND is_deleted = false`
 	vars := map[string]interface{}{"org_id": orgID}
 
 	date := r.URL.Query().Get("date")
@@ -80,22 +80,25 @@ func (h *SurrealTimeEntryHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	query += " ORDER BY entry_date DESC, created_at DESC"
 
-	results, err := h.sdb.Query(ctx, query, vars)
+	results, err := sdb.Query[[]surrealdb.SurrealTimeEntry](ctx, h.db, query, vars)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch time entries")
 		return
 	}
 
-	if len(*results) == 0 || (*results)[0].Result == nil {
+	if results == nil || len(*results) == 0 {
+		api.RespondWithJSON(w, http.StatusOK, []models.SurrTimeEntry{})
+		return
+	}
+	resultItems := (*results)[0].Result
+	if len(resultItems) == 0 {
 		api.RespondWithJSON(w, http.StatusOK, []models.SurrTimeEntry{})
 		return
 	}
 
-	var entries []models.SurrTimeEntry
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &entries); err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse time entries")
-		return
+	entries := make([]models.SurrTimeEntry, len(resultItems))
+	for i, e := range resultItems {
+		entries[i] = surrealTimeEntryToEntry(e)
 	}
 
 	api.RespondWithJSON(w, http.StatusOK, entries)
@@ -108,28 +111,14 @@ func (h *SurrealTimeEntryHandler) Get(w http.ResponseWriter, r *http.Request) {
 	role := middleware.GetRole(ctx)
 	entryID := r.PathValue("id")
 
-	query := `SELECT * FROM $entry_id`
-	vars := map[string]interface{}{"entry_id": entryID}
-
-	results, err := h.sdb.Query(ctx, query, vars)
+	recordID := sdkmodels.NewRecordID("time_entries", entryID)
+	result, err := sdb.Select[surrealdb.SurrealTimeEntry](ctx, h.db, recordID)
 	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch time entry")
-		return
-	}
-
-	if len(*results) == 0 || (*results)[0].Result == nil {
 		api.RespondWithError(w, http.StatusNotFound, "time entry not found")
 		return
 	}
 
-	var entries []models.SurrTimeEntry
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &entries); err != nil || len(entries) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse time entry")
-		return
-	}
-
-	entry := entries[0]
+	entry := surrealTimeEntryToEntry(*result)
 
 	if entry.OrgID != orgID.String() {
 		api.RespondWithError(w, http.StatusNotFound, "time entry not found")
@@ -169,27 +158,22 @@ func (h *SurrealTimeEntryHandler) Create(w http.ResponseWriter, r *http.Request)
 		api.RespondWithError(w, http.StatusBadRequest, "project_id is required")
 		return
 	}
-
 	if req.SubprojectID == "" {
 		api.RespondWithError(w, http.StatusBadRequest, "subproject_id is required")
 		return
 	}
-
 	if req.WGID == "" {
 		api.RespondWithError(w, http.StatusBadRequest, "wg_id is required")
 		return
 	}
-
 	if req.UnitID == "" {
 		api.RespondWithError(w, http.StatusBadRequest, "unit_id is required")
 		return
 	}
-
 	if req.Hours <= 0 || req.Hours > 24 {
 		api.RespondWithError(w, http.StatusBadRequest, "hours must be greater than 0 and not exceed 24")
 		return
 	}
-
 	if req.Date == "" {
 		api.RespondWithError(w, http.StatusBadRequest, "date is required")
 		return
@@ -213,70 +197,32 @@ func (h *SurrealTimeEntryHandler) Create(w http.ResponseWriter, r *http.Request)
 
 	now := time.Now()
 
-	query := `
-		CREATE time_entries SET
-			org_id = $org_id,
-			user_id = $user_id,
-			project_id = $project_id,
-			subproject_id = $subproject_id,
-			wg_id = $wg_id,
-			unit_id = $unit_id,
-			hours = $hours,
-			description = $description,
-			entry_date = $entry_date,
-			status = 'draft',
-			is_deleted = false,
-			created_at = $now,
-			updated_at = $now
-	`
-	vars := map[string]interface{}{
-		"org_id":        orgID,
-		"user_id":       userID.String(),
-		"project_id":    req.ProjectID,
-		"subproject_id": req.SubprojectID,
-		"wg_id":         req.WGID,
-		"unit_id":       req.UnitID,
-		"hours":         req.Hours,
-		"description":   req.Description,
-		"entry_date":    entryDate,
-		"now":           now,
+	entry := &surrealdb.SurrealTimeEntry{
+		OrgID:        sdkmodels.NewRecordID("organizations", orgID.String()),
+		UserID:       sdkmodels.NewRecordID("users", userID.String()),
+		ProjectID:    sdkmodels.NewRecordID("projects", req.ProjectID),
+		SubprojectID: sdkmodels.NewRecordID("subprojects", req.SubprojectID),
+		WGID:         sdkmodels.NewRecordID("working_groups", req.WGID),
+		UnitID:       sdkmodels.NewRecordID("units", req.UnitID),
+		Hours:        req.Hours,
+		Description:  req.Description,
+		EntryDate:    entryDate,
+		Status:       models.SurrStatusDraft,
+		IsDeleted:    false,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 
-	results, err := h.sdb.Query(ctx, query, vars)
+	created, err := sdb.Create[surrealdb.SurrealTimeEntry](ctx, h.db, sdkmodels.Table("time_entries"), entry)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to create time entry")
 		return
 	}
 
-	var entries []models.SurrTimeEntry
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &entries); err != nil || len(entries) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse created time entry")
-		return
-	}
+	entryIDStr := recordIDToStr(created.ID)
+	go h.createAuditLog(ctx, orgID.String(), entryIDStr, "time_entry", "created", "user", userID.String(), "", nil)
 
-	entry := entries[0]
-
-	auditQuery := `
-		CREATE audit_logs SET
-			org_id = $org_id,
-			entry_id = $entry_id,
-			entry_type = 'time_entry',
-			action = 'created',
-			actor_role = $actor_role,
-			actor_id = $actor_id,
-			timestamp = $now
-	`
-	auditVars := map[string]interface{}{
-		"org_id":     orgID,
-		"entry_id":   entry.ID,
-		"actor_role": "user",
-		"actor_id":   userID.String(),
-		"now":        now,
-	}
-	h.sdb.Query(ctx, auditQuery, auditVars)
-
-	api.RespondWithJSON(w, http.StatusCreated, entry)
+	api.RespondWithJSON(w, http.StatusCreated, surrealTimeEntryToEntry(*created))
 }
 
 type UpdateTimeEntryRequest struct {
@@ -295,30 +241,16 @@ func (h *SurrealTimeEntryHandler) Update(w http.ResponseWriter, r *http.Request)
 	orgID := middleware.GetOrganizationID(ctx)
 	entryID := r.PathValue("id")
 
-	var status string
-	var entryUserID string
-	checkQuery := `SELECT status, user_id FROM $entry_id`
-	checkVars := map[string]interface{}{"entry_id": entryID}
-	checkResult, err := h.sdb.Query(ctx, checkQuery, checkVars)
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch time entry")
-		return
-	}
+	recordID := sdkmodels.NewRecordID("time_entries", entryID)
 
-	if len(*checkResult) == 0 || (*checkResult)[0].Result == nil {
+	checkResult, err := sdb.Select[surrealdb.SurrealTimeEntry](ctx, h.db, recordID)
+	if err != nil {
 		api.RespondWithError(w, http.StatusNotFound, "time entry not found")
 		return
 	}
 
-	var entries []map[string]interface{}
-	checkBytes, _ := json.Marshal((*checkResult)[0].Result)
-	if err := json.Unmarshal(checkBytes, &entries); err != nil || len(entries) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse time entry")
-		return
-	}
-
-	status, _ = entries[0]["status"].(string)
-	entryUserID, _ = entries[0]["user_id"].(string)
+	status := checkResult.Status
+	entryUserID := recordIDToStr(checkResult.UserID)
 
 	if status != models.SurrStatusDraft {
 		api.RespondWithError(w, http.StatusBadRequest, "can only update draft entries")
@@ -338,28 +270,30 @@ func (h *SurrealTimeEntryHandler) Update(w http.ResponseWriter, r *http.Request)
 
 	now := time.Now()
 
-	mergeFields := make(map[string]interface{})
+	data := map[string]interface{}{
+		"updated_at": now,
+	}
 	if req.ProjectID != "" {
-		mergeFields["project_id"] = req.ProjectID
+		data["project_id"] = sdkmodels.NewRecordID("projects", req.ProjectID)
 	}
 	if req.SubprojectID != "" {
-		mergeFields["subproject_id"] = req.SubprojectID
+		data["subproject_id"] = sdkmodels.NewRecordID("subprojects", req.SubprojectID)
 	}
 	if req.WGID != "" {
-		mergeFields["wg_id"] = req.WGID
+		data["wg_id"] = sdkmodels.NewRecordID("working_groups", req.WGID)
 	}
 	if req.UnitID != "" {
-		mergeFields["unit_id"] = req.UnitID
+		data["unit_id"] = sdkmodels.NewRecordID("units", req.UnitID)
 	}
 	if req.Hours > 0 {
 		if req.Hours > 24 {
 			api.RespondWithError(w, http.StatusBadRequest, "hours cannot exceed 24")
 			return
 		}
-		mergeFields["hours"] = req.Hours
+		data["hours"] = req.Hours
 	}
 	if req.Description != "" {
-		mergeFields["description"] = req.Description
+		data["description"] = req.Description
 	}
 	if req.Date != "" {
 		entryDate, err := time.Parse("2006-01-02", req.Date)
@@ -367,49 +301,18 @@ func (h *SurrealTimeEntryHandler) Update(w http.ResponseWriter, r *http.Request)
 			api.RespondWithError(w, http.StatusBadRequest, "invalid date format")
 			return
 		}
-		mergeFields["entry_date"] = entryDate
-	}
-	mergeFields["updated_at"] = now
-
-	query := `UPDATE $entry_id MERGE $fields`
-	vars := map[string]interface{}{
-		"entry_id": entryID,
-		"fields":   mergeFields,
+		data["entry_date"] = entryDate
 	}
 
-	results, err := h.sdb.Query(ctx, query, vars)
+	result, err := sdb.Merge[surrealdb.SurrealTimeEntry](ctx, h.db, recordID, data)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to update time entry")
 		return
 	}
 
-	var updatedEntries []models.SurrTimeEntry
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &updatedEntries); err != nil || len(updatedEntries) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse updated time entry")
-		return
-	}
+	go h.createAuditLog(ctx, orgID.String(), entryID, "time_entry", "edited", "user", userID.String(), "", nil)
 
-	auditQuery := `
-		CREATE audit_logs SET
-			org_id = $org_id,
-			entry_id = $entry_id,
-			entry_type = 'time_entry',
-			action = 'edited',
-			actor_role = $actor_role,
-			actor_id = $actor_id,
-			timestamp = $now
-	`
-	auditVars := map[string]interface{}{
-		"org_id":     orgID,
-		"entry_id":   entryID,
-		"actor_role": "user",
-		"actor_id":   userID.String(),
-		"now":        now,
-	}
-	h.sdb.Query(ctx, auditQuery, auditVars)
-
-	api.RespondWithJSON(w, http.StatusOK, updatedEntries[0])
+	api.RespondWithJSON(w, http.StatusOK, surrealTimeEntryToEntry(*result))
 }
 
 func (h *SurrealTimeEntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -418,28 +321,16 @@ func (h *SurrealTimeEntryHandler) Delete(w http.ResponseWriter, r *http.Request)
 	_ = middleware.GetOrganizationID(ctx)
 	entryID := r.PathValue("id")
 
-	checkQuery := `SELECT status, user_id FROM $entry_id`
-	checkVars := map[string]interface{}{"entry_id": entryID}
-	checkResult, err := h.sdb.Query(ctx, checkQuery, checkVars)
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch time entry")
-		return
-	}
+	recordID := sdkmodels.NewRecordID("time_entries", entryID)
 
-	if len(*checkResult) == 0 || (*checkResult)[0].Result == nil {
+	checkResult, err := sdb.Select[surrealdb.SurrealTimeEntry](ctx, h.db, recordID)
+	if err != nil {
 		api.RespondWithError(w, http.StatusNotFound, "time entry not found")
 		return
 	}
 
-	var entries []map[string]interface{}
-	checkBytes, _ := json.Marshal((*checkResult)[0].Result)
-	if err := json.Unmarshal(checkBytes, &entries); err != nil || len(entries) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse time entry")
-		return
-	}
-
-	status, _ := entries[0]["status"].(string)
-	entryUserID, _ := entries[0]["user_id"].(string)
+	status := checkResult.Status
+	entryUserID := recordIDToStr(checkResult.UserID)
 
 	if status != models.SurrStatusDraft {
 		api.RespondWithError(w, http.StatusBadRequest, "can only delete draft entries")
@@ -452,14 +343,10 @@ func (h *SurrealTimeEntryHandler) Delete(w http.ResponseWriter, r *http.Request)
 	}
 
 	now := time.Now()
-
-	query := `UPDATE $entry_id SET is_deleted = true, updated_at = $now`
-	vars := map[string]interface{}{
-		"entry_id": entryID,
-		"now":      now,
-	}
-
-	_, err = h.sdb.Query(ctx, query, vars)
+	_, err = sdb.Merge[surrealdb.SurrealTimeEntry](ctx, h.db, recordID, map[string]interface{}{
+		"is_deleted": true,
+		"updated_at": now,
+	})
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to delete time entry")
 		return
@@ -474,28 +361,16 @@ func (h *SurrealTimeEntryHandler) Submit(w http.ResponseWriter, r *http.Request)
 	orgID := middleware.GetOrganizationID(ctx)
 	entryID := r.PathValue("id")
 
-	checkQuery := `SELECT status, user_id FROM $entry_id`
-	checkVars := map[string]interface{}{"entry_id": entryID}
-	checkResult, err := h.sdb.Query(ctx, checkQuery, checkVars)
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch time entry")
-		return
-	}
+	recordID := sdkmodels.NewRecordID("time_entries", entryID)
 
-	if len(*checkResult) == 0 || (*checkResult)[0].Result == nil {
+	checkResult, err := sdb.Select[surrealdb.SurrealTimeEntry](ctx, h.db, recordID)
+	if err != nil {
 		api.RespondWithError(w, http.StatusNotFound, "time entry not found")
 		return
 	}
 
-	var entries []map[string]interface{}
-	checkBytes, _ := json.Marshal((*checkResult)[0].Result)
-	if err := json.Unmarshal(checkBytes, &entries); err != nil || len(entries) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse time entry")
-		return
-	}
-
-	status, _ := entries[0]["status"].(string)
-	entryUserID, _ := entries[0]["user_id"].(string)
+	status := checkResult.Status
+	entryUserID := recordIDToStr(checkResult.UserID)
 
 	if status != models.SurrStatusDraft {
 		api.RespondWithError(w, http.StatusBadRequest, "can only submit draft entries")
@@ -508,45 +383,18 @@ func (h *SurrealTimeEntryHandler) Submit(w http.ResponseWriter, r *http.Request)
 	}
 
 	now := time.Now()
-
-	query := `UPDATE $entry_id SET status = 'submitted', updated_at = $now`
-	vars := map[string]interface{}{
-		"entry_id": entryID,
-		"now":      now,
-	}
-
-	results, err := h.sdb.Query(ctx, query, vars)
+	result, err := sdb.Merge[surrealdb.SurrealTimeEntry](ctx, h.db, recordID, map[string]interface{}{
+		"status":     models.SurrStatusSubmitted,
+		"updated_at": now,
+	})
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to submit time entry")
 		return
 	}
 
-	var updatedEntries []models.SurrTimeEntry
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &updatedEntries); err != nil || len(updatedEntries) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse submitted time entry")
-		return
-	}
+	go h.createAuditLog(ctx, orgID.String(), entryID, "time_entry", "submitted", "user", userID.String(), "", nil)
 
-	auditQuery := `
-		CREATE audit_logs SET
-			org_id = $org_id,
-			entry_id = $entry_id,
-			entry_type = 'time_entry',
-			action = 'submitted',
-			actor_role = 'user',
-			actor_id = $actor_id,
-			timestamp = $now
-	`
-	auditVars := map[string]interface{}{
-		"org_id":   orgID,
-		"entry_id": entryID,
-		"actor_id": userID.String(),
-		"now":      now,
-	}
-	h.sdb.Query(ctx, auditQuery, auditVars)
-
-	api.RespondWithJSON(w, http.StatusOK, updatedEntries[0])
+	api.RespondWithJSON(w, http.StatusOK, surrealTimeEntryToEntry(*result))
 }
 
 func (h *SurrealTimeEntryHandler) Approve(w http.ResponseWriter, r *http.Request) {
@@ -561,27 +409,15 @@ func (h *SurrealTimeEntryHandler) Approve(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	checkQuery := `SELECT status FROM $entry_id`
-	checkVars := map[string]interface{}{"entry_id": entryID}
-	checkResult, err := h.sdb.Query(ctx, checkQuery, checkVars)
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch time entry")
-		return
-	}
+	recordID := sdkmodels.NewRecordID("time_entries", entryID)
 
-	if len(*checkResult) == 0 || (*checkResult)[0].Result == nil {
+	checkResult, err := sdb.Select[surrealdb.SurrealTimeEntry](ctx, h.db, recordID)
+	if err != nil {
 		api.RespondWithError(w, http.StatusNotFound, "time entry not found")
 		return
 	}
 
-	var entries []map[string]interface{}
-	checkBytes, _ := json.Marshal((*checkResult)[0].Result)
-	if err := json.Unmarshal(checkBytes, &entries); err != nil || len(entries) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse time entry")
-		return
-	}
-
-	status, _ := entries[0]["status"].(string)
+	status := checkResult.Status
 
 	if status != models.SurrStatusSubmitted {
 		api.RespondWithError(w, http.StatusBadRequest, "can only approve submitted entries")
@@ -589,23 +425,12 @@ func (h *SurrealTimeEntryHandler) Approve(w http.ResponseWriter, r *http.Request
 	}
 
 	now := time.Now()
-
-	query := `UPDATE $entry_id SET status = 'approved', updated_at = $now`
-	vars := map[string]interface{}{
-		"entry_id": entryID,
-		"now":      now,
-	}
-
-	results, err := h.sdb.Query(ctx, query, vars)
+	result, err := sdb.Merge[surrealdb.SurrealTimeEntry](ctx, h.db, recordID, map[string]interface{}{
+		"status":     models.SurrStatusApproved,
+		"updated_at": now,
+	})
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to approve time entry")
-		return
-	}
-
-	var updatedEntries []models.SurrTimeEntry
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &updatedEntries); err != nil || len(updatedEntries) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse approved time entry")
 		return
 	}
 
@@ -614,26 +439,9 @@ func (h *SurrealTimeEntryHandler) Approve(w http.ResponseWriter, r *http.Request
 		actorRole = models.ActorRoleAdmin
 	}
 
-	auditQuery := `
-		CREATE audit_logs SET
-			org_id = $org_id,
-			entry_id = $entry_id,
-			entry_type = 'time_entry',
-			action = 'approved',
-			actor_role = $actor_role,
-			actor_id = $actor_id,
-			timestamp = $now
-	`
-	auditVars := map[string]interface{}{
-		"org_id":     orgID,
-		"entry_id":   entryID,
-		"actor_role": actorRole,
-		"actor_id":   userID.String(),
-		"now":        now,
-	}
-	h.sdb.Query(ctx, auditQuery, auditVars)
+	go h.createAuditLog(ctx, orgID.String(), entryID, "time_entry", "approved", actorRole, userID.String(), "", nil)
 
-	api.RespondWithJSON(w, http.StatusOK, updatedEntries[0])
+	api.RespondWithJSON(w, http.StatusOK, surrealTimeEntryToEntry(*result))
 }
 
 type RejectRequest struct {
@@ -655,27 +463,15 @@ func (h *SurrealTimeEntryHandler) Reject(w http.ResponseWriter, r *http.Request)
 	var req RejectRequest
 	json.NewDecoder(r.Body).Decode(&req)
 
-	checkQuery := `SELECT status FROM $entry_id`
-	checkVars := map[string]interface{}{"entry_id": entryID}
-	checkResult, err := h.sdb.Query(ctx, checkQuery, checkVars)
-	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch time entry")
-		return
-	}
+	recordID := sdkmodels.NewRecordID("time_entries", entryID)
 
-	if len(*checkResult) == 0 || (*checkResult)[0].Result == nil {
+	checkResult, err := sdb.Select[surrealdb.SurrealTimeEntry](ctx, h.db, recordID)
+	if err != nil {
 		api.RespondWithError(w, http.StatusNotFound, "time entry not found")
 		return
 	}
 
-	var entries []map[string]interface{}
-	checkBytes, _ := json.Marshal((*checkResult)[0].Result)
-	if err := json.Unmarshal(checkBytes, &entries); err != nil || len(entries) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse time entry")
-		return
-	}
-
-	status, _ := entries[0]["status"].(string)
+	status := checkResult.Status
 
 	if status != models.SurrStatusSubmitted {
 		api.RespondWithError(w, http.StatusBadRequest, "can only reject submitted entries")
@@ -683,23 +479,12 @@ func (h *SurrealTimeEntryHandler) Reject(w http.ResponseWriter, r *http.Request)
 	}
 
 	now := time.Now()
-
-	query := `UPDATE $entry_id SET status = 'draft', updated_at = $now`
-	vars := map[string]interface{}{
-		"entry_id": entryID,
-		"now":      now,
-	}
-
-	results, err := h.sdb.Query(ctx, query, vars)
+	result, err := sdb.Merge[surrealdb.SurrealTimeEntry](ctx, h.db, recordID, map[string]interface{}{
+		"status":     models.SurrStatusDraft,
+		"updated_at": now,
+	})
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to reject time entry")
-		return
-	}
-
-	var updatedEntries []models.SurrTimeEntry
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &updatedEntries); err != nil || len(updatedEntries) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse rejected time entry")
 		return
 	}
 
@@ -708,28 +493,9 @@ func (h *SurrealTimeEntryHandler) Reject(w http.ResponseWriter, r *http.Request)
 		actorRole = models.ActorRoleAdmin
 	}
 
-	auditQuery := `
-		CREATE audit_logs SET
-			org_id = $org_id,
-			entry_id = $entry_id,
-			entry_type = 'time_entry',
-			action = 'rejected',
-			actor_role = $actor_role,
-			actor_id = $actor_id,
-			reason = $reason,
-			timestamp = $now
-	`
-	auditVars := map[string]interface{}{
-		"org_id":     orgID,
-		"entry_id":   entryID,
-		"actor_role": actorRole,
-		"actor_id":   userID.String(),
-		"reason":     req.Reason,
-		"now":        now,
-	}
-	h.sdb.Query(ctx, auditQuery, auditVars)
+	go h.createAuditLog(ctx, orgID.String(), entryID, "time_entry", "rejected", actorRole, userID.String(), req.Reason, nil)
 
-	api.RespondWithJSON(w, http.StatusOK, updatedEntries[0])
+	api.RespondWithJSON(w, http.StatusOK, surrealTimeEntryToEntry(*result))
 }
 
 func (h *SurrealTimeEntryHandler) ListPending(w http.ResponseWriter, r *http.Request) {
@@ -743,102 +509,79 @@ func (h *SurrealTimeEntryHandler) ListPending(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	query := `
-		SELECT * FROM time_entries 
-		WHERE org_id = $org_id 
-		AND status = 'submitted'
-		AND is_deleted = false
-	`
+	query := `SELECT * FROM time_entries WHERE org_id = $org_id AND status = 'submitted' AND is_deleted = false`
 	vars := map[string]interface{}{"org_id": orgID}
 
 	if role == "wg_manager" {
-		wgQuery := `
-			SELECT VALUE id FROM working_groups 
-			WHERE manager_id = $user_id OR array::contains(delegate_ids, $user_id)
-		`
-		wgVars := map[string]interface{}{"user_id": userID.String()}
-		wgResult, err := h.sdb.Query(ctx, wgQuery, wgVars)
-		if err == nil && len(*wgResult) > 0 && (*wgResult)[0].Result != nil {
-			var wgIDs []string
-			wgBytes, _ := json.Marshal((*wgResult)[0].Result)
-			if json.Unmarshal(wgBytes, &wgIDs) == nil && len(wgIDs) > 0 {
+		wgQuery := `SELECT VALUE id FROM working_groups WHERE manager_id = $user_id OR array::contains(delegate_ids, $user_id)`
+		wgResult, err := sdb.Query[[][]string](ctx, h.db, wgQuery, map[string]interface{}{"user_id": userID.String()})
+		if err == nil && wgResult != nil && len(*wgResult) > 0 {
+			resultItems := (*wgResult)[0].Result
+			if len(resultItems) > 0 {
 				query += " AND wg_id IN $wg_ids"
-				vars["wg_ids"] = wgIDs
+				vars["wg_ids"] = resultItems
 			}
 		}
 	}
 
 	query += " ORDER BY created_at ASC"
 
-	results, err := h.sdb.Query(ctx, query, vars)
+	results, err := sdb.Query[[]surrealdb.SurrealTimeEntry](ctx, h.db, query, vars)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch pending entries")
 		return
 	}
 
-	if len(*results) == 0 || (*results)[0].Result == nil {
+	if results == nil || len(*results) == 0 {
+		api.RespondWithJSON(w, http.StatusOK, []models.SurrTimeEntry{})
+		return
+	}
+	resultItems := (*results)[0].Result
+	if len(resultItems) == 0 {
 		api.RespondWithJSON(w, http.StatusOK, []models.SurrTimeEntry{})
 		return
 	}
 
-	var entries []models.SurrTimeEntry
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &entries); err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse pending entries")
-		return
+	entries := make([]models.SurrTimeEntry, len(resultItems))
+	for i, e := range resultItems {
+		entries[i] = surrealTimeEntryToEntry(e)
 	}
 
 	api.RespondWithJSON(w, http.StatusOK, entries)
 }
 
 func (h *SurrealTimeEntryHandler) isPeriodLocked(ctx context.Context, orgID interface{}, projectID string, entryDate time.Time) (bool, error) {
-	query := `
-		SELECT * FROM financial_cutoff_periods 
-		WHERE org_id = $org_id 
-		AND period_start <= $entry_date 
-		AND period_end >= $entry_date
-		AND is_locked = true
-	`
-	vars := map[string]interface{}{
-		"org_id":     orgID,
-		"entry_date": entryDate,
-	}
-
-	results, err := h.sdb.Query(ctx, query, vars)
+	results, err := sdb.Query[[]map[string]interface{}](ctx, h.db,
+		`SELECT * FROM financial_cutoff_periods WHERE org_id = $org_id AND period_start <= $entry_date AND period_end >= $entry_date AND is_locked = true`,
+		map[string]interface{}{
+			"org_id":     orgID,
+			"entry_date": entryDate,
+		})
 	if err != nil {
 		return false, err
 	}
 
-	if len(*results) > 0 && (*results)[0].Result != nil {
-		var periods []map[string]interface{}
-		resultBytes, _ := json.Marshal((*results)[0].Result)
-		if json.Unmarshal(resultBytes, &periods) == nil && len(periods) > 0 {
+	if results != nil && len(*results) > 0 {
+		resultItems := (*results)[0].Result
+		if len(resultItems) > 0 {
 			return true, nil
 		}
 	}
 
 	if projectID != "" {
-		projectQuery := `
-			SELECT * FROM financial_cutoff_periods 
-			WHERE project_id = $project_id 
-			AND period_start <= $entry_date 
-			AND period_end >= $entry_date
-			AND is_locked = true
-		`
-		projectVars := map[string]interface{}{
-			"project_id": projectID,
-			"entry_date": entryDate,
-		}
-
-		projectResults, err := h.sdb.Query(ctx, projectQuery, projectVars)
+		projectResults, err := sdb.Query[[]map[string]interface{}](ctx, h.db,
+			`SELECT * FROM financial_cutoff_periods WHERE project_id = $project_id AND period_start <= $entry_date AND period_end >= $entry_date AND is_locked = true`,
+			map[string]interface{}{
+				"project_id": projectID,
+				"entry_date": entryDate,
+			})
 		if err != nil {
 			return false, err
 		}
 
-		if len(*projectResults) > 0 && (*projectResults)[0].Result != nil {
-			var periods []map[string]interface{}
-			resultBytes, _ := json.Marshal((*projectResults)[0].Result)
-			if json.Unmarshal(resultBytes, &periods) == nil && len(periods) > 0 {
+		if projectResults != nil && len(*projectResults) > 0 {
+			resultItems := (*projectResults)[0].Result
+			if len(resultItems) > 0 {
 				return true, nil
 			}
 		}
@@ -847,6 +590,59 @@ func (h *SurrealTimeEntryHandler) isPeriodLocked(ctx context.Context, orgID inte
 	return false, nil
 }
 
+func (h *SurrealTimeEntryHandler) createAuditLog(ctx context.Context, orgID, entryID, entryType, action, actorRole, actorID, reason string, changes map[string]interface{}) {
+	now := time.Now()
+	audit := &surrealdb.SurrealAuditLog{
+		OrgID:     sdkmodels.NewRecordID("organizations", orgID),
+		EntryID:   entryID,
+		EntryType: entryType,
+		Action:    action,
+		ActorRole: actorRole,
+		ActorID:   sdkmodels.NewRecordID("users", actorID),
+		Reason:    reason,
+		Changes:   changes,
+		Timestamp: now,
+	}
+	sdb.Create[surrealdb.SurrealAuditLog](ctx, h.db, sdkmodels.Table("audit_logs"), audit)
+}
+
 func (h *SurrealTimeEntryHandler) canFinanceOverride(role string) bool {
 	return role == "finance" || role == "admin"
+}
+
+func teRecordIDToStr(id sdkmodels.RecordID) string {
+	switch v := id.ID.(type) {
+	case string:
+		return v
+	case sdkmodels.UUID:
+		return uuid.UUID(v.UUID).String()
+	default:
+		return ""
+	}
+}
+
+func surrealTimeEntryToEntry(e surrealdb.SurrealTimeEntry) models.SurrTimeEntry {
+	var createdFromEntryID *string
+	if e.CreatedFromEntryID.ID != nil {
+		s := teRecordIDToStr(e.CreatedFromEntryID)
+		createdFromEntryID = &s
+	}
+
+	return models.SurrTimeEntry{
+		ID:                 teRecordIDToStr(e.ID),
+		OrgID:              teRecordIDToStr(e.OrgID),
+		UserID:             teRecordIDToStr(e.UserID),
+		ProjectID:          teRecordIDToStr(e.ProjectID),
+		SubprojectID:       teRecordIDToStr(e.SubprojectID),
+		WGID:               teRecordIDToStr(e.WGID),
+		UnitID:             teRecordIDToStr(e.UnitID),
+		Hours:              e.Hours,
+		Description:        e.Description,
+		EntryDate:          e.EntryDate,
+		Status:             e.Status,
+		IsDeleted:          e.IsDeleted,
+		CreatedFromEntryID: createdFromEntryID,
+		CreatedAt:          e.CreatedAt,
+		UpdatedAt:          e.UpdatedAt,
+	}
 }

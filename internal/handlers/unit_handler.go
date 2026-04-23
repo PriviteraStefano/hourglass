@@ -5,49 +5,49 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/stefanoprivitera/hourglass/internal/db"
+	"github.com/google/uuid"
+	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/surrealdb"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
 	"github.com/stefanoprivitera/hourglass/internal/models"
 	"github.com/stefanoprivitera/hourglass/pkg/api"
+
+	sdb "github.com/surrealdb/surrealdb.go"
+	sdkmodels "github.com/surrealdb/surrealdb.go/pkg/models"
 )
 
 type UnitHandler struct {
-	sdb *db.SurrealDB
+	db *sdb.DB
 }
 
-func NewUnitHandler(sdb *db.SurrealDB) *UnitHandler {
-	return &UnitHandler{sdb: sdb}
+func NewUnitHandler(db *sdb.DB) *UnitHandler {
+	return &UnitHandler{db: db}
 }
 
 func (h *UnitHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	orgID := middleware.GetOrganizationID(ctx)
 
-	query := `
-		SELECT * FROM units 
-		WHERE org_id = $org_id 
-		ORDER BY hierarchy_level, name
-	`
-	vars := map[string]interface{}{
-		"org_id": orgID,
-	}
-
-	results, err := h.sdb.Query(ctx, query, vars)
+	results, err := sdb.Query[[]surrealdb.SurrealUnit](ctx, h.db,
+		`SELECT * FROM units WHERE org_id = $org_id ORDER BY hierarchy_level, name`,
+		map[string]interface{}{"org_id": orgID})
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch units")
 		return
 	}
 
-	if len(*results) == 0 || (*results)[0].Result == nil {
+	if results == nil || len(*results) == 0 {
+		api.RespondWithJSON(w, http.StatusOK, []models.Unit{})
+		return
+	}
+	resultItems := (*results)[0].Result
+	if len(resultItems) == 0 {
 		api.RespondWithJSON(w, http.StatusOK, []models.Unit{})
 		return
 	}
 
-	var units []models.Unit
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &units); err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse units")
-		return
+	units := make([]models.Unit, len(resultItems))
+	for i, u := range resultItems {
+		units[i] = surrealUnitToUnit(u)
 	}
 
 	api.RespondWithJSON(w, http.StatusOK, units)
@@ -57,30 +57,15 @@ func (h *UnitHandler) Get(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	unitID := r.PathValue("id")
 
-	query := `SELECT * FROM $unit_id`
-	vars := map[string]interface{}{
-		"unit_id": unitID,
-	}
-
-	results, err := h.sdb.Query(ctx, query, vars)
+	recordID := sdkmodels.NewRecordID("units", unitID)
+	result, err := sdb.Select[surrealdb.SurrealUnit](ctx, h.db, recordID)
 	if err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch unit")
-		return
-	}
-
-	if len(*results) == 0 || (*results)[0].Result == nil {
 		api.RespondWithError(w, http.StatusNotFound, "unit not found")
 		return
 	}
 
-	var units []models.Unit
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &units); err != nil || len(units) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse unit")
-		return
-	}
-
-	api.RespondWithJSON(w, http.StatusOK, units[0])
+	unit := surrealUnitToUnit(*result)
+	api.RespondWithJSON(w, http.StatusOK, unit)
 }
 
 func (h *UnitHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -98,58 +83,37 @@ func (h *UnitHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-
 	hierarchyLevel := 0
+
 	if req.ParentUnitID != nil {
-		parentQuery := `SELECT hierarchy_level FROM $parent_id`
-		parentVars := map[string]interface{}{"parent_id": *req.ParentUnitID}
-		parentResult, err := h.sdb.Query(ctx, parentQuery, parentVars)
-		if err == nil && len(*parentResult) > 0 && (*parentResult)[0].Result != nil {
-			var parents []map[string]interface{}
-			parentBytes, _ := json.Marshal((*parentResult)[0].Result)
-			if json.Unmarshal(parentBytes, &parents) == nil && len(parents) > 0 {
-				if level, ok := parents[0]["hierarchy_level"].(float64); ok {
-					hierarchyLevel = int(level) + 1
-				}
-			}
+		parentRecordID := sdkmodels.NewRecordID("units", *req.ParentUnitID)
+		parentResult, err := sdb.Select[surrealdb.SurrealUnit](ctx, h.db, parentRecordID)
+		if err == nil && parentResult != nil {
+			hierarchyLevel = parentResult.HierarchyLevel + 1
 		}
 	}
 
-	query := `
-		CREATE units SET
-			org_id = $org_id,
-			name = $name,
-			description = $description,
-			parent_unit_id = $parent_unit_id,
-			hierarchy_level = $hierarchy_level,
-			code = $code,
-			created_at = $now,
-			updated_at = $now
-	`
-	vars := map[string]interface{}{
-		"org_id":          req.OrgID,
-		"name":            req.Name,
-		"description":     req.Description,
-		"parent_unit_id":  req.ParentUnitID,
-		"hierarchy_level": hierarchyLevel,
-		"code":            req.Code,
-		"now":             now,
+	unit := &surrealdb.SurrealUnit{
+		OrgID:          sdkmodels.NewRecordID("organizations", req.OrgID),
+		Name:           req.Name,
+		Description:    req.Description,
+		HierarchyLevel: hierarchyLevel,
+		Code:           req.Code,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
-	results, err := h.sdb.Query(ctx, query, vars)
+	if req.ParentUnitID != nil {
+		unit.ParentUnitID = sdkmodels.NewRecordID("units", *req.ParentUnitID)
+	}
+
+	created, err := sdb.Create[surrealdb.SurrealUnit](ctx, h.db, sdkmodels.Table("units"), unit)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to create unit")
 		return
 	}
 
-	var units []models.Unit
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &units); err != nil || len(units) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse created unit")
-		return
-	}
-
-	api.RespondWithJSON(w, http.StatusCreated, units[0])
+	api.RespondWithJSON(w, http.StatusCreated, surrealUnitToUnit(*created))
 }
 
 func (h *UnitHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -163,64 +127,49 @@ func (h *UnitHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
+	recordID := sdkmodels.NewRecordID("units", unitID)
 
-	query := `
-		UPDATE $unit_id SET
-			name = $name,
-			description = $description,
-			parent_unit_id = $parent_unit_id,
-			code = $code,
-			updated_at = $now
-	`
-	vars := map[string]interface{}{
-		"unit_id":        unitID,
-		"name":           req.Name,
-		"description":    req.Description,
-		"parent_unit_id": req.ParentUnitID,
-		"code":           req.Code,
-		"now":            now,
+	data := map[string]interface{}{
+		"updated_at": now,
+	}
+	if req.Name != "" {
+		data["name"] = req.Name
+	}
+	if req.Description != "" {
+		data["description"] = req.Description
+	}
+	if req.Code != "" {
+		data["code"] = req.Code
 	}
 
-	results, err := h.sdb.Query(ctx, query, vars)
+	result, err := sdb.Merge[surrealdb.SurrealUnit](ctx, h.db, recordID, data)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to update unit")
 		return
 	}
 
-	var units []models.Unit
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &units); err != nil || len(units) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse updated unit")
-		return
-	}
-
-	api.RespondWithJSON(w, http.StatusOK, units[0])
+	api.RespondWithJSON(w, http.StatusOK, surrealUnitToUnit(*result))
 }
 
 func (h *UnitHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	unitID := r.PathValue("id")
 
-	checkQuery := `
-		SELECT count() FROM unit_memberships WHERE unit_id = $unit_id GROUP ALL
-	`
-	checkVars := map[string]interface{}{"unit_id": unitID}
-	checkResult, err := h.sdb.Query(ctx, checkQuery, checkVars)
-	if err == nil && len(*checkResult) > 0 && (*checkResult)[0].Result != nil {
-		var counts []map[string]interface{}
-		checkBytes, _ := json.Marshal((*checkResult)[0].Result)
-		if json.Unmarshal(checkBytes, &counts) == nil && len(counts) > 0 {
-			if count, ok := counts[0]["count"].(float64); ok && count > 0 {
+	checkResults, err := sdb.Query[[]map[string]interface{}](ctx, h.db,
+		`SELECT count() FROM unit_memberships WHERE unit_id = $unit_id GROUP ALL`,
+		map[string]interface{}{"unit_id": sdkmodels.NewRecordID("units", unitID)})
+	if err == nil && checkResults != nil && len(*checkResults) > 0 {
+		resultItems := (*checkResults)[0].Result
+		if len(resultItems) > 0 {
+			if count, ok := resultItems[0]["count"].(float64); ok && count > 0 {
 				api.RespondWithError(w, http.StatusBadRequest, "cannot delete unit with members")
 				return
 			}
 		}
 	}
 
-	query := `DELETE $unit_id`
-	vars := map[string]interface{}{"unit_id": unitID}
-
-	_, err = h.sdb.Query(ctx, query, vars)
+	recordID := sdkmodels.NewRecordID("units", unitID)
+	_, err = sdb.Delete[surrealdb.SurrealUnit](ctx, h.db, recordID)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to delete unit")
 		return
@@ -233,31 +182,27 @@ func (h *UnitHandler) GetTree(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	orgID := middleware.GetOrganizationID(ctx)
 
-	query := `
-		SELECT * FROM units 
-		WHERE org_id = $org_id 
-		ORDER BY hierarchy_level, name
-	`
-	vars := map[string]interface{}{
-		"org_id": orgID,
-	}
-
-	results, err := h.sdb.Query(ctx, query, vars)
+	results, err := sdb.Query[[]surrealdb.SurrealUnit](ctx, h.db,
+		`SELECT * FROM units WHERE org_id = $org_id ORDER BY hierarchy_level, name`,
+		map[string]interface{}{"org_id": orgID})
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch units")
 		return
 	}
 
-	if len(*results) == 0 || (*results)[0].Result == nil {
+	if results == nil || len(*results) == 0 {
+		api.RespondWithJSON(w, http.StatusOK, []models.UnitTreeNode{})
+		return
+	}
+	resultItems := (*results)[0].Result
+	if len(resultItems) == 0 {
 		api.RespondWithJSON(w, http.StatusOK, []models.UnitTreeNode{})
 		return
 	}
 
-	var units []models.Unit
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &units); err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse units")
-		return
+	units := make([]models.Unit, len(resultItems))
+	for i, u := range resultItems {
+		units[i] = surrealUnitToUnit(u)
 	}
 
 	tree := buildUnitTree(units, nil)
@@ -293,32 +238,65 @@ func (h *UnitHandler) GetDescendants(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	unitID := r.PathValue("id")
 
-	query := `
-		SELECT * FROM units 
-		WHERE org_id = (SELECT VALUE org_id FROM $unit_id)[0]
-		AND hierarchy_level > (SELECT VALUE hierarchy_level FROM $unit_id)[0]
-	`
-	vars := map[string]interface{}{
-		"unit_id": unitID,
-	}
-
-	results, err := h.sdb.Query(ctx, query, vars)
+	results, err := sdb.Query[[]surrealdb.SurrealUnit](ctx, h.db,
+		`SELECT * FROM units WHERE org_id = (SELECT VALUE org_id FROM units:$unit_id)[0] AND hierarchy_level > (SELECT VALUE hierarchy_level FROM units:$unit_id)[0]`,
+		map[string]interface{}{"unit_id": unitID})
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch descendants")
 		return
 	}
 
-	if len(*results) == 0 || (*results)[0].Result == nil {
+	if results == nil || len(*results) == 0 {
+		api.RespondWithJSON(w, http.StatusOK, []models.Unit{})
+		return
+	}
+	resultItems := (*results)[0].Result
+	if len(resultItems) == 0 {
 		api.RespondWithJSON(w, http.StatusOK, []models.Unit{})
 		return
 	}
 
-	var units []models.Unit
-	resultBytes, _ := json.Marshal((*results)[0].Result)
-	if err := json.Unmarshal(resultBytes, &units); err != nil {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse units")
-		return
+	units := make([]models.Unit, len(resultItems))
+	for i, u := range resultItems {
+		units[i] = surrealUnitToUnit(u)
 	}
 
 	api.RespondWithJSON(w, http.StatusOK, units)
+}
+
+func surrealUnitToUnit(u surrealdb.SurrealUnit) models.Unit {
+	var parentUnitID *string
+	if u.ParentUnitID.ID != nil {
+		switch v := u.ParentUnitID.ID.(type) {
+		case string:
+			parentUnitID = &v
+		case sdkmodels.UUID:
+			id := uuid.UUID(v.UUID)
+			s := id.String()
+			parentUnitID = &s
+		}
+	}
+
+	return models.Unit{
+		ID:             recordIDToStr(u.ID),
+		OrgID:          recordIDToStr(u.OrgID),
+		Name:           u.Name,
+		Description:    u.Description,
+		ParentUnitID:   parentUnitID,
+		HierarchyLevel: u.HierarchyLevel,
+		Code:           u.Code,
+		CreatedAt:      u.CreatedAt,
+		UpdatedAt:      u.UpdatedAt,
+	}
+}
+
+func recordIDToStr(id sdkmodels.RecordID) string {
+	switch v := id.ID.(type) {
+	case string:
+		return v
+	case sdkmodels.UUID:
+		return uuid.UUID(v.UUID).String()
+	default:
+		return ""
+	}
 }

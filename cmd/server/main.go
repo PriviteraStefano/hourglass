@@ -36,9 +36,9 @@ func main() {
 
 	mux.HandleFunc("GET /health", healthHandler.ServeHTTP)
 
-	unitHandler := handlers.NewUnitHandler(sdbConn)
-	wgHandler := handlers.NewWorkingGroupHandler(sdbConn)
-	timeEntryHandler := handlers.NewSurrealTimeEntryHandler(sdbConn)
+	unitHandler := handlers.NewUnitHandler(sdbConn.DB())
+	wgHandler := handlers.NewWorkingGroupHandler(sdbConn.DB())
+	timeEntryHandler := handlers.NewSurrealTimeEntryHandler(sdbConn.DB())
 
 	userRepo := hexauth.NewUserRepository(sdbConn.DB())
 	orgRepo := hexauth.NewOrganizationRepository(sdbConn.DB())
@@ -62,11 +62,11 @@ func main() {
 	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, hexAuthHandler.GetProfile))
 	mux.HandleFunc("POST /auth/bootstrap", hexAuthHandler.Bootstrap)
 
-	passwordResetHandler := handlers.NewPasswordResetHandler(sdbConn, authService)
+	passwordResetHandler := handlers.NewPasswordResetHandler(sdbConn.DB(), authService)
 	mux.HandleFunc("POST /auth/password-reset/request", passwordResetHandler.Request)
 	mux.HandleFunc("POST /auth/password-reset/verify", passwordResetHandler.Verify)
 
-	invitationHandler := handlers.NewInvitationHandler(sdbConn)
+	invitationHandler := handlers.NewInvitationHandler(sdbConn.DB())
 	mux.HandleFunc("POST /invitations", invitationHandler.Create)
 	mux.HandleFunc("GET /invitations/validate/code/{code}", invitationHandler.ValidateCode)
 	mux.HandleFunc("GET /invitations/validate/token/{token}", invitationHandler.ValidateToken)

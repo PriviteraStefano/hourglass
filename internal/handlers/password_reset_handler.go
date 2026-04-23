@@ -1,24 +1,28 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/surrealdb"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
-	"github.com/stefanoprivitera/hourglass/internal/db"
 	"github.com/stefanoprivitera/hourglass/pkg/api"
+
+	sdb "github.com/surrealdb/surrealdb.go"
+	"github.com/surrealdb/surrealdb.go/pkg/models"
 )
 
 type PasswordResetHandler struct {
-	sdb         *db.SurrealDB
+	db          *sdb.DB
 	authService *auth.Service
 }
 
-func NewPasswordResetHandler(sdb *db.SurrealDB, authService *auth.Service) *PasswordResetHandler {
-	return &PasswordResetHandler{sdb: sdb, authService: authService}
+func NewPasswordResetHandler(db *sdb.DB, authService *auth.Service) *PasswordResetHandler {
+	return &PasswordResetHandler{db: db, authService: authService}
 }
 
 type PasswordResetRequest struct {
@@ -55,37 +59,13 @@ func (h *PasswordResetHandler) Request(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userQuery := `SELECT * FROM users WHERE email = $identifier OR username = $identifier LIMIT 1`
-	userVars := map[string]interface{}{"identifier": req.Identifier}
-
-	userResults, err := h.sdb.Query(ctx, userQuery, userVars)
-	if err != nil || len(*userResults) == 0 || (*userResults)[0].Result == nil {
+	user, userID, err := h.findUserByIdentifier(ctx, req.Identifier)
+	if err != nil {
 		api.RespondWithError(w, http.StatusNotFound, "user not found")
 		return
 	}
-
-	var users []interface{}
-	userBytes, _ := json.Marshal((*userResults)[0].Result)
-	if json.Unmarshal(userBytes, &users) != nil || len(users) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to find user")
-		return
-	}
-
-	user, ok := users[0].(map[string]interface{})
-	if !ok {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse user")
-		return
-	}
-
-	var userID string
-	if id, ok := user["id"].(map[string]interface{}); ok {
-		if idStr, ok := id["ID"].(string); ok {
-			userID = idStr
-		}
-	}
-
-	if userID == "" {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to identify user")
+	if user == nil {
+		api.RespondWithError(w, http.StatusNotFound, "user not found")
 		return
 	}
 
@@ -93,21 +73,14 @@ func (h *PasswordResetHandler) Request(w http.ResponseWriter, r *http.Request) {
 	codeHash := auth.HashRefreshToken(code)
 	expiresAt := time.Now().Add(2 * time.Hour)
 
-	resetQuery := `
-		CREATE password_resets SET
-			user_id = $user_id,
-			code_hash = $code_hash,
-			expires_at = $expires_at,
-			created_at = $created_at
-	`
-	resetVars := map[string]interface{}{
-		"user_id":    userID,
-		"code_hash":  codeHash,
-		"expires_at": expiresAt,
-		"created_at": time.Now(),
+	reset := &surrealdb.SurrealPasswordReset{
+		UserID:    models.NewRecordID("users", userID),
+		CodeHash:  codeHash,
+		ExpiresAt: expiresAt,
+		CreatedAt: time.Now(),
 	}
 
-	_, err = h.sdb.Query(ctx, resetQuery, resetVars)
+	_, err = sdb.Create[surrealdb.SurrealPasswordReset](ctx, h.db, models.Table("password_resets"), reset)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to create reset request")
 		return
@@ -139,78 +112,19 @@ func (h *PasswordResetHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userQuery := `SELECT * FROM users WHERE email = $identifier OR username = $identifier LIMIT 1`
-	userVars := map[string]interface{}{"identifier": req.Identifier}
-
-	userResults, err := h.sdb.Query(ctx, userQuery, userVars)
-	if err != nil || len(*userResults) == 0 || (*userResults)[0].Result == nil {
+	user, userID, err := h.findUserByIdentifier(ctx, req.Identifier)
+	if err != nil || user == nil {
 		api.RespondWithError(w, http.StatusNotFound, "user not found")
 		return
 	}
 
-	var users []interface{}
-	userBytes, _ := json.Marshal((*userResults)[0].Result)
-	if json.Unmarshal(userBytes, &users) != nil || len(users) == 0 {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to find user")
-		return
-	}
-
-	user, ok := users[0].(map[string]interface{})
-	if !ok {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to parse user")
-		return
-	}
-
-	var userID string
-	if id, ok := user["id"].(map[string]interface{}); ok {
-		if idStr, ok := id["ID"].(string); ok {
-			userID = idStr
-		}
-	}
-
-	if userID == "" {
-		api.RespondWithError(w, http.StatusInternalServerError, "failed to identify user")
-		return
-	}
-
-	resetQuery := `
-		SELECT * FROM password_resets
-		WHERE user_id = $user_id
-		AND expires_at > $now
-		AND used_at = NONE
-		LIMIT 1
-	`
-	resetVars := map[string]interface{}{
-		"user_id": userID,
-		"now":     time.Now(),
-	}
-
-	resetResults, err := h.sdb.Query(ctx, resetQuery, resetVars)
-	if err != nil || len(*resetResults) == 0 || (*resetResults)[0].Result == nil {
+	reset, err := h.findActiveReset(ctx, userID)
+	if err != nil || reset == nil {
 		api.RespondWithError(w, http.StatusGone, "reset code expired or not found")
 		return
 	}
 
-	var resets []interface{}
-	resetBytes, _ := json.Marshal((*resetResults)[0].Result)
-	if json.Unmarshal(resetBytes, &resets) != nil || len(resets) == 0 {
-		api.RespondWithError(w, http.StatusGone, "reset code expired or not found")
-		return
-	}
-
-	reset, ok := resets[0].(map[string]interface{})
-	if !ok {
-		api.RespondWithError(w, http.StatusGone, "reset code expired or not found")
-		return
-	}
-
-	codeHash, ok := reset["code_hash"].(string)
-	if !ok {
-		api.RespondWithError(w, http.StatusGone, "reset code expired or not found")
-		return
-	}
-
-	if auth.HashRefreshToken(req.Code) != codeHash {
+	if auth.HashRefreshToken(req.Code) != reset.CodeHash {
 		api.RespondWithError(w, http.StatusUnauthorized, "invalid code")
 		return
 	}
@@ -221,9 +135,8 @@ func (h *PasswordResetHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updateQuery := `UPDATE $user_id SET password_hash = $password_hash`
-	_, err = h.sdb.Query(ctx, updateQuery, map[string]interface{}{
-		"user_id":       userID,
+	userRecordID := models.NewRecordID("users", userID)
+	_, err = sdb.Merge[map[string]interface{}](ctx, h.db, userRecordID, map[string]interface{}{
 		"password_hash": newPasswordHash,
 	})
 	if err != nil {
@@ -231,13 +144,62 @@ func (h *PasswordResetHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	markUsedQuery := `UPDATE $reset_id SET used_at = $used_at`
-	_, _ = h.sdb.Query(ctx, markUsedQuery, map[string]interface{}{
-		"reset_id": reset["id"],
-		"used_at":  time.Now(),
+	usedAt := time.Now()
+	_, _ = sdb.Merge[surrealdb.SurrealPasswordReset](ctx, h.db, reset.ID, map[string]interface{}{
+		"used_at": usedAt,
 	})
 
 	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "password reset successful",
 	})
+}
+
+func (h *PasswordResetHandler) findUserByIdentifier(ctx context.Context, identifier string) (map[string]interface{}, string, error) {
+	results, err := sdb.Query[[]map[string]interface{}](ctx, h.db,
+		"SELECT * FROM users WHERE email = $identifier OR username = $identifier LIMIT 1",
+		map[string]interface{}{"identifier": identifier})
+	if err != nil || results == nil || len(*results) == 0 {
+		return nil, "", err
+	}
+	resultItems := (*results)[0].Result
+	if len(resultItems) == 0 {
+		return nil, "", nil
+	}
+	user := resultItems[0]
+
+	userID := extractRecordID(user)
+	if userID == "" {
+		return nil, "", nil
+	}
+
+	return user, userID, nil
+}
+
+func (h *PasswordResetHandler) findActiveReset(ctx context.Context, userID string) (*surrealdb.SurrealPasswordReset, error) {
+	results, err := sdb.Query[[]surrealdb.SurrealPasswordReset](ctx, h.db,
+		`SELECT * FROM password_resets WHERE user_id = $user_id AND expires_at > $now AND used_at = NONE LIMIT 1`,
+		map[string]interface{}{
+			"user_id": models.NewRecordID("users", userID),
+			"now":     time.Now(),
+		})
+	if err != nil {
+		return nil, err
+	}
+	if results == nil || len(*results) == 0 {
+		return nil, nil
+	}
+	resultItems := (*results)[0].Result
+	if len(resultItems) == 0 {
+		return nil, nil
+	}
+	return &resultItems[0], nil
+}
+
+func extractRecordID(data map[string]interface{}) string {
+	if id, ok := data["id"].(map[string]interface{}); ok {
+		if idStr, ok := id["ID"].(string); ok {
+			return idStr
+		}
+	}
+	return ""
 }
