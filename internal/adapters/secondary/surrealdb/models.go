@@ -6,6 +6,7 @@ import (
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/password_reset"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/unit"
+	"github.com/stefanoprivitera/hourglass/internal/core/domain/working_group"
 	"github.com/surrealdb/surrealdb.go/pkg/models"
 )
 
@@ -228,6 +229,80 @@ type SurrealWorkingGroupMember struct {
 	StartDate           time.Time       `json:"start_date"`
 	EndDate             *time.Time      `json:"end_date,omitempty"`
 	CreatedAt           time.Time       `json:"created_at"`
+}
+
+func (swg *SurrealWorkingGroup) ToDomain() *working_group.WorkingGroup {
+	if swg == nil {
+		return nil
+	}
+	return &working_group.WorkingGroup{
+		ID:               recordIDToUUID(swg.ID),
+		OrgID:            recordIDToUUID(swg.OrgID),
+		SubprojectID:     recordIDToUUID(swg.SubprojectID),
+		Name:             swg.Name,
+		Description:      swg.Description,
+		UnitIDs:          swg.UnitIDs,
+		EnforceUnitTuple: swg.EnforceUnitTuple,
+		ManagerID:        recordIDToUUID(swg.ManagerID),
+		DelegateIDs:      swg.DelegateIDs,
+		IsActive:         swg.IsActive,
+		CreatedAt:        swg.CreatedAt,
+		UpdatedAt:        swg.UpdatedAt,
+	}
+}
+
+func SurrealWorkingGroupFromDomain(wg *working_group.WorkingGroup) *SurrealWorkingGroup {
+	if wg == nil {
+		return nil
+	}
+	return &SurrealWorkingGroup{
+		ID:               uuidToRecordID("working_groups", wg.ID),
+		OrgID:            uuidToRecordID("organizations", wg.OrgID),
+		SubprojectID:     uuidToRecordID("subprojects", wg.SubprojectID),
+		Name:             wg.Name,
+		Description:      wg.Description,
+		UnitIDs:          wg.UnitIDs,
+		EnforceUnitTuple: wg.EnforceUnitTuple,
+		ManagerID:        uuidToRecordID("users", wg.ManagerID),
+		DelegateIDs:      wg.DelegateIDs,
+		IsActive:         wg.IsActive,
+		CreatedAt:        wg.CreatedAt,
+		UpdatedAt:        wg.UpdatedAt,
+	}
+}
+
+func (swgm *SurrealWorkingGroupMember) ToDomain() *working_group.WorkingGroupMember {
+	if swgm == nil {
+		return nil
+	}
+	return &working_group.WorkingGroupMember{
+		ID:                  recordIDToUUID(swgm.ID),
+		WGID:                recordIDToUUID(swgm.WGID),
+		UserID:              recordIDToUUID(swgm.UserID),
+		UnitID:              recordIDToUUID(swgm.UnitID),
+		Role:                swgm.Role,
+		IsDefaultSubproject: swgm.IsDefaultSubproject,
+		StartDate:           swgm.StartDate,
+		EndDate:             swgm.EndDate,
+		CreatedAt:           swgm.CreatedAt,
+	}
+}
+
+func SurrealWorkingGroupMemberFromDomain(m *working_group.WorkingGroupMember) *SurrealWorkingGroupMember {
+	if m == nil {
+		return nil
+	}
+	return &SurrealWorkingGroupMember{
+		ID:                  uuidToRecordID("wg_members", m.ID),
+		WGID:                uuidToRecordID("working_groups", m.WGID),
+		UserID:              uuidToRecordID("users", m.UserID),
+		UnitID:              uuidToRecordID("units", m.UnitID),
+		Role:                m.Role,
+		IsDefaultSubproject: m.IsDefaultSubproject,
+		StartDate:           m.StartDate,
+		EndDate:             m.EndDate,
+		CreatedAt:           m.CreatedAt,
+	}
 }
 
 type SurrealTimeEntry struct {
