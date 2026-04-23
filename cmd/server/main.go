@@ -2,11 +2,14 @@ package main
 
 import (
 	"log"
-	"net/http"
+	stdhttp "net/http"
 	"os"
 	"strings"
 
+	"github.com/stefanoprivitera/hourglass/internal/adapters/primary/http"
+	hexauth "github.com/stefanoprivitera/hourglass/internal/adapters/secondary/surrealdb"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
+	hexsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
 	"github.com/stefanoprivitera/hourglass/internal/db"
 	"github.com/stefanoprivitera/hourglass/internal/handlers"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
@@ -20,39 +23,50 @@ func main() {
 
 	authService := auth.NewService(jwtSecret)
 
-	var sdb *db.SurrealDB
-	var err error
-
-	sdb, err = db.NewSurrealDB()
+	sdbConn, err := db.NewSurrealDB()
 	if err != nil {
 		log.Fatalf("Failed to connect to SurrealDB: %v", err)
 	}
-	defer sdb.Close()
+	defer sdbConn.Close()
 	log.Println("Using SurrealDB")
 
 	healthHandler := handlers.NewHealthHandler()
 
-	mux := http.NewServeMux()
+	mux := stdhttp.NewServeMux()
 
 	mux.HandleFunc("GET /health", healthHandler.ServeHTTP)
 
-	unitHandler := handlers.NewUnitHandler(sdb)
-	wgHandler := handlers.NewWorkingGroupHandler(sdb)
-	timeEntryHandler := handlers.NewSurrealTimeEntryHandler(sdb)
-	authHandler := handlers.NewAuthHandler(sdb, authService)
+	unitHandler := handlers.NewUnitHandler(sdbConn)
+	wgHandler := handlers.NewWorkingGroupHandler(sdbConn)
+	timeEntryHandler := handlers.NewSurrealTimeEntryHandler(sdbConn)
 
-	mux.HandleFunc("POST /auth/register", authHandler.Register)
-	mux.HandleFunc("POST /auth/login", authHandler.Login)
-	mux.HandleFunc("POST /auth/logout", authHandler.Logout)
-	mux.HandleFunc("POST /auth/refresh", authHandler.Refresh)
-	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, authHandler.GetProfile))
-	mux.HandleFunc("POST /auth/bootstrap", authHandler.Bootstrap)
+	userRepo := hexauth.NewUserRepository(sdbConn.DB())
+	orgRepo := hexauth.NewOrganizationRepository(sdbConn.DB())
+	passwordHasher := hexauth.NewPasswordHasher()
+	tokenService := hexauth.NewTokenService(authService)
+	refreshTokenRepo := hexauth.NewRefreshTokenRepository(sdbConn.DB())
 
-	passwordResetHandler := handlers.NewPasswordResetHandler(sdb, authService)
+	hexAuthService := hexsvc.NewService(
+		userRepo,
+		orgRepo,
+		tokenService,
+		passwordHasher,
+		refreshTokenRepo,
+	)
+	hexAuthHandler := http.NewAuthHandler(hexAuthService)
+
+	mux.HandleFunc("POST /auth/register", hexAuthHandler.Register)
+	mux.HandleFunc("POST /auth/login", hexAuthHandler.Login)
+	mux.HandleFunc("POST /auth/logout", hexAuthHandler.Logout)
+	mux.HandleFunc("POST /auth/refresh", hexAuthHandler.Refresh)
+	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, hexAuthHandler.GetProfile))
+	mux.HandleFunc("POST /auth/bootstrap", hexAuthHandler.Bootstrap)
+
+	passwordResetHandler := handlers.NewPasswordResetHandler(sdbConn, authService)
 	mux.HandleFunc("POST /auth/password-reset/request", passwordResetHandler.Request)
 	mux.HandleFunc("POST /auth/password-reset/verify", passwordResetHandler.Verify)
 
-	invitationHandler := handlers.NewInvitationHandler(sdb)
+	invitationHandler := handlers.NewInvitationHandler(sdbConn)
 	mux.HandleFunc("POST /invitations", invitationHandler.Create)
 	mux.HandleFunc("GET /invitations/validate/code/{code}", invitationHandler.ValidateCode)
 	mux.HandleFunc("GET /invitations/validate/token/{token}", invitationHandler.ValidateToken)
@@ -102,14 +116,14 @@ func main() {
 
 	log.Printf("Server starting on port %s", port)
 	handler := rateLimiter.Middleware(middleware.Logging(middleware.APIVersion(corsMiddleware(allowedOrigins)(mux))))
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
+	if err := stdhttp.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
 
-func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func corsMiddleware(allowedOrigins []string) func(stdhttp.Handler) stdhttp.Handler {
+	return func(next stdhttp.Handler) stdhttp.Handler {
+		return stdhttp.HandlerFunc(func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 			origin := r.Header.Get("Origin")
 			allowed := false
 			for _, o := range allowedOrigins {
@@ -127,7 +141,7 @@ func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 			}
 
 			if r.Method == "OPTIONS" {
-				w.WriteHeader(http.StatusOK)
+				w.WriteHeader(stdhttp.StatusOK)
 				return
 			}
 

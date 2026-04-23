@@ -56,8 +56,8 @@ go run ./cmd/server           # Runs on :8080, connects to postgres://localhost:
 
 # Frontend (separate terminal)
 cd web
-npm install
-npm run dev                   # Runs on :3000, proxies /api to :8080
+bun install
+bun run dev                   # Runs on :3000, proxies /api to :8080
 
 # Database (Docker)
 docker-compose up             # Starts PostgreSQL on :5432
@@ -171,6 +171,16 @@ Entries have `status` (draft → submitted → pending_manager → pending_finan
 - Frontend uses TanStack Router file-based routing with `index.tsx` for folder routes
 - Frontend component files are primarily kebab-case (e.g., `app-shell.tsx`, `status-badge.tsx`)
 - Types coexist in `models.go` and `types/api.ts` for frontend
+
+## Hexagonal Architecture
+
+This project is migrating to hexagonal (ports & adapters) architecture. See `plans/hexagonal-migration.md` for details.
+
+**When creating new features or refactoring handlers:**
+1. Read `plans/hexagonal-migration.md` for the target structure
+2. Follow the migration pattern: domain → ports → service → adapters → wiring
+3. Keep business logic in `internal/core/services/`, not in handlers
+4. Handlers in `internal/adapters/primary/http/` should be thin
 
 ## graphify
 

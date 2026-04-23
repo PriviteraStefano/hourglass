@@ -6,14 +6,16 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
 	"github.com/stefanoprivitera/hourglass/internal/db"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
 	"github.com/stefanoprivitera/hourglass/pkg/api"
+
+	"github.com/google/uuid"
 )
 
 var _ = uuid.UUID{} // prevent unused import error
@@ -406,6 +408,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isEmail := strings.Contains(req.Identifier, "@")
+	if !isEmail {
+		usernameRegex := regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+		if !usernameRegex.MatchString(req.Identifier) {
+			api.RespondWithError(w, http.StatusBadRequest, "username can only contain letters, numbers, and underscores")
+			return
+		}
+	}
+
 	query := `SELECT * FROM users WHERE email = $identifier OR username = $identifier LIMIT 1`
 	vars := map[string]interface{}{"identifier": req.Identifier}
 
@@ -519,17 +530,30 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	h.sdb.Query(ctx, refreshQuery, refreshVars)
 
 	expiresAt := time.Now().Add(15 * time.Minute)
-	api.RespondWithJSON(w, http.StatusOK, SurrealLoginResponse{
-		Token:        token,
-		RefreshToken: refreshToken,
-		User: map[string]interface{}{
-			"id":     userID,
-			"email":  userEmail,
-			"name":   userName,
-			"role":   role,
-			"org_id": orgID,
-		},
-		ExpiresAt: expiresAt,
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth_token",
+		Value:    token,
+		Expires:  expiresAt,
+		HttpOnly: true,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		Expires:  refreshExpiresAt,
+		HttpOnly: true,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"id":     userID,
+		"email":  userEmail,
+		"name":   userName,
+		"role":   role,
+		"org_id": orgID,
 	})
 }
 
@@ -537,7 +561,7 @@ func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	userID := middleware.GetUserID(ctx)
 
-	query := `SELECT id, email, name, is_active, created_at, updated_at FROM $user_id`
+	query := `SELECT id, email, name, is_active, created_at, updated_at FROM users:$user_id`
 	vars := map[string]interface{}{"user_id": userID.String()}
 
 	results, err := h.sdb.Query(ctx, query, vars)
@@ -568,18 +592,13 @@ type RefreshRequest struct {
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var req RefreshRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+	cookie, err := r.Cookie("refresh_token")
+	if err != nil || cookie.Value == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "refresh token is required")
 		return
 	}
 
-	if req.RefreshToken == "" {
-		api.RespondWithError(w, http.StatusBadRequest, "refresh_token is required")
-		return
-	}
-
-	refreshHash := auth.HashRefreshToken(req.RefreshToken)
+	refreshHash := auth.HashRefreshToken(cookie.Value)
 
 	query := `
 		SELECT * FROM refresh_tokens
@@ -657,9 +676,16 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		}
 
 		expiresAt := time.Now().Add(15 * time.Minute)
+		http.SetCookie(w, &http.Cookie{
+			Name:     "auth_token",
+			Value:    newToken,
+			Expires:  expiresAt,
+			HttpOnly: true,
+			Path:     "/",
+			SameSite: http.SameSiteLaxMode,
+		})
+
 		api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"token":      newToken,
-			"expires_at": expiresAt,
 			"user": map[string]interface{}{
 				"id":     userID,
 				"email":  userEmail,
@@ -677,14 +703,8 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var req RefreshRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	if req.RefreshToken != "" {
-		refreshHash := auth.HashRefreshToken(req.RefreshToken)
+	if cookie, err := r.Cookie("refresh_token"); err == nil && cookie.Value != "" {
+		refreshHash := auth.HashRefreshToken(cookie.Value)
 		query := `UPDATE refresh_tokens SET revoked_at = $now WHERE token_hash = $token_hash`
 		vars := map[string]interface{}{
 			"token_hash": refreshHash,
@@ -692,6 +712,19 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		}
 		h.sdb.Query(ctx, query, vars)
 	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:   "auth_token",
+		Value:  "",
+		MaxAge: -1,
+		Path:   "/",
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:   "refresh_token",
+		Value:  "",
+		MaxAge: -1,
+		Path:   "/",
+	})
 
 	w.WriteHeader(http.StatusNoContent)
 }

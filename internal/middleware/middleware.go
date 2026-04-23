@@ -22,7 +22,7 @@ const (
 
 func Auth(authService *auth.Service, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie("access_token")
+		cookie, err := r.Cookie("auth_token")
 		if err != nil {
 			api.RespondWithError(w, http.StatusUnauthorized, "missing access token")
 			return
