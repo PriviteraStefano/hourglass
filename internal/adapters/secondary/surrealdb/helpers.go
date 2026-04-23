@@ -55,6 +55,24 @@ func recordIDToUserID(id *models.RecordID) string {
 	}
 }
 
+func recordIDToUUIDPtr(id models.RecordID) *uuid.UUID {
+	if id.ID == nil {
+		return nil
+	}
+	result := recordIDToUUID(id)
+	if result == uuid.Nil {
+		return nil
+	}
+	return &result
+}
+
+func uuidToRecordIDPtr(table string, id *uuid.UUID) models.RecordID {
+	if id == nil {
+		return models.RecordID{}
+	}
+	return uuidToRecordID(table, *id)
+}
+
 func wrapErr(err error, op string) error {
 	if err == nil {
 		return nil

@@ -12,6 +12,7 @@ import (
 	hexsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
+	unitsvc "github.com/stefanoprivitera/hourglass/internal/core/services/unit"
 	"github.com/stefanoprivitera/hourglass/internal/db"
 	"github.com/stefanoprivitera/hourglass/internal/handlers"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
@@ -38,7 +39,6 @@ func main() {
 
 	mux.HandleFunc("GET /health", healthHandler.ServeHTTP)
 
-	unitHandler := handlers.NewUnitHandler(sdbConn.DB())
 	wgHandler := handlers.NewWorkingGroupHandler(sdbConn.DB())
 	timeEntryHandler := handlers.NewSurrealTimeEntryHandler(sdbConn.DB())
 
@@ -73,6 +73,10 @@ func main() {
 	passwordResetService := passwordresetsvc.NewService(passwordResetRepo, userRepo, userFinder, passwordHasher, hexauth.NewTokenService(authService))
 	hexPasswordResetHandler := http.NewPasswordResetHandler(passwordResetService)
 
+	unitRepo := hexauth.NewUnitRepository(sdbConn.DB())
+	unitService := unitsvc.NewService(unitRepo)
+	hexUnitHandler := http.NewUnitHandler(unitService)
+
 	mux.HandleFunc("POST /auth/password-reset/request", hexPasswordResetHandler.Request)
 	mux.HandleFunc("POST /auth/password-reset/verify", hexPasswordResetHandler.Verify)
 
@@ -81,13 +85,13 @@ func main() {
 	mux.HandleFunc("GET /invitations/validate/token/{token}", hexInvitationHandler.ValidateToken)
 	mux.HandleFunc("POST /invitations/accept", hexInvitationHandler.Accept)
 
-	mux.HandleFunc("GET /units", middleware.Auth(authService, unitHandler.List))
-	mux.HandleFunc("POST /units", middleware.Auth(authService, unitHandler.Create))
-	mux.HandleFunc("GET /units/{id}", middleware.Auth(authService, unitHandler.Get))
-	mux.HandleFunc("PUT /units/{id}", middleware.Auth(authService, unitHandler.Update))
-	mux.HandleFunc("DELETE /units/{id}", middleware.Auth(authService, unitHandler.Delete))
-	mux.HandleFunc("GET /units/tree", middleware.Auth(authService, unitHandler.GetTree))
-	mux.HandleFunc("GET /units/{id}/descendants", middleware.Auth(authService, unitHandler.GetDescendants))
+	mux.HandleFunc("GET /units", middleware.Auth(authService, hexUnitHandler.List))
+	mux.HandleFunc("POST /units", middleware.Auth(authService, hexUnitHandler.Create))
+	mux.HandleFunc("GET /units/{id}", middleware.Auth(authService, hexUnitHandler.Get))
+	mux.HandleFunc("PUT /units/{id}", middleware.Auth(authService, hexUnitHandler.Update))
+	mux.HandleFunc("DELETE /units/{id}", middleware.Auth(authService, hexUnitHandler.Delete))
+	mux.HandleFunc("GET /units/tree", middleware.Auth(authService, hexUnitHandler.GetTree))
+	mux.HandleFunc("GET /units/{id}/descendants", middleware.Auth(authService, hexUnitHandler.GetDescendants))
 
 	mux.HandleFunc("GET /working-groups", middleware.Auth(authService, wgHandler.List))
 	mux.HandleFunc("POST /working-groups", middleware.Auth(authService, wgHandler.Create))

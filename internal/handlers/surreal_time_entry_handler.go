@@ -219,7 +219,7 @@ func (h *SurrealTimeEntryHandler) Create(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	entryIDStr := recordIDToStr(created.ID)
+	entryIDStr := teRecordIDToStr(created.ID)
 	go h.createAuditLog(ctx, orgID.String(), entryIDStr, "time_entry", "created", "user", userID.String(), "", nil)
 
 	api.RespondWithJSON(w, http.StatusCreated, surrealTimeEntryToEntry(*created))
@@ -250,7 +250,7 @@ func (h *SurrealTimeEntryHandler) Update(w http.ResponseWriter, r *http.Request)
 	}
 
 	status := checkResult.Status
-	entryUserID := recordIDToStr(checkResult.UserID)
+	entryUserID := teRecordIDToStr(checkResult.UserID)
 
 	if status != models.SurrStatusDraft {
 		api.RespondWithError(w, http.StatusBadRequest, "can only update draft entries")
@@ -330,7 +330,7 @@ func (h *SurrealTimeEntryHandler) Delete(w http.ResponseWriter, r *http.Request)
 	}
 
 	status := checkResult.Status
-	entryUserID := recordIDToStr(checkResult.UserID)
+	entryUserID := teRecordIDToStr(checkResult.UserID)
 
 	if status != models.SurrStatusDraft {
 		api.RespondWithError(w, http.StatusBadRequest, "can only delete draft entries")
@@ -370,7 +370,7 @@ func (h *SurrealTimeEntryHandler) Submit(w http.ResponseWriter, r *http.Request)
 	}
 
 	status := checkResult.Status
-	entryUserID := recordIDToStr(checkResult.UserID)
+	entryUserID := teRecordIDToStr(checkResult.UserID)
 
 	if status != models.SurrStatusDraft {
 		api.RespondWithError(w, http.StatusBadRequest, "can only submit draft entries")

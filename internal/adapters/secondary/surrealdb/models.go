@@ -5,6 +5,7 @@ import (
 
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/password_reset"
+	"github.com/stefanoprivitera/hourglass/internal/core/domain/unit"
 	"github.com/surrealdb/surrealdb.go/pkg/models"
 )
 
@@ -166,6 +167,40 @@ type SurrealUnit struct {
 	Code           string          `json:"code,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`
+}
+
+func (su *SurrealUnit) ToDomain() *unit.Unit {
+	if su == nil {
+		return nil
+	}
+	return &unit.Unit{
+		ID:             recordIDToUUID(su.ID),
+		OrgID:          recordIDToUUID(su.OrgID),
+		Name:           su.Name,
+		Description:    su.Description,
+		ParentUnitID:   recordIDToUUIDPtr(su.ParentUnitID),
+		HierarchyLevel: su.HierarchyLevel,
+		Code:           su.Code,
+		CreatedAt:      su.CreatedAt,
+		UpdatedAt:      su.UpdatedAt,
+	}
+}
+
+func SurrealUnitFromDomain(u *unit.Unit) *SurrealUnit {
+	if u == nil {
+		return nil
+	}
+	return &SurrealUnit{
+		ID:             uuidToRecordID("units", u.ID),
+		OrgID:          uuidToRecordID("organizations", u.OrgID),
+		Name:           u.Name,
+		Description:    u.Description,
+		ParentUnitID:   uuidToRecordIDPtr("units", u.ParentUnitID),
+		HierarchyLevel: u.HierarchyLevel,
+		Code:           u.Code,
+		CreatedAt:      u.CreatedAt,
+		UpdatedAt:      u.UpdatedAt,
+	}
 }
 
 type SurrealWorkingGroup struct {
