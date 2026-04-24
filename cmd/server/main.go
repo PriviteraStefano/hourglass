@@ -10,8 +10,13 @@ import (
 	hexauth "github.com/stefanoprivitera/hourglass/internal/adapters/secondary/surrealdb"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
 	hexsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
+	contractsvc "github.com/stefanoprivitera/hourglass/internal/core/services/contract"
+	customersvc "github.com/stefanoprivitera/hourglass/internal/core/services/customer"
+	exportsvc "github.com/stefanoprivitera/hourglass/internal/core/services/export"
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
+	orgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/organization"
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
+	projectsvc "github.com/stefanoprivitera/hourglass/internal/core/services/project"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
 	unitsvc "github.com/stefanoprivitera/hourglass/internal/core/services/unit"
 	wgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/working_group"
@@ -85,6 +90,26 @@ func main() {
 	wgService := wgsvc.NewService(wgRepo)
 	hexWGHandler := http.NewWorkingGroupHandler(wgService)
 
+	customerRepo := hexauth.NewCustomerRepository(sdbConn.DB())
+	customerService := customersvc.NewService(customerRepo)
+	hexCustomerHandler := http.NewCustomerHandler(customerService)
+
+	orgMgmtRepo := hexauth.NewOrganizationManagementRepository(sdbConn.DB())
+	orgMgmtService := orgsvc.NewService(orgMgmtRepo)
+	hexOrgHandler := http.NewOrganizationHandler(orgMgmtService)
+
+	projectRepo := hexauth.NewProjectRepository(sdbConn.DB())
+	projectService := projectsvc.NewService(projectRepo)
+	hexProjectHandler := http.NewProjectHandler(projectService)
+
+	contractRepo := hexauth.NewContractRepository(sdbConn.DB())
+	contractService := contractsvc.NewService(contractRepo)
+	hexContractHandler := http.NewContractHandler(contractService)
+
+	exportRepo := hexauth.NewExportRepository(sdbConn.DB())
+	exportService := exportsvc.NewService(exportRepo)
+	hexExportHandler := http.NewExportHandler(exportService)
+
 	mux.HandleFunc("POST /auth/password-reset/request", hexPasswordResetHandler.Request)
 	mux.HandleFunc("POST /auth/password-reset/verify", hexPasswordResetHandler.Verify)
 
@@ -109,6 +134,41 @@ func main() {
 	mux.HandleFunc("GET /working-groups/{id}/members", middleware.Auth(authService, hexWGHandler.ListMembers))
 	mux.HandleFunc("POST /working-groups/{id}/members", middleware.Auth(authService, hexWGHandler.AddMember))
 	mux.HandleFunc("DELETE /working-groups/{id}/members/{member_id}", middleware.Auth(authService, hexWGHandler.RemoveMember))
+
+	mux.HandleFunc("GET /customers", middleware.Auth(authService, hexCustomerHandler.List))
+	mux.HandleFunc("POST /customers", middleware.Auth(authService, hexCustomerHandler.Create))
+	mux.HandleFunc("GET /customers/{id}", middleware.Auth(authService, hexCustomerHandler.Get))
+	mux.HandleFunc("PUT /customers/{id}", middleware.Auth(authService, hexCustomerHandler.Update))
+	mux.HandleFunc("DELETE /customers/{id}", middleware.Auth(authService, hexCustomerHandler.Delete))
+
+	mux.HandleFunc("POST /organizations", middleware.Auth(authService, hexOrgHandler.Create))
+	mux.HandleFunc("GET /organizations/{id}", middleware.Auth(authService, hexOrgHandler.Get))
+	mux.HandleFunc("POST /organizations/invite", middleware.Auth(authService, hexOrgHandler.Invite))
+	mux.HandleFunc("POST /organizations/invite-customer", middleware.Auth(authService, hexOrgHandler.InviteCustomer))
+	mux.HandleFunc("GET /organizations/{id}/settings", middleware.Auth(authService, hexOrgHandler.GetSettings))
+	mux.HandleFunc("PUT /organizations/{id}/settings", middleware.Auth(authService, hexOrgHandler.UpdateSettings))
+	mux.HandleFunc("GET /organizations/members", middleware.Auth(authService, hexOrgHandler.ListMembers))
+	mux.HandleFunc("PUT /organizations/members/{member_id}/roles", middleware.Auth(authService, hexOrgHandler.UpdateMemberRoles))
+	mux.HandleFunc("DELETE /organizations/members/{member_id}", middleware.Auth(authService, hexOrgHandler.DeactivateMember))
+
+	mux.HandleFunc("GET /projects", middleware.Auth(authService, hexProjectHandler.List))
+	mux.HandleFunc("POST /projects", middleware.Auth(authService, hexProjectHandler.Create))
+	mux.HandleFunc("GET /projects/{id}", middleware.Auth(authService, hexProjectHandler.Get))
+	mux.HandleFunc("POST /projects/{id}/adopt", middleware.Auth(authService, hexProjectHandler.Adopt))
+	mux.HandleFunc("GET /projects/{id}/managers", middleware.Auth(authService, hexProjectHandler.ListManagers))
+	mux.HandleFunc("POST /projects/{id}/managers", middleware.Auth(authService, hexProjectHandler.AddManager))
+	mux.HandleFunc("DELETE /projects/{id}/managers/{user_id}", middleware.Auth(authService, hexProjectHandler.RemoveManager))
+
+	mux.HandleFunc("GET /contracts", middleware.Auth(authService, hexContractHandler.List))
+	mux.HandleFunc("POST /contracts", middleware.Auth(authService, hexContractHandler.Create))
+	mux.HandleFunc("GET /contracts/{id}", middleware.Auth(authService, hexContractHandler.Get))
+	mux.HandleFunc("POST /contracts/{id}/adopt", middleware.Auth(authService, hexContractHandler.Adopt))
+	mux.HandleFunc("PUT /contracts/{id}", middleware.Auth(authService, hexContractHandler.Update))
+	mux.HandleFunc("POST /contracts/{id}/recalculate-mileage", middleware.Auth(authService, hexContractHandler.RecalculateMileage))
+
+	mux.HandleFunc("GET /exports/timesheets", middleware.Auth(authService, hexExportHandler.Timesheets))
+	mux.HandleFunc("GET /exports/expenses", middleware.Auth(authService, hexExportHandler.Expenses))
+	mux.HandleFunc("GET /exports/combined", middleware.Auth(authService, hexExportHandler.Combined))
 
 	mux.HandleFunc("GET /time-entries", middleware.Auth(authService, hexTEHandler.List))
 	mux.HandleFunc("POST /time-entries", middleware.Auth(authService, hexTEHandler.Create))

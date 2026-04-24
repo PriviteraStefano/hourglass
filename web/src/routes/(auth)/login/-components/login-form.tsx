@@ -12,7 +12,18 @@ import {toast} from "sonner";
 const loginSchema = z.object({
   identifier: z.string().min(1, 'Username or email is required'),
   password: z.string().min(1, 'Password is required'),
-})
+}).refine(
+  (data) => {
+    if (data.identifier.includes('@')) {
+      return z.string().email().safeParse(data.identifier).success
+    }
+    return /^[a-zA-Z0-9_]+$/.test(data.identifier)
+  },
+  {
+    message: 'Invalid username format. Username can only contain letters, numbers, and underscores.',
+    path: ['identifier'],
+  }
+)
 
 type LoginFormData = z.infer<typeof loginSchema>
 

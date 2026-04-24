@@ -11,6 +11,7 @@ import {toast} from "sonner";
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
+  username: z.string().min(3, 'Username must be at least 3 characters').regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores').optional().or(z.literal('')),
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   organization_name: z.string().min(2, 'Organization name must be at least 2 characters').optional(),
@@ -26,6 +27,7 @@ export function RegisterForm() {
     resolver: zodResolver(registerSchema),
     defaultValues: {
       name: '',
+      username: '',
       email: '',
       password: '',
       organization_name: '',
@@ -69,6 +71,23 @@ export function RegisterForm() {
             {form.formState.errors.name && (
               <p className="text-sm text-destructive">
                 {form.formState.errors.name.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="username">
+              Username (optional)
+            </label>
+            <Input
+              id="username"
+              type="text"
+              placeholder="johndoe"
+              {...form.register('username')}
+            />
+            {form.formState.errors.username && (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.username.message}
               </p>
             )}
           </div>

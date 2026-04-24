@@ -64,30 +64,6 @@ func (s *SurrealDB) Close() error {
 	return s.db.Close(context.Background())
 }
 
-func (s *SurrealDB) Query(ctx context.Context, query string, vars map[string]interface{}) (*[]surrealdb.QueryResult[interface{}], error) {
-	return surrealdb.Query[interface{}](ctx, s.db, query, vars)
-}
-
-func (s *SurrealDB) Create(ctx context.Context, table string, data interface{}) (*map[string]any, error) {
-	return surrealdb.Create[map[string]any](ctx, s.db, table, data)
-}
-
-func (s *SurrealDB) Select(ctx context.Context, what string) (*map[string]any, error) {
-	return surrealdb.Select[map[string]any](ctx, s.db, what)
-}
-
-func (s *SurrealDB) SelectMany(ctx context.Context, what string) (*[]map[string]any, error) {
-	return surrealdb.Select[[]map[string]any](ctx, s.db, what)
-}
-
-func (s *SurrealDB) Update(ctx context.Context, what string, data interface{}) (*map[string]any, error) {
-	return surrealdb.Update[map[string]any](ctx, s.db, what, data)
-}
-
-func (s *SurrealDB) Delete(ctx context.Context, what string) (*map[string]any, error) {
-	return surrealdb.Delete[map[string]any](ctx, s.db, what)
-}
-
 func getEnvOrDefault(key, defaultVal string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
