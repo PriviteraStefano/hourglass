@@ -57,6 +57,9 @@ func main() {
 	tokenService := hexauth.NewTokenService(authService)
 	refreshTokenRepo := hexauth.NewRefreshTokenRepository(sdbConn.DB())
 
+	invitationRepo := hexauth.NewInvitationRepository(sdbConn.DB())
+	invitationService := invitationsvc.NewService(invitationRepo)
+
 	hexAuthService := hexsvc.NewService(
 		userRepo,
 		orgRepo,
@@ -64,7 +67,7 @@ func main() {
 		passwordHasher,
 		refreshTokenRepo,
 	)
-	hexAuthHandler := http.NewAuthHandler(hexAuthService)
+	hexAuthHandler := http.NewAuthHandler(hexAuthService, invitationService)
 
 	mux.HandleFunc("POST /auth/register", hexAuthHandler.Register)
 	mux.HandleFunc("POST /auth/login", hexAuthHandler.Login)
@@ -72,14 +75,15 @@ func main() {
 	mux.HandleFunc("POST /auth/refresh", hexAuthHandler.Refresh)
 	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, hexAuthHandler.GetProfile))
 	mux.HandleFunc("POST /auth/bootstrap", hexAuthHandler.Bootstrap)
+	mux.HandleFunc("GET /auth/bootstrap-check", hexAuthHandler.BootstrapCheck)
+	mux.HandleFunc("POST /auth/switch-organization", middleware.Auth(authService, hexAuthHandler.SwitchOrganization))
+	mux.HandleFunc("GET /auth/memberships", middleware.Auth(authService, hexAuthHandler.GetMemberships))
 
-	invitationRepo := hexauth.NewInvitationRepository(sdbConn.DB())
-	invitationService := invitationsvc.NewService(invitationRepo)
 	hexInvitationHandler := http.NewInvitationHandler(invitationService)
 
 	passwordResetRepo := hexauth.NewPasswordResetRepository(sdbConn.DB())
 	userFinder := hexauth.NewUserFinder(sdbConn.DB())
-	passwordResetService := passwordresetsvc.NewService(passwordResetRepo, userRepo, userFinder, passwordHasher, hexauth.NewTokenService(authService))
+	passwordResetService := passwordresetsvc.NewService(passwordResetRepo, userRepo, userFinder, passwordHasher, hexauth.NewTokenService(authService), refreshTokenRepo)
 	hexPasswordResetHandler := http.NewPasswordResetHandler(passwordResetService)
 
 	unitRepo := hexauth.NewUnitRepository(sdbConn.DB())

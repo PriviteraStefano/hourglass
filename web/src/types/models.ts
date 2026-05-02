@@ -5,6 +5,7 @@ export type EntryStatus = 'draft' | 'submitted' | 'pending_manager' | 'pending_f
 export interface User {
   id: string
   email: string
+  username: string
   name: string
   is_active: boolean
   created_at: string
@@ -62,17 +63,6 @@ export interface Project {
   created_by_org_name?: string
   adoption_count?: number
   is_adopted?: boolean
-  created_at: string
-}
-
-export interface Contract {
-  id: string
-  name: string
-  km_rate: number
-  currency: string
-  governance_model: 'creator_controlled' | 'unanimous' | 'majority'
-  is_shared: boolean
-  is_active: boolean
   created_at: string
 }
 

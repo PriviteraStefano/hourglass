@@ -12,11 +12,12 @@ import (
 )
 
 type Service struct {
-	repo         ports.PasswordResetRepository
-	userRepo     ports.UserRepository
-	userFinder   ports.UserFinder
-	hasher       ports.PasswordHasher
-	tokenService ports.TokenService
+	repo             ports.PasswordResetRepository
+	userRepo         ports.UserRepository
+	userFinder       ports.UserFinder
+	hasher           ports.PasswordHasher
+	tokenService     ports.TokenService
+	refreshTokenRepo ports.RefreshTokenRepository
 }
 
 func NewService(
@@ -25,13 +26,15 @@ func NewService(
 	userFinder ports.UserFinder,
 	hasher ports.PasswordHasher,
 	tokenService ports.TokenService,
+	refreshTokenRepo ports.RefreshTokenRepository,
 ) *Service {
 	return &Service{
-		repo:         repo,
-		userRepo:     userRepo,
-		userFinder:   userFinder,
-		hasher:       hasher,
-		tokenService: tokenService,
+		repo:             repo,
+		userRepo:         userRepo,
+		userFinder:       userFinder,
+		hasher:           hasher,
+		tokenService:     tokenService,
+		refreshTokenRepo: refreshTokenRepo,
 	}
 }
 
@@ -91,6 +94,7 @@ func (s *Service) Verify(ctx context.Context, identifier, code, password string)
 	}
 
 	_ = s.repo.MarkUsed(ctx, pr.ID.String())
+	_ = s.refreshTokenRepo.RevokeAllByUser(ctx, userUUID)
 	return nil
 }
 

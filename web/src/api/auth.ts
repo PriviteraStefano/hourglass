@@ -16,7 +16,7 @@ const loginMutationOpts = mutationOptions({
       body: JSON.stringify(creds),
     }),
   onSuccess: (data: AuthResponse, _, __, {client}) => {
-    if (data) {
+    if (data?.user) {
       client.setQueryData(['auth', 'me'], data.user)
     }
   },
@@ -107,6 +107,28 @@ const verifyPasswordResetMutationOpts = mutationOptions({
     }),
 })
 
+const bootstrapCheckQueryOpts = queryOptions({
+  queryKey: ['auth', 'bootstrap-check'],
+  queryFn: async () => api<{ needs_bootstrap: boolean }>('/auth/bootstrap-check'),
+  retry: false,
+})
+
+const switchOrganizationMutationOpts = mutationOptions({
+  mutationFn: (data: { organization_id: string }) =>
+    api<AuthResponse>('/auth/switch-organization', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  onSuccess: (data: AuthResponse, _, __, {client}) =>
+    client.setQueryData(['auth', 'me'], data.user),
+})
+
+const membershipsQueryOpts = queryOptions({
+  queryKey: ['auth', 'memberships'],
+  queryFn: async () => api<{ memberships: Array<{ membership: UserWithMembership['membership']; organization: UserWithMembership['organization'] }> }>('/auth/memberships'),
+  retry: false,
+})
+
 export const AuthApis = {
   profileQueryOpts,
   loginMutationOpts,
@@ -120,4 +142,7 @@ export const AuthApis = {
   acceptInvitationMutationOpts,
   requestPasswordResetMutationOpts,
   verifyPasswordResetMutationOpts,
+  bootstrapCheckQueryOpts,
+  switchOrganizationMutationOpts,
+  membershipsQueryOpts,
 }

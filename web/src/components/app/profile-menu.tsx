@@ -11,9 +11,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {Avatar, AvatarFallback} from '@/components/ui/avatar'
 import {useMutation, useSuspenseQuery} from "@tanstack/react-query";
+import {useNavigate} from "@tanstack/react-router";
 import {AuthApis} from "@/api/auth.ts";
 
 export function ProfileMenu() {
+  const navigate = useNavigate()
   const {data: {user}} = useSuspenseQuery(AuthApis.profileQueryOpts)
   const {mutate: logout} = useMutation(AuthApis.logoutMutationOpts)
 
@@ -22,6 +24,15 @@ export function ProfileMenu() {
     .map((n: string) => n[0])
     .join('')
     .toUpperCase() ?? 'U'
+
+  const handleLogout = () => {
+    logout(undefined, {
+      onSuccess: () => {
+        navigate({ to: '/login' })
+      },
+    })
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -53,7 +64,7 @@ export function ProfileMenu() {
           <DropdownMenuSeparator/>
           <DropdownMenuItem
             className="gap-2 text-destructive"
-            onClick={() => logout()}
+            onClick={handleLogout}
           >
             <LogOutIcon className="w-4 h-4"/>
             Log out

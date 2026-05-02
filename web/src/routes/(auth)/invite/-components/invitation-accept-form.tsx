@@ -6,6 +6,7 @@ import {Input} from '@/components/ui/input'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card'
 import {useSearchParams, useNavigate} from '@tanstack/react-router'
 import {useQuery, useMutation} from "@tanstack/react-query";
+import {useEffect} from "react";
 import {AuthApis} from "@/api/auth.ts";
 import {toast} from "sonner";
 
@@ -33,11 +34,17 @@ export function InvitationAcceptForm() {
   const form = useForm<AcceptInviteFormData>({
     resolver: zodResolver(acceptInviteSchema),
     defaultValues: {
-      email: invitation?.email || '',
+      email: '',
       username: '',
       password: '',
     },
   })
+
+  useEffect(() => {
+    if (invitation?.email) {
+      form.reset({ ...form.getValues(), email: invitation.email || '' })
+    }
+  }, [invitation?.email])
 
   const onSubmit = (data: AcceptInviteFormData) => {
     if (!token && !code) {

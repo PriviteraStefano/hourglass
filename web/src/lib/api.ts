@@ -2,6 +2,8 @@ import {type ApiError, type ApiResponse} from "@/types";
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
+let refreshPromise: Promise<void> | null = null;
+
 export async function api<T>(
   path: string,
   options?: RequestInit,
@@ -16,17 +18,25 @@ export async function api<T>(
   })
 
   if (res.status === 401) {
-    // Try refreshing the token
-    const refresh = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include'
-    })
-    if (!refresh.ok) {
-      window.location.href = '/login'
+    if (!refreshPromise) {
+      refreshPromise = fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include'
+      }).then(async (refresh) => {
+        if (!refresh.ok) {
+          window.location.href = '/login'
+          throw new Error('Unauthorized')
+        }
+      }).finally(() => {
+        refreshPromise = null;
+      })
+    }
+    try {
+      await refreshPromise
+    } catch {
       throw new Error('Unauthorized')
     }
 
-    // retry api call after refreshing token
     res = await fetch(`${API_BASE}${path}`, {
       ...options,
       credentials: 'include',

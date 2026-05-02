@@ -1,24 +1,4 @@
 import type {UserWithMembership} from "@/types/models.ts";
-// export function createApiResponseSchema<T extends z.ZodTypeAny>(t: T) {
-//   return (
-//     z.discriminatedUnion(
-//       "status",
-//       [
-//         z.object({
-//           status: z.number().min(200).max(299),
-//           data: t,
-//         }),
-//         z.object({
-//           status: z.number().min(400).max(599),
-//           error: z.string(),
-//         })
-//       ]
-//     )
-//   )
-// }
-//
-// export type ApiResponse<T extends z.ZodTypeAny> = ReturnType<typeof createApiResponseSchema<T>>
-
 
 export interface ApiResponse<T> {
   data: T;
@@ -27,6 +7,8 @@ export interface ApiResponse<T> {
 export interface AuthResponse {
   user: UserWithMembership
   token: string
+  refresh_token: string
+  expires_at: string
 }
 
 export interface LoginRequest {
@@ -37,9 +19,9 @@ export interface LoginRequest {
 export interface RegisterRequest {
   email: string
   password: string
-  name: string
+  name?: string
   organization_name?: string
-  invite_token?: string
+  invite_code?: string
   username?: string
   firstname?: string
   lastname?: string

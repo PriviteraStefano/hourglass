@@ -4,21 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "73e31700a9d2ef59",
+        "id": "0a67d5926a4cf8b2",
         "type": "tabs",
         "children": [
           {
-            "id": "945fd247c389b887",
+            "id": "7fbcb5ebe3a6be8b",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "design/plan.md",
+                "file": "01-Features/F05-Org-Bootstrap.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "plan"
+              "title": "F05-Org-Bootstrap"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "design/plan.md",
+                "file": "01-Features/F05-Org-Bootstrap.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for plan"
+              "title": "Backlinks for F05-Org-Bootstrap"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "design/plan.md",
+                "file": "01-Features/F05-Org-Bootstrap.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from plan"
+              "title": "Outgoing links from F05-Org-Bootstrap"
             }
           },
           {
@@ -156,20 +156,21 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "design/plan.md",
+                "file": "01-Features/F05-Org-Bootstrap.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of plan"
+              "title": "Outline of F05-Org-Bootstrap"
             }
           }
         ]
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -182,8 +183,23 @@
       "bases:Create new base": false
     }
   },
-  "active": "945fd247c389b887",
+  "active": "7fbcb5ebe3a6be8b",
   "lastOpenFiles": [
+    "01-Features/F04-User-Authentication.md",
+    "01-Features/F05-Org-Bootstrap.md",
+    "STRUCTURE.md",
+    "Untitled.base",
+    "Untitled.canvas",
+    "01-Features/_TEMPLATE.md",
+    "2026-04-25.md",
+    "Untitled 2.canvas",
+    "LEGACY/16-Database-Migrations.md",
+    "Untitled 1.canvas",
+    "00-Index.md",
+    "03-Schema/S01-Database-ERD.md",
+    "03-Schema/_TEMPLATE.md",
+    "02-Technical/_TEMPLATE.md",
+    "02-Technical/T01-Hexagonal-Architecture.md",
     "design/plan.md",
     "design/files/SCHEMA_DESIGN_PACKAGE.md",
     "design/files/VISUAL_REFERENCE.md",
@@ -194,7 +210,6 @@
     "design/files/INDEX.md",
     "design/files",
     "design",
-    "00-Index.md",
     "Untitled",
     "02-Architecture.md",
     "01-System-Overview.md",
@@ -204,16 +219,7 @@
     "old/2026-03-27-frontend-phase9-design.md",
     "old/2026-03-28-contracts-projects-frontend.md",
     "old/2026-03-29-hourglass-redesign.md",
-    "old/2026-03-27-hourglass-design.md",
-    "03-Database-Schema.md",
     "old",
-    "06-Middleware.md",
-    "05-Auth-System.md",
-    "04-Backend-Patterns.md",
-    "08-API-Client.md",
-    "09-State-Management.md",
-    "_DOCUMENTATION_SUMMARY.txt",
-    "14-CSV-Exports.md",
-    "13-Organization-Users.md"
+    "_DOCUMENTATION_SUMMARY.txt"
   ]
 }

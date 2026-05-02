@@ -20,7 +20,7 @@ func NewUserRepository(db *sdb.DB) *UserRepository {
 
 func (r *UserRepository) Add(ctx context.Context, user *auth.User) error {
 	su := SurrealUserFromDomain(user)
-	_, err := sdb.Create[SurrealUser](ctx, r.db, models.Table("users"), su)
+	_, err := sdb.Create[[]SurrealUser](ctx, r.db, models.Table("users"), su)
 	if err != nil {
 		return wrapErr(err, "create user")
 	}
@@ -45,7 +45,9 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*auth.Us
 	if len(resultItems) == 0 {
 		return nil, ports.ErrUserNotFound
 	}
-	return resultItems[0].ToDomain(), nil
+	
+	surrealUser := resultItems[0]	
+	return surrealUser.ToDomain(), nil
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*auth.User, error) {
@@ -57,6 +59,27 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*auth.User,
 	return result.ToDomain(), nil
 }
 
+func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*auth.User, error) {
+	results, err := sdb.Query[[]SurrealUser](ctx, r.db,
+		"SELECT * FROM users WHERE username = $username LIMIT 1",
+		map[string]any{"username": username})
+	if err != nil {
+		return nil, wrapErr(err, "get user by username")
+	}
+	if results == nil || len(*results) == 0 {
+		return nil, ports.ErrUserNotFound
+	}
+	resultData := *results
+	if len(resultData) == 0 {
+		return nil, ports.ErrUserNotFound
+	}
+	resultItems := resultData[0].Result
+	if len(resultItems) == 0 {
+		return nil, ports.ErrUserNotFound
+	}
+	return resultItems[0].ToDomain(), nil
+}
+
 func (r *UserRepository) EmailExists(ctx context.Context, email string) (bool, error) {
 	results, err := sdb.Query[[]SurrealUserCount](ctx, r.db,
 		"SELECT count() FROM users WHERE email = $email GROUP ALL",
@@ -64,14 +87,10 @@ func (r *UserRepository) EmailExists(ctx context.Context, email string) (bool, e
 	if err != nil {
 		return false, wrapErr(err, "check email exists")
 	}
-	if results == nil || len(*results) == 0 {
+	if len(*results) == 0 {
 		return false, nil
 	}
-	resultData := *results
-	if len(resultData) == 0 {
-		return false, nil
-	}
-	resultItems := resultData[0].Result
+	resultItems := (*results)[0].Result
 	if len(resultItems) == 0 {
 		return false, nil
 	}
@@ -91,10 +110,54 @@ func (r *UserRepository) UsernameExists(ctx context.Context, username string) (b
 	return len((*result)[0].Result) > 0, nil
 }
 
+func (r *UserRepository) AnyExists(ctx context.Context) (bool, error) {
+	results, err := sdb.Query[[]map[string]interface{}](ctx, r.db,
+		"SELECT count() AS count FROM users GROUP ALL", nil)
+	if err != nil {
+		return false, wrapErr(err, "check any user exists")
+	}
+	if results == nil || len(*results) == 0 {
+		return false, nil
+	}
+	resultData := *results
+	if len(resultData[0].Result) == 0 {
+		return false, nil
+	}
+	count, ok := resultData[0].Result[0]["count"].(float64)
+	if ok && count > 0 {
+		return true, nil
+	}
+	return false, nil
+}
+
 func (r *UserRepository) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
 	recordID := uuidToRecordID("users", userID)
 	_, err := sdb.Merge[map[string]interface{}](ctx, r.db, recordID, map[string]interface{}{
 		"password_hash": passwordHash,
 	})
 	return wrapErr(err, "update password")
+}
+
+func (r *UserRepository) GetMemberships(ctx context.Context, userID uuid.UUID) ([]auth.OrganizationMembership, error) {
+	results, err := sdb.Query[[]SurrealOrganizationMembership](ctx, r.db,
+		"SELECT * FROM organization_memberships WHERE user_id = $user_id",
+		map[string]any{"user_id": "users:" + userID.String()})
+	if err != nil {
+		return nil, wrapErr(err, "get memberships")
+	}
+	if results == nil || len(*results) == 0 {
+		return []auth.OrganizationMembership{}, nil
+	}
+	resultData := *results
+	if len(resultData) == 0 {
+		return []auth.OrganizationMembership{}, nil
+	}
+	items := resultData[0].Result
+	memberships := make([]auth.OrganizationMembership, 0, len(items))
+	for _, s := range items {
+		if d := s.ToDomain(); d != nil {
+			memberships = append(memberships, *d)
+		}
+	}
+	return memberships, nil
 }

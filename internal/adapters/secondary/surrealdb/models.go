@@ -1,8 +1,10 @@
 package surrealdb
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/password_reset"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/time_entry"
@@ -33,7 +35,9 @@ func (u *SurrealUser) ToDomain() *auth.User {
 		return nil
 	}
 	user := &auth.User{}
+	fmt.Printf("DEBUG ToDomain: u.ID = %+v\n", u.ID)
 	user.ID = recordIDToUUID(u.ID)
+	fmt.Printf("DEBUG ToDomain: user.ID = %v\n", user.ID)
 	user.Email = u.Email
 	user.Username = u.Username
 	user.FirstName = u.Firstname
@@ -107,13 +111,73 @@ func SurrealOrganizationFromDomain(o *auth.Organization) *SurrealOrganization {
 	}
 }
 
+type SurrealOrganizationMembership struct {
+	ID             models.RecordID `json:"id,omitempty"`
+	UserID         models.RecordID `json:"user_id"`
+	OrganizationID models.RecordID `json:"organization_id"`
+	Role           string          `json:"role"`
+	IsActive       bool            `json:"is_active"`
+	InvitedBy      *string         `json:"invited_by,omitempty"`
+	InvitedAt      *time.Time      `json:"invited_at,omitempty"`
+	ActivatedAt    *time.Time      `json:"activated_at,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+}
+
+func (m *SurrealOrganizationMembership) ToDomain() *auth.OrganizationMembership {
+	if m == nil {
+		return nil
+	}
+	var invitedBy *uuid.UUID
+	if m.InvitedBy != nil {
+		id, _ := uuid.Parse(*m.InvitedBy)
+		invitedBy = &id
+	}
+	return &auth.OrganizationMembership{
+		ID:             recordIDToUUID(m.ID),
+		UserID:         recordIDToUUID(m.UserID),
+		OrganizationID: recordIDToUUID(m.OrganizationID),
+		Role:           m.Role,
+		IsActive:       m.IsActive,
+		InvitedBy:      invitedBy,
+		InvitedAt:      m.InvitedAt,
+		ActivatedAt:    m.ActivatedAt,
+		CreatedAt:      m.CreatedAt,
+		UpdatedAt:      m.UpdatedAt,
+	}
+}
+
+func SurrealOrganizationMembershipFromDomain(m *auth.OrganizationMembership) *SurrealOrganizationMembership {
+	if m == nil {
+		return nil
+	}
+	var invitedBy *string
+	if m.InvitedBy != nil {
+		s := m.InvitedBy.String()
+		invitedBy = &s
+	}
+	return &SurrealOrganizationMembership{
+		ID:             uuidToRecordID("organization_memberships", m.ID),
+		UserID:         uuidToRecordID("users", m.UserID),
+		OrganizationID: uuidToRecordID("organizations", m.OrganizationID),
+		Role:           m.Role,
+		IsActive:       m.IsActive,
+		InvitedBy:      invitedBy,
+		InvitedAt:      m.InvitedAt,
+		ActivatedAt:    m.ActivatedAt,
+		CreatedAt:      m.CreatedAt,
+		UpdatedAt:      m.UpdatedAt,
+	}
+}
+
 type SurrealRefreshToken struct {
-	ID        models.RecordID `json:"id,omitempty"`
-	UserID    models.RecordID `json:"user_id"`
-	TokenHash string          `json:"token_hash"`
-	ExpiresAt time.Time       `json:"expires_at"`
-	RevokedAt *time.Time      `json:"revoked_at,omitempty"`
-	CreatedAt time.Time       `json:"created_at"`
+	ID             string     `json:"id,omitempty"`
+	UserID         string     `json:"user_id"`
+	OrganizationID string     `json:"organization_id"`
+	TokenHash      string     `json:"token_hash"`
+	ExpiresAt      time.Time `json:"expires_at"`
+	RevokedAt      *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type QueryResponse[T any] struct {

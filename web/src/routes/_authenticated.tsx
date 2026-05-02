@@ -1,4 +1,4 @@
-import {createFileRoute, Outlet} from '@tanstack/react-router'
+import {createFileRoute, redirect, Outlet} from '@tanstack/react-router'
 import {AppShell} from "@/components/layout/app-shell.tsx";
 import {AuthApis} from "@/api/auth.ts";
 import {LoaderIcon} from "lucide-react";
@@ -6,10 +6,11 @@ import {LoaderIcon} from "lucide-react";
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({context: {client}}) => {
-    await client.fetchQuery(AuthApis.profileQueryOpts)
-    const profile = await client.ensureQueryData(AuthApis.profileQueryOpts)
-    return {
-      profile: profile
+    try {
+      const profile = await client.fetchQuery(AuthApis.profileQueryOpts)
+      return { profile }
+    } catch {
+      throw redirect({ to: '/login' })
     }
   },
   component: () => (
