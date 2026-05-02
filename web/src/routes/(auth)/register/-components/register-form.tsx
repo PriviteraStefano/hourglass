@@ -1,14 +1,15 @@
-import {useForm} from 'react-hook-form'
+import {Controller, useForm, useWatch} from 'react-hook-form'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {z} from 'zod'
 import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card'
 import {Link, useNavigate} from '@tanstack/react-router'
-import {useMutation} from "@tanstack/react-query";
-import {AuthApis} from "@/api/auth.ts";
-import {toast} from "sonner";
-import {useState} from "react";
+import {useMutation} from '@tanstack/react-query'
+import {AuthApis} from '@/api/auth.ts'
+import {toast} from 'sonner'
+import {Field, FieldContent, FieldDescription, FieldError, FieldLabel} from '@/components/ui/field.tsx'
+import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select.tsx'
 
 const registerSchema = z.object({
   org_selection: z.enum(['create', 'join']),
@@ -21,8 +22,8 @@ const registerSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
 }).refine((data) => {
   if (data.org_selection === 'create' && !data.organization_name) return false
-  if (data.org_selection === 'join' && !data.invite_code) return false
-  return true
+  return !(data.org_selection === 'join' && !data.invite_code);
+
 }, {
   message: 'Organization name or invite code is required',
   path: ['organization_name'],
@@ -32,7 +33,6 @@ type RegisterFormData = z.infer<typeof registerSchema>
 
 export function RegisterForm() {
   const navigate = useNavigate()
-  const [orgSelection, setOrgSelection] = useState<'create' | 'join'>('create')
   const {mutateAsync: registerAsync, isError, error, isPending} = useMutation(AuthApis.registerMutationOpts)
 
   const form = useForm<RegisterFormData>({
@@ -49,6 +49,9 @@ export function RegisterForm() {
     },
   })
 
+  const orgSelection = useWatch({control: form.control, name: 'org_selection'})
+  const isCreating = orgSelection === 'create'
+
   const onSubmit = (data: RegisterFormData) => {
     const payload = {
       firstname: data.firstname,
@@ -56,7 +59,7 @@ export function RegisterForm() {
       username: data.username,
       email: data.email,
       password: data.password,
-      ...(data.org_selection === 'create' ? { organization_name: data.organization_name } : { invite_code: data.invite_code }),
+      ...(data.org_selection === 'create' ? {organization_name: data.organization_name} : {invite_code: data.invite_code}),
     }
 
     toast.promise(
@@ -82,163 +85,124 @@ export function RegisterForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">I want to</label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  value="create"
-                  checked={orgSelection === 'create'}
-                  onChange={() => {
-                    setOrgSelection('create')
-                    form.setValue('org_selection', 'create')
-                  }}
-                  className="accent-primary"
-                />
-                <span className="text-sm">Create a new organization</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  value="join"
-                  checked={orgSelection === 'join'}
-                  onChange={() => {
-                    setOrgSelection('join')
-                    form.setValue('org_selection', 'join')
-                  }}
-                  className="accent-primary"
-                />
-                <span className="text-sm">Join an organization</span>
-              </label>
-            </div>
-          </div>
+          <Controller
+            name="org_selection"
+            control={form.control}
+            render={({field, fieldState}) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldContent>
+                  <FieldLabel htmlFor={field.name}>I want to</FieldLabel>
+                  <FieldDescription>Create a new organization or join one with an invite code.</FieldDescription>
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger id={field.name}>
+                      <SelectValue placeholder="Select an option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="create">Create</SelectItem>
+                        <SelectItem value="join">Join</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </FieldContent>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
 
-          {orgSelection === 'create' ? (
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="organization_name">
-                Organization Name
-              </label>
+          {isCreating ? (
+            <Field data-invalid={!!form.formState.errors.organization_name}>
+              <FieldLabel htmlFor="organization_name">Organization Name</FieldLabel>
               <Input
                 id="organization_name"
                 type="text"
                 placeholder="Acme Corp"
+                aria-label="Organization Name"
                 {...form.register('organization_name')}
               />
-              {form.formState.errors.organization_name && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.organization_name.message}
-                </p>
-              )}
-            </div>
+              <FieldError errors={[form.formState.errors.organization_name]} />
+            </Field>
           ) : (
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="invite_code">
-                Invite Code
-              </label>
+            <Field data-invalid={!!form.formState.errors.invite_code}>
+              <FieldLabel htmlFor="invite_code">Invite Code</FieldLabel>
               <Input
                 id="invite_code"
                 type="text"
                 placeholder="ABC123"
+                aria-label="Invite Code"
                 {...form.register('invite_code')}
               />
-              {form.formState.errors.invite_code && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.invite_code.message}
-                </p>
-              )}
-            </div>
+              <FieldError errors={[form.formState.errors.invite_code]} />
+            </Field>
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="firstname">
-                First Name
-              </label>
+            <Field data-invalid={!!form.formState.errors.firstname}>
+              <FieldLabel htmlFor="firstname">First Name</FieldLabel>
               <Input
                 id="firstname"
                 type="text"
                 placeholder="John"
+                aria-label="First Name"
                 {...form.register('firstname')}
               />
-              {form.formState.errors.firstname && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.firstname.message}
-                </p>
-              )}
-            </div>
+              <FieldError errors={[form.formState.errors.firstname]} />
+            </Field>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="lastname">
-                Last Name
-              </label>
+            <Field data-invalid={!!form.formState.errors.lastname}>
+              <FieldLabel htmlFor="lastname">Last Name</FieldLabel>
               <Input
                 id="lastname"
                 type="text"
                 placeholder="Doe"
+                aria-label="Last Name"
                 {...form.register('lastname')}
               />
-              {form.formState.errors.lastname && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.lastname.message}
-                </p>
-              )}
-            </div>
+              <FieldError errors={[form.formState.errors.lastname]} />
+            </Field>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="username">
-              Username
-            </label>
+          <Field data-invalid={!!form.formState.errors.username}>
+            <FieldLabel htmlFor="username">Username</FieldLabel>
             <Input
               id="username"
               type="text"
               placeholder="johndoe"
               autoComplete="username"
+              aria-label="Username"
               {...form.register('username')}
             />
-            {form.formState.errors.username && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.username.message}
-              </p>
-            )}
-          </div>
+            <FieldError errors={[form.formState.errors.username]} />
+          </Field>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="email">
-              Email
-            </label>
+          <Field data-invalid={!!form.formState.errors.email}>
+            <FieldLabel htmlFor="email">Email</FieldLabel>
             <Input
               id="email"
               type="email"
               placeholder="you@example.com"
               autoComplete="email"
+              aria-label="Email"
               {...form.register('email')}
             />
-            {form.formState.errors.email && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.email.message}
-              </p>
-            )}
-          </div>
+            <FieldError errors={[form.formState.errors.email]} />
+          </Field>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="password">
-              Password
-            </label>
+          <Field data-invalid={!!form.formState.errors.password}>
+            <FieldLabel htmlFor="password">Password</FieldLabel>
             <Input
               id="password"
               type="password"
               placeholder="••••••••"
               autoComplete="new-password"
+              aria-label="Password"
               {...form.register('password')}
             />
-            {form.formState.errors.password && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.password.message}
-              </p>
-            )}
-          </div>
+            <FieldError errors={[form.formState.errors.password]} />
+          </Field>
 
           {isError && (
             <p className="text-sm text-destructive">
