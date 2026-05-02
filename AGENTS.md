@@ -5,14 +5,16 @@
 ## Architecture Overview
 
 ### Tech Stack
-- **Backend**: Go 1.26.1, PostgreSQL, standard library HTTP server
+- **Backend**: Go 1.26.1, standard library HTTP server, hexagonal services in `internal/core/services/*`, primary HTTP adapters in `internal/adapters/primary/http/*`, and SurrealDB adapters in `internal/adapters/secondary/surrealdb/*`
 - **Frontend**: React 19, TanStack Router v1, TanStack React Query v5, Vite, TypeScript, Tailwind CSS
-- **Database**: PostgreSQL with custom migration system
-- **Auth**: JWT-based authentication with bcrypt password hashing
+- **Database**: SurrealDB for application data, plus PostgreSQL SQL migrations via `cmd/migrate`
+- **Auth**: JWT-based authentication with HttpOnly `auth_token`/`refresh_token` cookies and bcrypt password hashing
 
 ### Key Data Flows
 
-**Authentication Flow**: User registers/logs in → `UserHandler.Register/Login` → `auth.Service.GenerateToken` → JWT token stored in localStorage → Frontend uses Bearer token in API requests.
+**Authentication Flow**: User registers/logs in → `internal/adapters/primary/http/auth.go` → `internal/core/services/auth.Service` → JWTs stored in HttpOnly `auth_token`/`refresh_token` cookies → `web/src/lib/api.ts` sends credentials and retries `POST /auth/refresh` on 401.
+
+**Auth Hydration**: `web/src/routes/_authenticated.tsx` calls `AuthApis.profileQueryOpts` (`GET /auth/me`) before protected routes render; `web/src/api/auth.ts` also exposes `GET /auth/memberships` for organization switching.
 
 **Time Entry & Expense Workflow**: Employee creates entries (draft) → Submits → Manager reviews → Finance reviews → Approved/Rejected. Each step tracked in approval history with role-based routing.
 
@@ -22,28 +24,35 @@
 
 ```
 backend:
-  cmd/server/main.go           # Server entry, route definitions
+  cmd/server/main.go           # Server entry and route wiring
+  cmd/migrate/main.go          # PostgreSQL migration CLI
+  cmd/schema/main.go           # SurrealDB schema loader for schema/*.surql
   internal/auth/               # JWT, password hashing
-  internal/db/                 # PostgreSQL connection & pooling
-  internal/handlers/           # HTTP request handlers (user, org, time-entry, expense, approval)
+  internal/core/               # Domain, ports, and application services
+  internal/adapters/
+    primary/http/              # Thin HTTP adapters (auth, project, time-entry, etc.)
+    secondary/surrealdb/       # SurrealDB repositories and driven adapters
+  internal/db/                 # SurrealDB connection plus legacy Postgres DB helpers
+  internal/handlers/           # Health handler and legacy glue
   internal/models/             # Data structures, constants (Role, Status, Governance)
   internal/middleware/         # Auth middleware wrapper
   pkg/api/                     # Shared response format
-  migrations/                  # SQL migrations (numbered sequence)
+  migrations/                  # SQL migrations for cmd/migrate
+  schema/                      # SurrealDB schema files (*.surql)
 
 frontend:
   web/src/
-    api/auth.ts               # Auth query/mutation options (profile/login/register/logout)
+    api/auth.ts               # Auth query/mutation options (profile/login/register/logout/refresh/bootstrap)
     routes/                    # TanStack Router file-based routing
       __root.tsx              # Root layout
       _authenticated.tsx       # Protected route guard
       (auth)/                 # Login/register routes
       _authenticated/         # Protected pages (time-entries, etc.)
-    lib/api.ts                # HTTP client with auto auth header injection
+    lib/api.ts                # HTTP client with cookie auth + refresh-on-401
     hooks/                    # Domain hooks (useProjects, useTimeEntries, etc.)
     components/               # Reusable UI (shadcn-based, Tailwind)
     types/api.ts              # Shared API type definitions
-    lib/query-client.ts       # TanStack Query configuration
+    lib/query-client.ts       # Shared TanStack Query client used in main.tsx
 ```
 
 ## Critical Developer Workflows
@@ -52,42 +61,52 @@ frontend:
 ```bash
 # Backend
 cd /Users/stefanoprivitera/Projects/hourglass
-go run ./cmd/server           # Runs on :8080, connects to postgres://localhost:5432
+go run ./cmd/server           # Runs on :8080, connects to SurrealDB via SURREALDB_URL
+
+# SurrealDB schema bootstrap (separate terminal)
+go run ./cmd/schema           # Applies schema/*.surql to SurrealDB
+
+# Postgres migrations (only when needed)
+go run ./cmd/migrate -up -dir migrations
 
 # Frontend (separate terminal)
 cd web
 bun install
 bun run dev                   # Runs on :3000, proxies /api to :8080
 
-# Database (Docker)
-docker-compose up             # Starts PostgreSQL on :5432
+# Docker
+docker-compose up             # Starts surrealdb + app; add --profile postgres for the Postgres service
 ```
 
 ### Migrations
-- Migrations are SQL files in `/migrations/` (numbered: 001_init, 002_contracts_projects, etc.)
-- Local Docker bootstraps schema by mounting `/migrations` into Postgres init (`docker-entrypoint-initdb.d` in `docker-compose.yml`)
-- `make migrate-up`/`make migrate-down` targets call `go run ./cmd/migrate`, but `cmd/migrate` is not present in this repo snapshot
-- Each migration has `.up.sql` and `.down.sql` files
+- `cmd/migrate/main.go` applies `migrations/*.up.sql` and `*.down.sql` against PostgreSQL via `DATABASE_URL`
+- `cmd/schema/main.go` applies `schema/*.surql` to SurrealDB via `SURREALDB_URL`, `SURREALDB_USER`, `SURREALDB_PASS`, `SURREALDB_NS`, and `SURREALDB_DB`
+- `docker-compose up` starts `surrealdb` and `app`; `postgres` is profile-gated (`docker-compose --profile postgres up`) for migration work
+- Each SQL migration has `.up.sql` and `.down.sql` files
 
 ### Testing & Building
 ```bash
 make build                    # Compiles Go binary to bin/hourglass
-make test                     # Runs go test ./...
+make test                     # Runs go test -v ./...
 make docker-build             # Builds multi-stage Docker image
+
+cd web && bun run build       # Type-checks and builds the frontend
+cd web && bun run lint        # Runs ESLint
+cd web && bunx playwright test # Runs Playwright e2e tests in web/e2e
 ```
 
 ## Project-Specific Patterns
 
 ### Handler Pattern (Backend)
-Each feature has a `*Handler` struct with dependency injection of `*sql.DB` and service dependencies:
+Feature handlers live in `internal/adapters/primary/http/` and stay thin, delegating business logic to `internal/core/services/*`:
 ```go
 type TimeEntryHandler struct {
-  db *sql.DB
+  service *tesvc.Service
 }
-func NewTimeEntryHandler(db *sql.DB) *TimeEntryHandler { ... }
+func NewTimeEntryHandler(service *tesvc.Service) *TimeEntryHandler { ... }
 func (h *TimeEntryHandler) Create(w http.ResponseWriter, r *http.Request) { ... }
 ```
-Handlers are registered with http.ServeMux in main.go using the new Go 1.22+ pattern: `mux.HandleFunc("POST /time-entries", handler)`.
+Handlers are registered with `http.ServeMux` in `cmd/server/main.go` using the Go 1.22+ pattern: `mux.HandleFunc("POST /time-entries", handler)`.
 
 ### API Response Format (Backend)
 JSON responses use a shared envelope with either `data` (success) or `error` (failure) from `pkg/api/response.go`:
@@ -114,10 +133,10 @@ export const Route = createFileRoute('/_authenticated')({
 ```
 
 ### React Query Patterns (Frontend)
-- `web/src/main.tsx` creates `new QueryClient()` inline and passes it to both `QueryClientProvider` and router context (`context.client`)
-- `web/src/api/auth.ts` defines auth calls with `queryOptions`/`mutationOptions` consumed by route loaders and mutations
-- `web/src/lib/query-client.ts` exports a preset client (`retry: false`, `staleTime: 30000`, `refetchOnWindowFocus: false`) that is currently not wired in `main.tsx`
-- All API calls use the `api<T>()` helper which auto-injects Bearer token
+- `web/src/main.tsx` imports the shared `queryClient` from `web/src/lib/query-client.ts` and passes it to both `QueryClientProvider` and router context (`context.client`)
+- `web/src/api/auth.ts` defines auth calls with `queryOptions`/`mutationOptions` consumed by route loaders and mutations, including refresh/bootstrap/memberships helpers
+- `web/src/lib/query-client.ts` exports the shared client (`retry: false`, `staleTime: 30000`, `refetchOnWindowFocus: false`) used in `main.tsx`
+- All API calls use the `api<T>()` helper which includes `credentials: 'include'` and auto-retries once through `POST /auth/refresh` on 401
 - Mutations invalidate relevant queries: `queryClient.invalidateQueries({ queryKey: ['time-entries'] })`
 
 ### Approval Workflow Model (Backend)
@@ -127,25 +146,31 @@ Entries have `status` (draft → submitted → pending_manager → pending_finan
 
 ### Frontend-Backend Contract
 - Backend returns `Content-Type: application/json` with `{ data: ... }` on success and `{ error: ... }` on failures
-- 401 status auto-redirects to `/login` (handled in `api.ts`)
-- Bearer token in `Authorization: Bearer <token>` header
-- API base URL from `VITE_API_URL` env or defaults to `http://localhost:8080`
-- `web/src/api/auth.ts` expects `GET /auth/me` for profile hydration, but that route is not currently registered in `cmd/server/main.go`
+- 401 status first triggers cookie refresh in `web/src/lib/api.ts`; if refresh fails, it redirects to `/login`
+- `web/src/api/auth.ts` expects `GET /auth/me` and `GET /auth/memberships`, and both routes are registered in `cmd/server/main.go`
+- API base URL comes from `VITE_API_URL` or defaults to `/api` (proxied to `http://localhost:8080` in Vite dev)
 
 ### Database Initialization
-- Uses PostgreSQL with UUID primary keys (`gen_random_uuid()`)
-- Connection string format: `postgres://user:password@host:port/database?sslmode=disable`
-- Default dev credentials in `docker-compose.yml`: user=`hourglass`, password=`hourglass`
-- Indexes created on foreign key columns for queries (e.g., `idx_organization_memberships_user_id`)
+- Application data uses SurrealDB (`SURREALDB_URL`, `SURREALDB_USER`, `SURREALDB_PASS`, `SURREALDB_NS`, `SURREALDB_DB`); the local default is `ws://localhost:8000/rpc`
+- `schema/001_schema.surql` is the SurrealDB bootstrap schema applied by `cmd/schema`
+- Postgres still exists for `cmd/migrate` and uses `postgres://hourglass:hourglass@localhost:5432/hourglass?sslmode=disable` by default
+- `docker-compose.yml` seeds SurrealDB with `root`/`root`; the Postgres service is profile-gated
 
 ### Environment Variables
-**Backend** (cmd/server/main.go):
-- `DATABASE_URL` - PostgreSQL connection string
+**Backend** (`cmd/server/main.go`, `cmd/schema/main.go`, `cmd/migrate/main.go`):
+- `SURREALDB_URL` - SurrealDB RPC endpoint (defaults to `ws://localhost:8000/rpc`)
+- `SURREALDB_USER` - SurrealDB user (defaults to `root`)
+- `SURREALDB_PASS` - SurrealDB password (defaults to `root`)
+- `SURREALDB_NS` - SurrealDB namespace (defaults to `hourglass`)
+- `SURREALDB_DB` - SurrealDB database (defaults to `main`)
+- `SCHEMA_DIR` - Directory of `.surql` files for `cmd/schema` (defaults to `schema`)
+- `DATABASE_URL` - PostgreSQL connection string for `cmd/migrate` (defaults to local hourglass DB)
 - `JWT_SECRET` - Token signing key (defaults to "dev-secret-change-in-production")
-- `PORT` - Server port (inferred from Docker/main.go setup, defaults :8080)
+- `PORT` - Server port (defaults to `:8080`)
+- `ALLOWED_ORIGINS` - Comma-separated CORS allowlist (defaults to `http://localhost:3000`)
 
 **Frontend** (web/vite.config.ts):
-- `VITE_API_URL` - Backend base URL (proxied via Vite dev server by default)
+- `VITE_API_URL` - Backend base URL (defaults to `/api`, proxied to `http://localhost:8080` in dev)
 
 ## Key Models & Constants to Know
 
@@ -174,7 +199,7 @@ Entries have `status` (draft → submitted → pending_manager → pending_finan
 
 ## Hexagonal Architecture
 
-This project is migrating to hexagonal (ports & adapters) architecture. See `plans/hexagonal-migration.md` for details.
+This project is using hexagonal (ports & adapters) architecture for the main application flow. See `plans/hexagonal-migration.md` for details.
 
 **When creating new features or refactoring handlers:**
 1. Read `plans/hexagonal-migration.md` for the target structure
