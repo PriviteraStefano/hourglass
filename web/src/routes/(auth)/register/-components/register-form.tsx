@@ -20,14 +20,15 @@ const registerSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-}).refine((data) => {
-  if (data.org_selection === 'create' && !data.organization_name) return false
-  return !(data.org_selection === 'join' && !data.invite_code);
-
-}, {
-  message: 'Organization name or invite code is required',
-  path: ['organization_name'],
 })
+  .refine((data) => !(data.org_selection === 'create' && !data.organization_name), {
+    message: 'Organization name is required',
+    path: ['organization_name'],
+  })
+  .refine((data) => !(data.org_selection === 'join' && !data.invite_code), {
+    message: 'Invite code is required',
+    path: ['invite_code'],
+  })
 
 type RegisterFormData = z.infer<typeof registerSchema>
 
@@ -97,8 +98,8 @@ export function RegisterForm() {
                     value={field.value}
                     onValueChange={field.onChange}
                   >
-                    <SelectTrigger id={field.name}>
-                      <SelectValue placeholder="Select an option" />
+                    <SelectTrigger className={"w-full"} id={field.name}>
+                      <SelectValue placeholder="Select an option" className={"capitalize"}/>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -108,35 +109,46 @@ export function RegisterForm() {
                     </SelectContent>
                   </Select>
                 </FieldContent>
-                <FieldError errors={[fieldState.error]} />
+                <FieldError errors={[fieldState.error]}/>
               </Field>
             )}
           />
 
           {isCreating ? (
-            <Field data-invalid={!!form.formState.errors.organization_name}>
-              <FieldLabel htmlFor="organization_name">Organization Name</FieldLabel>
-              <Input
-                id="organization_name"
-                type="text"
-                placeholder="Acme Corp"
-                aria-label="Organization Name"
-                {...form.register('organization_name')}
-              />
-              <FieldError errors={[form.formState.errors.organization_name]} />
-            </Field>
+            <Controller
+              name="organization_name"
+              control={form.control}
+              render={({field, fieldState}) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="organization_name">Organization Name</FieldLabel>
+                  <Input
+                    id="organization_name"
+                    type="text"
+                    placeholder="Acme Corp"
+                    aria-label="Organization Name"
+                    {...field}
+                  />
+                  <FieldError errors={[fieldState.error]}/>
+                </Field>)}
+            />
           ) : (
-            <Field data-invalid={!!form.formState.errors.invite_code}>
-              <FieldLabel htmlFor="invite_code">Invite Code</FieldLabel>
-              <Input
-                id="invite_code"
-                type="text"
-                placeholder="ABC123"
-                aria-label="Invite Code"
-                {...form.register('invite_code')}
-              />
-              <FieldError errors={[form.formState.errors.invite_code]} />
-            </Field>
+            <Controller
+              name="invite_code"
+              control={form.control}
+              render={({field, fieldState}) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="invite_code">Invite Code</FieldLabel>
+                  <Input
+                    id="invite_code"
+                    type="text"
+                    placeholder="ABC123"
+                    aria-label="Invite Code"
+                    {...field}
+                  />
+                  <FieldError errors={[fieldState.error]}/>
+                </Field>
+              )}
+            />
           )}
 
           <div className="grid grid-cols-2 gap-4">
@@ -149,7 +161,7 @@ export function RegisterForm() {
                 aria-label="First Name"
                 {...form.register('firstname')}
               />
-              <FieldError errors={[form.formState.errors.firstname]} />
+              <FieldError errors={[form.formState.errors.firstname]}/>
             </Field>
 
             <Field data-invalid={!!form.formState.errors.lastname}>
@@ -161,7 +173,7 @@ export function RegisterForm() {
                 aria-label="Last Name"
                 {...form.register('lastname')}
               />
-              <FieldError errors={[form.formState.errors.lastname]} />
+              <FieldError errors={[form.formState.errors.lastname]}/>
             </Field>
           </div>
 
@@ -175,7 +187,7 @@ export function RegisterForm() {
               aria-label="Username"
               {...form.register('username')}
             />
-            <FieldError errors={[form.formState.errors.username]} />
+            <FieldError errors={[form.formState.errors.username]}/>
           </Field>
 
           <Field data-invalid={!!form.formState.errors.email}>
@@ -188,7 +200,7 @@ export function RegisterForm() {
               aria-label="Email"
               {...form.register('email')}
             />
-            <FieldError errors={[form.formState.errors.email]} />
+            <FieldError errors={[form.formState.errors.email]}/>
           </Field>
 
           <Field data-invalid={!!form.formState.errors.password}>
@@ -201,14 +213,16 @@ export function RegisterForm() {
               aria-label="Password"
               {...form.register('password')}
             />
-            <FieldError errors={[form.formState.errors.password]} />
+            <FieldError errors={[form.formState.errors.password]}/>
           </Field>
 
-          {isError && (
-            <p className="text-sm text-destructive">
-              {error?.message || 'Registration failed'}
-            </p>
-          )}
+          {
+            isError && (
+              <p className="text-sm text-destructive">
+                {error?.message || 'Registration failed'}
+              </p>
+            )
+          }
 
           <Button
             type="submit"
