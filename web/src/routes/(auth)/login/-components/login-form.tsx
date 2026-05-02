@@ -113,6 +113,12 @@ export function LoginForm() {
           </Button>
 
           <p className="text-sm text-center text-muted-foreground">
+            <Link to="/password-reset" className="text-primary underline">
+              Forgot password?
+            </Link>
+          </p>
+
+          <p className="text-sm text-center text-muted-foreground">
             Don't have an account?{' '}
             <Link to="/register" className="text-primary underline">
               Register
