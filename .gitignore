@@ -22,3 +22,4 @@ web/.DS_Store
 *.generated.py
 /graphify-out/
 /graphify-out/cache
+.github

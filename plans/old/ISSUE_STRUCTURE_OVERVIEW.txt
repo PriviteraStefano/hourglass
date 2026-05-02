@@ -1,0 +1,253 @@
+================================================================================
+GITHUB ISSUES STRUCTURE: SurrealDB Migration (Granular, 25 Issues)
+================================================================================
+
+MASTER ISSUE (EPIC)
+├─ Title: [EPIC] SurrealDB Migration: Full Implementation (6 Weeks)
+├─ Type: Epic / Umbrella issue
+├─ Status: Ready to create
+└─ Connects: All 24 sub-issues
+
+================================================================================
+PHASE 1: Foundation & Schema (1 Week) - 4 Sub-Issues
+================================================================================
+
+1.1 [Infrastructure] Deploy SurrealDB Cluster & Load Schema
+    Status: Depends on nothing
+    Team: DevOps (1 person)
+    Duration: 2-3 days
+    Tags: phase-1, devops, infrastructure, database
+    
+1.2 [Auth] Implement JWT Authentication Endpoints
+    Status: Depends on 1.1
+    Team: Backend (1 person)
+    Duration: 2-3 days
+    Tags: phase-1, backend, auth, security
+    
+1.3 [CRUD] Implement Time Entry CRUD Operations
+    Status: Depends on 1.1, 1.2
+    Team: Backend (1 person)
+    Duration: 3-4 days
+    Tags: phase-1, backend, api
+    
+1.4 [Testing] Phase 1 Testing, Integration & Acceptance
+    Status: Depends on 1.1, 1.2, 1.3
+    Team: QA (1 person)
+    Duration: 2-3 days
+    Tags: phase-1, qa, testing, acceptance
+
+Phase 1 Total: ~1 week, 3 people, 4 issues
+
+================================================================================
+PHASE 2: Approval Workflow (1.5 Weeks) - 5 Sub-Issues
+================================================================================
+
+2.1 [Workflow] Entry Submission & Status Tracking
+    Status: Depends on 1.1, 1.3
+    Team: Backend (1 person)
+    Duration: 2 days
+    Tags: phase-2, backend, workflow
+    
+2.2 [Approval] WG Manager Approval & Rejection
+    Status: Depends on 2.1
+    Team: Backend (1 person)
+    Duration: 2-3 days
+    Tags: phase-2, backend, approval
+    
+2.3 [Split] Time Entry Splitting
+    Status: Depends on 2.2
+    Team: Backend (1 person)
+    Duration: 3 days
+    Tags: phase-2, backend, workflow
+    
+2.4 [Move] Time Entry Moving Between Projects
+    Status: Depends on 2.2
+    Team: Backend (1 person)
+    Duration: 2 days
+    Tags: phase-2, backend, workflow
+    
+2.5 [Testing] Phase 2 Testing, Performance & Acceptance
+    Status: Depends on 2.1-2.4
+    Team: QA (1 person)
+    Duration: 3 days
+    Tags: phase-2, qa, testing, performance
+
+Phase 2 Total: ~1.5 weeks, 2 backend + 1 QA, 5 issues
+
+================================================================================
+PHASE 3: Financial Controls (1 Week) - 4 Sub-Issues
+================================================================================
+
+3.1 [Cutoff] Financial Cutoff Enforcement
+    Status: Depends on 1.1, 1.3
+    Team: Backend (1 person)
+    Duration: 2 days
+    Tags: phase-3, backend, finance
+    
+3.2 [Override] Finance Override Capability
+    Status: Depends on 3.1
+    Team: Backend (1 person)
+    Duration: 2 days
+    Tags: phase-3, backend, finance
+    
+3.3 [Expenses] Expense CRUD & Budget Cap Validation
+    Status: Depends on 1.1, 1.2
+    Team: Backend (1 person)
+    Duration: 3 days
+    Tags: phase-3, backend, finance
+    
+3.4 [Migration] Phase 3 Testing & PostgreSQL→SurrealDB Migration Preparation
+    Status: Depends on 3.1-3.3
+    Team: QA (1) + DevOps (0.5)
+    Duration: 3 days
+    Tags: phase-3, qa, devops, migration, testing
+
+Phase 3 Total: ~1 week, 2 backend + 1 QA + 0.5 DevOps, 4 issues
+
+================================================================================
+PHASE 4: Org Hierarchy & Reallocation (1 Week) - 4 Sub-Issues
+================================================================================
+
+4.1 [Reallocation] Org Manager Reallocation of Approved Entries
+    Status: Depends on 2.2
+    Team: Backend (1 person)
+    Duration: 2 days
+    Tags: phase-4, backend, org, workflow
+    
+4.2 [Hierarchy] Recursive Unit Hierarchy Queries
+    Status: Depends on 1.1
+    Team: Backend (1 person)
+    Duration: 3 days
+    Tags: phase-4, backend, database, performance
+    
+4.3 [Dashboard] Org Structure Navigation Dashboard (UI)
+    Status: Depends on 1.1, 4.1, 4.2
+    Team: Frontend (1 person)
+    Duration: 3-4 days
+    Tags: phase-4, frontend, ui, dashboard
+    
+4.4 [Testing] Phase 4 Testing, Performance & Acceptance
+    Status: Depends on 4.1-4.3
+    Team: QA (1 person)
+    Duration: 2-3 days
+    Tags: phase-4, qa, testing, performance
+
+Phase 4 Total: ~1 week, 1 backend + 1 frontend + 1 QA, 4 issues
+
+================================================================================
+PHASE 5: Reporting & Compliance (1 Week) - 5 Sub-Issues
+================================================================================
+
+5.1 [Queries] Audit Trail Query Endpoints
+    Status: Depends on 1.1, 2.2, 3.2, 4.1
+    Team: Backend (1 person)
+    Duration: 2-3 days
+    Tags: phase-5, backend, audit, reporting
+    
+5.2 [Reports] Compliance & Allocation Reports
+    Status: Depends on 1.1, 5.1
+    Team: Backend (1 person)
+    Duration: 3-4 days
+    Tags: phase-5, backend, reporting, compliance
+    
+5.3 [Dashboards] Reporting & Compliance Dashboards (UI)
+    Status: Depends on 1.1, 5.1, 5.2
+    Team: Frontend (1 person)
+    Duration: 4-5 days
+    Tags: phase-5, frontend, ui, dashboard, reporting
+    
+5.4 [Tuning] Performance Tuning, Load Testing & Production Readiness
+    Status: Depends on 5.1-5.3
+    Team: QA (1) + DevOps (0.5) + Backend (0.5)
+    Duration: 3-4 days
+    Tags: phase-5, qa, devops, performance, production
+    
+5.5 [Deploy] Final Acceptance Testing & Production Deployment
+    Status: Depends on all Phase 5 issues
+    Team: Full team + stakeholders
+    Duration: 5 days
+    Tags: phase-5, qa, devops, production, deployment
+
+Phase 5 Total: ~1 week, 1 backend + 1 frontend + 1 QA + 0.5 DevOps, 5 issues
+
+================================================================================
+SUMMARY
+================================================================================
+
+Total Issues: 25 (1 master epic + 24 sub-issues)
+
+Breakdown by Phase:
+  Phase 1: 4 issues (Foundation)
+  Phase 2: 5 issues (Approval Workflow)
+  Phase 3: 4 issues (Financial Controls)
+  Phase 4: 4 issues (Org Hierarchy)
+  Phase 5: 5 issues (Reporting)
+
+Breakdown by Type:
+  Backend: 12 issues
+  Frontend: 3 issues
+  QA/Testing: 6 issues
+  DevOps/Infrastructure: 2 issues (+ shared in 3 others)
+
+Team Allocation (Full Cycle):
+  • 2 Backend developers (full-time, Phases 1-5)
+  • 1 Frontend developer (Phases 4-5)
+  • 1 QA engineer (all phases)
+  • 1 DevOps engineer (Phases 1, 3, 5)
+
+Timeline: ~6 weeks (sequential phases)
+
+Dependencies:
+  • Phase 1 is foundational (blocks all others)
+  • Phase 2 depends on Phase 1
+  • Phase 3 can start after Phase 1 (some parallel with Phase 2)
+  • Phase 4 depends on Phase 2
+  • Phase 5 depends on all prior phases
+
+Parallelization Opportunities:
+  • Phase 3 Infrastructure work (3.4) can start during Phase 2
+  • Phase 4 Dashboard (4.3) can be designed during Phase 3
+  • Phase 5 Dashboard (5.3) can be designed during Phase 4
+
+================================================================================
+CREATING ISSUES IN GITHUB
+================================================================================
+
+Option 1: Manual (GitHub Web)
+  → Fastest for small counts
+  → Create master, then each sub-issue
+  → ~5 minutes total
+
+Option 2: GitHub CLI (gh)
+  → Good for bulk creation
+  → Scriptable
+  → ~10 minutes total
+
+Option 3: GitHub Projects
+  → Best UX for team
+  → Automatic tracking & dependencies
+  → Can create issues inline
+  → ~20 minutes total
+
+See GITHUB_ISSUE_CREATION_GUIDE.md for detailed instructions.
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Choose creation method (CLI or web)
+2. Create master issue first
+3. Create Phase 1 sub-issues (4 issues)
+4. Assign Phase 1 issues to team
+5. Start Phase 1 work
+6. Create Phase 2+ issues as Phase 1 nears completion
+7. Update project board weekly
+8. Close issues as acceptance criteria met
+
+================================================================================
+STATUS: READY TO CREATE
+================================================================================
+
+All 25 issue templates are complete and ready to create in GitHub.
+Full descriptions available in: GITHUB_ISSUES_GRANULAR.md
+Creation guide available in: GITHUB_ISSUE_CREATION_GUIDE.md

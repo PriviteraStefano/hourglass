@@ -1,0 +1,1 @@
+"\n\t\t\tCREATE organizations SET\n\t\t\t\tname = $name,\n\t\t\t\tslug = $slug,\n\t\t\t\tdescription = $description,\n\t\t\t\tfinancial_cutoff_days = 7,\n\t\t\t\tfinancial_cutoff_config = { cutoff_day_of_month: 28, grace_days: 7 },\n\t\t\t\tcreated_at = $now,\n\t\t\t\tupdated_at = $now\n\t\t"
