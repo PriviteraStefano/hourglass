@@ -28,10 +28,9 @@ type RegisterRequest struct {
 	Username         string `json:"username"`
 	FirstName        string `json:"firstname"`
 	LastName         string `json:"lastname"`
-	Name             string `json:"name"`
 	Password         string `json:"password"`
 	OrganizationName string `json:"organization_name"`
-	InviteToken      string `json:"invite_token,omitempty"`
+	InviteCode      string `json:"invite_code,omitempty"`
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
@@ -43,17 +42,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serviceReq := auth.RegisterRequest{
-		Email:     req.Email,
-		Username:  req.Username,
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-		Name:      req.Name,
-		Password:  req.Password,
-		OrgName:   req.OrganizationName,
-	}
-
-	resp, err := h.authService.Register(ctx, serviceReq)
+	resp, err := h.authService.Register(ctx, auth.RegisterRequest(req))
 	if err != nil {
 		switch err {
 		case auth.ErrEmailExists:

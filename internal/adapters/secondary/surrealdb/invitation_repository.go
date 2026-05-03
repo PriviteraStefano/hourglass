@@ -28,8 +28,8 @@ func (r *InvitationRepository) Create(ctx context.Context, inv *invitation.Invit
 
 func (r *InvitationRepository) FindByCode(ctx context.Context, code string) (*invitation.Invitation, error) {
 	results, err := sdb.Query[[]SurrealInvitation](ctx, r.db,
-		"SELECT * FROM invitations WHERE invite_token = $invite_token LIMIT 1",
-		map[string]interface{}{"invite_token": code})
+		"SELECT * FROM invitations WHERE code = $code LIMIT 1",
+		map[string]interface{}{"code": code})
 	if err != nil {
 		return nil, wrapErr(err, "find invitation by code")
 	}

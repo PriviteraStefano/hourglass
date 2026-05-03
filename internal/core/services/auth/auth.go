@@ -22,15 +22,13 @@ var (
 )
 
 type RegisterRequest struct {
-	Email     string
-	Username  string
-	FirstName string
-	LastName  string
-	Name      string
-	Password  string
-	OrgName   string
-	OrgID     string
-	Role      string
+	Email            string
+	Username         string
+	FirstName        string
+	LastName         string
+	Password         string
+	OrganizationName string
+	InviteCode      string
 }
 
 type UserWithMembership struct {
@@ -108,6 +106,7 @@ type Service struct {
 	tokenService     ports.TokenService
 	hasher           ports.PasswordHasher
 	refreshTokenRepo ports.RefreshTokenRepository
+	inviteRepo       ports.InvitationRepository
 }
 
 func NewService(
@@ -116,6 +115,7 @@ func NewService(
 	tokenService ports.TokenService,
 	hasher ports.PasswordHasher,
 	refreshTokenRepo ports.RefreshTokenRepository,
+	inviteRepo ports.InvitationRepository,
 ) *Service {
 	return &Service{
 		userRepo:         userRepo,
@@ -123,6 +123,7 @@ func NewService(
 		tokenService:     tokenService,
 		hasher:           hasher,
 		refreshTokenRepo: refreshTokenRepo,
+		inviteRepo:       inviteRepo,
 	}
 }
 
@@ -166,17 +167,11 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*RegisterR
 		return nil, err
 	}
 
-	displayName := req.Name
-	if displayName == "" && (req.FirstName != "" || req.LastName != "") {
-		displayName = req.FirstName + " " + req.LastName
-	}
-
 	user := authdomain.NewUser(
 		email.String(),
 		req.Username,
 		req.FirstName,
 		req.LastName,
-		displayName,
 		hashedPassword,
 	)
 
@@ -184,29 +179,26 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*RegisterR
 	var org *authdomain.Organization
 	var membership *authdomain.OrganizationMembership
 
-	if req.OrgID != "" {
-		parsed, _ := uuid.Parse(req.OrgID)
-		orgID = parsed
-		if orgID != uuid.Nil {
-			membership = authdomain.NewOrganizationMembership(user.ID, orgID, "employee")
-			if err := s.userRepo.AddWithMembership(ctx, user, membership); err != nil {
-				return nil, err
-			}
-		} else {
-			if err := s.userRepo.Add(ctx, user); err != nil {
-				return nil, err
-			}
+	if req.InviteCode != "" {
+		invite, err := s.inviteRepo.FindByCode(ctx, req.InviteCode)
+		if err != nil {
+			return nil, err
 		}
-	} else if req.OrgName != "" {
-		orgSlug := generateSlug(req.OrgName)
-		org = authdomain.NewOrganization(req.OrgName, orgSlug, "Organization")
+		orgID = invite.OrganizationID
+		membership = authdomain.NewOrganizationMembership(user.ID, orgID, "employee")
+		if err := s.userRepo.AddWithMembership(ctx, user, membership); err != nil {
+			return nil, err
+		}
+	} else if req.OrganizationName != "" {
+		orgSlug := generateSlug(req.OrganizationName)
+		org = authdomain.NewOrganization(req.OrganizationName, orgSlug, "Organization")
 		orgID = org.ID
 		membership = authdomain.NewOrganizationMembership(user.ID, orgID, "employee")
 		if err := s.userRepo.AddWithOrgAndMembership(ctx, user, org, membership); err != nil {
 			return nil, err
 		}
 	} else {
-		return nil, errors.New("org_id or org_name is required")
+		return nil, errors.New("organization or invite token is required")
 	}
 
 	if org == nil && orgID != uuid.Nil {
@@ -400,17 +392,11 @@ func (s *Service) Bootstrap(ctx context.Context, req BootstrapRequest) (*Bootstr
 		return nil, err
 	}
 
-	displayName := ""
-	if req.FirstName != "" || req.LastName != "" {
-		displayName = req.FirstName + " " + req.LastName
-	}
-
 	user := authdomain.NewUser(
 		email.String(),
 		req.Username,
 		req.FirstName,
 		req.LastName,
-		displayName,
 		hashedPassword,
 	)
 
@@ -540,7 +526,6 @@ func buildUserWithMembershipPtr(user *authdomain.User, orgID uuid.UUID, org *aut
 			ID:        user.ID.String(),
 			Email:     user.Email,
 			Username:  user.Username,
-			Name:      user.Name,
 			IsActive:  user.IsActive,
 			CreatedAt: user.CreatedAt,
 		},

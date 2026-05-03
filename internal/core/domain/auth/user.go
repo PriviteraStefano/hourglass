@@ -12,14 +12,13 @@ type User struct {
 	Username     string
 	FirstName    string
 	LastName     string
-	Name         string
 	PasswordHash string
 	IsActive     bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
 
-func NewUser(email, username, firstName, lastName, name, passwordHash string) *User {
+func NewUser(email, username, firstName, lastName, passwordHash string) *User {
 	now := time.Now()
 	return &User{
 		ID:           uuid.New(),
@@ -27,7 +26,6 @@ func NewUser(email, username, firstName, lastName, name, passwordHash string) *U
 		Username:     username,
 		FirstName:    firstName,
 		LastName:     lastName,
-		Name:         name,
 		PasswordHash: passwordHash,
 		IsActive:     true,
 		CreatedAt:    now,

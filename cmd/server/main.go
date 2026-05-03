@@ -66,6 +66,7 @@ func main() {
 		tokenService,
 		passwordHasher,
 		refreshTokenRepo,
+		invitationRepo,
 	)
 	authHandler := http.NewAuthHandler(hexAuthService, invitationService)
 

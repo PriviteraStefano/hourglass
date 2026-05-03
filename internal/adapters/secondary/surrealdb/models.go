@@ -39,7 +39,6 @@ func (u *SurrealUser) ToDomain() *auth.User {
 	user.Username = u.Username
 	user.FirstName = u.Firstname
 	user.LastName = u.Lastname
-	user.Name = u.Name
 	user.PasswordHash = u.PasswordHash
 	user.IsActive = u.IsActive
 	user.CreatedAt = u.CreatedAt
@@ -57,7 +56,6 @@ func SurrealUserFromDomain(u *auth.User) *SurrealUser {
 		Username:     u.Username,
 		Firstname:    u.FirstName,
 		Lastname:     u.LastName,
-		Name:         u.Name,
 		PasswordHash: u.PasswordHash,
 		IsActive:     u.IsActive,
 		CreatedAt:    u.CreatedAt,

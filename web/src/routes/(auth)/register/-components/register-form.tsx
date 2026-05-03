@@ -40,8 +40,6 @@ export function RegisterForm() {
     resolver: zodResolver(registerSchema),
     defaultValues: {
       org_selection: 'create',
-      organization_name: '',
-      invite_code: '',
       firstname: '',
       lastname: '',
       username: '',
@@ -152,69 +150,98 @@ export function RegisterForm() {
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <Field data-invalid={!!form.formState.errors.firstname}>
-              <FieldLabel htmlFor="firstname">First Name</FieldLabel>
-              <Input
-                id="firstname"
-                type="text"
-                placeholder="John"
-                aria-label="First Name"
-                {...form.register('firstname')}
-              />
-              <FieldError errors={[form.formState.errors.firstname]}/>
-            </Field>
+            <Controller
+              name="firstname"
+              control={form.control}
+              render={({field, fieldState}) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="firstname">First Name</FieldLabel>
+                  <Input
+                    id="firstname"
+                    type="text"
+                    placeholder="John"
+                    aria-label="First Name"
+                    {...field}
+                  />
+                  <FieldError errors={[fieldState.error]}/>
+                </Field>
+              )}
+            />
 
-            <Field data-invalid={!!form.formState.errors.lastname}>
-              <FieldLabel htmlFor="lastname">Last Name</FieldLabel>
-              <Input
-                id="lastname"
-                type="text"
-                placeholder="Doe"
-                aria-label="Last Name"
-                {...form.register('lastname')}
-              />
-              <FieldError errors={[form.formState.errors.lastname]}/>
-            </Field>
+            <Controller
+              name="lastname"
+              control={form.control}
+              render={({field, fieldState}) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="lastname">Last Name</FieldLabel>
+                  <Input
+                    id="lastname"
+                    type="text"
+                    placeholder="Doe"
+                    aria-label="Last Name"
+                    {...field}
+                  />
+                  <FieldError errors={[fieldState.error]}/>
+                </Field>
+              )}/>
           </div>
 
-          <Field data-invalid={!!form.formState.errors.username}>
-            <FieldLabel htmlFor="username">Username</FieldLabel>
-            <Input
-              id="username"
-              type="text"
-              placeholder="johndoe"
-              autoComplete="username"
-              aria-label="Username"
-              {...form.register('username')}
-            />
-            <FieldError errors={[form.formState.errors.username]}/>
-          </Field>
+          <Controller
+            name="username"
+            control={form.control}
+            render={({field, fieldState}) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="username">Username</FieldLabel>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="johndoe"
+                  autoComplete="username"
+                  aria-label="Username"
+                  {...field}
+                />
+                <FieldError errors={[fieldState.error]}/>
+              </Field>
+            )}
+          />
 
-          <Field data-invalid={!!form.formState.errors.email}>
-            <FieldLabel htmlFor="email">Email</FieldLabel>
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              autoComplete="email"
-              aria-label="Email"
-              {...form.register('email')}
-            />
-            <FieldError errors={[form.formState.errors.email]}/>
-          </Field>
+          <Controller
+            name="email"
+            control={form.control}
+            render={({field, fieldState}) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  aria-label="Email"
+                  {...field}
+                />
+                <FieldError errors={[fieldState.error]}/>
+              </Field>
+            )}
+          />
 
-          <Field data-invalid={!!form.formState.errors.password}>
-            <FieldLabel htmlFor="password">Password</FieldLabel>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              autoComplete="new-password"
-              aria-label="Password"
-              {...form.register('password')}
-            />
-            <FieldError errors={[form.formState.errors.password]}/>
-          </Field>
+          <Controller
+            name="password"
+            control={form.control}
+            render={({field, fieldState}) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="password">Password</FieldLabel>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  aria-label="Password"
+                  {...field}
+                />
+                <FieldError errors={[fieldState.error]}/>
+              </Field>
+            )}
+          />
 
           {
             isError && (
