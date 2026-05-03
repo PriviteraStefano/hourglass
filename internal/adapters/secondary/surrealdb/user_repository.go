@@ -27,6 +27,47 @@ func (r *UserRepository) Add(ctx context.Context, user *auth.User) error {
 	return nil
 }
 
+func (r *UserRepository) AddWithMembership(ctx context.Context, user *auth.User, membership *auth.OrganizationMembership) error {
+	su := SurrealUserFromDomain(user)
+	sm := SurrealOrganizationMembershipFromDomain(membership)
+	query := `
+BEGIN TRANSACTION;
+CREATE users CONTENT $user;
+CREATE organization_memberships CONTENT $membership;
+COMMIT TRANSACTION;
+`
+	_, err := sdb.Query[[]QueryResultWrapper](ctx, r.db, query, map[string]any{
+		"user":       su,
+		"membership": sm,
+	})
+	if err != nil {
+		return wrapErr(err, "create user with membership")
+	}
+	return nil
+}
+
+func (r *UserRepository) AddWithOrgAndMembership(ctx context.Context, user *auth.User, org *auth.Organization, membership *auth.OrganizationMembership) error {
+	su := SurrealUserFromDomain(user)
+	so := SurrealOrganizationFromDomain(org)
+	sm := SurrealOrganizationMembershipFromDomain(membership)
+	query := `
+BEGIN TRANSACTION;
+CREATE users CONTENT $user;
+CREATE organizations CONTENT $org;
+CREATE organization_memberships CONTENT $membership;
+COMMIT TRANSACTION;
+`
+	_, err := sdb.Query[[]QueryResultWrapper](ctx, r.db, query, map[string]any{
+		"user":       su,
+		"org":        so,
+		"membership": sm,
+	})
+	if err != nil {
+		return wrapErr(err, "create user, org, and membership")
+	}
+	return nil
+}
+
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*auth.User, error) {
 	results, err := sdb.Query[[]SurrealUser](ctx, r.db,
 		"SELECT * FROM users WHERE email = $email LIMIT 1",
@@ -45,8 +86,8 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*auth.Us
 	if len(resultItems) == 0 {
 		return nil, ports.ErrUserNotFound
 	}
-	
-	surrealUser := resultItems[0]	
+
+	surrealUser := resultItems[0]
 	return surrealUser.ToDomain(), nil
 }
 
@@ -139,9 +180,10 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, userID uuid.UUID, p
 }
 
 func (r *UserRepository) GetMemberships(ctx context.Context, userID uuid.UUID) ([]auth.OrganizationMembership, error) {
+	userRecordID := uuidToRecordID("users", userID)
 	results, err := sdb.Query[[]SurrealOrganizationMembership](ctx, r.db,
 		"SELECT * FROM organization_memberships WHERE user_id = $user_id",
-		map[string]any{"user_id": "users:" + userID.String()})
+		map[string]any{"user_id": userRecordID})
 	if err != nil {
 		return nil, wrapErr(err, "get memberships")
 	}

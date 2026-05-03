@@ -39,8 +39,8 @@ func (r *OrganizationRepository) GetMembership(ctx context.Context, userID, orgI
 	results, err := sdb.Query[[]SurrealOrganizationMembership](ctx, r.db,
 		"SELECT * FROM organization_memberships WHERE user_id = $user_id AND organization_id = $org_id LIMIT 1",
 		map[string]any{
-			"user_id":         "users:" + userID.String(),
-			"organization_id": "organizations:" + orgID.String(),
+			"user_id": "users:" + userID.String(),
+			"org_id":  "organizations:" + orgID.String(),
 		})
 	if err != nil {
 		return nil, wrapErr(err, "get membership")

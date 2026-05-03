@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/stefanoprivitera/hourglass/internal/adapters/primary/http"
-	hexauth "github.com/stefanoprivitera/hourglass/internal/adapters/secondary/surrealdb"
+	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/surrealdb"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
-	hexsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
+	authsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
 	contractsvc "github.com/stefanoprivitera/hourglass/internal/core/services/contract"
 	customersvc "github.com/stefanoprivitera/hourglass/internal/core/services/customer"
 	exportsvc "github.com/stefanoprivitera/hourglass/internal/core/services/export"
@@ -46,71 +46,71 @@ func main() {
 
 	mux.HandleFunc("GET /health", healthHandler.ServeHTTP)
 
-	timeEntryRepo := hexauth.NewTimeEntryRepository(sdbConn.DB())
-	auditLogRepo := hexauth.NewAuditLogRepository(sdbConn.DB())
+	timeEntryRepo := surrealdb.NewTimeEntryRepository(sdbConn.DB())
+	auditLogRepo := surrealdb.NewAuditLogRepository(sdbConn.DB())
 	teService := tesvc.NewService(timeEntryRepo, auditLogRepo)
 	hexTEHandler := http.NewTimeEntryHandler(teService)
 
-	userRepo := hexauth.NewUserRepository(sdbConn.DB())
-	orgRepo := hexauth.NewOrganizationRepository(sdbConn.DB())
-	passwordHasher := hexauth.NewPasswordHasher()
-	tokenService := hexauth.NewTokenService(authService)
-	refreshTokenRepo := hexauth.NewRefreshTokenRepository(sdbConn.DB())
+	userRepo := surrealdb.NewUserRepository(sdbConn.DB())
+	orgRepo := surrealdb.NewOrganizationRepository(sdbConn.DB())
+	passwordHasher := surrealdb.NewPasswordHasher()
+	tokenService := surrealdb.NewTokenService(authService)
+	refreshTokenRepo := surrealdb.NewRefreshTokenRepository(sdbConn.DB())
 
-	invitationRepo := hexauth.NewInvitationRepository(sdbConn.DB())
+	invitationRepo := surrealdb.NewInvitationRepository(sdbConn.DB())
 	invitationService := invitationsvc.NewService(invitationRepo)
 
-	hexAuthService := hexsvc.NewService(
+	hexAuthService := authsvc.NewService(
 		userRepo,
 		orgRepo,
 		tokenService,
 		passwordHasher,
 		refreshTokenRepo,
 	)
-	hexAuthHandler := http.NewAuthHandler(hexAuthService, invitationService)
+	authHandler := http.NewAuthHandler(hexAuthService, invitationService)
 
-	mux.HandleFunc("POST /auth/register", hexAuthHandler.Register)
-	mux.HandleFunc("POST /auth/login", hexAuthHandler.Login)
-	mux.HandleFunc("POST /auth/logout", hexAuthHandler.Logout)
-	mux.HandleFunc("POST /auth/refresh", hexAuthHandler.Refresh)
-	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, hexAuthHandler.GetProfile))
-	mux.HandleFunc("POST /auth/bootstrap", hexAuthHandler.Bootstrap)
-	mux.HandleFunc("GET /auth/bootstrap-check", hexAuthHandler.BootstrapCheck)
-	mux.HandleFunc("POST /auth/switch-organization", middleware.Auth(authService, hexAuthHandler.SwitchOrganization))
-	mux.HandleFunc("GET /auth/memberships", middleware.Auth(authService, hexAuthHandler.GetMemberships))
+	mux.HandleFunc("POST /auth/register", authHandler.Register)
+	mux.HandleFunc("POST /auth/login", authHandler.Login)
+	mux.HandleFunc("POST /auth/logout", authHandler.Logout)
+	mux.HandleFunc("POST /auth/refresh", authHandler.Refresh)
+	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, authHandler.GetProfile))
+	mux.HandleFunc("POST /auth/bootstrap", authHandler.Bootstrap)
+	mux.HandleFunc("GET /auth/bootstrap-check", authHandler.BootstrapCheck)
+	mux.HandleFunc("POST /auth/switch-organization", middleware.Auth(authService, authHandler.SwitchOrganization))
+	mux.HandleFunc("GET /auth/memberships", middleware.Auth(authService, authHandler.GetMemberships))
 
 	hexInvitationHandler := http.NewInvitationHandler(invitationService)
 
-	passwordResetRepo := hexauth.NewPasswordResetRepository(sdbConn.DB())
-	userFinder := hexauth.NewUserFinder(sdbConn.DB())
-	passwordResetService := passwordresetsvc.NewService(passwordResetRepo, userRepo, userFinder, passwordHasher, hexauth.NewTokenService(authService), refreshTokenRepo)
+	passwordResetRepo := surrealdb.NewPasswordResetRepository(sdbConn.DB())
+	userFinder := surrealdb.NewUserFinder(sdbConn.DB())
+	passwordResetService := passwordresetsvc.NewService(passwordResetRepo, userRepo, userFinder, passwordHasher, surrealdb.NewTokenService(authService), refreshTokenRepo)
 	hexPasswordResetHandler := http.NewPasswordResetHandler(passwordResetService)
 
-	unitRepo := hexauth.NewUnitRepository(sdbConn.DB())
+	unitRepo := surrealdb.NewUnitRepository(sdbConn.DB())
 	unitService := unitsvc.NewService(unitRepo)
 	hexUnitHandler := http.NewUnitHandler(unitService)
 
-	wgRepo := hexauth.NewWorkingGroupRepository(sdbConn.DB())
+	wgRepo := surrealdb.NewWorkingGroupRepository(sdbConn.DB())
 	wgService := wgsvc.NewService(wgRepo)
 	hexWGHandler := http.NewWorkingGroupHandler(wgService)
 
-	customerRepo := hexauth.NewCustomerRepository(sdbConn.DB())
+	customerRepo := surrealdb.NewCustomerRepository(sdbConn.DB())
 	customerService := customersvc.NewService(customerRepo)
 	hexCustomerHandler := http.NewCustomerHandler(customerService)
 
-	orgMgmtRepo := hexauth.NewOrganizationManagementRepository(sdbConn.DB())
+	orgMgmtRepo := surrealdb.NewOrganizationManagementRepository(sdbConn.DB())
 	orgMgmtService := orgsvc.NewService(orgMgmtRepo)
 	hexOrgHandler := http.NewOrganizationHandler(orgMgmtService)
 
-	projectRepo := hexauth.NewProjectRepository(sdbConn.DB())
+	projectRepo := surrealdb.NewProjectRepository(sdbConn.DB())
 	projectService := projectsvc.NewService(projectRepo)
 	hexProjectHandler := http.NewProjectHandler(projectService)
 
-	contractRepo := hexauth.NewContractRepository(sdbConn.DB())
+	contractRepo := surrealdb.NewContractRepository(sdbConn.DB())
 	contractService := contractsvc.NewService(contractRepo)
 	hexContractHandler := http.NewContractHandler(contractService)
 
-	exportRepo := hexauth.NewExportRepository(sdbConn.DB())
+	exportRepo := surrealdb.NewExportRepository(sdbConn.DB())
 	exportService := exportsvc.NewService(exportRepo)
 	hexExportHandler := http.NewExportHandler(exportService)
 

@@ -9,6 +9,7 @@ import (
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
 	sdb "github.com/surrealdb/surrealdb.go"
 	"github.com/surrealdb/surrealdb.go/pkg/models"
+	"github.com/fxamacker/cbor/v2"
 )
 
 func uuidToRecordID(table string, id uuid.UUID) models.RecordID {
@@ -26,48 +27,25 @@ func recordIDToUUID(id models.RecordID) uuid.UUID {
 	if id.ID == nil {
 		return uuid.Nil
 	}
-	
-	switch v := id.ID.(type) {
-	case models.UUID:
-		if v.UUID != [16]byte{} {
-			return uuid.UUID(v.UUID)
-		}
-		return uuid.Nil
-	case string:
-		parsed, err := uuid.Parse(v)
+
+	// Most common case: CBOR-encoded UUID
+	if tag, ok := id.ID.(cbor.Tag); ok && len(tag.Content.([]byte)) == 16 {
+		uuidBA := tag.Content.([]byte)
+		return uuid.UUID(uuidBA)
+	}
+
+	// Fallback for string representation
+	if str, ok := id.ID.(string); ok {
+		u, err := uuid.Parse(str)
 		if err != nil {
 			return uuid.Nil
 		}
-		return parsed
-	case map[string]interface{}:
-		// Handle JSON unmarshaled format - check for Content (the 16-byte UUID)
-		if content, ok := v["Content"].([]byte); ok && len(content) == 16 {
-			var b [16]byte
-			copy(b[:], content)
-			return uuid.UUID(b)
-		}
-		return uuid.Nil
-	case interface{ GetContent() []byte }:
-		// Handle interface that has GetContent method
-		if content := v.GetContent(); len(content) == 16 {
-			var b [16]byte
-			copy(b[:], content)
-			return uuid.UUID(b)
-		}
-		return uuid.Nil
-	default:
-		// Handle cbor.Tag or any other type with Number and Content
-		// Use reflection to access fields
-		fmt.Printf("DEBUG recordIDToUUID: type=%T value=%+v\n", v, v)
-		
-		// Try to use fmt.Sprint to get more info
-		str := fmt.Sprintf("%+v", v)
-		if len(str) >= 16+8 { // approximate
-			// Could parse from string representation
-		}
-		return uuid.Nil
+		return u
 	}
+
+	return uuid.Nil
 }
+
 
 func recordIDToUserID(id *models.RecordID) string {
 	if id == nil {

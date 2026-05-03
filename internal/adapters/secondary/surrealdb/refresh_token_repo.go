@@ -2,6 +2,7 @@ package surrealdb
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,8 +21,9 @@ func NewRefreshTokenRepository(db *sdb.DB) *RefreshTokenRepository {
 
 func (r *RefreshTokenRepository) Add(ctx context.Context, userID, organizationID uuid.UUID, tokenHash string, expiresAt time.Time) error {
 	token := SurrealRefreshToken{
-		UserID:         "users:" + userID.String(),
-		OrganizationID: "organizations:" + organizationID.String(),
+		ID: models.NewRecordID("refresh_tokens", fmt.Sprintf("u:%s", uuid.New().String())),
+		UserID:         uuidToRecordID("users", userID),
+		OrganizationID: uuidToRecordID("organizations", organizationID),
 		TokenHash:      tokenHash,
 		ExpiresAt:      expiresAt,
 		CreatedAt:      time.Now(),
@@ -52,11 +54,9 @@ func (r *RefreshTokenRepository) FindByHash(ctx context.Context, hash string) (*
 		return nil, nil
 	}
 	token := resultItems[0]
-	userID, _ := uuid.Parse(token.UserID)
-	orgID, _ := uuid.Parse(token.OrganizationID)
 	return &ports.RefreshToken{
-		UserID:         userID,
-		OrganizationID: orgID,
+		UserID:         recordIDToUUID(token.UserID),
+		OrganizationID: recordIDToUUID(token.OrganizationID),
 		Hash:           token.TokenHash,
 		ExpiresAt:      token.ExpiresAt,
 		CreatedAt:      token.CreatedAt,

@@ -12,6 +12,8 @@ var ErrUserNotFound = errors.New("user not found")
 
 type UserRepository interface {
 	Add(ctx context.Context, user *auth.User) error
+	AddWithMembership(ctx context.Context, user *auth.User, membership *auth.OrganizationMembership) error
+	AddWithOrgAndMembership(ctx context.Context, user *auth.User, org *auth.Organization, membership *auth.OrganizationMembership) error
 	GetByEmail(ctx context.Context, email string) (*auth.User, error)
 	GetByUsername(ctx context.Context, username string) (*auth.User, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*auth.User, error)

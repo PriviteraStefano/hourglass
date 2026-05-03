@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -109,14 +110,23 @@ func TestRegister_WithNewOrg(t *testing.T) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		t.Logf("bootstrap response body: %s", string(body))
 		t.Errorf("expected status 201, got %d", resp.StatusCode)
 	}
 
 	var result map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&result)
 	data, ok := result["data"].(map[string]interface{})
-	if !ok || data["email"] == nil {
-		t.Error("expected email in response data")
+	if !ok {
+		t.Fatal("expected data object in register response")
+	}
+	user, ok := data["user"].(map[string]interface{})
+	if !ok || user["email"] == nil {
+		t.Error("expected user email in register response data")
+	}
+	if membership, ok := data["membership"].(map[string]interface{}); !ok || membership["organization_id"] == nil || membership["role"] != "employee" {
+		t.Error("expected employee membership in register response data")
 	}
 }
 
@@ -380,12 +390,12 @@ func TestBootstrap_FirstUser(t *testing.T) {
 	email := "bootstrap_" + uniqueID() + "@example.com"
 
 	body := map[string]string{
-		"org_name":  "Bootstrap Org",
-		"email":     email,
-		"username":  "admin_" + uniqueID(),
-		"firstname": "Admin",
-		"lastname":  "User",
-		"password":  "password123",
+		"organization_name": "Bootstrap Org",
+		"email":             email,
+		"username":          "admin_" + uniqueID(),
+		"firstname":         "Admin",
+		"lastname":          "User",
+		"password":          "password123",
 	}
 	jsonBody, _ := json.Marshal(body)
 
@@ -401,13 +411,15 @@ func TestBootstrap_FirstUser(t *testing.T) {
 
 	var result map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&result)
-	
-	// Check for token at top level
-	if result["token"] == nil {
-		// Might be nested, check for user field
-		if result["user"] == nil {
-			t.Error("expected token or user in response")
-		}
+	data, ok := result["data"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected data object in bootstrap response")
+	}
+	if data["token"] == nil {
+		t.Error("expected token in bootstrap response")
+	}
+	if membership, ok := data["membership"].(map[string]interface{}); !ok || membership["organization_id"] == nil || membership["role"] != "employee" {
+		t.Error("expected employee membership in bootstrap response")
 	}
 }
 

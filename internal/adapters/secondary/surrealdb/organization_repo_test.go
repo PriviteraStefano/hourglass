@@ -87,3 +87,52 @@ func TestOrganizationRepository_GetByID(t *testing.T) {
 		t.Errorf("expected name %s, got %s", org.Name, found.Name)
 	}
 }
+
+func TestOrganizationRepository_AddMembershipAndGetMembership(t *testing.T) {
+	if os.Getenv("SURREALDB_URL") == "" {
+		t.Skip("SURREALDB_URL not set, skipping integration test")
+	}
+
+	db := GetDB()
+	repo := NewOrganizationRepository(db)
+	userRepo := NewUserRepository(db)
+
+	org := &auth.Organization{
+		ID:        uuid.New(),
+		Name:      uniqueOrgName(),
+		Slug:      uniqueSlug(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	if err := repo.Add(context.Background(), org); err != nil {
+		t.Fatalf("failed to add organization: %v", err)
+	}
+
+	user := auth.NewUser(uniqueOrgName()+"@example.com", "user_"+uuid.New().String()[:8], "Test", "User", "Test User", "hashed-password")
+	if err := userRepo.Add(context.Background(), user); err != nil {
+		t.Fatalf("failed to add user: %v", err)
+	}
+
+	membership := auth.NewOrganizationMembership(user.ID, org.ID, "employee")
+	if err := repo.AddMembership(context.Background(), membership); err != nil {
+		t.Fatalf("failed to add membership: %v", err)
+	}
+
+	found, err := repo.GetMembership(context.Background(), user.ID, org.ID)
+	if err != nil {
+		t.Fatalf("failed to get membership: %v", err)
+	}
+	if found == nil {
+		t.Fatal("expected membership, got nil")
+	}
+	if found.UserID != user.ID {
+		t.Errorf("expected user id %s, got %s", user.ID, found.UserID)
+	}
+	if found.OrganizationID != org.ID {
+		t.Errorf("expected org id %s, got %s", org.ID, found.OrganizationID)
+	}
+	if found.Role != "employee" {
+		t.Errorf("expected role employee, got %s", found.Role)
+	}
+}
+

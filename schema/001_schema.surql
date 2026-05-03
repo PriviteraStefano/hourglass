@@ -66,6 +66,30 @@ DEFINE FIELD updated_at ON TABLE users TYPE datetime DEFAULT time::now();
 
 DEFINE INDEX user_email ON TABLE users COLUMNS email UNIQUE;
 
+-- Organization Memberships (users → organizations, many-to-many)
+DEFINE TABLE organization_memberships SCHEMAFULL
+    PERMISSIONS
+        FOR select WHERE $auth.role == 'super_admin' OR $auth.org_id == organization_id
+        FOR create WHERE $auth.role == 'super_admin' OR $auth.org_id == organization_id
+        FOR update WHERE $auth.role == 'super_admin' OR $auth.org_id == organization_id
+        FOR delete WHERE $auth.role == 'super_admin' OR $auth.org_id == organization_id
+;
+
+DEFINE FIELD id ON TABLE organization_memberships TYPE uuid;
+DEFINE FIELD user_id ON TABLE organization_memberships TYPE option<record<users>>;
+DEFINE FIELD organization_id ON TABLE organization_memberships TYPE record<organizations> ASSERT $value != NONE;
+DEFINE FIELD role ON TABLE organization_memberships TYPE string ASSERT $value IN ['employee', 'manager', 'finance', 'customer'] DEFAULT 'employee';
+DEFINE FIELD is_active ON TABLE organization_memberships TYPE bool DEFAULT true;
+DEFINE FIELD invited_by ON TABLE organization_memberships TYPE option<record<users>>;
+DEFINE FIELD invited_at ON TABLE organization_memberships TYPE option<datetime>;
+DEFINE FIELD activated_at ON TABLE organization_memberships TYPE option<datetime>;
+DEFINE FIELD created_at ON TABLE organization_memberships TYPE datetime DEFAULT time::now();
+DEFINE FIELD updated_at ON TABLE organization_memberships TYPE datetime DEFAULT time::now();
+
+DEFINE INDEX om_user ON TABLE organization_memberships COLUMNS user_id;
+DEFINE INDEX om_org ON TABLE organization_memberships COLUMNS organization_id;
+DEFINE INDEX om_user_org ON TABLE organization_memberships COLUMNS user_id, organization_id UNIQUE;
+
 -- Unit Memberships (users → units, many-to-many)
 DEFINE TABLE unit_memberships SCHEMAFULL
     PERMISSIONS
@@ -109,6 +133,7 @@ DEFINE TABLE refresh_tokens SCHEMAFULL;
 
 DEFINE FIELD id ON TABLE refresh_tokens TYPE string;
 DEFINE FIELD user_id ON TABLE refresh_tokens TYPE record<users> ASSERT $value != NONE;
+DEFINE FIELD organization_id ON TABLE refresh_tokens TYPE record<organizations> ASSERT $value != NONE;
 DEFINE FIELD token_hash ON TABLE refresh_tokens TYPE string ASSERT $value != NONE;
 DEFINE FIELD expires_at ON TABLE refresh_tokens TYPE datetime ASSERT $value != NONE;
 DEFINE FIELD revoked_at ON TABLE refresh_tokens TYPE option<datetime>;

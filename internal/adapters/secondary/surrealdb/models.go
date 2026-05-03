@@ -1,7 +1,6 @@
 package surrealdb
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,9 +34,7 @@ func (u *SurrealUser) ToDomain() *auth.User {
 		return nil
 	}
 	user := &auth.User{}
-	fmt.Printf("DEBUG ToDomain: u.ID = %+v\n", u.ID)
 	user.ID = recordIDToUUID(u.ID)
-	fmt.Printf("DEBUG ToDomain: user.ID = %v\n", user.ID)
 	user.Email = u.Email
 	user.Username = u.Username
 	user.FirstName = u.Firstname
@@ -171,13 +168,13 @@ func SurrealOrganizationMembershipFromDomain(m *auth.OrganizationMembership) *Su
 }
 
 type SurrealRefreshToken struct {
-	ID             string     `json:"id,omitempty"`
-	UserID         string     `json:"user_id"`
-	OrganizationID string     `json:"organization_id"`
-	TokenHash      string     `json:"token_hash"`
-	ExpiresAt      time.Time `json:"expires_at"`
-	RevokedAt      *time.Time `json:"revoked_at,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID             models.RecordID `json:"id,omitempty"`
+	UserID         models.RecordID `json:"user_id"`
+	OrganizationID models.RecordID `json:"organization_id"`
+	TokenHash      string          `json:"token_hash"`
+	ExpiresAt      time.Time       `json:"expires_at"`
+	RevokedAt      *time.Time      `json:"revoked_at,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
 }
 
 type QueryResponse[T any] struct {
