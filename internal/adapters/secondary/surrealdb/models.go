@@ -234,12 +234,14 @@ func (su *SurrealUnit) ToDomain() *unit.Unit {
 	if su == nil {
 		return nil
 	}
+	id, _ := su.ID.ID.(string)
+	parentID, _ := su.ParentUnitID.ID.(string)
 	return &unit.Unit{
-		ID:             recordIDToUUID(su.ID),
+		ID:             id,
 		OrgID:          recordIDToUUID(su.OrgID),
 		Name:           su.Name,
 		Description:    su.Description,
-		ParentUnitID:   recordIDToUUIDPtr(su.ParentUnitID),
+		ParentUnitID:   parentID,
 		HierarchyLevel: su.HierarchyLevel,
 		Code:           su.Code,
 		CreatedAt:      su.CreatedAt,
@@ -251,16 +253,70 @@ func SurrealUnitFromDomain(u *unit.Unit) *SurrealUnit {
 	if u == nil {
 		return nil
 	}
-	return &SurrealUnit{
-		ID:             uuidToRecordID("units", u.ID),
+	su := &SurrealUnit{
+		ID:             models.NewRecordID("units", u.ID),
 		OrgID:          uuidToRecordID("organizations", u.OrgID),
 		Name:           u.Name,
 		Description:    u.Description,
-		ParentUnitID:   uuidToRecordIDPtr("units", u.ParentUnitID),
 		HierarchyLevel: u.HierarchyLevel,
 		Code:           u.Code,
 		CreatedAt:      u.CreatedAt,
 		UpdatedAt:      u.UpdatedAt,
+	}
+	if u.ParentUnitID != "" {
+		su.ParentUnitID = models.NewRecordID("units", u.ParentUnitID)
+	}
+	return su
+}
+
+type SurrealUnitMember struct {
+	ID        models.RecordID `json:"id,omitempty"`
+	OrgID     models.RecordID `json:"org_id"`
+	UserID    models.RecordID `json:"user_id"`
+	UserName  string          `json:"user_name,omitempty"`
+	UserEmail string          `json:"user_email,omitempty"`
+	UnitID    models.RecordID `json:"unit_id"`
+	IsPrimary bool            `json:"is_primary"`
+	Role      string          `json:"role"`
+	StartDate time.Time       `json:"start_date"`
+	EndDate   *time.Time      `json:"end_date,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
+}
+
+func (sm *SurrealUnitMember) ToDomain() *unit.UnitMember {
+	if sm == nil {
+		return nil
+	}
+	id, _ := sm.ID.ID.(string)
+	return &unit.UnitMember{
+		ID:        id,
+		OrgID:     recordIDToUUID(sm.OrgID),
+		UserID:    recordIDToUUID(sm.UserID),
+		UserName:  sm.UserName,
+		UserEmail: sm.UserEmail,
+		UnitID:    recordIDToUserID(&sm.UnitID),
+		IsPrimary: sm.IsPrimary,
+		Role:      sm.Role,
+		StartDate: sm.StartDate,
+		EndDate:   sm.EndDate,
+		CreatedAt: sm.CreatedAt,
+	}
+}
+
+func SurrealUnitMemberFromDomain(m *unit.UnitMember) *SurrealUnitMember {
+	if m == nil {
+		return nil
+	}
+	return &SurrealUnitMember{
+		ID:        models.NewRecordID("unit_memberships", m.ID),
+		OrgID:     uuidToRecordID("organizations", m.OrgID),
+		UserID:    uuidToRecordID("users", m.UserID),
+		UnitID:    models.NewRecordID("units", m.UnitID),
+		IsPrimary: m.IsPrimary,
+		Role:      m.Role,
+		StartDate: m.StartDate,
+		EndDate:   m.EndDate,
+		CreatedAt: m.CreatedAt,
 	}
 }
 

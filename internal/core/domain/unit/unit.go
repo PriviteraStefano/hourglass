@@ -10,63 +10,88 @@ import (
 var (
 	ErrUnitNotFound            = errors.New("unit not found")
 	ErrInvalidParentUnit       = errors.New("invalid parent unit")
+	ErrCircularParent          = errors.New("cannot make unit a descendant of itself")
 	ErrCannotDeleteWithMembers = errors.New("cannot delete unit with members")
+	ErrMemberNotFound          = errors.New("unit member not found")
 )
 
 type Unit struct {
-	ID             uuid.UUID
-	OrgID          uuid.UUID
-	Name           string
-	Description    string
-	ParentUnitID   *uuid.UUID
-	HierarchyLevel int
-	Code           string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID             string    `json:"id"`
+	OrgID          uuid.UUID `json:"org_id"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description"`
+	ParentUnitID   string    `json:"parent_unit_id,omitempty"`
+	HierarchyLevel int       `json:"hierarchy_level"`
+	Code           string    `json:"code"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type CreateUnitRequest struct {
 	OrgID        uuid.UUID
 	Name         string
 	Description  string
-	ParentUnitID *uuid.UUID
+	ParentUnitID string
 	Code         string
 }
 
 type UpdateUnitRequest struct {
-	Name        string
-	Description string
-	Code        string
+	Name         string
+	Description  string
+	Code         string
+	ParentUnitID *string
 }
 
-func (u *Unit) IsDescendantOf(ancestorID uuid.UUID) bool {
-	if u.ParentUnitID == nil {
+func (u *Unit) IsDescendantOf(ancestorID string) bool {
+	if u.ParentUnitID == "" {
 		return false
 	}
-	if *u.ParentUnitID == ancestorID {
+	if u.ParentUnitID == ancestorID {
 		return true
 	}
 	return false
 }
 
 type UnitTreeNode struct {
-	Unit     Unit
-	Children []UnitTreeNode
+	Unit              Unit           `json:"unit"`
+	MemberCount       int            `json:"member_count"`
+	TotalMemberCount  int            `json:"total_member_count"`
+	Children          []UnitTreeNode `json:"children,omitempty"`
 }
 
-func BuildTree(units []Unit, parentID *uuid.UUID) []UnitTreeNode {
+type UnitMember struct {
+	ID         string     `json:"id"`
+	OrgID      uuid.UUID  `json:"org_id"`
+	UserID     uuid.UUID  `json:"user_id"`
+	UserName   string     `json:"user_name"`
+	UserEmail  string     `json:"user_email"`
+	UnitID     string     `json:"unit_id"`
+	IsPrimary  bool       `json:"is_primary"`
+	Role       string     `json:"role"`
+	StartDate  time.Time  `json:"start_date"`
+	EndDate    *time.Time `json:"end_date,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+type AddUnitMemberRequest struct {
+	UserID    uuid.UUID
+	Role      string
+	IsPrimary bool
+}
+
+func BuildTree(units []Unit, parentID string) []UnitTreeNode {
 	var tree []UnitTreeNode
 	for _, u := range units {
-		var unitParentID *uuid.UUID
-		if u.ParentUnitID != nil && *u.ParentUnitID != uuid.Nil {
+		var unitParentID string
+		if u.ParentUnitID != "" {
 			unitParentID = u.ParentUnitID
 		}
-		matches := (parentID == nil && unitParentID == nil) ||
-			(parentID != nil && unitParentID != nil && *parentID == *unitParentID)
+		matches := (parentID == "" && unitParentID == "") ||
+			(parentID != "" && unitParentID != "" && parentID == unitParentID)
 		if matches {
 			node := UnitTreeNode{
 				Unit:     u,
-				Children: BuildTree(units, &u.ID),
+				Children: BuildTree(units, u.ID),
 			}
 			tree = append(tree, node)
 		}

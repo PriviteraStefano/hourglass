@@ -21,14 +21,14 @@ func (s *Service) ListByOrg(ctx context.Context, orgID uuid.UUID) ([]unit.Unit, 
 	return s.repo.ListByOrg(ctx, orgID)
 }
 
-func (s *Service) Get(ctx context.Context, id uuid.UUID) (*unit.Unit, error) {
+func (s *Service) Get(ctx context.Context, id string) (*unit.Unit, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
 func (s *Service) Create(ctx context.Context, req *unit.CreateUnitRequest) (*unit.Unit, error) {
 	hierarchyLevel := 0
-	if req.ParentUnitID != nil {
-		parent, err := s.repo.GetByID(ctx, *req.ParentUnitID)
+	if req.ParentUnitID != "" {
+		parent, err := s.repo.GetByID(ctx, req.ParentUnitID)
 		if err == nil && parent != nil {
 			hierarchyLevel = parent.HierarchyLevel + 1
 		}
@@ -36,7 +36,7 @@ func (s *Service) Create(ctx context.Context, req *unit.CreateUnitRequest) (*uni
 
 	now := time.Now()
 	u := &unit.Unit{
-		ID:             uuid.New(),
+		ID:             uuid.New().String(),
 		OrgID:          req.OrgID,
 		Name:           req.Name,
 		Description:    req.Description,
@@ -50,7 +50,7 @@ func (s *Service) Create(ctx context.Context, req *unit.CreateUnitRequest) (*uni
 	return s.repo.Create(ctx, u)
 }
 
-func (s *Service) Update(ctx context.Context, id uuid.UUID, req *unit.UpdateUnitRequest) (*unit.Unit, error) {
+func (s *Service) Update(ctx context.Context, id string, req *unit.UpdateUnitRequest) (*unit.Unit, error) {
 	u, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -65,12 +65,63 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *unit.UpdateUnit
 	if req.Code != "" {
 		u.Code = req.Code
 	}
+	if req.ParentUnitID != nil {
+		newParentID := *req.ParentUnitID
+		if newParentID == u.ParentUnitID {
+			u.UpdatedAt = time.Now()
+			return s.repo.Update(ctx, u)
+		}
+		if newParentID != "" {
+			if newParentID == id {
+				return nil, unit.ErrCircularParent
+			}
+			descendants, err := s.repo.GetDescendants(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			for _, d := range descendants {
+				if d.ID == newParentID {
+					return nil, unit.ErrCircularParent
+				}
+			}
+			parent, err := s.repo.GetByID(ctx, newParentID)
+			if err != nil {
+				return nil, unit.ErrInvalidParentUnit
+			}
+			u.ParentUnitID = newParentID
+			u.HierarchyLevel = parent.HierarchyLevel + 1
+		} else {
+			u.ParentUnitID = ""
+			u.HierarchyLevel = 0
+		}
+		if err := s.cascadeHierarchyLevel(ctx, u); err != nil {
+			return nil, err
+		}
+	}
 	u.UpdatedAt = time.Now()
 
 	return s.repo.Update(ctx, u)
 }
 
-func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
+func (s *Service) cascadeHierarchyLevel(ctx context.Context, parent *unit.Unit) error {
+	descendants, err := s.repo.GetDescendants(ctx, parent.ID)
+	if err != nil {
+		return err
+	}
+	for _, d := range descendants {
+		d.HierarchyLevel = parent.HierarchyLevel + 1
+		d.UpdatedAt = time.Now()
+		if _, err := s.repo.Update(ctx, &d); err != nil {
+			return err
+		}
+		if err := s.cascadeHierarchyLevel(ctx, &d); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) Delete(ctx context.Context, id string) error {
 	hasMembers, err := s.repo.HasMembers(ctx, id)
 	if err != nil {
 		return err
@@ -86,9 +137,49 @@ func (s *Service) GetTree(ctx context.Context, orgID uuid.UUID) ([]unit.UnitTree
 	if err != nil {
 		return nil, err
 	}
-	return unit.BuildTree(units, nil), nil
+	memberCounts, err := s.repo.GetMemberCountsByOrg(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	tree := unit.BuildTree(units, "")
+	annotateMemberCounts(tree, memberCounts)
+	return tree, nil
 }
 
-func (s *Service) GetDescendants(ctx context.Context, id uuid.UUID) ([]unit.Unit, error) {
+func annotateMemberCounts(nodes []unit.UnitTreeNode, counts map[string]int) {
+	for i := range nodes {
+		nodes[i].MemberCount = counts[nodes[i].Unit.ID]
+		total := nodes[i].MemberCount
+		annotateMemberCounts(nodes[i].Children, counts)
+		for _, child := range nodes[i].Children {
+			total += child.TotalMemberCount
+		}
+		nodes[i].TotalMemberCount = total
+	}
+}
+
+func (s *Service) GetDescendants(ctx context.Context, id string) ([]unit.Unit, error) {
 	return s.repo.GetDescendants(ctx, id)
+}
+
+func (s *Service) ListMembers(ctx context.Context, unitID string) ([]unit.UnitMember, error) {
+	return s.repo.ListMembers(ctx, unitID)
+}
+
+func (s *Service) AddMember(ctx context.Context, unitID string, orgID uuid.UUID, req *unit.AddUnitMemberRequest) (*unit.UnitMember, error) {
+	m := &unit.UnitMember{
+		ID:        uuid.New().String(),
+		OrgID:     orgID,
+		UserID:    req.UserID,
+		UnitID:    unitID,
+		Role:      req.Role,
+		IsPrimary: req.IsPrimary,
+		StartDate: time.Now(),
+		CreatedAt: time.Now(),
+	}
+	return s.repo.AddMember(ctx, m)
+}
+
+func (s *Service) RemoveMember(ctx context.Context, id string) error {
+	return s.repo.RemoveMember(ctx, id)
 }
