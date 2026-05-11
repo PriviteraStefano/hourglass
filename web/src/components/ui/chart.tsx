@@ -1,8 +1,8 @@
 import * as React from "react"
+import type {TooltipValueType} from "recharts"
 import * as RechartsPrimitive from "recharts"
-import type { TooltipValueType } from "recharts"
 
-import { cn } from "@/lib/utils"
+import {cn} from "@/lib/utils"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
@@ -79,6 +79,14 @@ function ChartContainer({
   )
 }
 
+function sanitizeCSSIdent(input: string): string {
+  return input.replace(/[^a-zA-Z0-9_-]/g, "_")
+}
+
+function sanitizeCSSValue(input: string): string {
+  return input.replace(/[;"'\n\r]/g, "")
+}
+
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
     ([, config]) => config.theme ?? config.color
@@ -100,7 +108,10 @@ ${colorConfig
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ??
       itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    if (!color) return null
+    const safeKey = sanitizeCSSIdent(key)
+    const safeColor = sanitizeCSSValue(color)
+    return `  --color-${safeKey}: ${safeColor};`
   })
   .join("\n")}
 }
