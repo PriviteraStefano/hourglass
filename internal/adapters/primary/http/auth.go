@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stefanoprivitera/hourglass/internal/cookies"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/auth"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
@@ -117,13 +118,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expiresAt := time.Now().Add(15 * time.Minute)
+	secure := cookies.IsSecureRequest(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
 		Value:    resp.Token,
 		Expires:  expiresAt,
 		HttpOnly: true,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	refreshExpiresAt := time.Now().Add(7 * 24 * time.Hour)
@@ -133,7 +136,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Expires:  refreshExpiresAt,
 		HttpOnly: true,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	api.RespondWithJSON(w, http.StatusOK, resp)
@@ -143,13 +147,15 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("refresh_token"); err == nil && cookie.Value != "" {
 		_ = h.authService.Logout(r.Context(), cookie.Value)
 	}
+	secure := cookies.IsSecureRequest(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
 		Value:    "",
 		Expires:  time.Now().Add(-time.Hour),
 		HttpOnly: true,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
@@ -157,7 +163,8 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		Expires:  time.Now().Add(-time.Hour),
 		HttpOnly: true,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
 	})
 	api.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
 }
@@ -175,13 +182,15 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	expiresAt := time.Now().Add(15 * time.Minute)
+	secure := cookies.IsSecureRequest(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
 		Value:    resp.Token,
 		Expires:  expiresAt,
 		HttpOnly: true,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
 	})
 	api.RespondWithJSON(w, http.StatusOK, resp)
 }
@@ -223,14 +232,16 @@ func (h *AuthHandler) Bootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expiresAt := time.Now().Add(15 * time.Minute)
+expiresAt := time.Now().Add(15 * time.Minute)
+	secure := cookies.IsSecureRequest(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
 		Value:    resp.Token,
 		Expires:  expiresAt,
 		HttpOnly: true,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	refreshExpiresAt := time.Now().Add(7 * 24 * time.Hour)
@@ -240,10 +251,11 @@ func (h *AuthHandler) Bootstrap(w http.ResponseWriter, r *http.Request) {
 		Expires:  refreshExpiresAt,
 		HttpOnly: true,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
 	})
 
-	api.RespondWithJSON(w, http.StatusCreated, resp)
+	api.RespondWithJSON(w, http.StatusOK, resp)
 }
 
 func (h *AuthHandler) BootstrapCheck(w http.ResponseWriter, r *http.Request) {
@@ -292,13 +304,15 @@ func (h *AuthHandler) SwitchOrganization(w http.ResponseWriter, r *http.Request)
 	}
 
 	expiresAt := time.Now().Add(15 * time.Minute)
+	secure := cookies.IsSecureRequest(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
 		Value:    resp.Token,
 		Expires:  expiresAt,
 		HttpOnly: true,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	refreshExpiresAt := time.Now().Add(7 * 24 * time.Hour)
@@ -308,7 +322,8 @@ func (h *AuthHandler) SwitchOrganization(w http.ResponseWriter, r *http.Request)
 		Expires:  refreshExpiresAt,
 		HttpOnly: true,
 		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	api.RespondWithJSON(w, http.StatusOK, resp)

@@ -15,7 +15,10 @@ func TestRefreshTokenRepository_Add(t *testing.T) {
 		t.Skip("SURREALDB_URL not set, skipping integration test")
 	}
 
-	db := GetDB()
+	db, err := GetDB()
+	if err != nil {
+		t.Fatalf("failed to get DB: %v", err)
+	}
 	userRepo := NewUserRepository(db)
 	refreshRepo := NewRefreshTokenRepository(db)
 
@@ -51,7 +54,10 @@ func TestRefreshTokenRepository_FindByHash(t *testing.T) {
 		t.Skip("SURREALDB_URL not set, skipping integration test")
 	}
 
-	db := GetDB()
+	db, err := GetDB()
+	if err != nil {
+		t.Fatalf("failed to connect to SurrealDB: %v", err)
+	}
 	userRepo := NewUserRepository(db)
 	refreshRepo := NewRefreshTokenRepository(db)
 
@@ -98,7 +104,10 @@ func TestRefreshTokenRepository_RevokeByHash(t *testing.T) {
 		t.Skip("SURREALDB_URL not set, skipping integration test")
 	}
 
-	db := GetDB()
+	db, err := GetDB()
+	if err != nil {
+		t.Fatalf("failed to connect to SurrealDB: %v", err)
+	}
 	userRepo := NewUserRepository(db)
 	refreshRepo := NewRefreshTokenRepository(db)
 

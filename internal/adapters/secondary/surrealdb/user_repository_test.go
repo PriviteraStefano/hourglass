@@ -23,7 +23,10 @@ func TestUserRepository_Add(t *testing.T) {
 		t.Skip("SURREALDB_URL not set, skipping integration test")
 	}
 
-	db := GetDB()
+	db, err := GetDB()
+	if err != nil {
+		t.Fatalf("failed to get DB: %v", err)
+	}
 	repo := NewUserRepository(db)
 
 	user := &auth.User{
@@ -50,7 +53,10 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 		t.Skip("SURREALDB_URL not set, skipping integration test")
 	}
 
-	db := GetDB()
+	db, err := GetDB()
+	if err != nil {
+		t.Fatalf("failed to get DB: %v", err)
+	}
 	repo := NewUserRepository(db)
 
 	email := uniqueEmail()
@@ -89,7 +95,10 @@ func TestUserRepository_GetByID(t *testing.T) {
 		t.Skip("SURREALDB_URL not set, skipping integration test")
 	}
 
-	db := GetDB()
+	db, err := GetDB()
+	if err != nil {
+		t.Fatalf("failed to get DB: %v", err)
+	}
 	repo := NewUserRepository(db)
 
 	user := &auth.User{
@@ -127,7 +136,10 @@ func TestUserRepository_EmailExists(t *testing.T) {
 		t.Skip("SURREALDB_URL not set, skipping integration test")
 	}
 
-	db := GetDB()
+	db, err := GetDB()
+	if err != nil {
+		t.Fatalf("failed to get DB: %v", err)
+	}
 	repo := NewUserRepository(db)
 
 	email := uniqueEmail()
@@ -171,7 +183,10 @@ func TestUserRepository_UsernameExists(t *testing.T) {
 		t.Skip("SURREALDB_URL not set, skipping integration test")
 	}
 
-	db := GetDB()
+	db, err := GetDB()
+	if err != nil {
+		t.Fatalf("failed to get DB: %v", err)
+	}
 	repo := NewUserRepository(db)
 
 	username := uniqueUsername()

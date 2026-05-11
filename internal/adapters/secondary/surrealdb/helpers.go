@@ -146,13 +146,13 @@ func InitDB() error {
 	return nil
 }
 
-func GetDB() *sdb.DB {
+func GetDB() (*sdb.DB, error) {
 	if dbInstance == nil {
 		if err := InitDB(); err != nil {
-			panic(err)
+			return nil, fmt.Errorf("database not initialized: %w", err)
 		}
 	}
-	return dbInstance
+	return dbInstance, nil
 }
 
 func CloseDB() error {

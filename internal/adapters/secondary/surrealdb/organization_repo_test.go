@@ -23,7 +23,10 @@ func TestOrganizationRepository_Add(t *testing.T) {
 		t.Skip("SURREALDB_URL not set, skipping integration test")
 	}
 
-	db := GetDB()
+	db, err := GetDB()
+	if err != nil {
+		t.Fatalf("failed to get DB: %v", err)
+	}
 	repo := NewOrganizationRepository(db)
 
 	org := &auth.Organization{
@@ -51,7 +54,10 @@ func TestOrganizationRepository_GetByID(t *testing.T) {
 		t.Skip("SURREALDB_URL not set, skipping integration test")
 	}
 
-	db := GetDB()
+	db, err := GetDB()
+	if err != nil {
+		t.Fatalf("failed to get DB: %v", err)
+	}
 	repo := NewOrganizationRepository(db)
 
 	org := &auth.Organization{
@@ -93,7 +99,10 @@ func TestOrganizationRepository_AddMembershipAndGetMembership(t *testing.T) {
 		t.Skip("SURREALDB_URL not set, skipping integration test")
 	}
 
-	db := GetDB()
+	db, err := GetDB()
+	if err != nil {
+		t.Fatalf("failed to get DB: %v", err)
+	}
 	repo := NewOrganizationRepository(db)
 	userRepo := NewUserRepository(db)
 
