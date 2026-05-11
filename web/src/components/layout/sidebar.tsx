@@ -2,12 +2,15 @@ import {
   CheckCircleIcon,
   ClockIcon,
   FileTextIcon,
-  FolderIcon, HourglassIcon,
+  FolderIcon,
   type LucideIcon,
+  NetworkIcon,
   ReceiptIcon,
-  SettingsIcon
+  SettingsIcon,
+  SidebarCloseIcon,
+  SidebarOpenIcon
 } from 'lucide-react'
-import {Link} from '@tanstack/react-router'
+import {Link, ToPathOption, useMatchRoute} from '@tanstack/react-router'
 import {
   Sidebar,
   SidebarContent,
@@ -19,50 +22,68 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import {ThemeToggle} from '@/components/theme-toggle.tsx'
 import {ProfileMenu} from "@/components/app/profile-menu.tsx";
+import {OrgSwitcher} from "@/components/app/org-switcher.tsx";
 
-const navItems: Array<{ label: string; href: string; icon: LucideIcon; disabled?: boolean }> = [
+
+const navItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon; disabled?: boolean }> = [
   {label: 'Time', href: '/time-entries', icon: ClockIcon},
   {label: 'Expenses', href: '/expenses', icon: ReceiptIcon, disabled: true},
   {label: 'Approvals', href: '/approvals', icon: CheckCircleIcon, disabled: true},
 ]
 
-const projectItems: Array<{ label: string; href: string; icon: LucideIcon; disabled?: boolean }> = [
+const projectItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon; disabled?: boolean }> = [
   {label: 'Contracts', href: '/contracts', icon: FileTextIcon},
   {label: 'Projects', href: '/projects', icon: FolderIcon},
+  {label: 'Org Hierarchy', href: '/org-hierarchy', icon: NetworkIcon},
 ]
 
-const settingsItems: Array<{ label: string; href: string; icon: LucideIcon; disabled?: boolean }> = [
+const settingsItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon; disabled?: boolean }> = [
   {label: 'Settings', href: '/settings', icon: SettingsIcon, disabled: true},
 ]
 
 export function AppSidebar() {
+  const matchRoute = useMatchRoute()
+  const {state, toggleSidebar} = useSidebar()
+
+
   return (
     <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size={"lg"}
-              render={
-                <Link to={"/"}>
-                  <HourglassIcon className={"size-5! ml-1.5"}/>
-                  <span className="text-base font-semibold">Hourglass</span>
-                </Link>
-              }
-            />
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <OrgSwitcher organizations={[]}/>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuButton className={"border"} onClick={toggleSidebar}>
+                {state === "collapsed"
+                  ? (
+                    <>
+                      <SidebarOpenIcon/>
+                      <span>Expand</span>
+                    </>
+                  ) : (
+                    <>
+                      <SidebarCloseIcon/>
+                      <span>Collapse</span>
+                    </>
+                  )}
+              </SidebarMenuButton>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
               {navItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
+                <SidebarMenuItem key={String(item.href)}>
                   <SidebarMenuButton
+                    isActive={!!matchRoute({to: item.href})}
                     tooltip={item.label}
                     render={
                       <Link to={item.href} disabled={item.disabled}>
@@ -81,16 +102,16 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {projectItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
+                <SidebarMenuItem key={String(item.href)}>
                   <SidebarMenuButton
+                    isActive={!!matchRoute({to: item.href})}
+                    tooltip={item.label}
                     render={
-                      <Link to={item.href}>
+                      <Link to={item.href} disabled={item.disabled}>
                         <item.icon/>
                         <span>{item.label}</span>
                       </Link>
                     }
-                    disabled={item.disabled}
-                    tooltip={item.label}
                   />
                 </SidebarMenuItem>
               ))}
@@ -102,8 +123,9 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {settingsItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
+                <SidebarMenuItem key={String(item.href)}>
                   <SidebarMenuButton
+                    isActive={!!matchRoute({to: item.href})}
                     tooltip={item.label}
                     render={
                       <Link to={item.href} disabled={item.disabled}>

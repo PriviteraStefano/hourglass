@@ -1,53 +1,86 @@
 import * as React from 'react'
 import {useCallback, useMemo, useState} from 'react'
 import {Background, Controls, type Edge, MiniMap, type Node, ReactFlow, ReactFlowProvider,} from '@xyflow/react'
-import {useSuspenseQuery} from '@tanstack/react-query'
-import {unitTreeQueryOpts,} from '@/api/units.ts'
-import type {Unit, UnitTreeNode} from '@/types/unit.ts'
-import {findNode, flattenTree, getDescendants} from './utils/tree-utils'
-import {type BUNodeData, getLayoutElements} from './flow/dagre-layout'
+import {useQueries, useSuspenseQuery} from '@tanstack/react-query'
+import {unitMembersQueryOpts, unitTreeQueryOpts} from '@/api/units.ts'
+import type {Unit, UnitMember, UnitTreeNode} from '@/types/unit.ts'
+import {findNode, flattenTree, getDescendantIds, getDescendants} from './utils/tree-utils'
+import {getLayoutElements} from './flow/dagre-layout'
 import {BUNode} from './flow/bu-node'
+import {type BUNodeData, treeNodeToNodeData} from './flow/bu-node-data'
 import {OrgChartToolbar} from './org-chart-toolbar'
 import {UnitDetailPanel} from './dialogs/unit-detail-panel'
 import {UnitFormDialog} from './dialogs/unit-form-dialog'
 import {DeleteConfirmDialog} from './dialogs/delete-confirm-dialog'
+import {ReparentConfirmDialog} from './dialogs/reparent-confirm-dialog'
 import {useTheme} from "@/components/theme-provider.tsx";
 import {Header} from "@/components/layout/header.tsx";
 import {Body} from "@/components/layout/body.tsx";
-import {OrgHierarchyProvider, useOrgHierarchy} from '../-context/org-hierarchy-context'
+import {OrgHierarchyProvider, useOrgHierarchyStore} from '../-context/org-hierarchy-context'
 
-const nodeTypes = {bu: BUNode}
+const nodeTypes = {bu: BUNode} as const
 
-function buildNodes(units: Unit[], handlers: {
-  onAddSubUnit: (parentId: string) => void
-  onEdit: (id: string) => void
-  onDelete: (id: string) => void
-}): Node<BUNodeData>[] {
-  return units.map((unit) => ({
-    id: unit.id,
-    type: 'bu',
-    position: {x: 0, y: 0},
-    data: {
-      unit,
-      onAddSubUnit: handlers.onAddSubUnit,
-      onEdit: handlers.onEdit,
-      onDelete: handlers.onDelete
-    },
-    draggable: true,
-  }))
+function buildNodes(
+  tree: UnitTreeNode[],
+  collapsedIds: Set<string>,
+  viewMode: 'tree' | 'members',
+  membersMap: Map<string, UnitMember[]>,
+  membersLoadingSet: Set<string>,
+  dragHoverId: string | null,
+  handlers: {
+    onAddSubUnit: (parentId: string) => void
+    onEdit: (id: string) => void
+    onDelete: (id: string) => void
+    onToggleCollapse: (id: string) => void
+  },
+): Node<BUNodeData>[] {
+  const result: Node<BUNodeData>[] = []
+
+  function walk(nodes: UnitTreeNode[]) {
+    for (const node of nodes) {
+      result.push({
+        id: node.unit.id,
+        type: 'bu',
+        position: {x: 0, y: 0},
+        data: treeNodeToNodeData(node, handlers, collapsedIds, viewMode, membersMap, membersLoadingSet, dragHoverId),
+        draggable: true,
+      })
+      if (!collapsedIds.has(node.unit.id) && node.children) {
+        walk(node.children)
+      }
+    }
+  }
+
+  walk(tree)
+  return result
 }
 
-function buildEdges(units: Unit[]): Edge[] {
-  const nodeIds = new Set(units.map((u) => u.id))
-  return units
-    .filter((u) => u.parent_unit_id && nodeIds.has(u.parent_unit_id))
-    .map((u) => ({
-      id: `e-${u.parent_unit_id}-${u.id}`,
-      source: u.parent_unit_id!,
-      target: u.id,
-      type: 'smoothstep' as const,
-      animated: true,
-    }))
+function buildEdges(
+  tree: UnitTreeNode[],
+  collapsedIds: Set<string>,
+): Edge[] {
+  const result: Edge[] = []
+
+  function walk(nodes: UnitTreeNode[]) {
+    for (const node of nodes) {
+      if (collapsedIds.has(node.unit.id)) continue
+      if (node.children) {
+        for (const child of node.children) {
+          result.push({
+            id: `e-${node.unit.id}-${child.unit.id}`,
+            source: node.unit.id,
+            target: child.unit.id,
+            type: 'smoothstep' as const,
+            animated: true,
+          })
+        }
+        walk(node.children)
+      }
+    }
+  }
+
+  walk(tree)
+  return result
 }
 
 function computeVisibleIds(
@@ -79,79 +112,107 @@ function computeVisibleIds(
 }
 
 function OrgHierarchyRoot({children}: { children: React.ReactNode }) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null)
-  const [showFormDialog, setShowFormDialog] = useState(false)
-  const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
-  const [editingUnit, setEditingUnit] = useState<Unit | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-
-  const {data: tree} = useSuspenseQuery(unitTreeQueryOpts)
-
-  const allUnits = useMemo(() => flattenTree(tree), [tree])
-  const allUnitsMap = useMemo(() => new Map(allUnits.map((u) => [u.id, u])), [allUnits])
-
-  const handleAddUnit = useCallback((parentId: string | null = null) => {
-    setFormMode('create')
-    setEditingUnit(parentId ? {parent_unit_id: parentId} as Unit : null)
-    setShowFormDialog(true)
-  }, [])
-
-  const handleEditDirect = useCallback((id: string) => {
-    const unit = allUnitsMap.get(id)
-    if (!unit) return
-    setFormMode('edit')
-    setEditingUnit(unit)
-    setShowFormDialog(true)
-  }, [allUnitsMap])
-
-  const handleDeleteDirect = useCallback((id: string) => {
-    const unit = allUnitsMap.get(id)
-    if (!unit) return
-    setSelectedUnit(unit)
-    setShowDeleteConfirm(true)
-  }, [allUnitsMap])
-
-  const handleEdit = useCallback(() => {
-    if (!selectedUnit) return
-    setFormMode('edit')
-    setEditingUnit(selectedUnit)
-    setShowFormDialog(true)
-  }, [selectedUnit])
-
-  const value = useMemo(() => ({
-    searchQuery, setSearchQuery: setSearchQuery, selectedUnit, setSelectedUnit,
-    showFormDialog, setShowFormDialog,
-    formMode, setFormMode, editingUnit, setEditingUnit,
-    showDeleteConfirm, setShowDeleteConfirm, handleAddUnit,
-    handleEditDirect, handleDeleteDirect, handleEdit
-  }), [searchQuery, setSearchQuery, selectedUnit, setSelectedUnit, showFormDialog, setShowFormDialog, formMode, setFormMode, editingUnit, setEditingUnit, showDeleteConfirm, setShowDeleteConfirm, handleAddUnit, handleEditDirect, handleDeleteDirect, handleEdit])
-
-  return <OrgHierarchyProvider value={value}>{children}</OrgHierarchyProvider>
+  return <OrgHierarchyProvider>{children}</OrgHierarchyProvider>
 }
 
 function OrgHierarchyFlow() {
   const {theme} = useTheme()
   const {data: tree} = useSuspenseQuery(unitTreeQueryOpts)
 
-  const {
-    searchQuery,
-    setSelectedUnit,
-    handleAddUnit,
-    handleEditDirect,
-    handleDeleteDirect,
-  } = useOrgHierarchy()
+  const viewMode = useOrgHierarchyStore(s => s.viewMode)
+  const collapsedIds = useOrgHierarchyStore(s => s.collapsedIds)
+  const searchQuery = useOrgHierarchyStore(s => s.searchQuery)
+
+  const toggleCollapsed = useOrgHierarchyStore(s => s.toggleCollapsed)
+  const setSelectedUnit = useOrgHierarchyStore(s => s.setSelectedUnit)
+  const addUnit = useOrgHierarchyStore(s => s.addUnit)
+  const editUnit = useOrgHierarchyStore(s => s.editUnit)
+  const deleteUnit = useOrgHierarchyStore(s => s.deleteUnit)
+  const reparentUnit = useOrgHierarchyStore(s => s.reparentUnit)
+  const setDraggingUnit = useOrgHierarchyStore(s => s.setDraggingUnit)
+  const setReparentTarget = useOrgHierarchyStore(s => s.setReparentTarget)
+
+  const [dragHoverId, setDragHoverId] = useState<string | null>(null)
 
   const allUnits = useMemo(() => flattenTree(tree), [tree])
   const allUnitsMap = useMemo(() => new Map(allUnits.map((u) => [u.id, u])), [allUnits])
 
-  const {nodes, edges} = useMemo(() => {
-    const initialNodes = buildNodes(allUnits, {
-      onAddSubUnit: handleAddUnit,
-      onEdit: handleEditDirect,
-      onDelete: handleDeleteDirect
+  const actions = useMemo(() => ({
+    addUnit,
+    editUnit: (id: string) => {
+      const u = allUnitsMap.get(id)
+      if (u) editUnit(u)
+    },
+    deleteUnit: (id: string) => {
+      const u = allUnitsMap.get(id)
+      if (u) deleteUnit(u)
+    },
+    reparentUnit: (unitId: string, newParentId: string | null) => {
+      const dragUnit = allUnitsMap.get(unitId) ?? null
+      const targetUnit = newParentId ? allUnitsMap.get(newParentId) ?? null : null
+      reparentUnit(dragUnit, targetUnit)
+    }
+  }), [allUnitsMap, addUnit, editUnit, deleteUnit, reparentUnit])
+
+  const visibleUnitIds = useMemo(() => {
+    const ids = new Set<string>()
+
+    function walk(nodes: UnitTreeNode[]) {
+      for (const node of nodes) {
+        ids.add(node.unit.id)
+        if (!collapsedIds.has(node.unit.id) && node.children) {
+          walk(node.children)
+        }
+      }
+    }
+
+    walk(tree)
+    return ids
+  }, [tree, collapsedIds])
+
+  const memberQueries = useQueries({
+    queries: viewMode === 'members'
+      ? allUnits
+        .filter((u) => visibleUnitIds.has(u.id))
+        .map((u) => ({
+          ...unitMembersQueryOpts(u.id),
+          staleTime: 60_000,
+        }))
+      : [],
+  })
+
+  const membersMap = useMemo(() => {
+    const map = new Map<string, UnitMember[]>()
+    const visibleList = viewMode === 'members'
+      ? allUnits.filter((u) => visibleUnitIds.has(u.id))
+      : []
+    visibleList.forEach((u, i) => {
+      const q = memberQueries[i]
+      if (q?.data) map.set(u.id, q.data)
     })
-    const initialEdges = buildEdges(allUnits)
+    return map
+  }, [viewMode, allUnits, visibleUnitIds, memberQueries])
+
+  const membersLoadingSet = useMemo(() => {
+    const set = new Set<string>()
+    const visibleList = viewMode === 'members'
+      ? allUnits.filter((u) => visibleUnitIds.has(u.id))
+      : []
+    visibleList.forEach((u, i) => {
+      const q = memberQueries[i]
+      if (q?.isFetching) set.add(u.id)
+    })
+    return set
+  }, [viewMode, allUnits, visibleUnitIds, memberQueries])
+
+  const {nodes, edges} = useMemo(() => {
+    const initialNodes = buildNodes(tree, collapsedIds, viewMode, membersMap, membersLoadingSet, dragHoverId, {
+      onAddSubUnit: actions.addUnit,
+      onEdit: actions.editUnit,
+      onDelete: actions.deleteUnit,
+      onToggleCollapse: toggleCollapsed,
+    })
+    const initialEdges = buildEdges(tree, collapsedIds)
     const visibleIds = computeVisibleIds(searchQuery, allUnits, tree, allUnitsMap)
     if (visibleIds) {
       for (const n of initialNodes) {
@@ -159,10 +220,10 @@ function OrgHierarchyFlow() {
       }
     }
     return getLayoutElements(initialNodes, initialEdges)
-  }, [allUnits, tree, allUnitsMap, searchQuery, handleAddUnit, handleEditDirect, handleDeleteDirect])
+  }, [tree, collapsedIds, viewMode, membersMap, membersLoadingSet, dragHoverId, allUnits, allUnitsMap, searchQuery, actions.addUnit, actions.editUnit, actions.deleteUnit, toggleCollapsed])
 
   const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node<BUNodeData>) => {
+    (_: React.MouseEvent, node: Node) => {
       const unit = allUnitsMap.get(node.id)
       if (unit) {
         setSelectedUnit(unit)
@@ -171,12 +232,69 @@ function OrgHierarchyFlow() {
     [allUnitsMap, setSelectedUnit]
   )
 
+  const onNodeDragStart = useCallback(() => {
+    setDragHoverId(null)
+  }, [])
+
+  const onNodeDrag = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      const draggedNodeId = node.id
+      const descendantIds = getDescendantIds(draggedNodeId, tree)
+      const nodesArr = document.querySelectorAll('[data-id]')
+      let hoverId: string | null = null
+      for (const el of nodesArr) {
+        const rect = el.getBoundingClientRect()
+        if (rect.width === 0) continue
+        const elId = el.getAttribute('data-id')
+        if (elId && elId !== draggedNodeId) {
+          if (descendantIds.has(elId)) continue
+          const centerX = rect.left + rect.width / 2
+          const centerY = rect.top + rect.height / 2
+          if (node.position.x < centerX && node.position.x + 200 > centerX &&
+            node.position.y < centerY && node.position.y + 60 > centerY) {
+            hoverId = elId
+            break
+          }
+        }
+      }
+      setDragHoverId(hoverId)
+    },
+    [tree]
+  )
+
+  const onNodeDragStop = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      const dragUnit = allUnitsMap.get(node.id)
+      if (!dragUnit) return
+      const descendantIds = getDescendantIds(dragUnit.id, tree)
+      const nodesArr = document.querySelectorAll('[data-id]')
+      let targetId: string | null = null
+      for (const el of nodesArr) {
+        const rect = el.getBoundingClientRect()
+        if (rect.width === 0) continue
+        const elId = el.getAttribute('data-id')
+        if (elId && elId !== node.id && !descendantIds.has(elId)) {
+          targetId = elId
+          break
+        }
+      }
+      if (!targetId) return
+      const targetUnit = allUnitsMap.get(targetId) ?? null
+      setDraggingUnit(dragUnit)
+      setReparentTarget(targetUnit)
+    },
+    [allUnitsMap, tree, setDraggingUnit, setReparentTarget]
+  )
+
   return (
     <div className="flex-1 w-full relative">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodeClick={onNodeClick}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
         colorMode={theme}
         fitView
@@ -196,6 +314,7 @@ function OrgHierarchyDialogs() {
       <UnitDetailPanel/>
       <UnitFormDialog/>
       <DeleteConfirmDialog/>
+      <ReparentConfirmDialog/>
     </>
   )
 }

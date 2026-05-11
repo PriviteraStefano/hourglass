@@ -18,19 +18,25 @@ import {CreateContractDialog} from './create-contract-dialog'
 import type {Contract} from '@/types/models'
 import {z} from "zod";
 import {InputGroup, InputGroupAddon, InputGroupInput,} from "@/components/ui/input-group.tsx"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@/components/ui/select"
 
 export const tabsSchema = z.enum(['owned', 'adopted', 'all'])
+export const statusSchema = z.enum(['all', 'active', 'inactive'])
 export type TabType = z.infer<typeof tabsSchema>
+export type StatusType = z.infer<typeof statusSchema>
 
 export function ContractList() {
   const navigate = useNavigate()
-  const {tab, searchQuery} = useSearch({from: "/_authenticated/contracts/"})
+  const {tab, searchQuery, status} = useSearch({from: "/_authenticated/contracts/"})
+  const currentStatus = statusSchema.safeParse(status).data ?? 'all'
+
+  const isActiveFilter = currentStatus === 'active' ? true : currentStatus === 'inactive' ? false : undefined
 
   const [adoptDialogOpen, setAdoptDialogOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
 
-  const {data: contracts, isLoading} = useSuspenseQuery(ContractsApis.contractsQueryOpts(tab))
+  const {data: contracts, isLoading} = useSuspenseQuery(ContractsApis.contractsQueryOpts(tab, isActiveFilter))
   const adoptContract = useMutation(ContractsApis.adoptContractMutationOpts)
 
   const filteredContracts = contracts.filter((c: Contract) =>
@@ -40,10 +46,15 @@ export function ContractList() {
   const handleTabChange = (newTab: string) => {
     const parsedTab = tabsSchema.safeParse(newTab)
     if (parsedTab.error) {
-      navigate({to: "/contracts", search: {tab: 'owned'}})
+      navigate({to: "/contracts", search: {tab: 'owned', status: currentStatus}})
       return
     }
-    navigate({to: "/contracts", search: {tab: parsedTab.data}})
+    navigate({to: "/contracts", search: {tab: parsedTab.data, status: currentStatus}})
+  }
+
+  const handleStatusChange = (value: string | null) => {
+    const parsed = statusSchema.safeParse(value ?? 'all')
+    navigate({to: "/contracts", search: {tab, status: parsed.data ?? 'all'}})
   }
 
   const handleAdoptClick = (contract: Contract) => {
@@ -99,6 +110,18 @@ export function ContractList() {
           <TabsTrigger value="adopted">Adopted</TabsTrigger>
           <TabsTrigger value="all">All</TabsTrigger>
         </TabsList>
+        <div className="ml-auto">
+          <Select value={currentStatus} onValueChange={handleStatusChange}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Status"/>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         <TabsContent value={tab} className="mt-4">
           {isLoading ? (
@@ -127,6 +150,10 @@ export function ContractList() {
                         {contract.is_shared && (
                           <Badge variant="secondary" className="text-xs">Shared</Badge>
                         )}
+                        <Badge variant={contract.is_active ? 'default' : 'outline'}
+                               className={contract.is_active ? 'bg-green-500' : ''}>
+                          {contract.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
                         {tab === 'adopted' && contract.created_by_org_name && (
                           <span className="text-xs text-muted-foreground">
                             from {contract.created_by_org_name}

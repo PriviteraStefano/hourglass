@@ -20,7 +20,7 @@ import {cn} from '@/lib/utils'
 import {Field, FieldContent, FieldError, FieldLabel} from '@/components/ui/field.tsx'
 import type {UnitTreeNode} from '@/types/unit.ts'
 import {getDescendantIds} from '../utils/tree-utils'
-import {useOrgHierarchy} from "@/routes/_authenticated/org-hierarchy/-context/org-hierarchy-context.tsx";
+import {useOrgHierarchyStore} from "@/routes/_authenticated/org-hierarchy/-context/org-hierarchy-context.tsx";
 import {useMutation, useSuspenseQuery} from "@tanstack/react-query";
 import {createUnitMutationOpts, unitTreeQueryOpts, updateUnitMutationOpts} from "@/api/units.ts";
 import {toast} from "sonner";
@@ -47,12 +47,11 @@ export function UnitFormDialog() {
   const {mutateAsync: createUnit} = useMutation(createUnitMutationOpts)
   const {mutateAsync: updateUnit} = useMutation(updateUnitMutationOpts)
 
-  const {
-    selectedUnit: unit,
-    showFormDialog: open,
-    setShowFormDialog: onOpenChange,
-    formMode: mode
-  } = useOrgHierarchy()
+  const unit = useOrgHierarchyStore(s => s.selectedUnit)
+  const open = useOrgHierarchyStore(s => s.formOpen)
+  const onOpenChange = useOrgHierarchyStore(s => s.setFormOpen)
+  const mode = useOrgHierarchyStore(s => s.formMode)
+  const editingUnit = useOrgHierarchyStore(s => s.editingUnit)
 
   const form = useForm<UnitFormData>({
     resolver: zodResolver(
@@ -62,29 +61,29 @@ export function UnitFormDialog() {
       )
     ),
     defaultValues: {
-      name: mode === 'edit' && unit ? unit.name : '',
-      code: mode === 'edit' && unit ? unit.code : '',
-      description: mode === 'edit' && unit ? unit.description || '' : '',
-      parent_unit_id: mode === 'edit' && unit ? unit.parent_unit_id : undefined,
+      name: mode === 'edit' && editingUnit ? editingUnit.name : '',
+      code: mode === 'edit' && editingUnit ? editingUnit.code : '',
+      description: mode === 'edit' && editingUnit ? editingUnit.description || '' : '',
+      parent_unit_id: mode === 'edit' && editingUnit ? editingUnit.parent_unit_id : undefined,
     },
   })
 
   const disabledIds = useMemo(() => {
     const ids = new Set<string>()
-    if (mode === 'edit' && unit) {
-      ids.add(unit.id)
-      const descendants = getDescendantIds(unit.id, tree)
+    if (mode === 'edit' && editingUnit) {
+      ids.add(editingUnit.id)
+      const descendants = getDescendantIds(editingUnit.id, tree)
       for (const id of descendants) ids.add(id)
     }
     return ids
-  }, [mode, unit, tree])
+  }, [mode, editingUnit, tree])
 
   const handleFormSubmit = async (data: UnitFormData) => {
     try {
-      if (mode === 'edit' && unit) {
+      if (mode === 'edit' && editingUnit) {
         await toast.promise(
           updateUnit({
-            id: unit.id, body: {
+            id: editingUnit.id, body: {
               name: data.name.trim(),
               description: data.description?.trim() || null,
               code: data.code.trim(),

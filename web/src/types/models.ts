@@ -47,6 +47,9 @@ export interface Contract {
   created_by_org_name?: string
   adoption_count?: number
   is_adopted?: boolean
+  customer_id?: string
+  customer_name?: string
+  time_entries_count?: number
   created_at: string
 }
 

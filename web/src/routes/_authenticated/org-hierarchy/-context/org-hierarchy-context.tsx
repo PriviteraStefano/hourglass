@@ -1,35 +1,102 @@
 import * as React from 'react'
-import {Unit} from "@/types/unit.ts";
+import {createStore, useStore} from 'zustand'
+import type {Unit} from '@/types/unit.ts'
 
-export interface OrgHierarchyContextValue {
+/* eslint-disable react-refresh/only-export-components */
+
+export interface OrgHierarchyState {
+  viewMode: 'tree' | 'members'
+  collapsedIds: Set<string>
   searchQuery: string
-  setSearchQuery: (query: string) => void
   selectedUnit: Unit | null
-  setSelectedUnit: (unit: Unit | null) => void
-  showFormDialog: boolean
-  setShowFormDialog: (show: boolean) => void
+  formOpen: boolean
   formMode: 'create' | 'edit'
-  setFormMode: (mode: 'create' | 'edit') => void
   editingUnit: Unit | null
+  deleteOpen: boolean
+  reparentTarget: Unit | null
+  draggingUnit: Unit | null
+}
+
+export interface OrgHierarchyActions {
+  setViewMode: (mode: 'tree' | 'members') => void
+  toggleCollapsed: (id: string) => void
+  setSearchQuery: (query: string) => void
+  setSelectedUnit: (unit: Unit | null) => void
+  setFormOpen: (open: boolean) => void
+  setFormMode: (mode: 'create' | 'edit') => void
   setEditingUnit: (unit: Unit | null) => void
-  showDeleteConfirm: boolean
-  setShowDeleteConfirm: (show: boolean) => void
+  setDeleteOpen: (open: boolean) => void
+  setReparentTarget: (unit: Unit | null) => void
+  setDraggingUnit: (unit: Unit | null) => void
 
-  handleAddUnit: (parentId?: string | null) => void
-  handleEditDirect: (id: string) => void
-  handleDeleteDirect: (id: string) => void
-  handleEdit: () => void
+  addUnit: (parentId?: string | null) => void
+  editUnit: (unit: Unit) => void
+  deleteUnit: (unit: Unit) => void
+  reparentUnit: (dragUnit: Unit | null, targetUnit: Unit | null) => void
 }
 
-const OrgHierarchyContext = React.createContext<OrgHierarchyContextValue | null>(null)
+export type OrgHierarchyStore = OrgHierarchyState & OrgHierarchyActions
 
-export function useOrgHierarchy() {
-  const context = React.useContext(OrgHierarchyContext)
-  if (!context) {
-    throw new Error('useOrgHierarchy must be used within OrgHierarchy.Root')
+export const createOrgHierarchyStore = () =>
+  createStore<OrgHierarchyStore>()((set) => ({
+    viewMode: 'tree',
+    collapsedIds: new Set(),
+    searchQuery: '',
+    selectedUnit: null,
+    formOpen: false,
+    formMode: 'create',
+    editingUnit: null,
+    deleteOpen: false,
+    reparentTarget: null,
+    draggingUnit: null,
+
+    setViewMode: (mode) => set({viewMode: mode}),
+    toggleCollapsed: (id) => set((state) => {
+      const next = new Set(state.collapsedIds)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return {collapsedIds: next}
+    }),
+    setSearchQuery: (query) => set({searchQuery: query}),
+    setSelectedUnit: (unit) => set({selectedUnit: unit}),
+    setFormOpen: (open) => set({formOpen: open}),
+    setFormMode: (mode) => set({formMode: mode}),
+    setEditingUnit: (unit) => set({editingUnit: unit}),
+    setDeleteOpen: (open) => set({deleteOpen: open}),
+    setReparentTarget: (unit) => set({reparentTarget: unit}),
+    setDraggingUnit: (unit) => set({draggingUnit: unit}),
+
+    addUnit: (parentId = null) => set({
+      formMode: 'create',
+      editingUnit: parentId ? ({parent_unit_id: parentId} as Unit) : null,
+      formOpen: true,
+    }),
+    editUnit: (unit) => set({
+      formMode: 'edit',
+      editingUnit: unit,
+      formOpen: true,
+    }),
+    deleteUnit: (unit) => set({
+      selectedUnit: unit,
+      deleteOpen: true,
+    }),
+    reparentUnit: (dragUnit, targetUnit) => set({
+      draggingUnit: dragUnit,
+      reparentTarget: targetUnit,
+    }),
+  }))
+
+const OrgHierarchyContext = React.createContext<ReturnType<typeof createOrgHierarchyStore> | null>(null)
+
+export function useOrgHierarchyStore<T>(selector: (state: OrgHierarchyStore) => T): T {
+  const store = React.useContext(OrgHierarchyContext)
+  if (!store) {
+    throw new Error('useOrgHierarchyStore must be used within OrgHierarchy.Root')
   }
-  return context
+  return useStore(store, selector)
 }
 
-export const OrgHierarchyProvider = OrgHierarchyContext.Provider
-
+export function OrgHierarchyProvider({children}: { children: React.ReactNode }) {
+  const [store] = React.useState(() => createOrgHierarchyStore())
+  return <OrgHierarchyContext.Provider value={store}>{children}</OrgHierarchyContext.Provider>
+}

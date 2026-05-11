@@ -4,18 +4,25 @@ import {api} from '@/lib/api.ts'
 import type {Contract} from '@/types/models'
 import type {CreateContractRequest} from "@/types";
 
-function contractsQueryKey(scope: 'owned' | 'adopted' | 'all') {
-  return ['contracts', scope] as const
+function contractsQueryKey(scope: 'owned' | 'adopted' | 'all', isActive?: boolean) {
+  return ['contracts', scope, isActive] as const
 }
 
 function contractQueryKey(id: string) {
   return ['contracts', id] as const
 }
 
-function contractsQueryOpts(scope: 'owned' | 'adopted' | 'all' = 'owned') {
+function contractsQueryOpts(scope: 'owned' | 'adopted' | 'all' = 'owned', isActive?: boolean) {
+  const queryFn = () => {
+    const params = new URLSearchParams({scope})
+    if (isActive !== undefined) {
+      params.set('is_active', String(isActive))
+    }
+    return api<Contract[]>(`/contracts?${params.toString()}`)
+  }
   return queryOptions({
-    queryKey: contractsQueryKey(scope),
-    queryFn: () => api<Contract[]>(`/contracts?scope=${scope}`),
+    queryKey: contractsQueryKey(scope, isActive),
+    queryFn,
   })
 }
 
@@ -45,9 +52,51 @@ const adoptContractMutationOpts = mutationOptions({
   },
 })
 
+interface UpdateContractRequest {
+  name: string
+  km_rate: number
+  currency: string
+  governance_model: string
+  is_shared: boolean
+  is_active: boolean
+  customer_id?: string
+}
+
+const updateContractMutationOpts = mutationOptions({
+  mutationFn: ({id, data}: { id: string; data: UpdateContractRequest }) =>
+    api<{ contract: Contract; affected_mileage_count: number }>(`/contracts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  onSuccess: (_, __, {client}) => {
+    client.invalidateQueries({queryKey: ['contracts']})
+    toast.success('Contract updated')
+  },
+})
+
+const deleteContractMutationOpts = mutationOptions({
+  mutationFn: (id: string) =>
+    api<void>(`/contracts/${id}`, {method: 'DELETE'}),
+  onSuccess: (_, __, {client}) => {
+    client.invalidateQueries({queryKey: ['contracts']})
+    toast.success('Contract deleted')
+  },
+})
+
+const recalculateMileageMutationOpts = mutationOptions({
+  mutationFn: ({id, fromDate}: { id: string; fromDate: string }) =>
+    api<{ recalculated_count: number }>(`/contracts/${id}/recalculate-mileage`, {
+      method: 'POST',
+      body: JSON.stringify({from_date: fromDate}),
+    }),
+})
+
 export const ContractsApis = {
   contractsQueryOpts,
   contractQueryOpts,
   createContractMutationOpts,
   adoptContractMutationOpts,
+  updateContractMutationOpts,
+  deleteContractMutationOpts,
+  recalculateMileageMutationOpts,
 }
