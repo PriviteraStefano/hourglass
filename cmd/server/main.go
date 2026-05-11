@@ -26,8 +26,13 @@ import (
 )
 
 func main() {
+	env := os.Getenv("GO_ENV")
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
+		if env == "production" || env == "staging" {
+			log.Fatal("FATAL: JWT_SECRET is required in production/staging environments")
+		}
+		log.Println("WARNING: Using default JWT_SECRET. Set JWT_SECRET in production.")
 		jwtSecret = "dev-secret-change-in-production"
 	}
 
