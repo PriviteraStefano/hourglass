@@ -135,4 +135,3 @@ func TestOrganizationRepository_AddMembershipAndGetMembership(t *testing.T) {
 		t.Errorf("expected role employee, got %s", found.Role)
 	}
 }
-

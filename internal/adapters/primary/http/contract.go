@@ -34,7 +34,16 @@ func (h *ContractHandler) List(w http.ResponseWriter, r *http.Request) {
 	if scope == "" {
 		scope = "owned"
 	}
-	contracts, err := h.service.List(r.Context(), orgID, scope)
+	isActiveStr := r.URL.Query().Get("is_active")
+	var isActive *bool
+	if isActiveStr == "true" {
+		v := true
+		isActive = &v
+	} else if isActiveStr == "false" {
+		v := false
+		isActive = &v
+	}
+	contracts, err := h.service.List(r.Context(), orgID, scope, isActive)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch contracts")
 		return
@@ -174,4 +183,28 @@ func (h *ContractHandler) RecalculateMileage(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{"recalculated_count": count})
+}
+
+func (h *ContractHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrganizationID(r.Context())
+	contractID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid contract id")
+		return
+	}
+	err = h.service.Delete(r.Context(), middleware.GetRole(r.Context()), orgID, contractID)
+	if err != nil {
+		switch err {
+		case contractdomain.ErrForbidden:
+			api.RespondWithError(w, http.StatusForbidden, "only finance users can delete contracts")
+		case contractdomain.ErrContractNotFound:
+			api.RespondWithError(w, http.StatusNotFound, "contract not found")
+		case contractdomain.ErrHasTimeEntries:
+			api.RespondWithError(w, http.StatusConflict, "contract has time entries and cannot be deleted")
+		default:
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to delete contract")
+		}
+		return
+	}
+	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{"message": "contract deleted"})
 }

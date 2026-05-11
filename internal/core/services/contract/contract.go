@@ -17,8 +17,8 @@ func NewService(repo ports.ContractRepository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) List(ctx context.Context, orgID uuid.UUID, scope string) ([]contractdomain.ContractResponse, error) {
-	return s.repo.List(ctx, orgID, scope)
+func (s *Service) List(ctx context.Context, orgID uuid.UUID, scope string, isActive *bool) ([]contractdomain.ContractResponse, error) {
+	return s.repo.List(ctx, orgID, scope, isActive)
 }
 
 func (s *Service) Create(ctx context.Context, orgID uuid.UUID, req *contractdomain.CreateContractRequest) (*contractdomain.ContractResponse, error) {
@@ -54,4 +54,25 @@ func (s *Service) RecalculateMileage(ctx context.Context, role string, orgID, co
 		return 0, contractdomain.ErrInvalidRequest
 	}
 	return s.repo.RecalculateMileage(ctx, orgID, contractID, fromDate, actorUserID)
+}
+
+func (s *Service) Delete(ctx context.Context, role string, orgID, contractID uuid.UUID) error {
+	if role != string(models.RoleFinance) {
+		return contractdomain.ErrForbidden
+	}
+	existing, err := s.repo.Get(ctx, orgID, contractID)
+	if err != nil {
+		return err
+	}
+	if existing.CreatedByOrgID != orgID {
+		return contractdomain.ErrForbidden
+	}
+	count, err := s.repo.HasTimeEntries(ctx, contractID)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return contractdomain.ErrHasTimeEntries
+	}
+	return s.repo.Delete(ctx, orgID, contractID)
 }

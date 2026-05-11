@@ -42,7 +42,15 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.authService.Register(ctx, auth.RegisterRequest(req))
+	resp, err := h.authService.Register(ctx, auth.RegisterRequest{
+		Email:            req.Email,
+		Username:         req.Username,
+		FirstName:        req.FirstName,
+		LastName:         req.LastName,
+		Password:         req.Password,
+		OrgName:          req.OrganizationName,
+		OrgID:            req.InviteCode,
+	})
 	if err != nil {
 		switch err {
 		case auth.ErrEmailExists:

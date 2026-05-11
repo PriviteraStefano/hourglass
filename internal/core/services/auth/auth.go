@@ -12,23 +12,25 @@ import (
 )
 
 var (
-	ErrEmailExists        = errors.New("email already registered")
-	ErrUsernameExists     = errors.New("username already taken")
-	ErrInvalidCreds       = errors.New("invalid credentials")
-	ErrAccountDeactivated = errors.New("account is deactivated")
-	ErrUserNotFound       = errors.New("user not found")
-	ErrMembershipNotFound = errors.New("membership not found")
-	ErrNoActiveMembership = errors.New("no active organization membership")
+	ErrEmailExists           = errors.New("email already registered")
+	ErrUsernameExists        = errors.New("username already taken")
+	ErrInvalidCreds          = errors.New("invalid credentials")
+	ErrAccountDeactivated    = errors.New("account is deactivated")
+	ErrUserNotFound          = errors.New("user not found")
+	ErrMembershipNotFound    = errors.New("membership not found")
+	ErrNoActiveMembership    = errors.New("no active organization membership")
 )
 
 type RegisterRequest struct {
-	Email            string
-	Username         string
-	FirstName        string
-	LastName         string
-	Password         string
-	OrganizationName string
-	InviteCode      string
+	Email     string
+	Username  string
+	FirstName string
+	LastName  string
+	Name      string
+	Password  string
+	OrgName   string
+	OrgID     string
+	Role      string
 }
 
 type UserWithMembership struct {
@@ -94,9 +96,9 @@ type BootstrapRequest struct {
 }
 
 type BootstrapResponse struct {
-	Token        string    `json:"token"`
-	RefreshToken string    `json:"refresh_token"`
-	ExpiresAt    time.Time `json:"expires_at"`
+	Token            string `json:"token"`
+	RefreshToken     string `json:"refresh_token"`
+	ExpiresAt        time.Time `json:"expires_at"`
 	UserWithMembership
 }
 
@@ -106,7 +108,6 @@ type Service struct {
 	tokenService     ports.TokenService
 	hasher           ports.PasswordHasher
 	refreshTokenRepo ports.RefreshTokenRepository
-	inviteRepo       ports.InvitationRepository
 }
 
 func NewService(
@@ -115,7 +116,6 @@ func NewService(
 	tokenService ports.TokenService,
 	hasher ports.PasswordHasher,
 	refreshTokenRepo ports.RefreshTokenRepository,
-	inviteRepo ports.InvitationRepository,
 ) *Service {
 	return &Service{
 		userRepo:         userRepo,
@@ -123,7 +123,6 @@ func NewService(
 		tokenService:     tokenService,
 		hasher:           hasher,
 		refreshTokenRepo: refreshTokenRepo,
-		inviteRepo:       inviteRepo,
 	}
 }
 
@@ -175,37 +174,37 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*RegisterR
 		hashedPassword,
 	)
 
-	var orgID uuid.UUID
-	var org *authdomain.Organization
-	var membership *authdomain.OrganizationMembership
-
-	if req.InviteCode != "" {
-		invite, err := s.inviteRepo.FindByCode(ctx, req.InviteCode)
-		if err != nil {
-			return nil, err
-		}
-		orgID = invite.OrganizationID
-		membership = authdomain.NewOrganizationMembership(user.ID, orgID, "employee")
-		if err := s.userRepo.AddWithMembership(ctx, user, membership); err != nil {
-			return nil, err
-		}
-	} else if req.OrganizationName != "" {
-		orgSlug := generateSlug(req.OrganizationName)
-		org = authdomain.NewOrganization(req.OrganizationName, orgSlug, "Organization")
-		orgID = org.ID
-		membership = authdomain.NewOrganizationMembership(user.ID, orgID, "employee")
-		if err := s.userRepo.AddWithOrgAndMembership(ctx, user, org, membership); err != nil {
-			return nil, err
-		}
-	} else {
-		return nil, errors.New("organization or invite token is required")
+	if err := s.userRepo.Add(ctx, user); err != nil {
+		return nil, err
 	}
 
-	if org == nil && orgID != uuid.Nil {
+	var orgID uuid.UUID
+	if req.OrgID != "" {
+		parsed, _ := uuid.Parse(req.OrgID)
+		orgID = parsed
+	} else if req.OrgName != "" {
+		orgSlug := generateSlug(req.OrgName)
+		org := authdomain.NewOrganization(req.OrgName, orgSlug, "Organization")
+		if err := s.orgRepo.Add(ctx, org); err != nil {
+			return nil, err
+		}
+		orgID = org.ID
+	}
+
+	if orgID != uuid.Nil {
+		membership := authdomain.NewOrganizationMembership(user.ID, orgID, "employee")
+		if err := s.orgRepo.AddMembership(ctx, membership); err != nil {
+			return nil, err
+		}
+	}
+
+	var org *authdomain.Organization
+	if orgID != uuid.Nil {
 		org, _ = s.orgRepo.GetByID(ctx, orgID)
 	}
 
-	if membership == nil && orgID != uuid.Nil {
+	var membership *authdomain.OrganizationMembership
+	if orgID != uuid.Nil {
 		membership, _ = s.orgRepo.GetMembership(ctx, user.ID, orgID)
 	}
 
@@ -285,16 +284,13 @@ func (s *Service) authenticateUser(ctx context.Context, user *authdomain.User, p
 
 	var org *authdomain.Organization
 	if orgID != uuid.Nil {
-		org, err = s.orgRepo.GetByID(ctx, orgID)
-		if err != nil {
-			return nil, err
-		}
+		org, _ = s.orgRepo.GetByID(ctx, orgID)
 	}
 
 	return &LoginResponse{
-		Token:              token,
-		RefreshToken:       refreshToken,
-		ExpiresAt:          time.Now().Add(15 * time.Minute),
+		Token:        token,
+		RefreshToken: refreshToken,
+		ExpiresAt:    time.Now().Add(15 * time.Minute),
 		UserWithMembership: *buildUserWithMembershipPtr(user, orgID, org, active),
 	}, nil
 }
@@ -352,8 +348,8 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*RefreshRes
 	}
 
 	return &RefreshResponse{
-		Token:              newToken,
-		ExpiresAt:          time.Now().Add(15 * time.Minute),
+		Token:            newToken,
+		ExpiresAt:        time.Now().Add(15 * time.Minute),
 		UserWithMembership: *buildUserWithMembershipPtr(user, token.OrganizationID, org, membership),
 	}, nil
 }
@@ -386,6 +382,9 @@ func (s *Service) Bootstrap(ctx context.Context, req BootstrapRequest) (*Bootstr
 
 	orgSlug := generateSlug(req.OrgName)
 	org := authdomain.NewOrganization(req.OrgName, orgSlug, "Bootstrap organization")
+	if err := s.orgRepo.Add(ctx, org); err != nil {
+		return nil, err
+	}
 
 	hashedPassword, err := s.hasher.Hash(password.String())
 	if err != nil {
@@ -400,13 +399,17 @@ func (s *Service) Bootstrap(ctx context.Context, req BootstrapRequest) (*Bootstr
 		hashedPassword,
 	)
 
-	membership := authdomain.NewOrganizationMembership(user.ID, org.ID, "finance")
-	if err := s.userRepo.AddWithOrgAndMembership(ctx, user, org, membership); err != nil {
+	if err := s.userRepo.Add(ctx, user); err != nil {
+		return nil, err
+	}
+
+	membership := authdomain.NewOrganizationMembership(user.ID, org.ID, "employee")
+	if err := s.orgRepo.AddMembership(ctx, membership); err != nil {
 		return nil, err
 	}
 
 	tokenUserID := user.ID
-	token, err := s.tokenService.GenerateToken(tokenUserID, org.ID, membership.Role, user.Email)
+	token, err := s.tokenService.GenerateToken(tokenUserID, org.ID, "employee", user.Email)
 	if err != nil {
 		return nil, err
 	}
@@ -421,9 +424,9 @@ func (s *Service) Bootstrap(ctx context.Context, req BootstrapRequest) (*Bootstr
 	}
 
 	return &BootstrapResponse{
-		Token:              token,
-		RefreshToken:       refreshToken,
-		ExpiresAt:          time.Now().Add(15 * time.Minute),
+		Token:            token,
+		RefreshToken:     refreshToken,
+		ExpiresAt:        time.Now().Add(15 * time.Minute),
 		UserWithMembership: *buildUserWithMembershipPtr(user, org.ID, org, membership),
 	}, nil
 }
@@ -466,9 +469,9 @@ func (s *Service) SwitchOrganization(ctx context.Context, userID, orgID uuid.UUI
 	}
 
 	return &LoginResponse{
-		Token:              token,
-		RefreshToken:       refreshToken,
-		ExpiresAt:          time.Now().Add(15 * time.Minute),
+		Token:            token,
+		RefreshToken:     refreshToken,
+		ExpiresAt:        time.Now().Add(15 * time.Minute),
 		UserWithMembership: *buildUserWithMembershipPtr(user, orgID, org, membership),
 	}, nil
 }
@@ -526,6 +529,7 @@ func buildUserWithMembershipPtr(user *authdomain.User, orgID uuid.UUID, org *aut
 			ID:        user.ID.String(),
 			Email:     user.Email,
 			Username:  user.Username,
+			Name:      user.FirstName + " " + user.LastName,
 			IsActive:  user.IsActive,
 			CreatedAt: user.CreatedAt,
 		},

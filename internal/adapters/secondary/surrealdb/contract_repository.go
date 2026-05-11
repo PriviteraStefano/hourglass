@@ -34,14 +34,22 @@ type surrealContractCompat struct {
 
 type contractJoined struct {
 	surrealContractCompat
-	OrgName     string `json:"created_by_org_name,omitempty"`
-	AdoptionCnt int    `json:"adoption_count,omitempty"`
-	IsAdopted   bool   `json:"is_adopted,omitempty"`
+	OrgName           string `json:"created_by_org_name,omitempty"`
+	AdoptionCnt       int    `json:"adoption_count,omitempty"`
+	IsAdopted         bool   `json:"is_adopted,omitempty"`
+	CustomerName      string `json:"customer_name,omitempty"`
+	TimeEntriesCount  int    `json:"time_entries_count,omitempty"`
 }
 
-func (r *ContractRepository) List(ctx context.Context, orgID uuid.UUID, scope string) ([]contractdomain.ContractResponse, error) {
-	where := "WHERE c.is_active = true"
+func (r *ContractRepository) List(ctx context.Context, orgID uuid.UUID, scope string, isActive *bool) ([]contractdomain.ContractResponse, error) {
+	where := "WHERE 1=1"
 	vars := map[string]interface{}{"org_id": uuidToRecordID("organizations", orgID)}
+	if isActive != nil {
+		where += " AND c.is_active = $is_active"
+		vars["is_active"] = *isActive
+	} else {
+		where += " AND c.is_active = true"
+	}
 	switch scope {
 	case "adopted":
 		where += " AND c.id IN (SELECT VALUE contract_id FROM contract_adoptions WHERE organization_id = $org_id)"
@@ -111,8 +119,10 @@ func (r *ContractRepository) Get(ctx context.Context, orgID, contractID uuid.UUI
 		SELECT c.*,
 			(SELECT VALUE name FROM organizations WHERE id = c.created_by_org_id LIMIT 1)[0] AS created_by_org_name,
 			count((SELECT VALUE id FROM contract_adoptions WHERE contract_id = c.id)) AS adoption_count,
-			(SELECT VALUE count() > 0 FROM contract_adoptions WHERE contract_id = c.id AND organization_id = $org_id GROUP ALL)[0] AS is_adopted
-		FROM contracts c WHERE c.id=$contract_id AND c.is_active=true LIMIT 1`, map[string]interface{}{
+			(SELECT VALUE count() > 0 FROM contract_adoptions WHERE contract_id = c.id AND organization_id = $org_id GROUP ALL)[0] AS is_adopted,
+			(SELECT VALUE name FROM customers WHERE id = c.customer_id LIMIT 1)[0] AS customer_name,
+			count((SELECT VALUE id FROM time_entries WHERE project_id IN (SELECT VALUE id FROM projects WHERE contract_id = c.id) GROUP ALL))[0] AS time_entries_count
+		FROM contracts c WHERE c.id=$contract_id LIMIT 1`, map[string]interface{}{
 		"contract_id": uuidToRecordID("contracts", contractID),
 		"org_id":      uuidToRecordID("organizations", orgID),
 	})
@@ -132,9 +142,11 @@ func (r *ContractRepository) Get(ctx context.Context, orgID, contractID uuid.UUI
 			IsActive:        c.IsActive,
 			CreatedAt:       c.CreatedAt,
 		},
-		CreatedByOrgName: c.OrgName,
-		AdoptionCount:    c.AdoptionCnt,
-		IsAdopted:        c.IsAdopted,
+		CreatedByOrgName:  c.OrgName,
+		AdoptionCount:     c.AdoptionCnt,
+		IsAdopted:         c.IsAdopted,
+		CustomerName:      c.CustomerName,
+		TimeEntriesCount:  c.TimeEntriesCount,
 	}
 	if cid := recordIDToUUIDPtr(c.CustomerID); cid != nil {
 		resp.CustomerID = cid
@@ -239,4 +251,29 @@ func (r *ContractRepository) RecalculateMileage(ctx context.Context, orgID, cont
 		}
 	}
 	return updated, nil
+}
+
+func (r *ContractRepository) Delete(ctx context.Context, orgID, contractID uuid.UUID) error {
+	_, err := sdb.Delete[struct{}](ctx, r.db, uuidToRecordID("contracts", contractID))
+	if err != nil {
+		return wrapErr(err, "delete contract")
+	}
+	return nil
+}
+
+func (r *ContractRepository) HasTimeEntries(ctx context.Context, contractID uuid.UUID) (int, error) {
+	results, err := sdb.Query[[]map[string]interface{}](ctx, r.db, `
+		SELECT count() FROM time_entries
+		WHERE project_id IN (SELECT VALUE id FROM projects WHERE contract_id = $contract_id)
+		GROUP ALL
+	`, map[string]interface{}{
+		"contract_id": uuidToRecordID("contracts", contractID),
+	})
+	if err != nil || results == nil || len(*results) == 0 {
+		return 0, nil
+	}
+	if cnt, ok := (*results)[0].Result[0]["count"].(float64); ok {
+		return int(cnt), nil
+	}
+	return 0, nil
 }

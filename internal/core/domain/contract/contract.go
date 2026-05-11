@@ -9,10 +9,11 @@ import (
 )
 
 var (
-	ErrContractNotFound = errors.New("contract not found")
-	ErrInvalidRequest   = errors.New("invalid request")
-	ErrForbidden        = errors.New("forbidden")
-	ErrAlreadyAdopted   = errors.New("already adopted")
+	ErrContractNotFound   = errors.New("contract not found")
+	ErrInvalidRequest     = errors.New("invalid request")
+	ErrForbidden          = errors.New("forbidden")
+	ErrAlreadyAdopted    = errors.New("already adopted")
+	ErrHasTimeEntries     = errors.New("contract has time entries")
 )
 
 type Contract struct {
@@ -30,9 +31,11 @@ type Contract struct {
 
 type ContractResponse struct {
 	Contract
-	CreatedByOrgName string
-	AdoptionCount    int
-	IsAdopted        bool
+	CreatedByOrgName  string
+	AdoptionCount     int
+	IsAdopted         bool
+	CustomerName      string
+	TimeEntriesCount  int
 }
 
 type ContractAdoption struct {
