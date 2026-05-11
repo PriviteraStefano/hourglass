@@ -17,6 +17,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -57,48 +58,50 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuButton className={"border"} onClick={toggleSidebar}>
-                {state === "collapsed"
-                  ? (
-                    <>
-                      <SidebarOpenIcon/>
-                      <span>Expand</span>
-                    </>
-                  ) : (
-                    <>
-                      <SidebarCloseIcon/>
-                      <span>Collapse</span>
-                    </>
-                  )}
-              </SidebarMenuButton>
-            </SidebarMenu>
-          </SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuButton className={"border z-10"} onClick={toggleSidebar}>
+              {state === "collapsed"
+                ? (
+                  <>
+                    <SidebarOpenIcon/>
+                    <span>Expand</span>
+                  </>
+                ) : (
+                  <>
+                    <SidebarCloseIcon/>
+                    <span>Collapse</span>
+                  </>
+                )}
+            </SidebarMenuButton>
+          </SidebarMenu>
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={String(item.href)}>
-                  <SidebarMenuButton
-                    isActive={!!matchRoute({to: item.href})}
-                    tooltip={item.label}
-                    render={
-                      <Link to={item.href} disabled={item.disabled}>
-                        <item.icon/>
-                        <span>{item.label}</span>
-                      </Link>
-                    }
-                  />
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
+          <SidebarGroupLabel>
+            Time
+          </SidebarGroupLabel>
+          <SidebarMenu>
+            {navItems.map((item) => (
+              <SidebarMenuItem key={String(item.href)}>
+                <SidebarMenuButton
+                  isActive={!!matchRoute({to: item.href})}
+                  tooltip={item.label}
+                  render={
+                    <Link to={item.href} disabled={item.disabled}>
+                      <item.icon/>
+                      <span>{item.label}</span>
+                    </Link>
+                  }
+                />
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
         </SidebarGroup>
         <SidebarSeparator/>
         <SidebarGroup>
+          <SidebarGroupLabel>
+            Management
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {projectItems.map((item) => (
