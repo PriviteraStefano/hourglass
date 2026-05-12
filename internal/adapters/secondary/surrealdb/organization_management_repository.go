@@ -170,21 +170,18 @@ func (r *OrganizationManagementRepository) UpdateSettings(ctx context.Context, o
 
 func (r *OrganizationManagementRepository) ListMembers(ctx context.Context, orgID uuid.UUID) ([]orgdomain.Member, error) {
 	type row struct {
-		ID          sdbmodels.RecordID `json:"id"`
-		UserID      sdbmodels.RecordID `json:"user_id,omitempty"`
-		Role        string             `json:"role"`
-		IsActive    bool               `json:"is_active"`
-		InvitedBy   sdbmodels.RecordID `json:"invited_by,omitempty"`
-		InvitedAt   *time.Time         `json:"invited_at,omitempty"`
-		ActivatedAt *time.Time         `json:"activated_at,omitempty"`
-		UserName    string             `json:"user_name,omitempty"`
-		UserEmail   string             `json:"user_email,omitempty"`
+		ID        sdbmodels.RecordID `json:"id"`
+		UserID    sdbmodels.RecordID `json:"user_id,omitempty"`
+		Role      string             `json:"role"`
+		IsActive  bool               `json:"is_active"`
+		InvitedBy sdbmodels.RecordID `json:"invited_by,omitempty"`
+		InvitedAt *time.Time         `json:"invited_at,omitempty"`
+		ActivatedAt *time.Time       `json:"activated_at,omitempty"`
+		UserName  string             `json:"user_name,omitempty"`
+		UserEmail string             `json:"user_email,omitempty"`
 	}
 	results, err := sdb.Query[[]row](ctx, r.db, `
-		SELECT id, user_id, role, is_active, invited_by, invited_at, activated_at,
-			(SELECT VALUE name FROM users WHERE id = user_id LIMIT 1)[0] AS user_name,
-			(SELECT VALUE email FROM users WHERE id = user_id LIMIT 1)[0] AS user_email
-		FROM organization_memberships
+		SELECT * FROM organization_memberships
 		WHERE organization_id = $org_id
 		ORDER BY created_at DESC
 	`, map[string]interface{}{"org_id": uuidToRecordID("organizations", orgID)})

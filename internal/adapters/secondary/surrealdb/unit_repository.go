@@ -129,7 +129,7 @@ func (r *UnitRepository) HasMembers(ctx context.Context, id string) (bool, error
 func (r *UnitRepository) ListMembers(ctx context.Context, unitID string) ([]unit.UnitMember, error) {
 	unitRecordID := models.NewRecordID("units", unitID)
 	results, err := sdb.Query[[]SurrealUnitMember](ctx, r.db,
-		`SELECT um.*, u.name as user_name, u.email as user_email FROM unit_memberships um JOIN users u ON um.user_id = u.id WHERE um.unit_id = $unit_id ORDER BY um.created_at`,
+		`SELECT * FROM unit_memberships WHERE unit_id = $unit_id ORDER BY created_at`,
 		map[string]interface{}{"unit_id": unitRecordID})
 	if err != nil {
 		return nil, wrapErr(err, "list unit members")
@@ -138,9 +138,12 @@ func (r *UnitRepository) ListMembers(ctx context.Context, unitID string) ([]unit
 		return []unit.UnitMember{}, nil
 	}
 	resultItems := (*results)[0].Result
-	members := make([]unit.UnitMember, len(resultItems))
-	for i, sm := range resultItems {
-		members[i] = *sm.ToDomain()
+	members := make([]unit.UnitMember, 0, len(resultItems))
+	for _, sm := range resultItems {
+		m := sm.ToDomain()
+		if m != nil {
+			members = append(members, *m)
+		}
 	}
 	return members, nil
 }
