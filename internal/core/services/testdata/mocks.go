@@ -21,8 +21,9 @@ import (
 )
 
 type MockTimeEntryRepo struct {
-	mu      sync.Mutex
-	Entries map[uuid.UUID]*time_entry.TimeEntry
+	mu           sync.Mutex
+	Entries      map[uuid.UUID]*time_entry.TimeEntry
+	PeriodLocked bool
 }
 
 func (m *MockTimeEntryRepo) List(ctx context.Context, orgID uuid.UUID, filters ports.ListFilters) ([]time_entry.TimeEntry, error) {
@@ -76,7 +77,7 @@ func (m *MockTimeEntryRepo) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (m *MockTimeEntryRepo) IsPeriodLocked(ctx context.Context, orgID, projectID uuid.UUID, entryDate string) (bool, error) {
-	return false, nil
+	return m.PeriodLocked, nil
 }
 
 func (m *MockTimeEntryRepo) ListPending(ctx context.Context, orgID uuid.UUID, role, userID string) ([]time_entry.TimeEntry, error) {
@@ -104,8 +105,9 @@ func (m *MockAuditLogRepo) Create(ctx context.Context, log *time_entry.AuditLog)
 }
 
 type MockUserRepo struct {
-	mu    sync.Mutex
-	Users map[uuid.UUID]*auth.User
+	mu          sync.Mutex
+	Users       map[uuid.UUID]*auth.User
+	Memberships map[uuid.UUID][]auth.OrganizationMembership
 }
 
 func (m *MockUserRepo) Add(ctx context.Context, user *auth.User) error {
@@ -210,7 +212,16 @@ func (m *MockUserRepo) UpdatePassword(ctx context.Context, userID uuid.UUID, pas
 }
 
 func (m *MockUserRepo) GetMemberships(ctx context.Context, userID uuid.UUID) ([]auth.OrganizationMembership, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Memberships == nil {
+		return nil, nil
+	}
+	memberships, ok := m.Memberships[userID]
+	if !ok {
+		return nil, nil
+	}
+	return memberships, nil
 }
 
 type MockOrgRepo struct {
@@ -695,7 +706,8 @@ func (m *MockExportRepo) Expenses(ctx context.Context, orgID uuid.UUID, from, to
 }
 
 type MockRefreshTokenRepo struct {
-	mu sync.Mutex
+	mu     sync.Mutex
+	Tokens map[string]*ports.RefreshToken
 }
 
 func (m *MockRefreshTokenRepo) Add(ctx context.Context, userID, organizationID uuid.UUID, tokenHash string, expiresAt time.Time) error {
@@ -703,7 +715,16 @@ func (m *MockRefreshTokenRepo) Add(ctx context.Context, userID, organizationID u
 }
 
 func (m *MockRefreshTokenRepo) FindByHash(ctx context.Context, hash string) (*ports.RefreshToken, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Tokens == nil {
+		return nil, nil
+	}
+	token, ok := m.Tokens[hash]
+	if !ok {
+		return nil, nil
+	}
+	return token, nil
 }
 
 func (m *MockRefreshTokenRepo) RevokeByHash(ctx context.Context, hash string) error {
