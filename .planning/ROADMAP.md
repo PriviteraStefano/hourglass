@@ -10,10 +10,17 @@
 
 **Depends on:** None (prerequisite for all future phases)
 
-### Plans
+### Plans (9 plans, 4 waves)
 
-- [ ] 00-CONTEXT.md
-- [ ] 00-DISCUSSION-LOG.md
+- [ ] 00-01-PLAN.md — Quick-scan probe, testify dep, testdata package, BUGS.md (Wave 1)
+- [ ] 00-02-PLAN.md — Vitest + MSW + RTL infra setup (Wave 1)
+- [ ] 00-03-PLAN.md — Service tests: auth, org, time-entry (state machines), model validation (Wave 2)
+- [ ] 00-04-PLAN.md — Service tests: contract, customer, project, unit, working-group, invitation, password-reset, export (Wave 2)
+- [ ] 00-05-PLAN.md — Handler integration tests: all 10 domains (Wave 3)
+- [ ] 00-06-PLAN.md — Repository tests: all untested repos (Wave 3)
+- [ ] 00-07-PLAN.md — Frontend Vitest: API client, hooks, validation (Wave 2)
+- [ ] 00-08-PLAN.md — Playwright E2E: all CRUD flows (Wave 1)
+- [ ] 00-09-PLAN.md — Batch-fix all bugs from BUGS.md (Wave 4)
 
 ---
 
