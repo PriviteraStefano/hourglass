@@ -732,3 +732,321 @@ CREATE wg_members:wgm_006 SET
     start_date = time::now(),
     created_at = time::now()
 ;
+
+-- ============================================================================
+-- TIME ENTRIES (12 entries — 4 per employee, "submitted" status)
+-- ============================================================================
+-- Emma Wilson (4 entries): Platform Engineering + Cloud Migration
+-- James Park (4 entries): Data Analytics + Finance Tools
+-- Lisa Torres (4 entries): DevOps Setup + HR System
+-- All entries span the past 5 business days (Tue 12 May – Mon 18 May 2026)
+-- ============================================================================
+
+-- Emma Wilson — Entry 1: Mon 18 May — Platform Engineering
+CREATE time_entries:te_001 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-3d87-734d-8a97-e93c89641c79',
+    project_id = projects:proj_platform_eng,
+    subproject_id = subprojects:subproj_platform_eng,
+    wg_id = working_groups:wg_platform_eng,
+    unit_id = units:engineering,
+    hours = 7.5,
+    description = "Frontend dashboard development — React components for time entry list view",
+    entry_date = <datetime>"2026-05-18T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- Emma Wilson — Entry 2: Fri 15 May — Platform Engineering
+CREATE time_entries:te_002 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-3d87-734d-8a97-e93c89641c79',
+    project_id = projects:proj_platform_eng,
+    subproject_id = subprojects:subproj_platform_eng,
+    wg_id = working_groups:wg_platform_eng,
+    unit_id = units:engineering,
+    hours = 6.0,
+    description = "API endpoint implementation for time entry CRUD operations",
+    entry_date = <datetime>"2026-05-15T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- Emma Wilson — Entry 3: Thu 14 May — Cloud Migration
+CREATE time_entries:te_003 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-3d87-734d-8a97-e93c89641c79',
+    project_id = projects:proj_cloud_migration,
+    subproject_id = subprojects:subproj_cloud_migration,
+    wg_id = working_groups:wg_cloud_migration,
+    unit_id = units:engineering,
+    hours = 5.5,
+    description = "Cloud infrastructure assessment and migration planning",
+    entry_date = <datetime>"2026-05-14T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- Emma Wilson — Entry 4: Wed 13 May — Platform Engineering
+CREATE time_entries:te_004 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-3d87-734d-8a97-e93c89641c79',
+    project_id = projects:proj_platform_eng,
+    subproject_id = subprojects:subproj_platform_eng,
+    wg_id = working_groups:wg_platform_eng,
+    unit_id = units:engineering,
+    hours = 4.5,
+    description = "Code review, sprint planning, and team sync",
+    entry_date = <datetime>"2026-05-13T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- James Park — Entry 5: Mon 18 May — Data Analytics
+CREATE time_entries:te_005 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-8ebf-779a-866d-46e196d4928d',
+    project_id = projects:proj_data_analytics,
+    subproject_id = subprojects:subproj_data_analytics,
+    wg_id = working_groups:wg_data_analytics,
+    unit_id = units:consulting,
+    hours = 7.0,
+    description = "Data pipeline integration for analytics platform",
+    entry_date = <datetime>"2026-05-18T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- James Park — Entry 6: Fri 15 May — Data Analytics
+CREATE time_entries:te_006 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-8ebf-779a-866d-46e196d4928d',
+    project_id = projects:proj_data_analytics,
+    subproject_id = subprojects:subproj_data_analytics,
+    wg_id = working_groups:wg_data_analytics,
+    unit_id = units:consulting,
+    hours = 6.5,
+    description = "Client requirements analysis and specification document",
+    entry_date = <datetime>"2026-05-15T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- James Park — Entry 7: Thu 14 May — Finance Tools
+CREATE time_entries:te_007 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-8ebf-779a-866d-46e196d4928d',
+    project_id = projects:proj_finance_tools,
+    subproject_id = subprojects:subproj_finance_tools,
+    wg_id = working_groups:wg_finance_tools,
+    unit_id = units:consulting,
+    hours = 5.0,
+    description = "Financial reporting dashboard wireframes and data model",
+    entry_date = <datetime>"2026-05-14T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- James Park — Entry 8: Tue 12 May — Data Analytics
+CREATE time_entries:te_008 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-8ebf-779a-866d-46e196d4928d',
+    project_id = projects:proj_data_analytics,
+    subproject_id = subprojects:subproj_data_analytics,
+    wg_id = working_groups:wg_data_analytics,
+    unit_id = units:consulting,
+    hours = 4.5,
+    description = "Database optimization and query performance tuning",
+    entry_date = <datetime>"2026-05-12T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- Lisa Torres — Entry 9: Mon 18 May — DevOps Setup
+CREATE time_entries:te_009 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-c8c8-75c5-a6a7-224bbcd9cff0',
+    project_id = projects:proj_devops_setup,
+    subproject_id = subprojects:subproj_devops_setup,
+    wg_id = working_groups:wg_devops_setup,
+    unit_id = units:engineering,
+    hours = 7.0,
+    description = "CI/CD pipeline configuration and deployment automation",
+    entry_date = <datetime>"2026-05-18T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- Lisa Torres — Entry 10: Fri 15 May — DevOps Setup
+CREATE time_entries:te_010 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-c8c8-75c5-a6a7-224bbcd9cff0',
+    project_id = projects:proj_devops_setup,
+    subproject_id = subprojects:subproj_devops_setup,
+    wg_id = working_groups:wg_devops_setup,
+    unit_id = units:engineering,
+    hours = 6.0,
+    description = "Infrastructure automation with Terraform scripts",
+    entry_date = <datetime>"2026-05-15T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- Lisa Torres — Entry 11: Thu 14 May — HR System
+CREATE time_entries:te_011 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-c8c8-75c5-a6a7-224bbcd9cff0',
+    project_id = projects:proj_hr_system,
+    subproject_id = subprojects:subproj_hr_system,
+    wg_id = working_groups:wg_hr_system,
+    unit_id = units:engineering,
+    hours = 5.5,
+    description = "HR system employee onboarding feature development",
+    entry_date = <datetime>"2026-05-14T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- Lisa Torres — Entry 12: Wed 13 May — DevOps Setup
+CREATE time_entries:te_012 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-c8c8-75c5-a6a7-224bbcd9cff0',
+    project_id = projects:proj_devops_setup,
+    subproject_id = subprojects:subproj_devops_setup,
+    wg_id = working_groups:wg_devops_setup,
+    unit_id = units:engineering,
+    hours = 4.0,
+    description = "Integration testing and technical documentation updates",
+    entry_date = <datetime>"2026-05-13T09:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- ============================================================================
+-- EXPENSES (6 expenses — 2 per employee, "submitted" status)
+-- Categories: mileage, meal, accommodation, other
+-- ============================================================================
+
+-- Emma Wilson — Expense 1: Client mileage
+CREATE expenses:exp_001 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-3d87-734d-8a97-e93c89641c79',
+    project_id = projects:proj_platform_eng,
+    unit_id = units:engineering,
+    category = "mileage",
+    amount = 18.90,
+    currency = "EUR",
+    description = "Client site visit mileage (45 km × 0.42/km)",
+    expense_date = <datetime>"2026-05-15T12:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- Emma Wilson — Expense 2: Team lunch
+CREATE expenses:exp_002 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-3d87-734d-8a97-e93c89641c79',
+    unit_id = units:engineering,
+    category = "meal",
+    amount = 32.50,
+    currency = "EUR",
+    description = "Team lunch meeting — sprint retrospective catering",
+    expense_date = <datetime>"2026-05-13T12:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- James Park — Expense 3: Travel mileage
+CREATE expenses:exp_003 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-8ebf-779a-866d-46e196d4928d',
+    project_id = projects:proj_data_analytics,
+    unit_id = units:consulting,
+    category = "mileage",
+    amount = 50.40,
+    currency = "EUR",
+    description = "Travel to client office (120 km × 0.42/km)",
+    expense_date = <datetime>"2026-05-14T08:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- James Park — Expense 4: Business dinner
+CREATE expenses:exp_004 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-8ebf-779a-866d-46e196d4928d',
+    project_id = projects:proj_data_analytics,
+    unit_id = units:consulting,
+    category = "meal",
+    amount = 68.00,
+    currency = "EUR",
+    description = "Business dinner with NovaTech stakeholders",
+    expense_date = <datetime>"2026-05-18T19:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- Lisa Torres — Expense 5: Conference parking
+CREATE expenses:exp_005 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-c8c8-75c5-a6a7-224bbcd9cff0',
+    project_id = projects:proj_devops_setup,
+    unit_id = units:engineering,
+    category = "mileage",
+    amount = 15.00,
+    currency = "EUR",
+    description = "Conference parking — DevOps Summit 2026",
+    expense_date = <datetime>"2026-05-13T08:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
+
+-- Lisa Torres — Expense 6: Office supplies
+CREATE expenses:exp_006 SET
+    org_id = organizations:u'019df8b0-0001-7000-8000-000000000001',
+    user_id = users:u'019df6f7-c8c8-75c5-a6a7-224bbcd9cff0',
+    unit_id = units:engineering,
+    category = "other",
+    amount = 45.00,
+    currency = "EUR",
+    description = "Office supplies — ergonomic accessories and cables",
+    expense_date = <datetime>"2026-05-12T10:00:00Z",
+    status = "submitted",
+    is_deleted = false,
+    created_at = time::now(),
+    updated_at = time::now()
+;
