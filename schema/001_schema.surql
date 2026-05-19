@@ -158,7 +158,9 @@ DEFINE TABLE customers SCHEMAFULL
 DEFINE FIELD id ON TABLE customers TYPE string;
 DEFINE FIELD org_id ON TABLE customers TYPE record<organizations> ASSERT $value != NONE;
 DEFINE FIELD name ON TABLE customers TYPE string ASSERT $value != NONE;
+DEFINE FIELD contact_name ON TABLE customers TYPE option<string>;
 DEFINE FIELD email ON TABLE customers TYPE option<string>;
+DEFINE FIELD phone ON TABLE customers TYPE option<string>;
 DEFINE FIELD address ON TABLE customers TYPE option<string>;
 DEFINE FIELD vat_number ON TABLE customers TYPE option<string>;
 DEFINE FIELD is_active ON TABLE customers TYPE bool DEFAULT true;
@@ -181,7 +183,12 @@ DEFINE FIELD org_id ON TABLE projects TYPE record<organizations> ASSERT $value !
 DEFINE FIELD name ON TABLE projects TYPE string ASSERT $value != NONE;
 DEFINE FIELD description ON TABLE projects TYPE option<string>;
 DEFINE FIELD project_type ON TABLE projects TYPE string ASSERT $value IN ['billable', 'internal'];
+DEFINE FIELD type ON TABLE projects TYPE string ASSERT $value IN ['billable', 'internal'];
+DEFINE FIELD contract_id ON TABLE projects TYPE option<record<contracts>>;
 DEFINE FIELD customer_id ON TABLE projects TYPE option<record<customers>>;
+DEFINE FIELD governance_model ON TABLE projects TYPE string;
+DEFINE FIELD created_by_org_id ON TABLE projects TYPE record<organizations>;
+DEFINE FIELD is_shared ON TABLE projects TYPE bool DEFAULT false;
 DEFINE FIELD budget_amount ON TABLE projects TYPE option<number>;
 DEFINE FIELD financial_cutoff_config ON TABLE projects TYPE option<object>;
 DEFINE FIELD is_active ON TABLE projects TYPE bool DEFAULT true;
