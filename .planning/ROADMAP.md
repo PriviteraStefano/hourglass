@@ -88,7 +88,7 @@
 
 ## Phase 5: MVP Consolidation
 
-**Status:** Context gathered
+**Status:** Planned — 3 plans in 3 waves
 
 **Goal:** Consolidate the project structure and create initial MVP demo seeding. Replace existing seed data with a clean, idempotent `003_seed_demo.surql` that populates all core entities (org, users, units, memberships, projects, contracts, customer, time entries, expenses) so the app is immediately demonstrable.
 
@@ -97,6 +97,7 @@
 ### Canonical refs:
 - `schema/001_schema.surql` — Database schema for all entities
 - `schema/002_seed_tcg.surql` — Old seed (will be deprecated)
+- `schema/003_seed_demo.surql` — New MVP demo seed
 - `cmd/schema/main.go` — Schema/seed loader
 
 ### Success Criteria
@@ -109,3 +110,11 @@
 - [ ] Sample time entries (3-5 per employee) and expenses (1-2 per employee) seeded
 - [ ] Manual verification pass: run schema, start server, log in as demo manager, all pages render with data
 - [ ] Bootstrap flow kept separate from seeding
+
+### Plans (3 plans in 3 waves)
+
+| Plan | Wave | Objective | Tasks |
+|------|------|-----------|-------|
+| 05-01 | 1 | Foundation seed — org, 6 users, 8 units, customer, memberships, 3 contracts, 6 projects, subprojects, WGs, WG members | 3 |
+| 05-02 | 2 | Demo entries — 9-15 time entries + 3-6 expenses | 1 |
+| 05-03 | 3 | Manual verification — schema load, server, login as all roles, page checks | 1 (checkpoint) |
