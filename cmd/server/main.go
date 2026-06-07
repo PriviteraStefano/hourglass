@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/stefanoprivitera/hourglass/internal/adapters/primary/http"
-	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/surrealdb"
+	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/postgres"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
 	authsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
 	contractsvc "github.com/stefanoprivitera/hourglass/internal/core/services/contract"
@@ -38,12 +38,12 @@ func main() {
 
 	authService := auth.NewService(jwtSecret)
 
-	sdbConn, err := db.NewSurrealDB()
+	pool, err := db.NewPool()
 	if err != nil {
-		log.Fatalf("Failed to connect to SurrealDB: %v", err)
+		log.Fatalf("Failed to initialize PostgreSQL pool: %v", err)
 	}
-	defer sdbConn.Close()
-	log.Println("Using SurrealDB")
+	defer db.ClosePool()
+	log.Println("PostgreSQL pool initialized")
 
 	healthHandler := handlers.NewHealthHandler()
 
@@ -51,18 +51,18 @@ func main() {
 
 	mux.HandleFunc("GET /health", healthHandler.ServeHTTP)
 
-	timeEntryRepo := surrealdb.NewTimeEntryRepository(sdbConn.DB())
-	auditLogRepo := surrealdb.NewAuditLogRepository(sdbConn.DB())
+	timeEntryRepo := postgres.NewTimeEntryRepository(pool)
+	auditLogRepo := postgres.NewAuditLogRepository(pool)
 	teService := tesvc.NewService(timeEntryRepo, auditLogRepo)
 	hexTEHandler := http.NewTimeEntryHandler(teService)
 
-	userRepo := surrealdb.NewUserRepository(sdbConn.DB())
-	orgRepo := surrealdb.NewOrganizationRepository(sdbConn.DB())
-	passwordHasher := surrealdb.NewPasswordHasher()
-	tokenService := surrealdb.NewTokenService(authService)
-	refreshTokenRepo := surrealdb.NewRefreshTokenRepository(sdbConn.DB())
+	userRepo := postgres.NewUserRepository(pool)
+	orgRepo := postgres.NewOrganizationRepository(pool)
+	passwordHasher := auth.NewPasswordHasher()
+	tokenService := auth.NewTokenService(authService)
+	refreshTokenRepo := postgres.NewRefreshTokenRepository(pool)
 
-	invitationRepo := surrealdb.NewInvitationRepository(sdbConn.DB())
+	invitationRepo := postgres.NewInvitationRepository(pool)
 	invitationService := invitationsvc.NewService(invitationRepo)
 
 	hexAuthService := authsvc.NewService(
@@ -86,36 +86,36 @@ func main() {
 
 	invitationHandler := http.NewInvitationHandler(invitationService)
 
-	passwordResetRepo := surrealdb.NewPasswordResetRepository(sdbConn.DB())
-	userFinder := surrealdb.NewUserFinder(sdbConn.DB())
-	passwordResetService := passwordresetsvc.NewService(passwordResetRepo, userRepo, userFinder, passwordHasher, surrealdb.NewTokenService(authService), refreshTokenRepo)
+	passwordResetRepo := postgres.NewPasswordResetRepository(pool)
+	userFinder := postgres.NewUserFinder(pool)
+	passwordResetService := passwordresetsvc.NewService(passwordResetRepo, userRepo, userFinder, passwordHasher, auth.NewTokenService(authService), refreshTokenRepo)
 	passwordResetHandler := http.NewPasswordResetHandler(passwordResetService)
 
-	unitRepo := surrealdb.NewUnitRepository(sdbConn.DB())
+	unitRepo := postgres.NewUnitRepository(pool)
 	unitService := unitsvc.NewService(unitRepo)
 	unitHandler := http.NewUnitHandler(unitService)
 
-	wgRepo := surrealdb.NewWorkingGroupRepository(sdbConn.DB())
+	wgRepo := postgres.NewWorkingGroupRepository(pool)
 	wgService := wgsvc.NewService(wgRepo)
 	wgHandler := http.NewWorkingGroupHandler(wgService)
 
-	customerRepo := surrealdb.NewCustomerRepository(sdbConn.DB())
+	customerRepo := postgres.NewCustomerRepository(pool)
 	customerService := customersvc.NewService(customerRepo)
 	hexCustomerHandler := http.NewCustomerHandler(customerService)
 
-	orgMgmtRepo := surrealdb.NewOrganizationManagementRepository(sdbConn.DB())
+	orgMgmtRepo := postgres.NewOrganizationManagementRepository(pool)
 	orgMgmtService := orgsvc.NewService(orgMgmtRepo)
 	orgHandler := http.NewOrganizationHandler(orgMgmtService)
 
-	projectRepo := surrealdb.NewProjectRepository(sdbConn.DB())
+	projectRepo := postgres.NewProjectRepository(pool)
 	projectService := projectsvc.NewService(projectRepo)
 	projectHandler := http.NewProjectHandler(projectService)
 
-	contractRepo := surrealdb.NewContractRepository(sdbConn.DB())
+	contractRepo := postgres.NewContractRepository(pool)
 	contractService := contractsvc.NewService(contractRepo)
 	contractHandler := http.NewContractHandler(contractService)
 
-	exportRepo := surrealdb.NewExportRepository(sdbConn.DB())
+	exportRepo := postgres.NewExportRepository(pool)
 	exportService := exportsvc.NewService(exportRepo)
 	exportHandler := http.NewExportHandler(exportService)
 
@@ -206,40 +206,11 @@ func main() {
 		allowedOrigins = []string{"http://localhost:3000"}
 	}
 
-	rateLimiter := middleware.NewRateLimiter(10, 100)
+	rateLimiter := middleware.NewRateLimiter(20, 100)
 
 	log.Printf("Server starting on port %s", port)
-	handler := rateLimiter.Middleware(middleware.Logging(middleware.APIVersion(corsMiddleware(allowedOrigins)(mux))))
+	handler := rateLimiter.Middleware(middleware.Logging(middleware.APIVersion(middleware.CORS(allowedOrigins)(mux))))
 	if err := stdhttp.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
-	}
-}
-
-func corsMiddleware(allowedOrigins []string) func(stdhttp.Handler) stdhttp.Handler {
-	return func(next stdhttp.Handler) stdhttp.Handler {
-		return stdhttp.HandlerFunc(func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
-			origin := r.Header.Get("Origin")
-			allowed := false
-			for _, o := range allowedOrigins {
-				if o == origin || o == "*" {
-					allowed = true
-					break
-				}
-			}
-
-			if allowed {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-			}
-
-			if r.Method == "OPTIONS" {
-				w.WriteHeader(stdhttp.StatusOK)
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
 	}
 }
