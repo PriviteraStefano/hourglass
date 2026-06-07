@@ -44,25 +44,49 @@
 
 ## Pg-2: PostgreSQL adapters
 
-**Status:** Not started
+**Status:** Planned — 6 plans in 3 waves
 
 **Goal:** Port all 16+ SurrealDB repositories to `internal/adapters/secondary/postgres/`. Hand-written SQL with `pgx`, proper JOINs replacing nested subqueries. Keep hexagonal boundary intact — same domain models, same service layer.
 
 **Depends on:** 0, Pg-1
 
-### Repositories to port
-- auth/user, organization, organization_membership
-- unit, unit_member
-- project, subproject, contract, customer
-- working_group, wg_member
-- time_entry, expense, audit_log
-- invitation, password_reset, refresh_token, export
+### Deliverables
+- 18 PostgreSQL repository files in `internal/adapters/secondary/postgres/`
+- 2 new port interfaces: `ExpenseRepository`, `SubprojectRepository`
+- Shared sentinel errors in `internal/core/ports/errors.go` (ErrNotFound, ErrConflict, ErrForeignKey)
+- `users.name` column removed from migration schema
+- 18 repository test files exercising every method against live PostgreSQL
+
+### Repositories to port (includes 2 new ones)
+- user_repository, user_finder
+- organization_repo, organization_membership_repo, organization_management_repo
+- unit_repository, unit_member_repository
+- working_group_repository, wg_member_repository
+- project_repository, subproject_repository (NEW)
+- contract_repository, customer_repository
+- time_entry_repository, audit_log_repository, expense_repository (NEW), export_repository
+- invitation_repository, password_reset_repository, refresh_token_repo
 
 ### Key technical choices
 - `github.com/jackc/pgx/v5/pgxpool` for connection pool
-- `uuid.UUID` everywhere with `pgtype.UUID` scanning
-- Hand-written SQL with `CollectRows`, `GetFieldFromRow` (no ORM)
-- Proper SQL JOINs instead of SurrealDB nested subqueries
+- Hand-written SQL with pgx (no ORM, no query builder)
+- `pgxpool.QueryRow` + `Scan` for single-row, `pool.Query` + `rows.Next()` for multi-row
+- `pgx.Batch` / `pool.Begin` for transactional writes
+- SurrealDB nested subqueries → proper SQL JOINs (D-06)
+- Aggregate fields → SQL aggregate functions (D-07)
+- `wrapPGError` for translating pgx/pgconn errors to domain sentinel errors
+- String↔UUID conversion at adapter boundary for unit/unit_member IDs
+
+### Plans (6 plans in 3 waves)
+
+| Plan | Wave | Objective | Tasks |
+|------|------|-----------|-------|
+| pg-2-01 | 1 | Foundation — schema change (remove users.name), sentinel errors, new port interfaces, postgres.go helpers, exported_test_helpers.go, UserFinder + tests | 2 |
+| pg-2-02 | 2 | UserRepository + OrganizationRepository + OrganizationMembershipRepository + OrganizationManagementRepository + tests | 2 |
+| pg-2-03 | 2 | UnitRepository + UnitMemberRepository + WorkingGroupRepository + WGMemberRepository + InvitationRepository + tests | 3 |
+| pg-2-04 | 2 | ProjectRepository + SubprojectRepository + ContractRepository + CustomerRepository + tests | 3 |
+| pg-2-05 | 2 | RefreshTokenRepository + PasswordResetRepository + tests | 2 |
+| pg-2-06 | 3 | TimeEntryRepository (dynamic WHERE) + AuditLogRepository + ExpenseRepository + ExportRepository (4-level JOINs) + tests | 3 |
 
 ---
 
