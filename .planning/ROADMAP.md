@@ -92,21 +92,19 @@
 
 ## Pg-3: Wiring, cleanup & verification
 
-**Status:** Not started
+**Status:** Planned — 3 plans in 2 waves
 
 **Goal:** Wire all postgres repos in server init, remove SurrealDB entirely, verify everything works end-to-end.
 
 **Depends on:** Pg-2
 
-### Key deliverables
-- Wire postgres repos in `cmd/server/main.go`
-- Delete `internal/adapters/secondary/surrealdb/`
-- Delete `internal/db/surreal.go`
-- Delete `cmd/schema/` and `schema/` directory
-- Remove SurrealDB from docker-compose
-- Update Makefile (remove schema targets, add `make setup` for migrate+seed)
-- Update AGENTS.md, env vars, docs
-- Full manual verification: fresh bootstrap → seed → login → CRUD every entity
+### Plans (3 plans in 2 waves)
+
+| Plan | Wave | Objective | Tasks |
+|------|------|-----------|-------|
+| pg-3-01 | 1 | Core wiring — adapters (TokenService, PasswordHasher), CORS middleware, main.go rewrite, auth_test.go rewrite | 3 |
+| pg-3-02 | 2 | Cleanup — delete SurrealDB files, update docker-compose/Makefile/AGENTS.md/go.mod | 2 |
+| pg-3-03 | 2 | Verification — smoke test (main_test.go) + manual D-15 flow checkpoint | 2 (1 checkpoint) |
 
 ---
 
