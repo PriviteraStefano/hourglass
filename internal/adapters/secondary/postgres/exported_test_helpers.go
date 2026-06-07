@@ -120,3 +120,35 @@ func seedUser(t *testing.T, pool *pgxpool.Pool, now time.Time) uuid.UUID {
 	require.NoError(t, err)
 	return id
 }
+
+func seedProject(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, now time.Time) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO projects (id, org_id, name, project_type, type, governance_model, created_by_org_id, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		id, orgID, "Test Project", "billable", "billable", "creator_controlled", orgID, now, now)
+	require.NoError(t, err)
+	return id
+}
+
+func seedSubproject(t *testing.T, pool *pgxpool.Pool, projectID uuid.UUID, now time.Time) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO subprojects (id, project_id, name, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		id, projectID, "Test Subproject", now, now)
+	require.NoError(t, err)
+	return id
+}
+
+func seedUnit(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, now time.Time) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO units (id, org_id, name, code, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+		id, orgID, "Seed Unit", "SEED", now, now)
+	require.NoError(t, err)
+	return id
+}
