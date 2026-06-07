@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	hexauth "github.com/stefanoprivitera/hourglass/internal/adapters/secondary/surrealdb"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/postgres"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
 	hexsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
-	sdb "github.com/surrealdb/surrealdb.go"
 )
 
 func uniqueID() string {
@@ -35,28 +35,25 @@ type testServer struct {
 	handler *AuthHandler
 	server  *httptest.Server
 	client  *http.Client
-	db      *sdb.DB
+	pool    *pgxpool.Pool
 }
 
 func setupTestServer(t *testing.T) *testServer {
-	ns := "test_" + uniqueID()
-	db, err := hexauth.GetTestDBWithNamespace(ns, ns)
-	if err != nil {
-		t.Skipf("Failed to connect to SurrealDB (set SURREALDB_URL): %v", err)
-	}
+	pool := postgres.TestPool(t)
+	postgres.SetupTestSchema(t, pool)
 	t.Cleanup(func() {
-		db.Close(context.Background())
+		postgres.TeardownTestSchema(t, pool)
 	})
 
-	userRepo := hexauth.NewUserRepository(db)
-	orgRepo := hexauth.NewOrganizationRepository(db)
-	passwordHasher := hexauth.NewPasswordHasher()
+	userRepo := postgres.NewUserRepository(pool)
+	orgRepo := postgres.NewOrganizationRepository(pool)
+	passwordHasher := auth.NewPasswordHasher()
 
 	jwtSecret := "test-secret"
 	authService := auth.NewService(jwtSecret)
-	tokenService := hexauth.NewTokenService(authService)
-	refreshTokenRepo := hexauth.NewRefreshTokenRepository(db)
-	invitationRepo := hexauth.NewInvitationRepository(db)
+	tokenService := auth.NewTokenService(authService)
+	refreshTokenRepo := postgres.NewRefreshTokenRepository(pool)
+	invitationRepo := postgres.NewInvitationRepository(pool)
 
 	authSvc := hexsvc.NewService(userRepo, orgRepo, tokenService, passwordHasher, refreshTokenRepo)
 	invitationSvc := invitationsvc.NewService(invitationRepo)
@@ -78,7 +75,7 @@ func setupTestServer(t *testing.T) *testServer {
 		Jar: jar,
 	}
 
-	return &testServer{handler: handler, server: server, client: client, db: db}
+	return &testServer{handler: handler, server: server, client: client, pool: pool}
 }
 
 func (ts *testServer) post(endpoint string, body map[string]string) (*http.Response, error) {
@@ -712,9 +709,9 @@ func TestLogin_DeactivatedAccount(t *testing.T) {
 	password := "password123"
 
 	registerBody := map[string]string{
-		"email":            email,
-		"username":         "user_" + uniqueID(),
-		"password":         password,
+		"email":             email,
+		"username":          "user_" + uniqueID(),
+		"password":          password,
 		"organization_name": uniqueOrgName(),
 	}
 	jsonBody, _ := json.Marshal(registerBody)
@@ -725,9 +722,8 @@ func TestLogin_DeactivatedAccount(t *testing.T) {
 	resp.Body.Close()
 
 	// Deactivate user using the test DB
-	_, err = sdb.Query[any](context.Background(), ts.db, 
-		"UPDATE users SET is_active = false WHERE email = $email", 
-		map[string]any{"email": email})
+	_, err = ts.pool.Exec(context.Background(),
+		"UPDATE users SET is_active = false WHERE email = $1", email)
 	if err != nil {
 		t.Fatalf("failed to deactivate user: %v", err)
 	}
