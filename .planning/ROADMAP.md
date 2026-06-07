@@ -44,7 +44,7 @@
 
 ## Pg-2: PostgreSQL adapters
 
-**Status:** Planned — 6 plans in 3 waves
+**Status:** Complete — 6/6 plans executed
 
 **Goal:** Port all 16+ SurrealDB repositories to `internal/adapters/secondary/postgres/`. Hand-written SQL with `pgx`, proper JOINs replacing nested subqueries. Keep hexagonal boundary intact — same domain models, same service layer.
 
@@ -77,7 +77,7 @@
 - `wrapPGError` for translating pgx/pgconn errors to domain sentinel errors
 - String↔UUID conversion at adapter boundary for unit/unit_member IDs
 
-### Plans (6 plans in 3 waves)
+### Plans (6 plans in 2 waves)
 
 | Plan | Wave | Objective | Tasks |
 |------|------|-----------|-------|
@@ -86,7 +86,7 @@
 | pg-2-03 | 2 | UnitRepository + UnitMemberRepository + WorkingGroupRepository + WGMemberRepository + InvitationRepository + tests | 3 |
 | pg-2-04 | 2 | ProjectRepository + SubprojectRepository + ContractRepository + CustomerRepository + tests | 3 |
 | pg-2-05 | 2 | RefreshTokenRepository + PasswordResetRepository + tests | 2 |
-| pg-2-06 | 3 | TimeEntryRepository (dynamic WHERE) + AuditLogRepository + ExpenseRepository + ExportRepository (4-level JOINs) + tests | 3 |
+| pg-2-06 | 2 | TimeEntryRepository (dynamic WHERE) + AuditLogRepository + ExpenseRepository + ExportRepository (4-level JOINs) + tests | 3 |
 
 ---
 
