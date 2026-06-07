@@ -24,13 +24,75 @@
 
 ---
 
+## Pg-1: Foundation — PostgreSQL schema, pool, docker-compose
+
+**Status:** Planned — 3 plans in 2 waves
+
+**Goal:** Create PostgreSQL schema covering all entities, `pgxpool` connection management, migrate CLI update, demo seed as SQL migration, docker-compose with Postgres as default. SurrealDB moved to optional profile.
+
+**Depends on:** 0
+
+### Plans (3 plans in 2 waves)
+
+| Plan | Wave | Objective | Tasks |
+|------|------|-----------|-------|
+| pg-1-01 | 1 | Schema migrations — DDL (002_full_schema) + seed (003_seed) | 2 |
+| pg-1-02 | 1 | pgxpool singleton + port migrate CLI to pgx + -all flag | 2 |
+| pg-1-03 | 2 | Docker compose (Postgres default) + server wiring + docs | 3 |
+
+---
+
+## Pg-2: PostgreSQL adapters
+
+**Status:** Not started
+
+**Goal:** Port all 16+ SurrealDB repositories to `internal/adapters/secondary/postgres/`. Hand-written SQL with `pgx`, proper JOINs replacing nested subqueries. Keep hexagonal boundary intact — same domain models, same service layer.
+
+**Depends on:** 0, Pg-1
+
+### Repositories to port
+- auth/user, organization, organization_membership
+- unit, unit_member
+- project, subproject, contract, customer
+- working_group, wg_member
+- time_entry, expense, audit_log
+- invitation, password_reset, refresh_token, export
+
+### Key technical choices
+- `github.com/jackc/pgx/v5/pgxpool` for connection pool
+- `uuid.UUID` everywhere with `pgtype.UUID` scanning
+- Hand-written SQL with `CollectRows`, `GetFieldFromRow` (no ORM)
+- Proper SQL JOINs instead of SurrealDB nested subqueries
+
+---
+
+## Pg-3: Wiring, cleanup & verification
+
+**Status:** Not started
+
+**Goal:** Wire all postgres repos in server init, remove SurrealDB entirely, verify everything works end-to-end.
+
+**Depends on:** Pg-2
+
+### Key deliverables
+- Wire postgres repos in `cmd/server/main.go`
+- Delete `internal/adapters/secondary/surrealdb/`
+- Delete `internal/db/surreal.go`
+- Delete `cmd/schema/` and `schema/` directory
+- Remove SurrealDB from docker-compose
+- Update Makefile (remove schema targets, add `make setup` for migrate+seed)
+- Update AGENTS.md, env vars, docs
+- Full manual verification: fresh bootstrap → seed → login → CRUD every entity
+
+---
+
 ## Phase 1: Org hierarchy edge-driven
 
 **Status:** Not started
 
-**Goal:** Define organization hierarchy with edge-driven relationships
+**Goal:** Implement edge-driven reparenting via ReactFlow's onConnect API. Replace node-drag→DOM-detection.
 
-**Depends on:** 0
+**Depends on:** 0, Pg-3
 
 ### Plans
 
@@ -43,7 +105,7 @@
 
 **Goal:** Create a new customers page with full CRUD operations. Customers can be internal (organization itself) or external.
 
-**Depends on:** 0, 1
+**Depends on:** 0, Pg-3
 
 ### Success Criteria
 
@@ -60,7 +122,7 @@
 
 **Goal:** Add projects list display to contract detail page. Show related projects per contract.
 
-**Depends on:** 0, 1
+**Depends on:** 0, Pg-3
 
 ### Success Criteria
 
@@ -75,7 +137,7 @@
 
 **Goal:** Update contract creation dialog to include customer selection. Add "internal customer" option.
 
-**Depends on:** 0, 2
+**Depends on:** 0, Pg-3
 
 ### Success Criteria
 
@@ -90,25 +152,23 @@
 
 **Status:** Planned — 3 plans in 3 waves
 
-**Goal:** Consolidate the project structure and create initial MVP demo seeding. Replace existing seed data with a clean, idempotent `003_seed_demo.surql` that populates all core entities (org, users, units, memberships, projects, contracts, customer, time entries, expenses) so the app is immediately demonstrable.
+**Goal:** Consolidate the project structure and create initial MVP demo seeding. Seed data as SQL migration (`003_seed.up.sql`) populating all core entities (org, users, units, memberships, projects, contracts, customer, time entries, expenses). Now targets PostgreSQL instead of SurrealDB.
 
-**Depends on:** None (can run in parallel with Phase 0)
+**Depends on:** Pg-1 (seed is part of the migration)
 
 ### Canonical refs:
-- `schema/001_schema.surql` — Database schema for all entities
-- `schema/002_seed_tcg.surql` — Old seed (will be deprecated)
-- `schema/003_seed_demo.surql` — New MVP demo seed
-- `cmd/schema/main.go` — Schema/seed loader
+- `migrations/002_full_schema.up.sql` — PostgreSQL schema
+- `migrations/003_seed.up.sql` — MVP demo seed
+- `internal/db/pgpool.go` — Connection pool
 
 ### Success Criteria
 
-- [ ] `003_seed_demo.surql` created with 6 users (2 managers + 1 finance + 3 employees), 8 units, 3 contracts, 6 projects, 1 customer
-- [ ] Old `002_seed_tcg.surql` deprecated (renamed to `002_seed_tcg.deprecated.surql`)
+- [ ] `003_seed.up.sql` created with 6 users (2 managers + 1 finance + 3 employees), 8 units, 3 contracts, 6 projects, 1 customer
 - [ ] Seed data is idempotent — safe to re-run without errors
 - [ ] All-UUID consistent ID format throughout
 - [ ] Demo credentials documented (pre-hashed passwords)
 - [ ] Sample time entries (3-5 per employee) and expenses (1-2 per employee) seeded
-- [ ] Manual verification pass: run schema, start server, log in as demo manager, all pages render with data
+- [ ] Manual verification pass: run migrate, start server, log in as demo manager, all pages render with data
 - [ ] Bootstrap flow kept separate from seeding
 
 ### Plans (3 plans in 3 waves)
@@ -117,4 +177,32 @@
 |------|------|-----------|-------|
 | 05-01 | 1 | Foundation seed — org, 6 users, 8 units, customer, memberships, 3 contracts, 6 projects, subprojects, WGs, WG members | 3 |
 | 05-02 | 2 | Demo entries — 9-15 time entries + 3-6 expenses | 1 |
-| 05-03 | 3 | Manual verification — schema load, server, login as all roles, page checks | 1 (checkpoint) |
+| 05-03 | 3 | Manual verification — migrate, server, login as all roles, page checks | 1 (checkpoint) |
+
+---
+
+## Phase 6: API Audit
+
+**Status:** Planned — 3 plans in 3 waves
+
+**Goal:** System-wide API audit — exercise every REST endpoint against a live server pre-loaded with demo seed data, verify HTTP correctness, response shapes, auth flows, and CORS. Targets PostgreSQL server (instead of SurrealDB).
+
+**Depends on:** 0, Pg-3
+
+### Canonical refs:
+- `migrations/003_seed.up.sql` — MVP demo seed data
+- `internal/adapters/primary/http/*.go` — All 11 handler files (endpoint surface to audit)
+- `pkg/api/response.go` — Response envelope format
+- `cmd/server/main.go` — Route registrations, middleware wiring
+
+### Success Criteria
+
+- [ ] Wave 1: Core domain audit (auth, units, contracts, projects, customers, time-entries, expenses)
+- [ ] Wave 2: Auxiliary domain audit (working-groups, invitations, password-reset, exports, org management)
+- [ ] Wave 3: Batch-fix all discovered bugs from 06-BUGS.md, full re-audit
+- [ ] `internal/audit/` package created with `//go:build audit` tag
+- [ ] `make audit` target manages full lifecycle
+- [ ] All 6 seed users login-verified
+- [ ] Full cookie flow tested (login → refresh → logout)
+- [ ] CORS preflight + headers verified
+- [ ] Error envelope `{ error: ... }` verified for all 4xx/5xx responses
