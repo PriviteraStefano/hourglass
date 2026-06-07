@@ -64,6 +64,12 @@ None — plan executed exactly as written.
 - `go build ./internal/adapters/secondary/postgres/` — PASS
 - Each task committed individually with descriptive messages
 
+## Self-Check: PASSED
+
+- All 5 files exist
+- All 3 commits found in git log
+- `go vet` + `go build ./internal/adapters/secondary/postgres/` pass
+
 ## Commits
 
 - `f7a8e65` — feat(pg-2-05): RefreshTokenRepository with tests
