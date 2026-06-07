@@ -5,9 +5,9 @@
 ## Architecture Overview
 
 ### Tech Stack
-- **Backend**: Go 1.26.1, standard library HTTP server, hexagonal services in `internal/core/services/*`, primary HTTP adapters in `internal/adapters/primary/http/*`, and SurrealDB adapters in `internal/adapters/secondary/surrealdb/*`
+- **Backend**: Go 1.26.1, standard library HTTP server, hexagonal services in `internal/core/services/*`, primary HTTP adapters in `internal/adapters/primary/http/*`, and PostgreSQL adapters in `internal/adapters/secondary/postgres/*`
 - **Frontend**: React 19, TanStack Router v1, TanStack React Query v5, Vite, TypeScript, Tailwind CSS
-- **Database**: SurrealDB for application data, plus PostgreSQL SQL migrations via `cmd/migrate`
+- **Database**: PostgreSQL for all application data
 - **Auth**: JWT-based authentication with HttpOnly `auth_token`/`refresh_token` cookies and bcrypt password hashing
 
 ### Key Data Flows
@@ -26,19 +26,17 @@
 backend:
   cmd/server/main.go           # Server entry and route wiring
   cmd/migrate/main.go          # PostgreSQL migration CLI
-  cmd/schema/main.go           # SurrealDB schema loader for schema/*.surql
   internal/auth/               # JWT, password hashing
   internal/core/               # Domain, ports, and application services
   internal/adapters/
     primary/http/              # Thin HTTP adapters (auth, project, time-entry, etc.)
-    secondary/surrealdb/       # SurrealDB repositories and driven adapters
-  internal/db/                 # SurrealDB connection plus legacy Postgres DB helpers
+    secondary/postgres/        # PostgreSQL repositories and driven adapters
+  internal/db/                 # PostgreSQL database connection pool
   internal/handlers/           # Health handler and legacy glue
   internal/models/             # Data structures, constants (Role, Status, Governance)
   internal/middleware/         # Auth middleware wrapper
   pkg/api/                     # Shared response format
   migrations/                  # SQL migrations for cmd/migrate
-  schema/                      # SurrealDB schema files (*.surql)
 
 frontend:
   web/src/
@@ -61,10 +59,7 @@ frontend:
 ```bash
 # Backend
 cd /Users/stefanoprivitera/Projects/hourglass
-go run ./cmd/server           # Runs on :8080, connects to SurrealDB via SURREALDB_URL
-
-# SurrealDB schema bootstrap (separate terminal)
-go run ./cmd/schema           # Applies schema/*.surql to SurrealDB
+go run ./cmd/server           # Runs on :8080, connects to PostgreSQL via DATABASE_URL
 
 # Postgres migrations (only when needed)
 go run ./cmd/migrate -up -dir migrations
@@ -75,13 +70,11 @@ bun install
 bun run dev                   # Runs on :3000, proxies /api to :8080
 
 # Docker
-docker-compose up             # Starts surrealdb + app; add --profile postgres for the Postgres service
+docker-compose up             # Starts postgres + app
 ```
 
 ### Migrations
-- `cmd/migrate/main.go` applies `migrations/*.up.sql` and `*.down.sql` against PostgreSQL via `DATABASE_URL`
-- `cmd/schema/main.go` applies `schema/*.surql` to SurrealDB via `SURREALDB_URL`, `SURREALDB_USER`, `SURREALDB_PASS`, `SURREALDB_NS`, and `SURREALDB_DB`
-- `docker-compose up` starts `surrealdb` and `app`; `postgres` is profile-gated (`docker-compose --profile postgres up`) for migration work
+- `cmd/migrate/main.go` applies `migrations/*.up.sql` and `*.down.sql` against PostgreSQL via `DATABASE_URL`; `cmd/migrate -all` applies all migrations then seeds in one shot
 - Each SQL migration has `.up.sql` and `.down.sql` files
 
 ### Testing & Building
@@ -151,22 +144,14 @@ Entries have `status` (draft → submitted → pending_manager → pending_finan
 - API base URL comes from `VITE_API_URL` or defaults to `/api` (proxied to `http://localhost:8080` in Vite dev)
 
 ### Database Initialization
-- Application data uses SurrealDB (`SURREALDB_URL`, `SURREALDB_USER`, `SURREALDB_PASS`, `SURREALDB_NS`, `SURREALDB_DB`); the local default is `ws://localhost:8000/rpc`
-- `schema/001_schema.surql` is the SurrealDB bootstrap schema applied by `cmd/schema`
-- Postgres still exists for `cmd/migrate` and uses `postgres://hourglass:hourglass@localhost:5432/hourglass?sslmode=disable` by default
-- `docker-compose.yml` seeds SurrealDB with `root`/`root`; the Postgres service is profile-gated
+- Application data uses PostgreSQL (`DATABASE_URL`)
+- PostgreSQL connection uses `postgres://hourglass:hourglass@localhost:5432/hourglass?sslmode=disable` by default via `DATABASE_URL`
+- The Postgres service is the default
 
 ### Environment Variables
-**Backend** (`cmd/server/main.go`, `cmd/schema/main.go`, `cmd/migrate/main.go`):
-- `SURREALDB_URL` - SurrealDB RPC endpoint (defaults to `ws://localhost:8000/rpc`)
-- `SURREALDB_USER` - SurrealDB user (defaults to `root`)
-- `SURREALDB_PASS` - SurrealDB password (defaults to `root`)
-- `SURREALDB_NS` - SurrealDB namespace (defaults to `hourglass`)
-- `SURREALDB_DB` - SurrealDB database (defaults to `main`)
-- `SCHEMA_DIR` - Directory of `.surql` files for `cmd/schema` (defaults to `schema`)
-- `DATABASE_URL` - PostgreSQL connection string for `cmd/migrate` (defaults to local hourglass DB)
+**Backend** (`cmd/server/main.go`, `cmd/migrate/main.go`):
+- `DATABASE_URL` - PostgreSQL connection string for `cmd/migrate` and server (defaults to local hourglass DB)
 - `JWT_SECRET` - Token signing key (defaults to "dev-secret-change-in-production")
-- `PORT` - Server port (defaults to `:8080`)
 - `ALLOWED_ORIGINS` - Comma-separated CORS allowlist (defaults to `http://localhost:3000`)
 
 **Frontend** (web/vite.config.ts):

@@ -1,4 +1,4 @@
-.PHONY: build run migrate test clean docker-build docker-up docker-down
+.PHONY: build run migrate test setup clean docker-build docker-up docker-down
 
 BINARY_NAME=hourglass
 MIGRATIONS_DIR=migrations
@@ -15,8 +15,14 @@ migrate-up:
 migrate-down:
 	go run ./cmd/migrate -down -dir $(MIGRATIONS_DIR)
 
+migrate-all:
+	go run ./cmd/migrate -all -dir $(MIGRATIONS_DIR)
+
 test:
 	go test -v ./...
+
+setup:
+	go run ./cmd/migrate -all
 
 clean:
 	rm -rf bin/
