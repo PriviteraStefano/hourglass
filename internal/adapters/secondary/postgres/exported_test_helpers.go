@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -97,4 +98,25 @@ func uniqueUsername() string {
 
 func uniqueCode() string {
 	return uuid.New().String()[:12]
+}
+
+func seedOrg(t *testing.T, pool *pgxpool.Pool, now time.Time) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO organizations (id, name, slug, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)`,
+		id, "Test Org", "test-org-"+uuid.New().String()[:8], now, now)
+	require.NoError(t, err)
+	return id
+}
+
+func seedUser(t *testing.T, pool *pgxpool.Pool, now time.Time) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO users (id, email, username, firstname, lastname, password_hash, is_active, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		id, uniqueEmail(), uniqueUsername(), "Test", "User", "hash", true, now, now)
+	require.NoError(t, err)
+	return id
 }
