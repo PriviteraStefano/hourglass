@@ -275,23 +275,24 @@ func (c ExpenseCategory) IsValid() bool {
 }
 
 type Expense struct {
-	ID                  uuid.UUID     `json:"id"`
-	UserID              uuid.UUID     `json:"user_id"`
-	OrganizationID      uuid.UUID     `json:"organization_id"`
-	ProjectID           *uuid.UUID    `json:"project_id,omitempty"`
-	CustomerID          *uuid.UUID    `json:"customer_id,omitempty"`
-	Date                time.Time     `json:"date"`
+	ID                  uuid.UUID        `json:"id"`
+	UserID              uuid.UUID        `json:"user_id"`
+	OrganizationID      uuid.UUID        `json:"organization_id"`
+	ProjectID           *uuid.UUID       `json:"project_id,omitempty"`
+	CustomerID          *uuid.UUID       `json:"customer_id,omitempty"`
+	UnitID              *uuid.UUID       `json:"unit_id,omitempty"`
+	Date                time.Time        `json:"date"`
 	Type                *ExpenseCategory `json:"type,omitempty"`
-	Amount              *float64      `json:"amount,omitempty"`
-	KmDistance          *float64      `json:"km_distance,omitempty"`
-	Description         string        `json:"description,omitempty"`
-	Status              EntryStatus   `json:"status"`
-	CurrentApproverRole *string       `json:"current_approver_role,omitempty"`
-	SubmittedAt         *time.Time    `json:"submitted_at,omitempty"`
-	DeletedAt           *time.Time    `json:"deleted_at,omitempty"`
-	CreatedAt           time.Time     `json:"created_at"`
-	UpdatedAt           time.Time     `json:"updated_at"`
-	Items               []ExpenseItem `json:"items,omitempty"`
+	Amount              *float64         `json:"amount,omitempty"`
+	KmDistance          *float64         `json:"km_distance,omitempty"`
+	Description         string           `json:"description,omitempty"`
+	Status              EntryStatus      `json:"status"`
+	CurrentApproverRole *string          `json:"current_approver_role,omitempty"`
+	SubmittedAt         *time.Time       `json:"submitted_at,omitempty"`
+	DeletedAt           *time.Time       `json:"deleted_at,omitempty"`
+	CreatedAt           time.Time        `json:"created_at"`
+	UpdatedAt           time.Time        `json:"updated_at"`
+	Items               []ExpenseItem    `json:"items,omitempty"`
 }
 
 type ExpenseItem struct {
