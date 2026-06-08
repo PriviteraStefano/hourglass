@@ -29,7 +29,7 @@ Plans:
 
 - [x] 00-01-PLAN.md — Fix 4 known auth bugs + full auth cleanup (refresh rotation, cookie fix, password reset, rate limiting) TEST-01
 - [x] 00-02-PLAN.md — Set up testcontainers-go infrastructure (replaces TestPool) TEST-02
-- [ ] 00-03-PLAN.md — Rewrite service-layer integration tests against PostgreSQL TEST-03
+- [x] 00-03-PLAN.md — Rewrite service-layer integration tests against PostgreSQL TEST-03
 - [ ] 00-04-PLAN.md — Rewrite handler integration tests for PostgreSQL TEST-04
 - [ ] 00-05-PLAN.md — Bug buffer: batch-fix all bugs discovered during PG test rewrite TEST-05
 - [ ] 00-06-PLAN.md — Verify Playwright E2E still works TEST-06

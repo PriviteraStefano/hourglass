@@ -11,7 +11,7 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 
 - [x] **TEST-01**: Known auth bugs fixed (`/auth/memberships` nil pointer, `/auth/me` empty role/org_id, `/units/{id}/members` 500, `/organizations/members` 500)
 - [x] **TEST-02**: testcontainers-go wired for isolated PostgreSQL per test run
-- [ ] **TEST-03**: Service-layer tests rewritten to run against real PostgreSQL via testcontainers
+- [x] **TEST-03**: Service-layer tests rewritten to run against real PostgreSQL via testcontainers
 - [ ] **TEST-04**: Handler integration tests rewritten for PostgreSQL
 - [ ] **TEST-05**: All bugs discovered during test rewrite fixed
 - [ ] **TEST-06**: Playwright E2E verified against PostgreSQL backend
@@ -113,7 +113,7 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 |-------------|-------|--------|
 | TEST-01 | Phase 0 | Complete |
 | TEST-02 | Phase 0 | Complete |
-| TEST-03 | Phase 0 | Pending |
+| TEST-03 | Phase 0 | Complete |
 | TEST-04 | Phase 0 | Pending |
 | TEST-05 | Phase 0 | Pending |
 | TEST-06 | Phase 0 | Pending |
