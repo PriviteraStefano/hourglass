@@ -6,7 +6,7 @@
 
 ### Dual Model Layer — Duplicated Type Definitions
 
-**Issue:** Models are defined in three overlapping layers (`internal/models/models.go`, `internal/models/surreal_models.go`, and `internal/core/domain/*/*.go`), causing duplication and drift risk. The `surreal_models.go` file (251 lines) is a remnant from a SurrealDB prototype and contains types (e.g., `SurrOrganization`, `SurrTimeEntry`, `SurrExpense`) that are never referenced by the current PostgreSQL implementation. Some domain-specific types and request structs in `models.go` (e.g., `PendingEntryGroup`, `BatchApproveRequest`) are also duplicated by domain models in `internal/core/domain/`.
+**Issue:** Models are defined in three overlapping layers (`internal/models/models.go`, `internal/models/surreal_models.go`, and `internal/core/domain/*/*.go`), causing duplication and drift risk. The `surreal_models.go` file (251 lines) is a cleanup remnant from the SurrealDB era — no longer supported — and contains types (e.g., `SurrOrganization`, `SurrTimeEntry`, `SurrExpense`) never referenced by the PostgreSQL stack. Some domain-specific types and request structs in `models.go` (e.g., `PendingEntryGroup`, `BatchApproveRequest`) are also duplicated by domain models in `internal/core/domain/`.
 
 **Files:**
 - `internal/models/models.go` (476 lines)
@@ -17,9 +17,9 @@
 
 **Fix approach:** Remove `internal/models/surreal_models.go`. Consolidate all domain types into `internal/core/domain/` and remove overlapping types from `internal/models/models.go`. Migrate the few unique request types (e.g., `CreateUnitRequest`, `BatchApproveRequest`) to their respective domain packages or keep only in appropriate handler packages if truly handler-specific.
 
-### SurrealDB Migration Remnant — `surreal_models.go`
+### Migration Cleanup Remnant — `surreal_models.go` (unsupported)
 
-**Issue:** The entire `internal/models/surreal_models.go` file (251 lines) contains SurrealDB-specific type definitions (string-based RecordIDs, simplified status constants `SurrStatus*`, entry/action/actor constants). These types are never imported by any production code path.
+**Issue:** The entire `internal/models/surreal_models.go` file (251 lines) contains SurrealDB-specific type definitions (string-based RecordIDs, simplified status constants `SurrStatus*`, entry/action/actor constants). These types are never imported by any production code path. SurrealDB is no longer supported.
 
 **Files:** `internal/models/surreal_models.go`
 

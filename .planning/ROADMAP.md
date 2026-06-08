@@ -1,230 +1,304 @@
 # Hourglass Roadmap
 
-## Current Milestone: MVP Consolidation
+## Current Milestone: v0.1 MVP Consolidation
 
 ## Phase 0: Testing foundation
 
-**Status:** Ready to execute
+**Status:** Reboot needed — previous execution targeted SurrealDB, needs PostgreSQL rewrite
 
-**Goal:** Backend & frontend testing foundation — catch bugs before building new features. Establish test infrastructure, patterns, and baseline coverage.
+**Goal:** Test infrastructure using testcontainers-go for PostgreSQL-backed service-layer integration tests. Fix known auth bugs. Loop until all bugs cleared. Establishes foundation for all feature phases.
 
-**Depends on:** None (prerequisite for all future phases)
+**Depends on:** None
 
-### Plans (9 plans, 4 waves)
+### Original plans (SurrealDB era — superseded)
 
-- [x] 00-01-PLAN.md — Quick-scan probe, testify dep, testdata package, BUGS.md (Wave 1)
-- [x] 00-02-PLAN.md — Vitest + MSW + RTL infra setup (Wave 1)
-- [x] 00-03-PLAN.md — Service tests: auth, org, time-entry (state machines), model validation (Wave 2)
-- [x] 00-04-PLAN.md — Service tests: contract, customer, project, unit, working-group, invitation, password-reset, export (Wave 2)
-- [x] 00-05-PLAN.md — Handler integration tests: all 10 domains (Wave 3)
-- [x] 00-06-PLAN.md — Repository tests: all untested repos (Wave 3)
-- [x] 00-07-PLAN.md — Frontend Vitest: API client, hooks, validation (Wave 2)
-- [x] 00-08-PLAN.md — Playwright E2E: all CRUD flows (Wave 1)
-- [x] 00-09-PLAN.md — Batch-fix all bugs from BUGS.md (Wave 4)
+The 9 original plans were executed against SurrealDB test infrastructure. Service-layer tests used in-memory mocks (still valid for unit tests). Integration/handler tests targeted `GetTestDBWithNamespace()` (SurrealDB helper) and must be rewritten for PostgreSQL.
 
----
+### PostgreSQL reboot plans
 
-## Pg-1: Foundation — PostgreSQL schema, pool, docker-compose
-
-**Status:** Planned — 3 plans in 2 waves
-
-**Goal:** Create PostgreSQL schema covering all entities, `pgxpool` connection management, migrate CLI update, demo seed as SQL migration, docker-compose with Postgres as default. SurrealDB moved to optional profile.
-
-**Depends on:** 0
-
-### Plans (3 plans in 2 waves)
-
-| Plan | Wave | Objective | Tasks |
-|------|------|-----------|-------|
-| pg-1-01 | 1 | Schema migrations — DDL (002_full_schema) + seed (003_seed) | 2 |
-| pg-1-02 | 1 | pgxpool singleton + port migrate CLI to pgx + -all flag | 2 |
-| pg-1-03 | 2 | Docker compose (Postgres default) + server wiring + docs | 3 |
+- [ ] 00-01-PLAN.md — Fix known auth bugs (`/auth/memberships`, `/auth/me`, `/units/{id}/members`, `/organizations/members`)
+- [ ] 00-02-PLAN.md — Set up testcontainers-go for isolated PostgreSQL per test run
+- [ ] 00-03-PLAN.md — Rewrite service-layer tests to run against real PostgreSQL via testcontainers
+- [ ] 00-04-PLAN.md — Rewrite handler integration tests for PostgreSQL
+- [ ] 00-05-PLAN.md — Batch-fix all bugs discovered during PG test rewrite
+- [ ] 00-06-PLAN.md — Verify Playwright E2E still works with PG backend
 
 ---
 
-## Pg-2: PostgreSQL adapters
-
-**Status:** Complete — 6/6 plans executed
-
-**Goal:** Port all 16+ SurrealDB repositories to `internal/adapters/secondary/postgres/`. Hand-written SQL with `pgx`, proper JOINs replacing nested subqueries. Keep hexagonal boundary intact — same domain models, same service layer.
-
-**Depends on:** 0, Pg-1
-
-### Deliverables
-- 18 PostgreSQL repository files in `internal/adapters/secondary/postgres/`
-- 2 new port interfaces: `ExpenseRepository`, `SubprojectRepository`
-- Shared sentinel errors in `internal/core/ports/errors.go` (ErrNotFound, ErrConflict, ErrForeignKey)
-- `users.name` column removed from migration schema
-- 18 repository test files exercising every method against live PostgreSQL
-
-### Repositories to port (includes 2 new ones)
-- user_repository, user_finder
-- organization_repo, organization_membership_repo, organization_management_repo
-- unit_repository, unit_member_repository
-- working_group_repository, wg_member_repository
-- project_repository, subproject_repository (NEW)
-- contract_repository, customer_repository
-- time_entry_repository, audit_log_repository, expense_repository (NEW), export_repository
-- invitation_repository, password_reset_repository, refresh_token_repo
-
-### Key technical choices
-- `github.com/jackc/pgx/v5/pgxpool` for connection pool
-- Hand-written SQL with pgx (no ORM, no query builder)
-- `pgxpool.QueryRow` + `Scan` for single-row, `pool.Query` + `rows.Next()` for multi-row
-- `pgx.Batch` / `pool.Begin` for transactional writes
-- SurrealDB nested subqueries → proper SQL JOINs (D-06)
-- Aggregate fields → SQL aggregate functions (D-07)
-- `wrapPGError` for translating pgx/pgconn errors to domain sentinel errors
-- String↔UUID conversion at adapter boundary for unit/unit_member IDs
-
-### Plans (6 plans in 2 waves)
-
-| Plan | Wave | Objective | Tasks |
-|------|------|-----------|-------|
-| pg-2-01 | 1 | Foundation — schema change (remove users.name), sentinel errors, new port interfaces, postgres.go helpers, exported_test_helpers.go, UserFinder + tests | 2 |
-| pg-2-02 | 2 | UserRepository + OrganizationRepository + OrganizationMembershipRepository + OrganizationManagementRepository + tests | 2 |
-| pg-2-03 | 2 | UnitRepository + UnitMemberRepository + WorkingGroupRepository + WGMemberRepository + InvitationRepository + tests | 3 |
-| pg-2-04 | 2 | ProjectRepository + SubprojectRepository + ContractRepository + CustomerRepository + tests | 3 |
-| pg-2-05 | 2 | RefreshTokenRepository + PasswordResetRepository + tests | 2 |
-| pg-2-06 | 2 | TimeEntryRepository (dynamic WHERE) + AuditLogRepository + ExpenseRepository + ExportRepository (4-level JOINs) + tests | 3 |
-
----
-
-## Pg-3: Wiring, cleanup & verification
-
-**Status:** Complete — 3/3 plans executed
-
-**Goal:** Wire all postgres repos in server init, remove SurrealDB entirely, verify everything works end-to-end.
-
-**Depends on:** Pg-2
-
-### Plans (3 plans in 2 waves)
-
-| Plan | Wave | Objective | Tasks | Status |
-|------|------|-----------|-------|--------|
-| pg-3-01 | 1 | Core wiring — adapters (TokenService, PasswordHasher), CORS middleware, main.go rewrite, auth_test.go rewrite | 3 | ✓ |
-| pg-3-02 | 2 | Cleanup — delete SurrealDB files, update docker-compose/Makefile/AGENTS.md/go.mod | 2 | ✓ |
-| pg-3-03 | 2 | Verification — smoke test (main_test.go) + manual D-15 flow checkpoint | 2 (1 checkpoint) | ✓ |
-
----
-
-## Phase 1: Org hierarchy edge-driven
+## Phase 1: Authorization
 
 **Status:** Not started
 
-**Goal:** Implement edge-driven reparenting via ReactFlow's onConnect API. Replace node-drag→DOM-detection.
+**Goal:** Frontend auth integration — login/register pages, protected route handling, auth hydration for all features.
 
-**Depends on:** 0, Pg-3
+**Depends on:** Phase 0 (backend auth bugs fixed)
 
-### Plans
+**Source:** `docs/superpowers/specs/2026-06-08-mvp-consolidation-design.md` (Feature 1)
 
-- [ ] 01-CONTEXT.md
-- [ ] 01-DISCUSSION-LOG.md
+**Day:** Tue June 9
 
----
+### Frontend scope
+- Login page with error handling
+- Register page with validation
+- Protected route redirect (already wired in `_authenticated.tsx`, verify it works)
+- AppShell with user profile, org switcher, logout
 
-## Phase 2: Customers management page
-
-**Goal:** Create a new customers page with full CRUD operations. Customers can be internal (organization itself) or external.
-
-**Depends on:** 0, Pg-3
-
-### Success Criteria
-
-- [x] Customers list page at /customers
-- [x] Create new customer (name, contact, email, phone, VAT, address)
-- [x] Edit existing customer
-- [x] Delete customer (handle contracts assignment)
-- [x] Edge case: cannot delete customer with active contracts (409 from API)
-- [ ] Edge case: "internal customer" represented specially
+### Verification
+- All 6 seed users login successfully (alex.rivera, sarah.chen, mike.obrien, emma.wilson, james.park, lisa.torres / demo123)
+- `GET /auth/me` returns full profile with role + org_id
+- `GET /auth/memberships` returns membership list without panic
+- Cookie refresh flow works (401 → POST /auth/refresh → retry)
+- Login form validation works (empty fields, wrong password, invalid email)
 
 ---
 
-## Phase 3: Contracts - add projects display
+## Phase 2: Org Hierarchy
 
-**Goal:** Add projects list display to contract detail page. Show related projects per contract.
+**Status:** Not started
 
-**Depends on:** 0, Pg-3
+**Goal:** Organization tree visualization using ReactFlow, unit CRUD with parent-unit hierarchy, member management, edge-driven reparenting.
 
-### Success Criteria
+**Depends on:** Phase 1
 
-- [x] Projects list displayed on contract detail page
-- [x] Projects filterable by contract (via contract_id filter)
-- [x] Edge case: contract with no projects handled
-- [ ] Edge case: contract with adopted projects handled
+**Source:** `docs/superpowers/specs/2026-06-08-mvp-consolidation-design.md` (Feature 2)
 
----
+**Day:** Wed-Thu June 10-11 (parallel with Phase 3)
 
-## Phase 4: Integrate customers into contracts
+**Note:** Replaces old Phase 1 (org-hierarchy-edge-driven) — rewritten with PostgreSQL context, broader scope.
 
-**Goal:** Update contract creation dialog to include customer selection. Add "internal customer" option.
+### Key behaviors
+- Unit CRUD (create, read, update, delete) with parent-unit hierarchy
+- Unit member management — add/remove members, designate primary unit
+- Multi-unit membership — a user can belong to multiple units
+- Org tree visualization using ReactFlow
+- Edge-driven reparenting — drag edge to reassign unit parent
 
-**Depends on:** 0, Pg-3
+### Backend
+Already exists (UnitRepository, UnitMemberRepository, Unit handler)
 
-### Success Criteria
+### Frontend files to create
+- `web/src/routes/_authenticated/org-hierarchy/index.tsx`
+- `web/src/routes/_authenticated/org-hierarchy/units/$id.tsx`
+- `web/src/routes/_authenticated/org-hierarchy/members/$id.tsx`
+- Components: org-tree.tsx (ReactFlow), unit-form.tsx, member-list.tsx
 
-- [ ] Customer dropdown in create contract dialog
-- [ ] "Internal customer" option available
-- [ ] Customer required for new contracts
-- [ ] Existing contracts without customer still work
-
----
-
-## Phase 5: MVP Consolidation
-
-**Status:** Planned — 3 plans in 3 waves
-
-**Goal:** Consolidate the project structure and create initial MVP demo seeding. Seed data as SQL migration (`003_seed.up.sql`) populating all core entities (org, users, units, memberships, projects, contracts, customer, time entries, expenses). Now targets PostgreSQL instead of SurrealDB.
-
-**Depends on:** Pg-1 (seed is part of the migration)
-
-### Canonical refs:
-- `migrations/002_full_schema.up.sql` — PostgreSQL schema
-- `migrations/003_seed.up.sql` — MVP demo seed
-- `internal/db/pgpool.go` — Connection pool
-
-### Success Criteria
-
-- [ ] `003_seed.up.sql` created with 6 users (2 managers + 1 finance + 3 employees), 8 units, 3 contracts, 6 projects, 1 customer
-- [ ] Seed data is idempotent — safe to re-run without errors
-- [ ] All-UUID consistent ID format throughout
-- [ ] Demo credentials documented (pre-hashed passwords)
-- [ ] Sample time entries (3-5 per employee) and expenses (1-2 per employee) seeded
-- [ ] Manual verification pass: run migrate, start server, log in as demo manager, all pages render with data
-- [ ] Bootstrap flow kept separate from seeding
-
-### Plans (3 plans in 3 waves)
-
-| Plan | Wave | Objective | Tasks |
-|------|------|-----------|-------|
-| 05-01 | 1 | Foundation seed — org, 6 users, 8 units, customer, memberships, 3 contracts, 6 projects, subprojects, WGs, WG members | 3 |
-| 05-02 | 2 | Demo entries — 9-15 time entries + 3-6 expenses | 1 |
-| 05-03 | 3 | Manual verification — migrate, server, login as all roles, page checks | 1 (checkpoint) |
+### Edge cases
+- Cannot delete unit with children (reassign parent first)
+- Cannot delete unit with members (remove members first)
+- Root unit cannot be deleted
+- Circular parent reference prevention
 
 ---
 
-## Phase 6: API Audit
+## Phase 3: Customers
 
-**Status:** Planned — 3 plans in 3 waves
+**Status:** Not started
 
-**Goal:** System-wide API audit — exercise every REST endpoint against a live server pre-loaded with demo seed data, verify HTTP correctness, response shapes, auth flows, and CORS. Targets PostgreSQL server (instead of SurrealDB).
+**Goal:** Full customer CRUD with internal customer support, search/filter, delete protection.
 
-**Depends on:** 0, Pg-3
+**Depends on:** Phase 1
 
-### Canonical refs:
-- `migrations/003_seed.up.sql` — MVP demo seed data
-- `internal/adapters/primary/http/*.go` — All 11 handler files (endpoint surface to audit)
-- `pkg/api/response.go` — Response envelope format
-- `cmd/server/main.go` — Route registrations, middleware wiring
+**Source:** `docs/superpowers/specs/2026-06-08-mvp-consolidation-design.md` (Feature 3)
 
-### Success Criteria
+**Day:** Wed-Thu June 10-11 (parallel with Phase 2)
 
-- [ ] Wave 1: Core domain audit (auth, units, contracts, projects, customers, time-entries, expenses)
-- [ ] Wave 2: Auxiliary domain audit (working-groups, invitations, password-reset, exports, org management)
-- [ ] Wave 3: Batch-fix all discovered bugs from 06-BUGS.md, full re-audit
-- [ ] `internal/audit/` package created with `//go:build audit` tag
-- [ ] `make audit` target manages full lifecycle
-- [ ] All 6 seed users login-verified
-- [ ] Full cookie flow tested (login → refresh → logout)
-- [ ] CORS preflight + headers verified
-- [ ] Error envelope `{ error: ... }` verified for all 4xx/5xx responses
+**Note:** Replaces old Phase 2 (customers-management-page) — broader scope including internal customer handling.
+
+### Key behaviors
+- Customer list page with search/filter
+- Create customer (name, contact name, email, phone, VAT, address)
+- Edit customer
+- Delete customer — 409 if has active contracts
+- Internal customer (organization itself) visual indicator
+
+### Backend
+Already exists (CustomerRepository, Customer handler)
+
+### Frontend files to create
+- `web/src/routes/_authenticated/customers/index.tsx`
+- `web/src/routes/_authenticated/customers/new.tsx`
+- `web/src/routes/_authenticated/customers/$id.tsx`
+- Components: customer-form.tsx, customer-table.tsx
+
+### Edge cases
+- Delete blocked with active contracts (show tooltip with contract count)
+- Internal customer shown with badge, non-editable fields
+- Empty state when no customers
+
+---
+
+## Phase 4: Contracts
+
+**Status:** Not started
+
+**Goal:** Contract CRUD with customer dropdown, project display on detail page, delete protection.
+
+**Depends on:** Phase 3
+
+**Source:** `docs/superpowers/specs/2026-06-08-mvp-consolidation-design.md` (Feature 4)
+
+**Day:** Fri June 12 (parallel with Phase 5)
+
+**Note:** Replaces old Phase 3 + Phase 4 — combined with broader scope.
+
+### Key behaviors
+- Contract list page with filtering (status, org)
+- Create contract — includes customer dropdown (from Phase 3)
+- Edit contract
+- Delete contract (blocked if has active projects)
+- Projects list displayed on contract detail page (from Phase 5)
+- "Internal customer" option in customer selector
+
+### Backend
+Already exists (ContractRepository, Contract handler)
+
+### Frontend files to create
+- `web/src/routes/_authenticated/contracts/index.tsx`
+- `web/src/routes/_authenticated/contracts/new.tsx`
+- `web/src/routes/_authenticated/contracts/$id.tsx`
+- Components: contract-form.tsx, contract-table.tsx, projects-on-contract.tsx
+
+### Edge cases
+- Contract without customer (existing data) still renders
+- Contract with adopted projects shown differently
+- Zero-value contracts allowed
+
+---
+
+## Phase 5: Projects
+
+**Status:** Not started
+
+**Goal:** Project CRUD with subproject support, org-scope filtering, governance models.
+
+**Depends on:** Phase 4
+
+**Source:** `docs/superpowers/specs/2026-06-08-mvp-consolidation-design.md` (Feature 5)
+
+**Day:** Fri June 12 (parallel with Phase 4)
+
+**Note:** New phase — no equivalent in previous roadmap.
+
+### Key behaviors
+- Project list page with filtering (contract_id, org_id, type: billable/internal)
+- Create project (name, type, contract, governance model, scope)
+- Edit project
+- Delete project (blocked if has time entries or subprojects)
+- Subproject list on project detail
+
+### Backend
+Already exists (ProjectRepository, SubprojectRepository, Project handler)
+
+### Frontend files to create
+- `web/src/routes/_authenticated/projects/index.tsx`
+- `web/src/routes/_authenticated/projects/new.tsx`
+- `web/src/routes/_authenticated/projects/$id.tsx`
+- Components: project-form.tsx, project-table.tsx, subproject-list.tsx
+
+### Edge cases
+- Adopted projects (shared across orgs) display creation org
+- Shared vs org-scoped project filtering
+- Project without contract (internal projects)
+
+---
+
+## Phase 6: Time Entries + Expenses
+
+**Status:** Not started
+
+**Goal:** Full CRUD + approval workflow for time entries and expenses.
+
+**Depends on:** Phase 5
+
+**Source:** `docs/superpowers/specs/2026-06-08-mvp-consolidation-design.md` (Feature 6)
+
+**Day:** Sat-Sun June 13-14
+
+### Key behaviors
+- Time entry list with filtering (status, date range, project, user)
+- Create time entry (date, hours, project, subproject, WG, description)
+- Edit time entry (draft/submitted only)
+- Submit for approval
+- Approval workflow: employee creates → submits → manager approves → finance approves/rejects
+- Same pattern for expenses (mileage, meal, accommodation, other)
+
+### Backend
+Already exists (TimeEntryRepository, ExpenseRepository + handlers)
+
+### Frontend files to create
+- `web/src/routes/_authenticated/time-entries/index.tsx`
+- `web/src/routes/_authenticated/time-entries/new.tsx`
+- `web/src/routes/_authenticated/time-entries/$id.tsx`
+- Same structure for expenses
+- Components: time-entry-form.tsx, expense-form.tsx, approval-buttons.tsx, status-badge.tsx, approval-history.tsx
+
+### Edge cases
+- Cannot edit approved/rejected entries
+- Cannot delete entries with approvals
+- Employee cannot self-approve
+- Manager cannot approve own entries
+- Rejected entries show reason
+- Approval history is immutable
+
+---
+
+## Phase 7: Exports
+
+**Status:** Not started
+
+**Goal:** Downloadable CSV/Excel exports for timesheets, expenses, and combined reports.
+
+**Depends on:** Phase 6
+
+**Source:** `docs/superpowers/specs/2026-06-08-mvp-consolidation-design.md` (Feature 7)
+
+**Day:** Sun June 14
+
+### Key behaviors
+- Timesheet export (CSV/Excel) with date range filter
+- Expense export (CSV/Excel) with date range filter
+- Combined export with both time + expense data
+- Download as file
+
+### Backend
+Already exists (ExportRepository, Export handler)
+
+### Frontend files to create
+- `web/src/routes/_authenticated/exports/index.tsx`
+- Components: export-form.tsx (date range, type selector, download button)
+
+### Edge cases
+- Empty export (no data in range) shows friendly message
+- Large export handled server-side
+- Auth required for exports (user-scoped data)
+
+---
+
+## Superseded Phases
+
+The following phases from the previous roadmap are superseded by the new structure:
+
+- **Phase 1 (org-hierarchy-edge-driven)** — Superseded by Phase 2
+- **Phase 2 (customers-management-page)** — Superseded by Phase 3
+- **Phase 3 (contracts-add-projects-display)** — Superseded by Phase 4
+- **Phase 4 (integrate-customers-into-contracts)** — Superseded by Phase 4
+- **Phase 5 (mvp-consolidation-seed)** — Delivered as `migrations/003_seed.up.sql`
+- **Phase 6 (api-audit)** — Superseded by auth verification in Phase 1 installation
+
+## Dependency Graph
+
+```
+Phase 0 (Testing)
+   │
+Phase 1 (Auth) ─┬─ Phase 2 (Org Hierarchy)
+                ├─ Phase 3 (Customers) ── Phase 4 (Contracts) ──┐
+                └─ Phase 5 (Projects) ──────────────────────────┤
+                                                                 │
+                                    Phase 6 (Time Entries + Expenses)
+                                             │
+                                        Phase 7 (Exports)
+```
+
+**Parallel execution:**
+- Phase 2 + Phase 3 (parallel, both depend on Phase 1)
+- Phase 4 + Phase 5 (parallel, Phase 4 depends on Phase 3, Phase 5 depends on Phase 4)
