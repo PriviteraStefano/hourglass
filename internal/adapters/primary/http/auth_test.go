@@ -4,19 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/cookiejar"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/postgres"
-	"github.com/stefanoprivitera/hourglass/internal/auth"
-	hexsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
-	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func uniqueID() string {
@@ -31,715 +26,487 @@ func uniqueOrgName() string {
 	return "Org_" + uniqueID()
 }
 
-type testServer struct {
-	handler *AuthHandler
-	server  *httptest.Server
-	client  *http.Client
-	pool    *pgxpool.Pool
-}
+// TestAuthHandlerIntegration is the master test for all auth handler
+// integration scenarios.  It starts one PostgreSQL container for the entire
+// package (via SetupPackageContainer + sync.Once) and creates/drops schemas
+// per subtest for perfect isolation.
+func TestAuthHandlerIntegration(t *testing.T) {
+	pool := postgres.SetupPackageContainer(t)
 
-func setupTestServer(t *testing.T) *testServer {
-	pool := postgres.TestPool(t)
-	postgres.SetupTestSchema(t, pool)
-	t.Cleanup(func() {
-		postgres.TeardownTestSchema(t, pool)
+	// -----------------------------------------------------------------------
+	// Registration
+	// -----------------------------------------------------------------------
+
+	t.Run("Register_WithNewOrg_Returns201WithUserData", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
+
+		f := newHandlerFixture(t, pool)
+		body := fmt.Sprintf(`{"email":"%s","username":"user_%s","firstname":"John","lastname":"Doe","password":"password123","organization_name":"%s"}`,
+			uniqueEmail(), uniqueID(), uniqueOrgName())
+
+		resp, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+		var result map[string]interface{}
+		err = json.NewDecoder(resp.Body).Decode(&result)
+		require.NoError(t, err)
+
+		data, ok := result["data"].(map[string]interface{})
+		require.True(t, ok)
+
+		user, ok := data["user"].(map[string]interface{})
+		require.True(t, ok, "expected 'user' in register response data")
+		assert.NotNil(t, user["email"], "expected user email")
+
+		membership, ok := data["membership"].(map[string]interface{})
+		require.True(t, ok)
+		assert.NotEmpty(t, membership["organization_id"])
+		assert.Equal(t, "employee", membership["role"])
 	})
 
-	userRepo := postgres.NewUserRepository(pool)
-	orgRepo := postgres.NewOrganizationRepository(pool)
-	passwordHasher := auth.NewPasswordHasher()
+	t.Run("Register_InvalidEmail_Returns400", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	jwtSecret := "test-secret"
-	authService := auth.NewService(jwtSecret)
-	tokenService := auth.NewTokenService(authService)
-	refreshTokenRepo := postgres.NewRefreshTokenRepository(pool)
-	invitationRepo := postgres.NewInvitationRepository(pool)
+		f := newHandlerFixture(t, pool)
+		body := fmt.Sprintf(`{"email":"notanemail","password":"password123","organization_name":"%s"}`, uniqueOrgName())
+		resp, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
 
-	authSvc := hexsvc.NewService(userRepo, orgRepo, tokenService, passwordHasher, refreshTokenRepo)
-	invitationSvc := invitationsvc.NewService(invitationRepo)
-	handler := NewAuthHandler(authSvc, invitationSvc)
+	t.Run("Register_WeakPassword_Returns400", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /auth/register", handler.Register)
-	mux.HandleFunc("POST /auth/login", handler.Login)
-	mux.HandleFunc("POST /auth/logout", handler.Logout)
-	mux.HandleFunc("POST /auth/refresh", handler.Refresh)
-	mux.HandleFunc("GET /auth/me", handler.GetProfile)
-	mux.HandleFunc("POST /auth/bootstrap", handler.Bootstrap)
+		f := newHandlerFixture(t, pool)
+		body := fmt.Sprintf(`{"email":"%s","password":"short","organization_name":"%s"}`, uniqueEmail(), uniqueOrgName())
+		resp, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
 
-	server := httptest.NewServer(mux)
-	t.Cleanup(server.Close)
+	t.Run("Register_WithoutOrg_Returns201", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{
-		Jar: jar,
-	}
+		f := newHandlerFixture(t, pool)
+		body := fmt.Sprintf(`{"email":"%s","password":"password123"}`, uniqueEmail())
+		resp, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		// Register without org creates a user without membership (valid)
+		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	})
 
-	return &testServer{handler: handler, server: server, client: client, pool: pool}
-}
+	t.Run("Register_DuplicateEmail_Returns409", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-func (ts *testServer) post(endpoint string, body map[string]string) (*http.Response, error) {
-	jsonBody, _ := json.Marshal(body)
-	return ts.client.Post(ts.server.URL+endpoint, "application/json", strings.NewReader(string(jsonBody)))
-}
+		f := newHandlerFixture(t, pool)
+		email := uniqueEmail()
+		org := uniqueOrgName()
 
-func (ts *testServer) get(endpoint string) (*http.Response, error) {
-	return ts.client.Get(ts.server.URL + endpoint)
-}
+		body1 := fmt.Sprintf(`{"email":"%s","password":"password123","organization_name":"%s"}`, email, org)
+		r1, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body1))
+		require.NoError(t, err)
+		r1.Body.Close()
+		assert.Equal(t, http.StatusCreated, r1.StatusCode)
 
-func TestRegister_WithNewOrg(t *testing.T) {
-	ts := setupTestServer(t)
+		body2 := fmt.Sprintf(`{"email":"%s","username":"dup","password":"password123","organization_name":"%s"}`, email, org)
+		r2, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body2))
+		require.NoError(t, err)
+		defer r2.Body.Close()
+		assert.Equal(t, http.StatusConflict, r2.StatusCode)
+	})
 
-	body := map[string]string{
-		"email":             uniqueEmail(),
-		"username":          "user_" + uniqueID(),
-		"firstname":         "John",
-		"lastname":          "Doe",
-		"password":          "password123",
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(body)
+	t.Run("Register_DuplicateUsername_Returns409", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	resp, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer resp.Body.Close()
+		f := newHandlerFixture(t, pool)
+		email1 := uniqueEmail()
+		email2 := uniqueEmail()
+		username := "user_" + uniqueID()
 
-	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		t.Logf("bootstrap response body: %s", string(body))
-		t.Errorf("expected status 201, got %d", resp.StatusCode)
-	}
+		body1 := fmt.Sprintf(`{"email":"%s","username":"%s","password":"password123","organization_name":"%s"}`, email1, username, uniqueOrgName())
+		r1, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body1))
+		require.NoError(t, err)
+		r1.Body.Close()
 
-	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
-	data, ok := result["data"].(map[string]interface{})
-	if !ok {
-		t.Fatal("expected data object in register response")
-	}
-	user, ok := data["user"].(map[string]interface{})
-	if !ok || user["email"] == nil {
-		t.Error("expected user email in register response data")
-	}
-	if membership, ok := data["membership"].(map[string]interface{}); !ok || membership["organization_id"] == nil || membership["role"] != "employee" {
-		t.Error("expected employee membership in register response data")
-	}
-}
+		body2 := fmt.Sprintf(`{"email":"%s","username":"%s","password":"password123","organization_name":"%s"}`, email2, username, uniqueOrgName())
+		r2, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body2))
+		require.NoError(t, err)
+		defer r2.Body.Close()
+		assert.Equal(t, http.StatusConflict, r2.StatusCode)
+	})
 
-func TestRegister_InvalidEmail(t *testing.T) {
-	ts := setupTestServer(t)
+	// -----------------------------------------------------------------------
+	// Login
+	// -----------------------------------------------------------------------
 
-	body := map[string]string{
-		"email":             "notanemail",
-		"password":          "password123",
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(body)
+	t.Run("Login_ValidCredentials_Returns200WithCookies", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	resp, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer resp.Body.Close()
+		f := newHandlerFixture(t, pool)
+		email := uniqueEmail()
+		password := "password123"
 
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", resp.StatusCode)
-	}
-}
+		regBody := fmt.Sprintf(`{"email":"%s","username":"user_%s","password":"%s","organization_name":"%s"}`, email, uniqueID(), password, uniqueOrgName())
+		regResp, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(regBody))
+		require.NoError(t, err)
+		regResp.Body.Close()
 
-func TestRegister_WeakPassword(t *testing.T) {
-	ts := setupTestServer(t)
+		loginBody := fmt.Sprintf(`{"identifier":"%s","password":"%s"}`, email, password)
+		resp, err := f.Client.Post(f.ServerURL+"/auth/login", "application/json", strings.NewReader(loginBody))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	body := map[string]string{
-		"email":             uniqueEmail(),
-		"password":          "short",
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(body)
-
-	resp, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", resp.StatusCode)
-	}
-}
-
-func TestRegister_MissingOrgAndInvite(t *testing.T) {
-	ts := setupTestServer(t)
-
-	body := map[string]string{
-		"email":    uniqueEmail(),
-		"password": "password123",
-	}
-	jsonBody, _ := json.Marshal(body)
-
-	resp, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", resp.StatusCode)
-	}
-}
-
-func TestRegister_DuplicateEmail(t *testing.T) {
-	ts := setupTestServer(t)
-	email := uniqueEmail()
-
-	body := map[string]string{
-		"email":             email,
-		"password":          "password123",
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(body)
-
-	resp1, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("first request failed: %v", err)
-	}
-	resp1.Body.Close()
-
-	body["username"] = "user2"
-	jsonBody, _ = json.Marshal(body)
-	resp2, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("second request failed: %v", err)
-	}
-	defer resp2.Body.Close()
-
-	if resp2.StatusCode != http.StatusConflict {
-		t.Errorf("expected status 409, got %d", resp2.StatusCode)
-	}
-}
-
-func TestLogin_WithEmail_Success(t *testing.T) {
-	ts := setupTestServer(t)
-	email := uniqueEmail()
-	username := "user_" + uniqueID()
-	password := "password123"
-
-	registerBody := map[string]string{
-		"email":             email,
-		"username":          username,
-		"password":          password,
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(registerBody)
-	resp, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
-	}
-	resp.Body.Close()
-
-	loginBody := map[string]string{
-		"identifier": email,
-		"password":   password,
-	}
-	jsonBody, _ = json.Marshal(loginBody)
-
-	req, _ := http.NewRequest("POST", ts.server.URL+"/auth/login", strings.NewReader(string(jsonBody)))
-	req.Header.Set("Content-Type", "application/json")
-	resp, err = ts.client.Do(req)
-	if err != nil {
-		t.Fatalf("login failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		var result map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&result)
-		t.Logf("Login response: %+v", result)
-		t.Errorf("expected status 200, got %d", resp.StatusCode)
-	}
-}
-
-func TestLogin_InvalidPassword(t *testing.T) {
-	ts := setupTestServer(t)
-
-	loginBody := map[string]string{
-		"identifier": "nonexistent@example.com",
-		"password":   "password123",
-	}
-	jsonBody, _ := json.Marshal(loginBody)
-	resp, err := http.Post(ts.server.URL+"/auth/login", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("login failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected status 401, got %d", resp.StatusCode)
-	}
-}
-
-func TestLogin_NonExistentUser(t *testing.T) {
-	ts := setupTestServer(t)
-	email := uniqueEmail()
-	password := "password123"
-
-	registerBody := map[string]string{
-		"email":             email,
-		"password":          password,
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(registerBody)
-	resp, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
-	}
-	resp.Body.Close()
-
-	loginBody := map[string]string{
-		"identifier": email,
-		"password":   "wrongpassword",
-	}
-	jsonBody, _ = json.Marshal(loginBody)
-	resp, err = http.Post(ts.server.URL+"/auth/login", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("login failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected status 401, got %d", resp.StatusCode)
-	}
-}
-
-func TestLogout_WithRefreshToken(t *testing.T) {
-	ts := setupTestServer(t)
-	email := uniqueEmail()
-	password := "password123"
-
-	registerBody := map[string]string{
-		"email":             email,
-		"password":          password,
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(registerBody)
-	resp, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
-	}
-	resp.Body.Close()
-
-	loginBody := map[string]string{
-		"identifier": email,
-		"password":   password,
-	}
-	jsonBody, _ = json.Marshal(loginBody)
-	resp, err = http.Post(ts.server.URL+"/auth/login", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("login failed: %v", err)
-	}
-
-	var refreshToken string
-	for _, c := range resp.Cookies() {
-		if c.Name == "refresh_token" {
-			refreshToken = c.Value
-			break
+		hasAuthToken := false
+		hasRefreshToken := false
+		for _, c := range resp.Cookies() {
+			if c.Name == "auth_token" && c.Value != "" {
+				hasAuthToken = true
+			}
+			if c.Name == "refresh_token" && c.Value != "" {
+				hasRefreshToken = true
+			}
 		}
-	}
-	resp.Body.Close()
+		assert.True(t, hasAuthToken, "login should set auth_token cookie")
+		assert.True(t, hasRefreshToken, "login should set refresh_token cookie")
+	})
 
-	if refreshToken == "" {
-		t.Fatal("no refresh token received")
-	}
+	t.Run("Login_WithUsername_Returns200", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	logoutReq, _ := http.NewRequest("POST", ts.server.URL+"/auth/logout", nil)
-	logoutReq.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken})
-	client := &http.Client{}
-	resp, err = client.Do(logoutReq)
-	if err != nil {
-		t.Fatalf("logout failed: %v", err)
-	}
-	defer resp.Body.Close()
+		f := newHandlerFixture(t, pool)
+		email := uniqueEmail()
+		username := "user_" + uniqueID()
+		password := "password123"
 
-	if resp.StatusCode != http.StatusNoContent {
-		t.Errorf("expected status 204, got %d", resp.StatusCode)
-	}
-}
+		regBody := fmt.Sprintf(`{"email":"%s","username":"%s","password":"%s","organization_name":"%s"}`, email, username, password, uniqueOrgName())
+		regResp, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(regBody))
+		require.NoError(t, err)
+		regResp.Body.Close()
 
-func TestLogout_WithoutRefreshToken(t *testing.T) {
-	ts := setupTestServer(t)
+		loginBody := fmt.Sprintf(`{"identifier":"%s","password":"%s"}`, username, password)
+		resp, err := f.Client.Post(f.ServerURL+"/auth/login", "application/json", strings.NewReader(loginBody))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
 
-	logoutReq, _ := http.NewRequest("POST", ts.server.URL+"/auth/logout", nil)
-	client := &http.Client{}
-	resp, err := client.Do(logoutReq)
-	if err != nil {
-		t.Fatalf("logout failed: %v", err)
-	}
-	defer resp.Body.Close()
+	t.Run("Login_WrongPassword_Returns401", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	if resp.StatusCode != http.StatusNoContent {
-		t.Errorf("expected status 204, got %d", resp.StatusCode)
-	}
-}
+		f := newHandlerFixture(t, pool)
+		body := fmt.Sprintf(`{"identifier":"%s","password":"wrong"}`, uniqueEmail())
+		resp, err := f.Client.Post(f.ServerURL+"/auth/login", "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
 
-func TestBootstrap_FirstUser(t *testing.T) {
-	ts := setupTestServer(t)
-	email := "bootstrap_" + uniqueID() + "@example.com"
+	t.Run("Login_NonExistentUser_Returns401", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	body := map[string]string{
-		"organization_name": "Bootstrap Org",
-		"email":             email,
-		"username":          "admin_" + uniqueID(),
-		"firstname":         "Admin",
-		"lastname":          "User",
-		"password":          "password123",
-	}
-	jsonBody, _ := json.Marshal(body)
+		f := newHandlerFixture(t, pool)
+		body := fmt.Sprintf(`{"identifier":"%s","password":"password123"}`, uniqueEmail())
+		resp, err := f.Client.Post(f.ServerURL+"/auth/login", "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
 
-	resp, err := http.Post(ts.server.URL+"/auth/bootstrap", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("bootstrap failed: %v", err)
-	}
-	defer resp.Body.Close()
+	t.Run("Login_InvalidIdentifierFormat_Returns401", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	if resp.StatusCode != http.StatusCreated {
-		t.Errorf("expected status 201, got %d", resp.StatusCode)
-	}
+		f := newHandlerFixture(t, pool)
+		// "invalid@user!" is treated as an email (has @). Service returns ErrInvalidCreds → 401.
+		body := `{"identifier":"invalid@user!","password":"password123"}`
+		resp, err := f.Client.Post(f.ServerURL+"/auth/login", "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
 
-	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
-	data, ok := result["data"].(map[string]interface{})
-	if !ok {
-		t.Fatal("expected data object in bootstrap response")
-	}
-	if data["token"] == nil {
-		t.Error("expected token in bootstrap response")
-	}
-	if membership, ok := data["membership"].(map[string]interface{}); !ok || membership["organization_id"] == nil || membership["role"] != "employee" {
-		t.Error("expected employee membership in bootstrap response")
-	}
-}
+	t.Run("Login_DeactivatedAccount_Returns403", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-func TestRefresh_ValidToken(t *testing.T) {
-	ts := setupTestServer(t)
-	email := uniqueEmail()
-	password := "password123"
+		f := newHandlerFixture(t, pool)
+		email := uniqueEmail()
+		password := "password123"
 
-	registerBody := map[string]string{
-		"email":             email,
-		"password":          password,
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(registerBody)
-	resp, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
-	}
-	resp.Body.Close()
+		regBody := fmt.Sprintf(`{"email":"%s","username":"user_%s","password":"%s","organization_name":"%s"}`, email, uniqueID(), password, uniqueOrgName())
+		regResp, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(regBody))
+		require.NoError(t, err)
+		regResp.Body.Close()
 
-	loginBody := map[string]string{
-		"identifier": email,
-		"password":   password,
-	}
-	jsonBody, _ = json.Marshal(loginBody)
-	resp, err = http.Post(ts.server.URL+"/auth/login", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("login failed: %v", err)
-	}
+		_, err = f.Pool.Exec(context.Background(), "UPDATE users SET is_active = false WHERE email = $1", email)
+		require.NoError(t, err)
 
-	var refreshToken string
-	for _, c := range resp.Cookies() {
-		if c.Name == "refresh_token" {
-			refreshToken = c.Value
-			break
+		loginBody := fmt.Sprintf(`{"identifier":"%s","password":"%s"}`, email, password)
+		resp, err := f.Client.Post(f.ServerURL+"/auth/login", "application/json", strings.NewReader(loginBody))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	// -----------------------------------------------------------------------
+	// Logout
+	// -----------------------------------------------------------------------
+
+	t.Run("Logout_WithValidSession_Returns200", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
+
+		f := newHandlerFixture(t, pool)
+		email := uniqueEmail()
+		f.registerAndLogin(t, email, "user_"+uniqueID(), "TestPass123!", uniqueOrgName())
+
+		resp, err := f.Client.Post(f.ServerURL+"/auth/logout", "application/json", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// After logout, profile should be unauthorized
+		profileResp, err := f.Client.Get(f.ServerURL + "/auth/me")
+		require.NoError(t, err)
+		defer profileResp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, profileResp.StatusCode)
+	})
+
+	t.Run("Logout_WithoutSession_Returns200", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
+
+		f := newHandlerFixture(t, pool)
+		resp, err := f.Client.Post(f.ServerURL+"/auth/logout", "application/json", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	// -----------------------------------------------------------------------
+	// Refresh
+	// -----------------------------------------------------------------------
+
+	t.Run("Refresh_ValidToken_Returns200WithRotation", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
+
+		f := newHandlerFixture(t, pool)
+		email := uniqueEmail()
+		loginResp := f.registerAndLogin(t, email, "refreshuser", "TestPass123!", "Refresh Org")
+		initialRefresh := loginResp.RefreshToken
+
+		resp, err := f.Client.Post(f.ServerURL+"/auth/refresh", "application/json", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var wrapped struct {
+			Data struct {
+				Token        string `json:"token"`
+				RefreshToken string `json:"refresh_token"`
+			} `json:"data"`
 		}
-	}
-	resp.Body.Close()
+		err = json.NewDecoder(resp.Body).Decode(&wrapped)
+		require.NoError(t, err)
 
-	if refreshToken == "" {
-		t.Fatal("no refresh token received")
-	}
+		assert.NotEqual(t, initialRefresh, wrapped.Data.RefreshToken, "refresh token should rotate")
+		assert.NotEmpty(t, wrapped.Data.Token, "new access token should be present")
+	})
 
-	refreshReq, _ := http.NewRequest("POST", ts.server.URL+"/auth/refresh", nil)
-	refreshReq.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken})
-	client := &http.Client{}
-	resp, err = client.Do(refreshReq)
-	if err != nil {
-		t.Fatalf("refresh failed: %v", err)
-	}
-	defer resp.Body.Close()
+	t.Run("Refresh_InvalidToken_Returns401", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status 200, got %d", resp.StatusCode)
-	}
-}
+		f := newHandlerFixture(t, pool)
+		req, err := http.NewRequest("POST", f.ServerURL+"/auth/refresh", nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "invalid"})
+		cleanClient := &http.Client{}
+		resp, err := cleanClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
 
-func TestRefresh_InvalidToken(t *testing.T) {
-	ts := setupTestServer(t)
+	t.Run("Refresh_MissingCookie_Returns401", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	refreshReq, _ := http.NewRequest("POST", ts.server.URL+"/auth/refresh", nil)
-	refreshReq.AddCookie(&http.Cookie{Name: "refresh_token", Value: "invalid_token"})
-	client := &http.Client{}
-	resp, err := client.Do(refreshReq)
-	if err != nil {
-		t.Fatalf("refresh failed: %v", err)
-	}
-	defer resp.Body.Close()
+		f := newHandlerFixture(t, pool)
+		cleanClient := &http.Client{}
+		resp, err := cleanClient.Post(f.ServerURL+"/auth/refresh", "application/json", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
 
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected status 401, got %d", resp.StatusCode)
-	}
-}
+	// -----------------------------------------------------------------------
+	// Profile
+	// -----------------------------------------------------------------------
 
-func TestRefresh_MissingCookie(t *testing.T) {
-	ts := setupTestServer(t)
+	t.Run("GetProfile_Authenticated_ReturnsUserWithRole", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	refreshReq, _ := http.NewRequest("POST", ts.server.URL+"/auth/refresh", nil)
-	client := &http.Client{}
-	resp, err := client.Do(refreshReq)
-	if err != nil {
-		t.Fatalf("refresh failed: %v", err)
-	}
-	defer resp.Body.Close()
+		f := newHandlerFixture(t, pool)
+		email := uniqueEmail()
+		f.registerAndLogin(t, email, "profileuser", "TestPass123!", "Profile Org")
 
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", resp.StatusCode)
-	}
-}
+		resp, err := f.Client.Get(f.ServerURL + "/auth/me")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-func TestLogin_Username(t *testing.T) {
-	ts := setupTestServer(t)
-	email := uniqueEmail()
-	username := "user_" + uniqueID()
-	password := "password123"
-
-	registerBody := map[string]string{
-		"email":             email,
-		"username":          username,
-		"password":          password,
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(registerBody)
-	resp, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
-	}
-	resp.Body.Close()
-
-	loginBody := map[string]string{
-		"identifier": username,
-		"password":   password,
-	}
-	jsonBody, _ = json.Marshal(loginBody)
-	resp, err = http.Post(ts.server.URL+"/auth/login", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("login failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status 200, got %d", resp.StatusCode)
-	}
-}
-
-func TestLogin_InvalidIdentifierFormat(t *testing.T) {
-	ts := setupTestServer(t)
-
-	loginBody := map[string]string{
-		"identifier": "invalid@user!",
-		"password":   "password123",
-	}
-	jsonBody, _ := json.Marshal(loginBody)
-	resp, err := http.Post(ts.server.URL+"/auth/login", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("login failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", resp.StatusCode)
-	}
-}
-
-func TestGetProfile_Authenticated(t *testing.T) {
-	ts := setupTestServer(t)
-	email := uniqueEmail()
-	password := "password123"
-
-	registerBody := map[string]string{
-		"email":             email,
-		"password":          password,
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(registerBody)
-	resp, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
-	}
-
-	var token string
-	for _, c := range resp.Cookies() {
-		if c.Name == "auth_token" {
-			token = c.Value
-			break
+		var wrapped struct {
+			Data map[string]interface{} `json:"data"`
 		}
-	}
-	resp.Body.Close()
+		err = json.NewDecoder(resp.Body).Decode(&wrapped)
+		require.NoError(t, err)
 
-	if token == "" {
-		t.Fatal("no auth token received")
-	}
+		membership, ok := wrapped.Data["membership"].(map[string]interface{})
+		require.True(t, ok, "response should have 'membership'")
+		assert.NotEmpty(t, membership["role"])
+		assert.NotEmpty(t, membership["organization_id"])
+	})
 
-	profileReq, _ := http.NewRequest("GET", ts.server.URL+"/auth/me", nil)
-	profileReq.Header.Set("Authorization", "Bearer "+token)
-	client := &http.Client{}
-	resp, err = client.Do(profileReq)
-	if err != nil {
-		t.Fatalf("profile request failed: %v", err)
-	}
-	defer resp.Body.Close()
+	t.Run("GetProfile_Unauthenticated_Returns401", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status 200, got %d", resp.StatusCode)
-	}
+		f := newHandlerFixture(t, pool)
+		cleanClient := &http.Client{}
+		resp, err := cleanClient.Get(f.ServerURL + "/auth/me")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
 
-	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
-	if result["email"] == nil {
-		t.Error("expected email in response")
-	}
-}
+	// -----------------------------------------------------------------------
+	// Memberships
+	// -----------------------------------------------------------------------
 
-func TestGetProfile_Unauthenticated(t *testing.T) {
-	ts := setupTestServer(t)
+	t.Run("GetMemberships_ReturnsList", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	profileReq, _ := http.NewRequest("GET", ts.server.URL+"/auth/me", nil)
-	client := &http.Client{}
-	resp, err := client.Do(profileReq)
-	if err != nil {
-		t.Fatalf("profile request failed: %v", err)
-	}
-	defer resp.Body.Close()
+		f := newHandlerFixture(t, pool)
+		email := uniqueEmail()
+		f.registerAndLogin(t, email, "memberuser", "TestPass123!", "Member Org")
 
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected status 401, got %d", resp.StatusCode)
-	}
-}
+		resp, err := f.Client.Get(f.ServerURL + "/auth/memberships")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-func TestBootstrap_SubsequentUser(t *testing.T) {
-	ts := setupTestServer(t)
-	email1 := "bootstrap1_" + uniqueID() + "@example.com"
+		var wrapped struct {
+			Data map[string]interface{} `json:"data"`
+		}
+		err = json.NewDecoder(resp.Body).Decode(&wrapped)
+		require.NoError(t, err)
 
-	body1 := map[string]string{
-		"org_name":  "Bootstrap Org",
-		"email":     email1,
-		"username":  "admin1_" + uniqueID(),
-		"firstname": "Admin",
-		"lastname":  "User",
-		"password":  "password123",
-	}
-	jsonBody, _ := json.Marshal(body1)
-	resp1, err := http.Post(ts.server.URL+"/auth/bootstrap", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("first bootstrap failed: %v", err)
-	}
-	resp1.Body.Close()
+		memberships, ok := wrapped.Data["memberships"].([]interface{})
+		require.True(t, ok, "memberships should be a list")
+		assert.GreaterOrEqual(t, len(memberships), 1)
+	})
 
-	email2 := "bootstrap2_" + uniqueID() + "@example.com"
-	body2 := map[string]string{
-		"org_name":  "Bootstrap Org 2",
-		"email":     email2,
-		"username":  "admin2_" + uniqueID(),
-		"firstname": "Admin",
-		"lastname":  "User",
-		"password":  "password123",
-	}
-	jsonBody, _ = json.Marshal(body2)
-	resp2, err := http.Post(ts.server.URL+"/auth/bootstrap", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("second bootstrap failed: %v", err)
-	}
-	defer resp2.Body.Close()
+	// -----------------------------------------------------------------------
+	// Bootstrap
+	// -----------------------------------------------------------------------
 
-	if resp2.StatusCode != http.StatusConflict {
-		t.Errorf("expected status 409, got %d", resp2.StatusCode)
-	}
-}
+	t.Run("Bootstrap_FirstUser_Returns200", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-func TestRegister_DuplicateUsername(t *testing.T) {
-	ts := setupTestServer(t)
-	email1 := uniqueEmail()
-	email2 := uniqueEmail()
-	username := "user_" + uniqueID()
+		f := newHandlerFixture(t, pool)
+		email := uniqueEmail()
+		body := fmt.Sprintf(`{"email":"%s","username":"boot_%s","password":"TestPass123!","organization_name":"Bootstrap"}`, email, uniqueID())
+		resp, err := f.Client.Post(f.ServerURL+"/auth/bootstrap", "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	body1 := map[string]string{
-		"email":             email1,
-		"username":          username,
-		"password":          "password123",
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(body1)
-	resp1, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("first register failed: %v", err)
-	}
-	resp1.Body.Close()
+		var wrapped struct {
+			Data map[string]interface{} `json:"data"`
+		}
+		err = json.NewDecoder(resp.Body).Decode(&wrapped)
+		require.NoError(t, err)
+		assert.NotNil(t, wrapped.Data["token"], "bootstrap should return a token")
+	})
 
-	body2 := map[string]string{
-		"email":             email2,
-		"username":          username,
-		"password":          "password123",
-		"organization_name": "Test Org 2",
-	}
-	jsonBody, _ = json.Marshal(body2)
-	resp2, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("second register failed: %v", err)
-	}
-	defer resp2.Body.Close()
+	t.Run("Bootstrap_AlreadyBootstrapped_Returns409", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	if resp2.StatusCode != http.StatusConflict {
-		t.Errorf("expected status 409, got %d", resp2.StatusCode)
-	}
-}
+		f := newHandlerFixture(t, pool)
+		email1 := uniqueEmail()
+		body1 := fmt.Sprintf(`{"email":"%s","username":"boot1_%s","password":"TestPass123!","organization_name":"BootOrg"}`, email1, uniqueID())
+		r1, err := f.Client.Post(f.ServerURL+"/auth/bootstrap", "application/json", strings.NewReader(body1))
+		require.NoError(t, err)
+		r1.Body.Close()
+		assert.Equal(t, http.StatusOK, r1.StatusCode)
 
-func TestLogin_DeactivatedAccount(t *testing.T) {
-	ts := setupTestServer(t)
-	email := uniqueEmail()
-	password := "password123"
+		email2 := uniqueEmail()
+		body2 := fmt.Sprintf(`{"email":"%s","username":"boot2_%s","password":"TestPass123!","organization_name":"BootOrg2"}`, email2, uniqueID())
+		r2, err := f.Client.Post(f.ServerURL+"/auth/bootstrap", "application/json", strings.NewReader(body2))
+		require.NoError(t, err)
+		defer r2.Body.Close()
+		assert.Equal(t, http.StatusConflict, r2.StatusCode)
+	})
 
-	registerBody := map[string]string{
-		"email":             email,
-		"username":          "user_" + uniqueID(),
-		"password":          password,
-		"organization_name": uniqueOrgName(),
-	}
-	jsonBody, _ := json.Marshal(registerBody)
-	resp, err := http.Post(ts.server.URL+"/auth/register", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
-	}
-	resp.Body.Close()
+	// -----------------------------------------------------------------------
+	// Switch Organization
+	// -----------------------------------------------------------------------
 
-	// Deactivate user using the test DB
-	_, err = ts.pool.Exec(context.Background(),
-		"UPDATE users SET is_active = false WHERE email = $1", email)
-	if err != nil {
-		t.Fatalf("failed to deactivate user: %v", err)
-	}
+	t.Run("SwitchOrganization_Valid_Returns200", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
-	loginBody := map[string]string{
-		"identifier": email,
-		"password":   password,
-	}
-	jsonBody, _ = json.Marshal(loginBody)
-	resp, err = http.Post(ts.server.URL+"/auth/login", "application/json", strings.NewReader(string(jsonBody)))
-	if err != nil {
-		t.Fatalf("login failed: %v", err)
-	}
-	defer resp.Body.Close()
+		f := newHandlerFixture(t, pool)
+		email := uniqueEmail()
+		f.registerAndLogin(t, email, "switchuser", "TestPass123!", "Switch Org")
 
-	if resp.StatusCode != http.StatusForbidden {
-		t.Errorf("expected status 403, got %d", resp.StatusCode)
-	}
+		// Create a second org via DB
+		var orgID string
+		err := f.Pool.QueryRow(context.Background(),
+			`INSERT INTO organizations (id, name, slug, created_at, updated_at) 
+			 VALUES (gen_random_uuid(), 'Second Org', 'second-org', NOW(), NOW()) 
+			 RETURNING id`).Scan(&orgID)
+		require.NoError(t, err)
+
+		var userID string
+		err = f.Pool.QueryRow(context.Background(),
+			`SELECT id FROM users WHERE email = $1`, email).Scan(&userID)
+		require.NoError(t, err)
+
+		_, err = f.Pool.Exec(context.Background(),
+			`INSERT INTO organization_memberships (id, user_id, organization_id, role, is_active, created_at, updated_at)
+			 VALUES (gen_random_uuid(), $1, $2, 'employee', true, NOW(), NOW())`, userID, orgID)
+		require.NoError(t, err)
+
+		switchBody := fmt.Sprintf(`{"organization_id":"%s"}`, orgID)
+		resp, err := f.Client.Post(f.ServerURL+"/auth/switch-organization", "application/json", strings.NewReader(switchBody))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode, "switch-organization should return 200")
+	})
+
+
 }

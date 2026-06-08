@@ -63,9 +63,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.RespondWithJSON(w, http.StatusCreated, map[string]interface{}{
-		"data": resp,
-	})
+	api.RespondWithJSON(w, http.StatusCreated, resp)
 }
 
 type LoginRequest struct {
@@ -186,6 +184,10 @@ func (h *AuthHandler) Bootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := h.authService.Bootstrap(ctx, serviceReq)
 	if err != nil {
+		if err == auth.ErrEmailExists {
+			api.RespondWithError(w, http.StatusConflict, "already bootstrapped")
+			return
+		}
 		api.RespondWithError(w, http.StatusInternalServerError, "bootstrap failed: "+err.Error())
 		return
 	}
