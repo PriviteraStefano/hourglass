@@ -36,13 +36,14 @@ func (r *OrganizationRepository) Add(ctx context.Context, org *auth.Organization
 
 // GetByID returns the organization with the given id, or nil (not found).
 func (r *OrganizationRepository) GetByID(ctx context.Context, id uuid.UUID) (*auth.Organization, error) {
-	query := `SELECT id, name, slug, description, financial_cutoff_days, financial_cutoff_config, created_at, updated_at
+	query := `SELECT id, name, slug, COALESCE(description, ''), COALESCE(financial_cutoff_days, 0), financial_cutoff_config, created_at, updated_at
 		FROM organizations WHERE id = $1`
 	var org auth.Organization
 	var desc string
+	var cutoffDays int
 	var configRaw []byte
 	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&org.ID, &org.Name, &org.Slug, &desc, &org.FinancialCutoffDays,
+		&org.ID, &org.Name, &org.Slug, &desc, &cutoffDays,
 		&configRaw, &org.CreatedAt, &org.UpdatedAt,
 	)
 	if err != nil {
@@ -52,6 +53,7 @@ func (r *OrganizationRepository) GetByID(ctx context.Context, id uuid.UUID) (*au
 		return nil, fmt.Errorf("get organization by id: %w", err)
 	}
 	org.Description = desc
+	org.FinancialCutoffDays = cutoffDays
 	if configRaw != nil {
 		if err := json.Unmarshal(configRaw, &org.FinancialCutoffConfig); err != nil {
 			return nil, fmt.Errorf("unmarshal financial cutoff config: %w", err)
