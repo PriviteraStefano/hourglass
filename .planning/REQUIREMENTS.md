@@ -9,7 +9,7 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 
 ### Testing Foundation
 
-- [ ] **TEST-01**: Known auth bugs fixed (`/auth/memberships` nil pointer, `/auth/me` empty role/org_id, `/units/{id}/members` 500, `/organizations/members` 500)
+- [x] **TEST-01**: Known auth bugs fixed (`/auth/memberships` nil pointer, `/auth/me` empty role/org_id, `/units/{id}/members` 500, `/organizations/members` 500)
 - [x] **TEST-02**: testcontainers-go wired for isolated PostgreSQL per test run
 - [ ] **TEST-03**: Service-layer tests rewritten to run against real PostgreSQL via testcontainers
 - [ ] **TEST-04**: Handler integration tests rewritten for PostgreSQL
@@ -111,7 +111,7 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TEST-01 | Phase 0 | Pending |
+| TEST-01 | Phase 0 | Complete |
 | TEST-02 | Phase 0 | Complete |
 | TEST-03 | Phase 0 | Pending |
 | TEST-04 | Phase 0 | Pending |
