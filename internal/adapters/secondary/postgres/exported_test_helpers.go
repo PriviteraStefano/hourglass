@@ -11,22 +11,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/stefanoprivitera/hourglass/internal/db"
 	"github.com/stretchr/testify/require"
 )
 
 // TestPool returns a pool connected to the test database.
-// Skips test if DATABASE_URL is not set.
+// It starts a PostgreSQL container via testcontainers-go (via SetupPackageContainer)
+// so Docker must be running. No DATABASE_URL env var is needed.
 func TestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	if os.Getenv("DATABASE_URL") == "" {
-		t.Skip("DATABASE_URL not set, skipping integration test")
-	}
-	pool, err := db.NewPool()
-	if err != nil {
-		t.Fatalf("failed to create pool: %v", err)
-	}
-	return pool
+	return SetupPackageContainer(t)
 }
 
 // SetupTestSchema reads and applies all migration .up.sql files from the
