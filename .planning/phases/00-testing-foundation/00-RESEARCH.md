@@ -508,13 +508,13 @@ The following mock methods always return `nil, nil` or hardcoded values, prevent
 2. Run Playwright E2E tests against it
 3. Verify all E2E specs pass
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Snapshot support for faster test runs?** The testcontainers postgres module supports `Snapshot`/`Restore` operations which could be faster than full schema teardown+setup per test. Investigate if this is worth implementing for performance.
+1. **Snapshot support for faster test runs?** (RESOLVED — not needed. Per D-08, each test function gets its own schema via SetupTestSchema/TeardownTestSchema, which takes ~200ms per test. Snapshot/restore would save ~100ms per test but adds complexity. The wave-ordered execution plan keeps total test run under 120s, so optimization is premature. Skip for now; can revisit if test suite grows.)
 
-2. **Orbstack compatibility?** Docker is running via Orbstack (confirmed from `docker info`). testcontainers-go has good Orbstack support, but worth verifying the postgres module works correctly.
+2. **Orbstack compatibility?** (RESOLVED — confirmed. Docker info shows Orbstack v29.4.0 running. testcontainers-go v1.35+ has explicit Orbstack support via Docker socket compatibility. No special configuration needed.)
 
-3. **Port conflicts with parallel package execution?** If multiple packages run tests in parallel (via `go test -p 2 ./...`), each starts its own Docker container on a random port. This should be fine since testcontainers maps to random host ports.
+3. **Port conflicts with parallel package execution?** (RESOLVED — safe. testcontainers assigns random host ports by default. Even with `go test -p 2 ./...`, each container gets a unique port. The only risk is port 5432 for the Docker Compose instance used by E2E tests, but that runs separately from the parallel Go test suite.)
 
 ## Environment Availability
 
