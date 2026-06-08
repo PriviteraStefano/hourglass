@@ -17,6 +17,7 @@ The 9 original plans were executed against SurrealDB test infrastructure. Servic
 ### PostgreSQL reboot plans
 
 **Waves:**
+
 - Wave 1: Plan 02 (infrastructure)
 - Wave 2: Plan 01 (auth fixes — needs testcontainers)
 - Wave 3: Plan 03 (service tests)
@@ -25,8 +26,9 @@ The 9 original plans were executed against SurrealDB test infrastructure. Servic
 - Wave 6: Plan 06 (E2E verification)
 
 Plans:
+
 - [ ] 00-01-PLAN.md — Fix 4 known auth bugs + full auth cleanup (refresh rotation, cookie fix, password reset, rate limiting) TEST-01
-- [ ] 00-02-PLAN.md — Set up testcontainers-go infrastructure (replaces TestPool) TEST-02
+- [x] 00-02-PLAN.md — Set up testcontainers-go infrastructure (replaces TestPool) TEST-02
 - [ ] 00-03-PLAN.md — Rewrite service-layer integration tests against PostgreSQL TEST-03
 - [ ] 00-04-PLAN.md — Rewrite handler integration tests for PostgreSQL TEST-04
 - [ ] 00-05-PLAN.md — Bug buffer: batch-fix all bugs discovered during PG test rewrite TEST-05
@@ -47,12 +49,14 @@ Plans:
 **Day:** Tue June 9
 
 ### Frontend scope
+
 - Login page with error handling
 - Register page with validation
 - Protected route redirect (already wired in `_authenticated.tsx`, verify it works)
 - AppShell with user profile, org switcher, logout
 
 ### Verification
+
 - All 6 seed users login successfully (alex.rivera, sarah.chen, mike.obrien, emma.wilson, james.park, lisa.torres / demo123)
 - `GET /auth/me` returns full profile with role + org_id
 - `GET /auth/memberships` returns membership list without panic
@@ -76,6 +80,7 @@ Plans:
 **Note:** Replaces old Phase 1 (org-hierarchy-edge-driven) — rewritten with PostgreSQL context, broader scope.
 
 ### Key behaviors
+
 - Unit CRUD (create, read, update, delete) with parent-unit hierarchy
 - Unit member management — add/remove members, designate primary unit
 - Multi-unit membership — a user can belong to multiple units
@@ -83,15 +88,18 @@ Plans:
 - Edge-driven reparenting — drag edge to reassign unit parent
 
 ### Backend
+
 Already exists (UnitRepository, UnitMemberRepository, Unit handler)
 
 ### Frontend files to create
+
 - `web/src/routes/_authenticated/org-hierarchy/index.tsx`
 - `web/src/routes/_authenticated/org-hierarchy/units/$id.tsx`
 - `web/src/routes/_authenticated/org-hierarchy/members/$id.tsx`
 - Components: org-tree.tsx (ReactFlow), unit-form.tsx, member-list.tsx
 
 ### Edge cases
+
 - Cannot delete unit with children (reassign parent first)
 - Cannot delete unit with members (remove members first)
 - Root unit cannot be deleted
@@ -114,6 +122,7 @@ Already exists (UnitRepository, UnitMemberRepository, Unit handler)
 **Note:** Replaces old Phase 2 (customers-management-page) — broader scope including internal customer handling.
 
 ### Key behaviors
+
 - Customer list page with search/filter
 - Create customer (name, contact name, email, phone, VAT, address)
 - Edit customer
@@ -121,15 +130,18 @@ Already exists (UnitRepository, UnitMemberRepository, Unit handler)
 - Internal customer (organization itself) visual indicator
 
 ### Backend
+
 Already exists (CustomerRepository, Customer handler)
 
 ### Frontend files to create
+
 - `web/src/routes/_authenticated/customers/index.tsx`
 - `web/src/routes/_authenticated/customers/new.tsx`
 - `web/src/routes/_authenticated/customers/$id.tsx`
 - Components: customer-form.tsx, customer-table.tsx
 
 ### Edge cases
+
 - Delete blocked with active contracts (show tooltip with contract count)
 - Internal customer shown with badge, non-editable fields
 - Empty state when no customers
@@ -151,6 +163,7 @@ Already exists (CustomerRepository, Customer handler)
 **Note:** Replaces old Phase 3 + Phase 4 — combined with broader scope.
 
 ### Key behaviors
+
 - Contract list page with filtering (status, org)
 - Create contract — includes customer dropdown (from Phase 3)
 - Edit contract
@@ -159,15 +172,18 @@ Already exists (CustomerRepository, Customer handler)
 - "Internal customer" option in customer selector
 
 ### Backend
+
 Already exists (ContractRepository, Contract handler)
 
 ### Frontend files to create
+
 - `web/src/routes/_authenticated/contracts/index.tsx`
 - `web/src/routes/_authenticated/contracts/new.tsx`
 - `web/src/routes/_authenticated/contracts/$id.tsx`
 - Components: contract-form.tsx, contract-table.tsx, projects-on-contract.tsx
 
 ### Edge cases
+
 - Contract without customer (existing data) still renders
 - Contract with adopted projects shown differently
 - Zero-value contracts allowed
@@ -189,6 +205,7 @@ Already exists (ContractRepository, Contract handler)
 **Note:** New phase — no equivalent in previous roadmap.
 
 ### Key behaviors
+
 - Project list page with filtering (contract_id, org_id, type: billable/internal)
 - Create project (name, type, contract, governance model, scope)
 - Edit project
@@ -196,15 +213,18 @@ Already exists (ContractRepository, Contract handler)
 - Subproject list on project detail
 
 ### Backend
+
 Already exists (ProjectRepository, SubprojectRepository, Project handler)
 
 ### Frontend files to create
+
 - `web/src/routes/_authenticated/projects/index.tsx`
 - `web/src/routes/_authenticated/projects/new.tsx`
 - `web/src/routes/_authenticated/projects/$id.tsx`
 - Components: project-form.tsx, project-table.tsx, subproject-list.tsx
 
 ### Edge cases
+
 - Adopted projects (shared across orgs) display creation org
 - Shared vs org-scoped project filtering
 - Project without contract (internal projects)
@@ -224,6 +244,7 @@ Already exists (ProjectRepository, SubprojectRepository, Project handler)
 **Day:** Sat-Sun June 13-14
 
 ### Key behaviors
+
 - Time entry list with filtering (status, date range, project, user)
 - Create time entry (date, hours, project, subproject, WG, description)
 - Edit time entry (draft/submitted only)
@@ -232,9 +253,11 @@ Already exists (ProjectRepository, SubprojectRepository, Project handler)
 - Same pattern for expenses (mileage, meal, accommodation, other)
 
 ### Backend
+
 Already exists (TimeEntryRepository, ExpenseRepository + handlers)
 
 ### Frontend files to create
+
 - `web/src/routes/_authenticated/time-entries/index.tsx`
 - `web/src/routes/_authenticated/time-entries/new.tsx`
 - `web/src/routes/_authenticated/time-entries/$id.tsx`
@@ -242,6 +265,7 @@ Already exists (TimeEntryRepository, ExpenseRepository + handlers)
 - Components: time-entry-form.tsx, expense-form.tsx, approval-buttons.tsx, status-badge.tsx, approval-history.tsx
 
 ### Edge cases
+
 - Cannot edit approved/rejected entries
 - Cannot delete entries with approvals
 - Employee cannot self-approve
@@ -264,19 +288,23 @@ Already exists (TimeEntryRepository, ExpenseRepository + handlers)
 **Day:** Sun June 14
 
 ### Key behaviors
+
 - Timesheet export (CSV/Excel) with date range filter
 - Expense export (CSV/Excel) with date range filter
 - Combined export with both time + expense data
 - Download as file
 
 ### Backend
+
 Already exists (ExportRepository, Export handler)
 
 ### Frontend files to create
+
 - `web/src/routes/_authenticated/exports/index.tsx`
 - Components: export-form.tsx (date range, type selector, download button)
 
 ### Edge cases
+
 - Empty export (no data in range) shows friendly message
 - Large export handled server-side
 - Auth required for exports (user-scoped data)
@@ -309,5 +337,6 @@ Phase 1 (Auth) ─┬─ Phase 2 (Org Hierarchy)
 ```
 
 **Parallel execution:**
+
 - Phase 2 + Phase 3 (parallel, both depend on Phase 1)
 - Phase 4 + Phase 5 (parallel, Phase 4 depends on Phase 3, Phase 5 depends on Phase 4)

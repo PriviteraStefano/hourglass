@@ -2,36 +2,37 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
-status: completed
-last_updated: "2026-06-08T21:43:52.530Z"
-last_activity: Ingested MVP consolidation design SPEC from `docs/superpowers/specs/2026-06-08-mvp-consolidation-design.md`
+status: executing
+last_updated: "2026-06-08T22:16:57.790Z"
+last_activity: 2026-06-09
 progress:
   total_phases: 8
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 6
+  completed_plans: 1
+  percent: 17
 ---
 
 # Phase State
 
 ## Session
 
-- **Last activity:** Planned Phase 0 reboot — 6 plans in 6 waves
+- **Last activity:** 2026-06-09
 - **Source:** `.planning/phases/00-testing-foundation/00-CONTEXT.md`
 - **Intel:** `.planning/intel/`
+- **Completed:** Plan 02 (testcontainers infrastructure)
 
 ## Phase 0: testing-foundation
 
-- **Status:** Planning complete — 6 plans in 6 waves
+- **Status:** Ready to execute
 - **Plans:**
-  - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [unexecuted]
+  - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02)
   - 00-03-PLAN.md — Service test rewrite (Wave 3, depends on 01+02)
   - 00-04-PLAN.md — Handler test rewrite (Wave 4, depends on 03)
   - 00-05-PLAN.md — Bug buffer with human review (Wave 5, depends on 04)
   - 00-06-PLAN.md — E2E verification (Wave 6, depends on 05)
-- **Last Activity:** 2026-06-08
+- **Last Activity:** 2026-06-09
 
 ## Phase 1: authorization
 
@@ -96,9 +97,19 @@ The following phases from the previous milestone structure are superseded:
 - Phase Pg-2 (postgres-adapters) — Complete, archived
 - Phase Pg-3 (wiring) — Complete, archived
 
+## ## Decisions
+
+- **2026-06-08:** testcontainers-go v0.42.0 selected as integration test infrastructure, replacing DATABASE_URL-dependent TestPool with SetupPackageContainer using sync.Once container lifecycle. Migration paths resolve relative to Go module root.
+
 ## Current Position
 
-Phase: 00-testing-foundation
-Plan: 00-02-PLAN.md (Wave 1, first to execute)
-Status: Planning complete — ready for execution
-Last activity: 2026-06-08 — Phase 0 plans created
+Phase: 00 (testing-foundation) — EXECUTING
+Plan: 2 of 6
+Status: Ready to execute
+Last activity: 2026-06-09 -- Plan 02 completed
+
+## Performance Metrics
+
+| Phase | Plan | Duration | Notes |
+|-------|------|----------|-------|
+| Phase 00-testing-foundation P02 | 4 min | 3 tasks | 5 files |
