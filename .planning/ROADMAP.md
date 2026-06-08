@@ -16,12 +16,21 @@ The 9 original plans were executed against SurrealDB test infrastructure. Servic
 
 ### PostgreSQL reboot plans
 
-- [ ] 00-01-PLAN.md — Fix known auth bugs (`/auth/memberships`, `/auth/me`, `/units/{id}/members`, `/organizations/members`)
-- [ ] 00-02-PLAN.md — Set up testcontainers-go for isolated PostgreSQL per test run
-- [ ] 00-03-PLAN.md — Rewrite service-layer tests to run against real PostgreSQL via testcontainers
-- [ ] 00-04-PLAN.md — Rewrite handler integration tests for PostgreSQL
-- [ ] 00-05-PLAN.md — Batch-fix all bugs discovered during PG test rewrite
-- [ ] 00-06-PLAN.md — Verify Playwright E2E still works with PG backend
+**Waves:**
+- Wave 1: Plan 02 (infrastructure)
+- Wave 2: Plan 01 (auth fixes — needs testcontainers)
+- Wave 3: Plan 03 (service tests)
+- Wave 4: Plan 04 (handler tests)
+- Wave 5: Plan 05 (bug buffer with human review)
+- Wave 6: Plan 06 (E2E verification)
+
+Plans:
+- [ ] 00-01-PLAN.md — Fix 4 known auth bugs + full auth cleanup (refresh rotation, cookie fix, password reset, rate limiting) TEST-01
+- [ ] 00-02-PLAN.md — Set up testcontainers-go infrastructure (replaces TestPool) TEST-02
+- [ ] 00-03-PLAN.md — Rewrite service-layer integration tests against PostgreSQL TEST-03
+- [ ] 00-04-PLAN.md — Rewrite handler integration tests for PostgreSQL TEST-04
+- [ ] 00-05-PLAN.md — Bug buffer: batch-fix all bugs discovered during PG test rewrite TEST-05
+- [ ] 00-06-PLAN.md — Verify Playwright E2E still works TEST-06
 
 ---
 

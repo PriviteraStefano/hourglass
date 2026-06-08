@@ -17,15 +17,21 @@ progress:
 
 ## Session
 
-- **Last activity:** Ingested MVP consolidation design SPEC from `docs/superpowers/specs/2026-06-08-mvp-consolidation-design.md`
-- **Source:** `.planning/INGEST-CONFLICTS.md`
+- **Last activity:** Planned Phase 0 reboot — 6 plans in 6 waves
+- **Source:** `.planning/phases/00-testing-foundation/00-CONTEXT.md`
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
 
-- **Status:** 8/9 plans complete (Wave 4 bug-fix pending)
-- **Plans:** 9 plans in 4 waves
-- **Last Activity:** 2026-05-19
+- **Status:** Planning complete — 6 plans in 6 waves
+- **Plans:**
+  - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [unexecuted]
+  - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02)
+  - 00-03-PLAN.md — Service test rewrite (Wave 3, depends on 01+02)
+  - 00-04-PLAN.md — Handler test rewrite (Wave 4, depends on 03)
+  - 00-05-PLAN.md — Bug buffer with human review (Wave 5, depends on 04)
+  - 00-06-PLAN.md — E2E verification (Wave 6, depends on 05)
+- **Last Activity:** 2026-06-08
 
 ## Phase 1: authorization
 
@@ -92,7 +98,7 @@ The following phases from the previous milestone structure are superseded:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-06-08 — Milestone v0.1 started
+Phase: 00-testing-foundation
+Plan: 00-02-PLAN.md (Wave 1, first to execute)
+Status: Planning complete — ready for execution
+Last activity: 2026-06-08 — Phase 0 plans created
