@@ -22,12 +22,44 @@ func TestPool(t *testing.T) *pgxpool.Pool {
 	return SetupPackageContainer(t)
 }
 
+// findProjectRoot walks up from CWD to locate the Go module root (where go.mod lives).
+// This ensures migration files resolve correctly regardless of the calling package's test directory.
+func findProjectRoot(t testing.TB) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	require.NoError(t, err)
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatalf("project root not found (no go.mod in any parent directory from %s)", dir)
+			return ""
+		}
+		dir = parent
+	}
+}
+
+func migrationGlob(t testing.TB) []string {
+	t.Helper()
+	root := findProjectRoot(t)
+	pattern := filepath.Join(root, "migrations", "*.up.sql")
+	files, err := filepath.Glob(pattern)
+	require.NoError(t, err, "failed to glob migration files with pattern %s", pattern)
+	if len(files) == 0 {
+		t.Fatalf("no migration .up.sql files found in %s", filepath.Join(root, "migrations"))
+	}
+	return files
+}
+
 // SetupTestSchema reads and applies all migration .up.sql files from the
 // migrations directory (excluding seed files), sorted alphabetically.
+// The migration path is resolved relative to the Go module root, so this
+// works correctly from any package's test directory.
 func SetupTestSchema(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	files, err := filepath.Glob("../../../../migrations/*.up.sql")
-	require.NoError(t, err)
+	files := migrationGlob(t)
 	sort.Strings(files)
 	for _, f := range files {
 		if strings.Contains(f, "seed") {

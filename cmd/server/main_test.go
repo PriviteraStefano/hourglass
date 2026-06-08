@@ -31,7 +31,8 @@ import (
 // with PostgreSQL. It tests health endpoint, user registration, login, and
 // authenticated data access.
 //
-// The test is automatically skipped if DATABASE_URL is not set (via postgres.TestPool).
+// This test starts a PostgreSQL container via testcontainers-go. Docker must be running.
+// The test is automatically skipped if Docker is not available (testcontainers self-detects).
 func TestSmoke(t *testing.T) {
 	pool := postgres.TestPool(t)
 	postgres.SetupTestSchema(t, pool)
