@@ -1,184 +1,94 @@
-# Phase 0: testing-foundation - Discussion Log
+# Phase 0: Testing foundation - Discussion Log
 
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-05-18
-**Phase:** 0-testing-foundation
-**Areas discussed:** Bug discovery strategy, Backend coverage scope, Frontend test approach, Service-layer testing
+**Date:** 2026-06-08
+**Phase:** 0-Testing foundation
+**Areas discussed:** Plan ordering, Test architecture, Mock tests fate, Bug loop mechanics, Auth scope
 
 ---
 
-## Bug Discovery Strategy
+## Plan Ordering
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Tests-that-fail-first | Write tests for expected behavior first — failing tests reveal bugs naturally. Fix both bug + test. | ✓ |
-| Manual exploration first | Manually hit all endpoints, review frontend flows, log bugs, then write tests. | |
-| Scripted probe suite | Write a lightweight probe script/curl runner that exercises all API endpoints. | |
+| Testcontainers first | Setup testcontainers infrastructure first (02→01). Auth bugs fixed after tests exist to verify them. | ✓ |
+| Bug fixes first | Keep ROADMAP order — fix auth bugs immediately, set up testcontainers after. | |
+| Test-driven | Write failing testcontainer-backed test, then fix, watch test pass. | ✓ |
+| Fix and verify | Fix bug first, then write passing test. | |
+| Keep separate | Clear separation: 01-Setup testcontainers, 02-Fix auth bugs. | ✓ |
+| Merge into one | Single plan: setup + test + fix. | |
+| Single fix plan | All 4 auth bugs in one plan. | ✓ |
+| One per bug | Separate plan per bug. | |
+| Service → Handler → E2E | Rewrite service tests first, then handler, then verify E2E. | ✓ |
+| Handler → Service → E2E | Rewrite handler tests first. | |
+| Merge into auth fix | Fix known + discovered bugs in one plan. | |
+| Keep as buffer plan | Dedicated 05-PLAN for bugs discovered during rewrite. | ✓ |
 
-**User's choice:** Tests-that-fail-first
-**Notes:** Also chose a quick-scan pass (curl/endpoint walkthrough) before structured tests to catch obvious issues fast.
+**User's choice:** Testcontainers first; test-driven; keep separate plans; single auth fix plan; Service→Handler→E2E; keep 05 buffer plan.
+**Notes:** All 4 auth bugs in one plan. Test-driven approach (write failing test, then fix).
 
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Fix inline | When a test reveals a bug, fix it immediately and add the test. | |
-| Log and batch | Log each bug to a tracking list, fix them all at the end. | ✓ |
-
-**User's choice:** Log and batch
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Same phase | Write all tests first, then fix all logged bugs in a wave at the end. | ✓ |
-| Separate 'bug fixes' phase | Dedicated follow-up phase for fixes. | |
-
-**User's choice:** Same phase, two waves. "Middle approach" — one phase divided into two major steps.
+## Test Architecture
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| BUGS.md per phase dir | Accumulate findings with severity, location, description. Ticked off as fixed. | ✓ |
-| GitHub Issues | One issue per bug. More overhead. | |
-| Inline TODO/FIXME | Lightest weight but easy to miss. | |
+| Replace entirely | TestPool spins up testcontainers PostgreSQL. Fully isolated. | ✓ |
+| Coexist as alternative | TestPool stays for local dev, testcontainers optional. | |
+| Hybrid by layer | Service/handler use testcontainers, repo tests keep TestPool. | |
+| Per test function | Each TestFoo gets its own testcontainers instance. | |
+| Per package | One testcontainers per _test.go package. | |
+| Hybrid | One container per package, each test gets own schema. | ✓ |
+| Yes, all tests | Smoke and Playwright both use testcontainers. | ✓ |
+| Smoke only | Smoke uses testcontainers, Playwright targets dev server. | |
+| None of them | Both need real running PG. | |
 
-**User's choice:** BUGS.md per phase dir
+**User's choice:** Replace entirely; Hybrid schema-per-test approach; all tests use testcontainers.
+**Notes:** Fully self-contained test suite. One container per package, each test gets own schema.
+
+## Mock Tests Fate
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Happy-path + validation | Test what should work and basic validation. | |
-| Adversarial/break-it approach | Actively probe edge cases: empty payloads, missing auth, boundary values. | ✓ |
+| Keep + add integration | Keep all existing mock tests, add new integration tests. | |
+| Replace with integration | Convert service tests to use testcontainers instead of mocks. | |
+| Hybrid | Keep mocks for pure logic, use testcontainers for repo interaction. | ✓ |
+| Fix broken mocks now | Fix mocks that return incorrect values. | ✓ |
+| Leave as-is | New tests use testcontainers anyway. | |
+| Separate files | auth_test.go (mocks) + auth_integration_test.go (testcontainers). | ✓ |
+| Same file | Both mock and integration tests in one file. | |
 
-**User's choice:** Adversarial/break-it approach
+**User's choice:** Hybrid approach; fix broken mocks now; separate integration test files.
+**Notes:** User asked for opinion on file organization — recommended separate files for clear layer distinction.
+
+## Bug Loop Mechanics
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Approval workflows | Complex state transitions. | |
-| Auth & membership | Registration, login, org membership. | |
-| Data edge cases | Deleting with relationships, orphans. | |
-| Everything equally | No specific suspicions. | ✓ |
+| Fix immediately | Fix bug right there in the same plan. | |
+| Log and batch | Document bugs found during test rewrite, fix in 05-PLAN. | ✓ |
+| Skip with TODO | Write test, t.Skip() with reference to logged bug. | |
+| Write as comment | Write test code but don't register it. | |
+| Mark expected failure | Write test, let it run, capture expected failure. | |
 
-**User's choice:** Everything equally — cover all domains systematically.
+**User's choice:** Log and batch; minor bugs fixed inline, major bugs t.Skip() and human-reviewed in 05-PLAN.
+**Notes:** User formalized: minor bugs fixed inline during test rewrite, major bugs logged+t.Skip() and batched to 05-PLAN with human review loop.
+
+## Auth Scope
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| 4 known bugs only | Stick to REQUIREMENTS.md scope. | |
+| Include refresh rotation | Fix 4 bugs + add refresh token rotation. | |
+| All related concerns | Fix 4 bugs plus refresh rotation, cookie name mismatch, all auth concerns. | ✓ |
+| Include all auth concerns | Password reset code + rate limiting + refresh rotation + cookie names. | ✓ |
+| Core auth only | Refresh rotation + cookie names + 4 bugs. | |
+
+**User's choice:** All related concerns; full auth cleanup including password reset code fix and auth rate limiting.
+**Notes:** Clean slate for auth before feature phases begin.
 
 ---
-
-## Backend Coverage Scope
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| All domains | Write tests for every handler+service. | ✓ |
-| High-risk first | Auth + time entries + contracts first. | |
-| Domain by domain | 1-2 domains per wave, full test+fix cycle per domain. | |
-
-**User's choice:** All domains
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Handler + service | Handler integration tests + service unit tests. Skip repositories. | |
-| All three layers | Handler + service + repository tests. | ✓ |
-| Handler + repository | Handler tests for API + repository tests for data. | |
-
-**User's choice:** All three layers
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Mock with interfaces | Fast, isolated service tests with mocked repos. | |
-| Real DB | Use existing GetTestDBWithNamespace pattern. | |
-| Test containers | Isolated DB per test run with Testcontainers. | ✓ |
-
-**User's choice:** Test containers if possible, real DB if not.
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| No target | Ship what we write. | ✓ |
-| Soft 50% | Aim for 50% statement coverage. | |
-| Hard 70% | CI-enforced minimum. | |
-
-**User's choice:** No target, ship what we write.
-
----
-
-## Frontend Test Approach
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Playwright E2E + Vitest/RTL | Deepen E2E + add component/hook unit tests. | ✓ |
-| Playwright E2E only | Extend existing Playwright tests. | |
-| Vitest/RTL only | Drop E2E, focus on component tests. | |
-
-**User's choice:** Playwright E2E coverage + Vitest/RTL
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| API client + hooks + forms | Test api.ts, React Query hooks, Zod schemas. | ✓ |
-| All components | Test everything including UI primitives. | |
-| Forms + Zod schemas only | Lightest lift — form validation only. | |
-
-**User's choice:** API client + hooks + forms
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| All CRUD flows | Create, read, update, delete for each entity. | ✓ |
-| Read-only + critical paths | Viewing pages and key write flows. | |
-| Select flows per domain | One happy-path per domain. | |
-
-**User's choice:** All CRUD flows
-
----
-
-## Service-Layer Testing
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| State transitions | Approval workflow state machines. Deepest coverage. | ✓ |
-| Authorization rules | Role-based access per entity. | |
-| Validation logic | Input validation, business rules. | |
-| All business rules equally | Every if/else in service methods. | |
-
-**User's choice:** State transitions (approval workflows) as priority.
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Table-driven tests | Go idiom: one function with slice of test cases. | ✓ |
-| Function-per-scenario | One function per scenario. More boilerplate. | |
-
-**User's choice:** Table-driven tests
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Shared testdata package | Factory functions for reusable entities. | ✓ |
-| Per-file factories | Keep current inline pattern. | |
-
-**User's choice:** Shared testdata package
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Yes, full matrix | Test every role×action×state combination. | ✓ |
-| Happy-path state machine only | Valid transitions only. | |
-
-**User's choice:** Yes, full matrix including unauthorized transitions.
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Yes | Domain validation rules tested at service layer. | ✓ |
-| No — handler tests cover it | Validation tested indirectly through handlers. | |
-
-**User's choice:** Yes — business rule validation belongs in service tests.
-
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Co-located | _test.go next to source. Go convention. | ✓ |
-| Parallel test tree | Separate test directory. | |
-
-**User's choice:** Co-located
-
----
-
-## the agent's Discretion
-
-- Table-driven test case selection per domain
-- Shared testdata package shape and structure
-- Vitest configuration details
-- Test containers feasibility assessment during planning
 
 ## Deferred Ideas
 
-None — discussion stayed within phase scope
+None
