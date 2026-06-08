@@ -149,7 +149,12 @@ func (h *OrganizationHandler) UpdateSettings(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *OrganizationHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
-	members, err := h.service.ListMembers(r.Context(), middleware.GetOrganizationID(r.Context()))
+	orgID := middleware.GetOrganizationID(r.Context())
+	if orgID == uuid.Nil {
+		api.RespondWithError(w, http.StatusBadRequest, "no organization context")
+		return
+	}
+	members, err := h.service.ListMembers(r.Context(), orgID)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch members")
 		return

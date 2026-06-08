@@ -215,6 +215,11 @@ func (h *UnitHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := uuid.Parse(unitID); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid unit id format")
+		return
+	}
+
 	members, err := h.service.ListMembers(ctx, unitID)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch members")

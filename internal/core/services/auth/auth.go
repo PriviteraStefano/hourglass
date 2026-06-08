@@ -304,6 +304,9 @@ func (s *Service) GetProfile(ctx context.Context, userID uuid.UUID, orgID uuid.U
 	var membership *authdomain.OrganizationMembership
 	if orgID != uuid.Nil {
 		membership, _ = s.orgRepo.GetMembership(ctx, userID, orgID)
+		if membership == nil {
+			return nil, ErrMembershipNotFound
+		}
 	}
 
 	var org *authdomain.Organization

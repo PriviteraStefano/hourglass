@@ -205,6 +205,10 @@ func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := h.authService.GetProfile(ctx, userID, orgID)
 	if err != nil {
+		if err == auth.ErrMembershipNotFound {
+			api.RespondWithError(w, http.StatusNotFound, "membership not found")
+			return
+		}
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to get profile")
 		return
 	}
@@ -355,6 +359,9 @@ func (h *AuthHandler) GetMemberships(w http.ResponseWriter, r *http.Request) {
 	result := make([]MembershipWithOrg, 0, len(memberships))
 	for _, m := range memberships {
 		org, _ := h.authService.GetOrgByID(ctx, m.OrganizationID)
+		if org == nil {
+			continue
+		}
 		activatedAt := m.ActivatedAt
 		result = append(result, MembershipWithOrg{
 			Membership: auth.Membership{

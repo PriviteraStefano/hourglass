@@ -225,8 +225,9 @@ func (m *MockUserRepo) GetMemberships(ctx context.Context, userID uuid.UUID) ([]
 }
 
 type MockOrgRepo struct {
-	mu   sync.Mutex
-	Orgs map[uuid.UUID]*auth.Organization
+	mu          sync.Mutex
+	Orgs        map[uuid.UUID]*auth.Organization
+	Memberships map[string]*auth.OrganizationMembership // key = userID+":"+orgID
 }
 
 func (m *MockOrgRepo) Add(ctx context.Context, org *auth.Organization) error {
@@ -250,7 +251,17 @@ func (m *MockOrgRepo) GetByID(ctx context.Context, id uuid.UUID) (*auth.Organiza
 }
 
 func (m *MockOrgRepo) GetMembership(ctx context.Context, userID, orgID uuid.UUID) (*auth.OrganizationMembership, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Memberships == nil {
+		return nil, nil
+	}
+	key := userID.String() + ":" + orgID.String()
+	membership, ok := m.Memberships[key]
+	if !ok {
+		return nil, nil
+	}
+	return membership, nil
 }
 
 func (m *MockOrgRepo) AddMembership(ctx context.Context, membership *auth.OrganizationMembership) error {
@@ -258,9 +269,10 @@ func (m *MockOrgRepo) AddMembership(ctx context.Context, membership *auth.Organi
 }
 
 type MockOrgMgmtRepo struct {
-	mu      sync.Mutex
-	Orgs    map[uuid.UUID]*orgdomain.Organization
-	Members []orgdomain.Member
+	mu       sync.Mutex
+	Orgs     map[uuid.UUID]*orgdomain.Organization
+	Members  []orgdomain.Member
+	Settings *orgdomain.Settings
 }
 
 func (m *MockOrgMgmtRepo) CreateOrganization(ctx context.Context, org *orgdomain.Organization, ownerUserID uuid.UUID, ownerRole models.Role) error {
@@ -288,6 +300,9 @@ func (m *MockOrgMgmtRepo) InviteMember(ctx context.Context, orgID uuid.UUID, req
 }
 
 func (m *MockOrgMgmtRepo) GetSettings(ctx context.Context, orgID uuid.UUID) (*orgdomain.Settings, error) {
+	if m.Settings != nil {
+		return m.Settings, nil
+	}
 	return &orgdomain.Settings{}, nil
 }
 
@@ -473,8 +488,10 @@ func (m *MockProjectRepo) RemoveManager(ctx context.Context, projectID, userID u
 }
 
 type MockUnitRepo struct {
-	mu    sync.Mutex
-	Units map[string]*unitdomain.Unit
+	mu          sync.Mutex
+	Units       map[string]*unitdomain.Unit
+	Descendants map[string][]unitdomain.Unit          // key = unitID
+	UnitMembers map[string][]unitdomain.UnitMember    // key = unitID
 }
 
 func (m *MockUnitRepo) ListByOrg(ctx context.Context, orgID uuid.UUID) ([]unitdomain.Unit, error) {
@@ -526,7 +543,16 @@ func (m *MockUnitRepo) Delete(ctx context.Context, id string) error {
 }
 
 func (m *MockUnitRepo) GetDescendants(ctx context.Context, id string) ([]unitdomain.Unit, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Descendants == nil {
+		return nil, nil
+	}
+	descendants, ok := m.Descendants[id]
+	if !ok {
+		return nil, nil
+	}
+	return descendants, nil
 }
 
 func (m *MockUnitRepo) HasMembers(ctx context.Context, id string) (bool, error) {
@@ -534,7 +560,16 @@ func (m *MockUnitRepo) HasMembers(ctx context.Context, id string) (bool, error) 
 }
 
 func (m *MockUnitRepo) ListMembers(ctx context.Context, unitID string) ([]unitdomain.UnitMember, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.UnitMembers == nil {
+		return nil, nil
+	}
+	members, ok := m.UnitMembers[unitID]
+	if !ok {
+		return nil, nil
+	}
+	return members, nil
 }
 
 func (m *MockUnitRepo) AddMember(ctx context.Context, mm *unitdomain.UnitMember) (*unitdomain.UnitMember, error) {
@@ -550,8 +585,9 @@ func (m *MockUnitRepo) GetMemberCountsByOrg(ctx context.Context, orgID uuid.UUID
 }
 
 type MockWorkingGroupRepo struct {
-	mu     sync.Mutex
-	Groups map[uuid.UUID]*wgdomain.WorkingGroup
+	mu        sync.Mutex
+	Groups    map[uuid.UUID]*wgdomain.WorkingGroup
+	WGMembers map[string][]wgdomain.WorkingGroupMember // key = wgID.String()
 }
 
 func (m *MockWorkingGroupRepo) ListByOrg(ctx context.Context, orgID uuid.UUID, subprojectID *uuid.UUID) ([]wgdomain.WorkingGroup, error) {
@@ -607,7 +643,17 @@ func (m *MockWorkingGroupRepo) HasMembers(ctx context.Context, id uuid.UUID) (bo
 }
 
 func (m *MockWorkingGroupRepo) ListMembers(ctx context.Context, wgID uuid.UUID) ([]wgdomain.WorkingGroupMember, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.WGMembers == nil {
+		return nil, nil
+	}
+	key := wgID.String()
+	members, ok := m.WGMembers[key]
+	if !ok {
+		return nil, nil
+	}
+	return members, nil
 }
 
 func (m *MockWorkingGroupRepo) AddMember(ctx context.Context, mm *wgdomain.WorkingGroupMember) (*wgdomain.WorkingGroupMember, error) {
@@ -667,8 +713,9 @@ func (m *MockInvitationRepo) Update(ctx context.Context, inv *invitationdomain.I
 }
 
 type MockPasswordResetRepo struct {
-	mu    sync.Mutex
-	Resets map[uuid.UUID]*pwdomain.PasswordReset
+	mu              sync.Mutex
+	Resets          map[uuid.UUID]*pwdomain.PasswordReset
+	FindActiveResets map[string]*pwdomain.PasswordReset // key = userID string
 }
 
 func (m *MockPasswordResetRepo) Create(ctx context.Context, pr *pwdomain.PasswordReset) (*pwdomain.PasswordReset, error) {
@@ -682,7 +729,16 @@ func (m *MockPasswordResetRepo) Create(ctx context.Context, pr *pwdomain.Passwor
 }
 
 func (m *MockPasswordResetRepo) FindActiveByUserID(ctx context.Context, userID string) (*pwdomain.PasswordReset, error) {
-	return nil, pwdomain.ErrResetNotFound
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.FindActiveResets == nil {
+		return nil, pwdomain.ErrResetNotFound
+	}
+	reset, ok := m.FindActiveResets[userID]
+	if !ok {
+		return nil, pwdomain.ErrResetNotFound
+	}
+	return reset, nil
 }
 
 func (m *MockPasswordResetRepo) MarkUsed(ctx context.Context, id string) error {
