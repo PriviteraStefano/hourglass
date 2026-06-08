@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
@@ -50,12 +49,11 @@ func SetupPackageContainer(t testing.TB) *pgxpool.Pool {
 		}
 		packagePool = pool
 
-		t.Cleanup(func() {
-			pool.Close()
-			if err := testcontainers.TerminateContainer(packageContainer); err != nil {
-				t.Logf("failed to terminate container: %v", err)
-			}
-		})
+		// Cleanup is handled by testcontainers' Ryuk resource reaper when
+		// the test process exits.  Do NOT register t.Cleanup here — doing so
+		// ties the container lifetime to the first caller's test function,
+		// which breaks subsequent test functions in the same package that
+		// share the container via sync.Once.
 	})
 	return packagePool
 }
