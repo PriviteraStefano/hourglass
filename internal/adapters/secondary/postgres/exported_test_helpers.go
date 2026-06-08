@@ -103,6 +103,7 @@ func TeardownTestSchema(t *testing.T, pool *pgxpool.Pool) {
 		"organization_memberships",
 		"users",
 		"organizations",
+		"verification_tokens",
 	}
 	ctx := context.Background()
 	for _, tname := range tables {
