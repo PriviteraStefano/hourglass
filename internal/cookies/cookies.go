@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	AccessTokenCookieName  = "access_token"
+	AccessTokenCookieName  = "auth_token"
 	RefreshTokenCookieName = "refresh_token"
 )
 

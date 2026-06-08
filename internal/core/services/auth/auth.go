@@ -81,8 +81,9 @@ type LoginResponse struct {
 }
 
 type RefreshResponse struct {
-	Token     string    `json:"token"`
-	ExpiresAt time.Time `json:"expires_at"`
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
+	ExpiresAt    time.Time `json:"expires_at"`
 	UserWithMembership
 }
 
@@ -328,6 +329,11 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*RefreshRes
 		return nil, ErrInvalidCreds
 	}
 
+	// Rotate the old refresh token: revoke old hash
+	if err := s.refreshTokenRepo.RevokeByHash(ctx, hash); err != nil {
+		return nil, err
+	}
+
 	user, err := s.userRepo.GetByID(ctx, token.UserID)
 	if err != nil {
 		return nil, ErrUserNotFound
@@ -350,8 +356,20 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*RefreshRes
 		return nil, err
 	}
 
+	// Issue a new refresh token
+	newRefreshToken, err := s.tokenService.GenerateRefreshToken()
+	if err != nil {
+		return nil, err
+	}
+	newHash := s.tokenService.HashRefreshToken(newRefreshToken)
+	newExpiresAt := time.Now().Add(7 * 24 * time.Hour)
+	if err := s.refreshTokenRepo.Add(ctx, token.UserID, token.OrganizationID, newHash, newExpiresAt); err != nil {
+		return nil, err
+	}
+
 	return &RefreshResponse{
 		Token:            newToken,
+		RefreshToken:     newRefreshToken,
 		ExpiresAt:        time.Now().Add(15 * time.Minute),
 		UserWithMembership: *buildUserWithMembershipPtr(user, token.OrganizationID, org, membership),
 	}, nil

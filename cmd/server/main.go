@@ -74,8 +74,11 @@ func main() {
 	)
 	authHandler := http.NewAuthHandler(hexAuthService, invitationService)
 
-	mux.HandleFunc("POST /auth/register", authHandler.Register)
-	mux.HandleFunc("POST /auth/login", authHandler.Login)
+	authRateLimiter := middleware.NewRateLimiter(5, 100)
+	passwordResetRateLimiter := middleware.NewRateLimiter(3, 60)
+
+	mux.Handle("POST /auth/register", authRateLimiter.Middleware(stdhttp.HandlerFunc(authHandler.Register)))
+	mux.Handle("POST /auth/login", authRateLimiter.Middleware(stdhttp.HandlerFunc(authHandler.Login)))
 	mux.HandleFunc("POST /auth/logout", authHandler.Logout)
 	mux.HandleFunc("POST /auth/refresh", authHandler.Refresh)
 	mux.HandleFunc("GET /auth/me", middleware.Auth(authService, authHandler.GetProfile))
@@ -119,8 +122,8 @@ func main() {
 	exportService := exportsvc.NewService(exportRepo)
 	exportHandler := http.NewExportHandler(exportService)
 
-	mux.HandleFunc("POST /auth/password-reset/request", passwordResetHandler.Request)
-	mux.HandleFunc("POST /auth/password-reset/verify", passwordResetHandler.Verify)
+	mux.Handle("POST /auth/password-reset/request", passwordResetRateLimiter.Middleware(stdhttp.HandlerFunc(passwordResetHandler.Request)))
+	mux.Handle("POST /auth/password-reset/verify", passwordResetRateLimiter.Middleware(stdhttp.HandlerFunc(passwordResetHandler.Verify)))
 
 	mux.HandleFunc("POST /invitations", invitationHandler.Create)
 	mux.HandleFunc("GET /invitations/validate/code/{code}", invitationHandler.ValidateCode)
@@ -209,7 +212,7 @@ func main() {
 	rateLimiter := middleware.NewRateLimiter(20, 100)
 
 	log.Printf("Server starting on port %s", port)
-	handler := rateLimiter.Middleware(middleware.Logging(middleware.APIVersion(middleware.CORS(allowedOrigins)(mux))))
+	handler := middleware.TryAuth(authService, rateLimiter.Middleware(middleware.Logging(middleware.APIVersion(middleware.CORS(allowedOrigins)(mux)))))
 	if err := stdhttp.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}

@@ -41,7 +41,7 @@ func (h *PasswordResetHandler) Request(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	code, expiresAt, err := h.service.Request(ctx, req.Identifier)
+	_, expiresAt, err := h.service.Request(ctx, req.Identifier)
 	if err != nil {
 		if err == password_reset.ErrUserNotFound {
 			api.RespondWithError(w, http.StatusNotFound, "user not found")
@@ -53,7 +53,6 @@ func (h *PasswordResetHandler) Request(w http.ResponseWriter, r *http.Request) {
 
 	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"message":    "reset code sent",
-		"code":       code,
 		"expires_at": expiresAt,
 	})
 }

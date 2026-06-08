@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stefanoprivitera/hourglass/internal/cookies"
@@ -117,55 +116,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expiresAt := time.Now().Add(15 * time.Minute)
 	secure := cookies.IsSecureRequest(r)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "auth_token",
-		Value:    resp.Token,
-		Expires:  expiresAt,
-		HttpOnly: true,
-		Path:     "/",
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
-
-	refreshExpiresAt := time.Now().Add(7 * 24 * time.Hour)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    resp.RefreshToken,
-		Expires:  refreshExpiresAt,
-		HttpOnly: true,
-		Path:     "/",
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
+	cookies.SetAccessTokenCookie(w, resp.Token, secure)
+	cookies.SetRefreshTokenCookie(w, resp.RefreshToken, secure)
 
 	api.RespondWithJSON(w, http.StatusOK, resp)
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	if cookie, err := r.Cookie("refresh_token"); err == nil && cookie.Value != "" {
-		_ = h.authService.Logout(r.Context(), cookie.Value)
+	if cookie, err := cookies.GetRefreshTokenFromCookie(r); err == nil && cookie != "" {
+		_ = h.authService.Logout(r.Context(), cookie)
 	}
-	secure := cookies.IsSecureRequest(r)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "auth_token",
-		Value:    "",
-		Expires:  time.Now().Add(-time.Hour),
-		HttpOnly: true,
-		Path:     "/",
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    "",
-		Expires:  time.Now().Add(-time.Hour),
-		HttpOnly: true,
-		Path:     "/",
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
+	cookies.ClearAuthCookies(w)
 	api.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
 }
 
@@ -181,17 +143,9 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		api.RespondWithError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
-	expiresAt := time.Now().Add(15 * time.Minute)
 	secure := cookies.IsSecureRequest(r)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "auth_token",
-		Value:    resp.Token,
-		Expires:  expiresAt,
-		HttpOnly: true,
-		Path:     "/",
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
+	cookies.SetAccessTokenCookie(w, resp.Token, secure)
+	cookies.SetRefreshTokenCookie(w, resp.RefreshToken, secure)
 	api.RespondWithJSON(w, http.StatusOK, resp)
 }
 
@@ -236,28 +190,9 @@ func (h *AuthHandler) Bootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-expiresAt := time.Now().Add(15 * time.Minute)
 	secure := cookies.IsSecureRequest(r)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "auth_token",
-		Value:    resp.Token,
-		Expires:  expiresAt,
-		HttpOnly: true,
-		Path:     "/",
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
-
-	refreshExpiresAt := time.Now().Add(7 * 24 * time.Hour)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    resp.RefreshToken,
-		Expires:  refreshExpiresAt,
-		HttpOnly: true,
-		Path:     "/",
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
+	cookies.SetAccessTokenCookie(w, resp.Token, secure)
+	cookies.SetRefreshTokenCookie(w, resp.RefreshToken, secure)
 
 	api.RespondWithJSON(w, http.StatusOK, resp)
 }
@@ -307,28 +242,9 @@ func (h *AuthHandler) SwitchOrganization(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	expiresAt := time.Now().Add(15 * time.Minute)
 	secure := cookies.IsSecureRequest(r)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "auth_token",
-		Value:    resp.Token,
-		Expires:  expiresAt,
-		HttpOnly: true,
-		Path:     "/",
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
-
-	refreshExpiresAt := time.Now().Add(7 * 24 * time.Hour)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    resp.RefreshToken,
-		Expires:  refreshExpiresAt,
-		HttpOnly: true,
-		Path:     "/",
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
+	cookies.SetAccessTokenCookie(w, resp.Token, secure)
+	cookies.SetRefreshTokenCookie(w, resp.RefreshToken, secure)
 
 	api.RespondWithJSON(w, http.StatusOK, resp)
 }
