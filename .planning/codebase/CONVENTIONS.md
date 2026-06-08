@@ -1,269 +1,247 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-05-12
-
-## Languages
-
-**Frontend (TypeScript/TSX):**
-- TypeScript 5 (~6.0.3) with strict mode
-- JSX via `react-jsx` transform (React 19)
-
-**Backend (Go):**
-- Go 1.26.1
+**Analysis Date:** 2026-06-08
 
 ## Naming Patterns
 
 **Files:**
+- **Go backend:** `snake_case.go` — e.g., `auth.go`, `time_entry.go`, `working_group.go`, `exported_test_helpers.go`
+- **Frontend (React/TypeScript):** kebab-case for components and pages — e.g., `app-shell.tsx`, `status-badge.tsx`, `theme-provider.tsx`, `time-entries.tsx`
+- **Frontend API modules:** camelCase file names — e.g., `auth.ts`, `time-entries.ts`, `query-client.ts`
+- **Frontend types:** camelCase file names — e.g., `api.ts`, `models.ts`, `unit.ts`
+- **Go test files:** `*_test.go` co-located with source — e.g., `auth_test.go` next to `auth.go`
+- **Frontend test files:** `*.test.ts` in `__tests__/` directories — e.g., `auth.test.ts`, `api.test.ts`
+- **E2E tests:** `*.spec.ts` — e.g., `auth.spec.ts`, `time-entries.spec.ts`
 
-- **Go handlers/services/domain:** lowercase with underscores (e.g., `auth.go`, `user_repository.go`)
-- **Go tests:** `_test.go` suffix co-located (e.g., `auth_test.go`)
-- **Go ports (interfaces):** `_repository.go`, `_service.go`, `_service.go` suffix
-- **React components:** PascalCase (e.g., `LoginForm.tsx`, `AppShell.tsx`)
-- **UI primitives:** lowercase kebab for shadcn-like components (e.g., `button.tsx`, `badge.tsx`)
-- **Route components:** lowercase kebab within `-components/` subfolder convention
-- **API modules:** lowercase (e.g., `auth.ts`, `time-entries.ts`)
-- **Type files:** lowercase (e.g., `models.ts`, `api.ts`)
-- **Lib/util files:** lowercase (e.g., `utils.ts`, `api.ts`, `query-client.ts`)
+**Functions:**
+- **Go:** PascalCase for exported functions, camelCase for unexported. Handler methods use `(h *Handler)` receiver pattern:
+  ```go
+  func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) { ... }
+  func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) { ... }
+  ```
+- **Go service constructors:** `NewService(...)` returning `*Service`
+- **Go test functions:** PascalCase with `Test` prefix — `TestService_Register`, `TestRepository_Add_GetByID`
+- **Frontend:** camelCase for functions and methods — `api<T>()`, `useIsMobile()`, `setupTestServer()`
 
-**Directories:**
-
-- Go packages: lowercase, single words or underscore-separated
-- Frontend: kebab-case for route subfolders (e.g., `org-hierarchy/`, `time-entries/`)
-
-**Variables & Functions:**
-
-- Go: camelCase for exported fields in structs; unexported fields may use underscores
-- TypeScript: camelCase for variables and functions; PascalCase for components and types
-- React hooks: camelCase with `use` prefix (e.g., `useMutation`, `useForm`)
+**Variables:**
+- **Go:** camelCase — `userRepo`, `orgRepo`, `tokenSvc`, `pwHasher`
+- **Frontend:** camelCase — `queryClient`, `server`, `mockData`
+- **Frontend constants:** UPPER_SNAKE_CASE for env keys — `API_BASE`, `MOBILE_BREAKPOINT`
 
 **Types:**
-
-- TypeScript: PascalCase interfaces and types (e.g., `User`, `EntryStatus`, `LoginFormData`)
-- Go: PascalCase structs and fields; exported structs have JSON field tags
+- **Go:** PascalCase — `Role`, `EntryStatus`, `GovernanceModel`, `TimeEntry`, `UserWithMembership`
+- **Frontend (TypeScript):** PascalCase for interfaces and types — `AuthResponse`, `LoginRequest`, `CreateTimeEntryRequest`
+- **Frontend Zod schemas:** PascalCase with `Schema` suffix — `CreateUnitRequestSchema`, `UnitSchema`
 
 ## Code Style
 
-### TypeScript/React
+**Formatting:**
+- **Go:** Uses standard `gofmt` (no `.golangci.yml` detected). Standard library `net/http` for HTTP server, `encoding/json` for JSON handling.
+- **Frontend:** ESLint via `web/eslint.config.js` with `typescript-eslint` recommended, `eslint-plugin-react-hooks`, and `eslint-plugin-react-refresh`. No Prettier config detected — formatting governed by ESLint only.
+- **Frontend:** Single quotes for imports (ESLint default), semicolons used.
 
-**Formatting:** No explicit formatter config (no Prettier); rely on ESLint + editor defaults.
+**Linting:**
+- **Go:** No golangci-lint config found. Standard `go vet` expected from `Makefile` test target.
+- **Frontend:** ESLint 9+ flat config (`web/eslint.config.js`):
+  ```
+  import js from '@eslint/js'
+  import globals from 'globals'
+  import reactHooks from 'eslint-plugin-react-hooks'
+  import reactRefresh from 'eslint-plugin-react-refresh'
+  import tseslint from 'typescript-eslint'
+  ```
+- **Frontend command:** `cd web && bun run lint` (runs `eslint .`)
 
-**Linting:** ESLint flat config (`web/eslint.config.js`) with:
-- `@eslint/js` (recommended)
-- `typescript-eslint` (recommended)
-- `eslint-plugin-react-hooks` (flat config recommended)
-- `eslint-plugin-react-refresh`
-
-Key tsconfig settings (`web/tsconfig.json`):
-- `strict: true`
-- `noUnusedLocals: false` — unused locals allowed
-- `noUnusedParameters: false` — unused parameters allowed
-- `jsx: react-jsx`
-- `moduleResolution: bundler`
-- `erasableSyntaxOnly: true`
-
-**Import organization:**
-1. React/router imports
-2. TanStack Query / React Query imports
-3. Third-party UI libraries (e.g., `lucide-react`, `recharts`)
-4. Internal `@/` alias imports (components, api, lib, types, hooks)
-5. No explicit sorting within groups; alphabetical within groups recommended
-
-**Path aliases:**
-- `@/*` maps to `web/src/*` (configured in `web/vite.config.ts` and `web/tsconfig.json`)
-
-**Component patterns:**
-- Use named exports (e.g., `export function LoginForm`) not default
-- Props destructured inline with explicit types
-- `cn()` utility for className merging (clsx + tailwind-merge)
-- CVA (`class-variance-authority`) for component variants (e.g., `button.tsx`, `badge.tsx`)
-
-### Go
-
-**Formatting:** `go fmt` (implicit via `gofmt`)
-
-**Error handling:**
-- Sentinel errors defined at package level: `var ErrEmailExists = errors.New("email already registered")`
-- Domain-level errors in `internal/core/domain/<name>/errors.go`
-- Service-level errors in `internal/core/services/<name>/<name>.go`
-- `errors.Is()` / `errors.As()` for error matching
-- `fmt.Errorf("op: %w", err)` for wrapping
-
-**Handler pattern:** Thin handlers in `internal/adapters/primary/http/` delegate to services:
-```go
-type AuthHandler struct {
-    authService       *auth.Service
-    invitationService *invitation.Service
-}
-
-func NewAuthHandler(authService *auth.Service, invitationService *invitation.Service) *AuthHandler { ... }
-```
-
-**HTTP routing:** Go 1.22+ pattern matching:
-```go
-mux.HandleFunc("POST /auth/register", handler.Register)
-mux.HandleFunc("GET /auth/me", handler.GetProfile)
-```
-
-**Response format:** All JSON responses via `pkg/api/response.go`:
-```go
-api.RespondWithJSON(w, http.StatusCreated, map[string]interface{}{"data": resp})
-api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
-```
-
-**Context values:** Context keys defined as `type contextKey string` const, injected via `context.WithValue()` and read via `middleware.GetUserID(ctx)` helper functions.
+**TypeScript Configuration:**
+- `web/tsconfig.json`: Strict mode enabled, `ES2022` target, `bundler` module resolution, `react-jsx` JSX transform. Path alias `@/` → `./src/*`.
+- Key strict settings: `strict: true`, `noFallthroughCasesInSwitch: true`, `isolatedModules: true`
+- No unused locals/parameters: `noUnusedLocals: false`, `noUnusedParameters: false` (relaxed)
 
 ## Import Organization
 
-### Frontend
-```typescript
-// 1. React/router
-import { useForm } from 'react-hook-form'
-import { Link, useNavigate } from '@tanstack/react-router'
-
-// 2. TanStack
-import { useMutation } from '@tanstack/react-query'
-import { zodResolver } from '@hookform/resolvers/zod'
-
-// 3. UI/icons
-import { Card, CardContent } from '@/components/ui/card'
-import { LoaderIcon } from 'lucide-react'
-
-// 4. Internal
-import { AuthApis } from '@/api/auth.ts'
-import { cn } from '@/lib/utils'
-import type { UserWithMembership } from '@/types'
-```
-
-### Backend (Go)
+**Go:**
+1. Standard library packages (e.g., `"encoding/json"`, `"net/http"`, `"testing"`)
+2. Third-party packages (e.g., `"github.com/google/uuid"`, `"github.com/stretchr/testify/assert"`)
+3. Internal project packages (e.g., `"github.com/stefanoprivitera/hourglass/internal/core/services/auth"`)
+Groups separated by blank lines. Example from `internal/adapters/primary/http/auth.go`:
 ```go
 import (
-    "encoding/json"
-    "net/http"
-    "time"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
 
-    "github.com/google/uuid"
-    authdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
-    "github.com/stefanoprivitera/hourglass/internal/core/ports"
+	"github.com/google/uuid"
+	"github.com/stefanoprivitera/hourglass/internal/cookies"
+	"github.com/stefanoprivitera/hourglass/internal/core/services/auth"
+	"github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
+	"github.com/stefanoprivitera/hourglass/internal/middleware"
+	"github.com/stefanoprivitera/hourglass/pkg/api"
 )
 ```
 
+**Frontend:**
+1. React/hooks imports (e.g., `import {StrictMode} from 'react'`)
+2. Library/framework imports (e.g., `import {createFileRoute} from '@tanstack/react-router'`)
+3. Internal path aliases using `@/` (e.g., `import {api} from "@/lib/api.ts"`)
+4. Type imports using `import type { ... }` syntax
+Groups separated by blank lines. Example from `web/src/api/auth.ts`:
+```typescript
+import {mutationOptions, queryOptions} from '@tanstack/react-query'
+import {api} from "@/lib/api.ts";
+import type {AuthResponse, LoginRequest, ...} from "@/types";
+```
+
+**Path Aliases:**
+- `@/` maps to `web/src/` — used throughout frontend: `@/lib/api.ts`, `@/types`, `@/api/auth.ts`
+
 ## Error Handling
 
-**Frontend:**
-- React Query mutations use `onError` callbacks; `isError` / `error` from `useMutation`
-- Toast notifications for user-facing errors via `sonner` (`toast.error()`, `toast.promise()`)
-- API layer (`web/src/lib/api.ts`) throws `Error` on non-OK responses; 401 triggers refresh flow
-- Zod validation schemas on forms with `react-hook-form`
+**Go:**
+- **Sentinel errors** using `errors.New("...")` declared as package-level `var`:
+  ```go
+  var (
+      ErrEmailExists        = errors.New("email already registered")
+      ErrInvalidCreds       = errors.New("invalid credentials")
+      ErrAccountDeactivated = errors.New("account is deactivated")
+  )
+  ```
+- **Error matching** uses `errors.Is()` in assertions: `assert.ErrorIs(t, err, tt.wantErr)`
+- **Switch on error type** in handlers to map to HTTP status codes:
+  ```go
+  if err != nil {
+      switch err {
+      case auth.ErrInvalidCreds:
+          api.RespondWithError(w, http.StatusUnauthorized, "invalid credentials")
+      case auth.ErrAccountDeactivated:
+          api.RespondWithError(w, http.StatusForbidden, "account is deactivated")
+      default:
+          api.RespondWithError(w, http.StatusInternalServerError, "login failed")
+      }
+      return
+  }
+  ```
+- **Error wrapping** not observed (direct `err` comparison used)
+- **Response envelope** via `pkg/api/response.go`: `{ data: ... }` on success, `{ error: ... }` on failure
 
-**Backend (Go):**
-- Handlers return HTTP errors via `api.RespondWithError(w, status, "message")`
-- Services return typed sentinel errors matched in handlers via `switch err`
-- Repository errors wrapped with `wrapErr(err, "operation")` helper that converts SurrealDB "not found" to `ports.ErrUserNotFound`
-- No panic recovery in handlers (let errors propagate)
+**Frontend:**
+- API errors thrown as `new Error(...)` with message from server response:
+  ```typescript
+  if (!res.ok) {
+      const error = await res.json().catch(() => ({message: 'Request failed'})) as ApiError
+      throw new Error(error.message || error.error || 'Request failed')
+  }
+  ```
+- Validation uses **Zod schemas** (`web/src/types/unit.ts`, route-level schemas) with `.safeParse()`
+- React Query `mutationOptions` `onError` handlers redirect on failure: `location.href = '/login'`
+- Catch-all `try/catch` with redirect in auth hydration:
+  ```typescript
+  try {
+      const profile = await client.fetchQuery(AuthApis.profileQueryOpts)
+      return { profile }
+  } catch {
+      throw redirect({ to: '/login' })
+  }
+  ```
 
 ## Logging
 
-**Frontend:** No explicit logging framework. Use `console.error` sparingly for unexpected errors.
+**Go:**
+- `testing.TB.Logf` used in tests for debug output
+- No dedicated logging library detected in source handlers; standard `log` package expected
+- Request logging middleware in `internal/middleware/logging_test.go` indicates structured logging middleware exists
 
-**Backend (Go):** Standard library `log` package in middleware:
-```go
-log.Printf("request: %s %s", r.Method, r.URL.Path)
-```
-No structured logging library currently in use.
+**Frontend:**
+- No structured logging framework detected. `console` usage not lint-restricted.
+- `sonner` library (`^2.0.7`) available in dependencies for toast notifications
 
 ## Comments
 
-**When to comment:**
-- Explain "why" not "what" for non-obvious logic
-- Complex regex patterns (e.g., username validation)
-- Business rule rationale in service layer
+**Go:**
+- **Section marker comments** with dash separators in test files:
+  ```go
+  // ---------------------------------------------------------------------------
+  // TestService_Register
+  // ---------------------------------------------------------------------------
+  ```
+- **t.Helper()** marker comment for test helper functions: `// seedContract creates a test contract linked to an org.`
+- **Standard Go doc comments** for exported functions and types
 
-**JSDoc/TSDoc:** Minimal usage. Type annotations on function signatures provide documentation.
-
-**Go comments:** Package-level comments on exported types and functions:
-```go
-// Service handles time entry business logic.
-type Service struct { ... }
-```
+**Frontend:**
+- Comments used sparingly. Schema sections annotated with comment dividers:
+  ```typescript
+  // ── Exported schemas from @/types/unit ──────────────────────────────────
+  const tabsSchema = z.enum(['owned', 'adopted', 'all'])
+  ```
 
 ## Function Design
 
-**Frontend:**
-- Small, focused functions preferred
-- React Query `queryOptions` / `mutationOptions` for data fetching (defined in `web/src/api/*.ts`)
-- Mutations include `onSuccess` callbacks to update query cache: `client.setQueryData(['auth', 'me'], data.user)`
-- Route `beforeLoad` for auth checks; `pendingComponent` for loading states
+**Size:**
+- **Go handlers:** Thin, typically 30-80 lines. Example from `auth.go` — `Register` is ~30 lines.
+- **Go services:** Moderate, typically 50-150 lines per method. `auth.go` service is 539 lines total across all methods.
+- **Frontend API modules:** Each `queryOptions`/`mutationOptions` is a standalone 5-15 line declaration.
+- **Frontend page components:** Very thin, typically 10-30 lines. Route files use inline arrow functions.
 
-**Backend (Go):**
-- Services take interfaces (ports) for dependency injection
-- Repository methods accept `context.Context` as first parameter
-- Validation at handler level before calling service
-- Validation at service level before calling repository
+**Parameters:**
+- **Go:** Handler functions use `(w http.ResponseWriter, r *http.Request)` signature
+- **Go:** Service functions use `ctx context.Context` as first parameter followed by request struct
+- **Frontend:** Query/mutation options defined as functions or constants, using TypeScript generics `<T>`
+
+**Return Values:**
+- **Go services:** Return `(resp *ResponseType, err error)` tuple
+- **Go handlers:** Write response directly via `api.RespondWithJSON(w, status, payload)`
+- **Frontend `api<T>()`:** Returns `Promise<T>` — unwraps `{ data: T }` envelope
 
 ## Module Design
 
-### Frontend
+**Exports:**
+- **Go handlers:** Exported `*Handler` struct, unexported fields, constructor `New*Handler()` returns pointer
+- **Go services:** Exported `*Service` struct, unexported fields, constructor `NewService()` returns pointer
+- **Frontend API modules:** Export an `*Apis` object aggregating all query/mutation options:
+  ```typescript
+  export const AuthApis = {
+      profileQueryOpts,
+      loginMutationOpts,
+      registerMutationOpts,
+      // ...
+  }
+  ```
+- **Frontend types:** Export interfaces/types and aggregated barrel file `web/src/types/index.ts`:
+  ```typescript
+  export * from './models'
+  export * from './api'
+  ```
 
-**Barrel exports:** API modules export a named `AuthApis` / `ContractsApis` etc. object:
-```typescript
-export const AuthApis = {
-  profileQueryOpts,
-  loginMutationOpts,
-  ...
-}
-```
+**Barrel Files:**
+- `web/src/types/index.ts` re-exports from `models.ts` and `api.ts`
+- `web/src/components/ui/` components are individually imported — no barrel file for shadcn UI
 
-**Shared query client:** Single `QueryClient` instance in `web/src/lib/query-client.ts` with defaults:
-```typescript
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      staleTime: 30000,
-      refetchOnWindowFocus: false,
-    },
-  },
-})
-```
+## Test Conventions
 
-### Backend (Go)
+**Go:**
+- **Table-driven tests** are the standard pattern for service tests:
+  ```go
+  tests := []struct {
+      name    string
+      req     RegisterRequest
+      setup   func(*testdata.MockUserRepo)
+      wantErr error
+  }{ ... }
+  for _, tt := range tests {
+      t.Run(tt.name, func(t *testing.T) { ... })
+  }
+  ```
+- **Subtests** via `t.Run()` for each test case
+- **`require.NoError`** used for fatal assertions, **`assert`** for non-fatal checks
+- **`t.Helper()`** called in all helper/seed functions
+- **Sentinel error comparison** via `assert.ErrorIs(t, err, tt.wantErr)`
 
-**Hexagonal architecture:**
-- `internal/core/domain/` — domain models and value objects
-- `internal/core/ports/` — interface definitions (repository ports)
-- `internal/core/services/` — application logic
-- `internal/adapters/primary/http/` — HTTP handlers (thin)
-- `internal/adapters/secondary/surrealdb/` — SurrealDB implementations
-- `internal/models/` — shared model structs and constants
-
-**Exported packages:** Only the service packages are exported; ports are internal.
-
-## API Client Pattern
-
-The frontend `api<T>()` helper (`web/src/lib/api.ts`) handles:
-- Cookie-based auth (`credentials: 'include'`)
-- JSON serialization
-- Auto-refresh on 401 with promise deduplication
-- Response envelope unwrapping (`{ data: T }` → `T`)
-
-## React Component Patterns
-
-**TanStack Router:**
-- File-based routing with `createFileRoute()`
-- `__root.tsx` for root layout
-- `_authenticated.tsx` for protected route guard with `beforeLoad`
-- `(auth)/` folder for public auth routes
-
-**TanStack React Query:**
-- Query options pattern for type-safe queries
-- Mutation options with `onSuccess` for optimistic updates
-- `queryClient.invalidateQueries()` on mutations
-
-**Forms:**
-- `react-hook-form` with `zod` resolver
-- Zod schemas co-located in the same file as the form component
-- Validation errors displayed via `form.formState.errors`
+**Frontend:**
+- **Vitest + MSW** for HTTP mocking in API tests
+- **Describe/it blocks** with BDD-style naming
+- **beforeAll/afterAll/afterEach** lifecycle for MSW server management
+- **Testing Library** (`@testing-library/react`, `@testing-library/jest-dom`) for component tests
 
 ---
 
-*Convention analysis: 2026-05-12*
+*Convention analysis: 2026-06-08*

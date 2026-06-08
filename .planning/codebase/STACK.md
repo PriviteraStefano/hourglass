@@ -1,143 +1,148 @@
 # Technology Stack
 
-**Analysis Date:** 2026-05-12
+**Analysis Date:** 2026-06-08
 
 ## Languages
 
 **Primary:**
-- Go 1.26.1 - Backend server, CLI tools, database migrations
-- TypeScript 6.0.3 - Frontend with strict mode
+- **Go 1.26.1** — All backend code (`cmd/`, `internal/`, `pkg/`). Defined in `go.mod`.
+- **TypeScript 6.0.3** — All frontend code (`web/src/`, `web/e2e/`). Defined in `web/tsconfig.json`.
 
 **Secondary:**
-- SQL (PostgreSQL 15) - Relational data migrations
-- SurrealQL - NoSQL schema definitions
+- **SQL** — PostgreSQL migrations (`migrations/*.sql`), executed via `cmd/migrate/main.go`.
+- **HTML/CSS** — `web/index.html`, `web/src/index.css` (Tailwind CSS v4 with shadcn).
 
 ## Runtime
 
-**Backend:**
-- Go 1.26.1 (Alpine Linux in Docker, macOS/Linux locally)
+**Environment:**
+- **Backend:** Compiled Go binary running directly on host or in Docker.
+- **Frontend:** Browser runtime (React 19 SPA served by Vite dev server or built `dist/`).
 
-**Frontend:**
-- Vite 8.0.10 dev server with HMR
-- ESBuild for transpilation
-- Target: ES2022, Module: ESNext
-
-**Package Manager:**
-- Backend: `go mod` / `go mod download`
-- Frontend: `bun` (used for `bun install`, `bun run dev`, `bun run build`)
-- Lockfile: `go.sum`, `bun.lockb`
+**Package Managers:**
+- **Go modules** — `go.mod` / `go.sum` for backend dependencies.
+- **Bun** — `web/bun.lock` (lockfileVersion 1) for frontend dependencies.
 
 ## Frameworks
 
 **Core Backend:**
-- Go standard library `net/http` - HTTP server (no framework)
-- Go 1.22+ `http.ServeMux` with pattern-based routing (`"GET /path", handler`)
+- **Go standard library `net/http`** — HTTP server with Go 1.22+ pattern-based `ServeMux` (`mux.HandleFunc("POST /auth/login", handler)`).
 
 **Core Frontend:**
-- React 19.2.5 - UI library
-- React DOM 19.2.5
-- Tailwind CSS 4.2.4 (`@tailwindcss/vite`)
-- TanStack Router 1.169.1 - File-based routing (`@tanstack/router-plugin`)
-- TanStack React Query 5.100.8 - Server state
-- TanStack React Form 1.29.1 - Form handling
-
-**Build/Dev:**
-- Vite 8.0.10 - Frontend build tool
-- ESLint 9.39.4 + TypeScript ESLint 8.59.1 - Linting
-- Playwright 1.59.1 - E2E testing (`web/playwright.config.ts`, `web/e2e/`)
+- **React 19** (`^19.2.5`) — UI framework.
+- **TanStack React Router v1** (`^1.169.1`) — File-based routing with `createFileRoute`, `beforeLoad` guards, and `createRootRouteWithContext`.
+- **TanStack React Query v5** (`^5.100.8`) — Server state management, `queryOptions`/`mutationOptions`, automatic cache invalidation.
+- **Tailwind CSS v4** (`^4.2.4`) — Utility-first CSS via Vite plugin `@tailwindcss/vite`.
 
 **Testing:**
-- Go testing (`go test -v ./...`)
-- Playwright E2E tests
+- **Backend:** `github.com/stretchr/testify v1.11.1` — Assertions and mocking.
+- **Frontend unit:** Vitest v4 (`^4.1.6`) with `jsdom` environment + `@testing-library/react v16`.
+- **Frontend e2e:** Playwright v1 (`@playwright/test ^1.59.1`).
+- **API mocking:** MSW v2 (`msw ^2.14.6`) — Mock Service Worker for frontend tests.
+
+**Build/Dev:**
+- **Backend:** `go build ./cmd/server` — Produces `bin/hourglass` binary.
+- **Frontend:** Vite v8 (`^8.0.10`) — Dev server (port 3000 with `/api` proxy to `:8080`) + production build.
+- **Docker** — Multi-stage build (`Dockerfile`) with `golang:1.26.1-alpine` builder and `alpine:latest` runtime.
 
 ## Key Dependencies
 
-**Backend (Go):**
-- `github.com/golang-jwt/jwt/v5 v5.3.0` - JWT signing/verification
-- `github.com/surrealdb/surrealdb.go v1.4.0` - SurrealDB RPC client
-- `github.com/google/uuid v1.6.0` - UUID generation
-- `github.com/lib/pq v1.10.9` - PostgreSQL driver (for migrations)
-- `golang.org/x/crypto v0.48.0` - bcrypt password hashing
-- `github.com/stretchr/testify v1.11.1` - Testing assertions
+### Backend (`go.mod`)
 
-**Frontend (React/TypeScript):**
-- `@tanstack/react-router v1.169.1` - File-based routing
-- `@tanstack/react-query v5.100.8` - Data fetching/caching
-- `@tanstack/react-form v1.29.1` - Form state
-- `@base-ui/react v1.4.1` - Base UI component primitives
-- `@xyflow/react v12.10.2` - React Flow for diagram rendering
-- `recharts v3.8.0` - Charting library
-- `shadcn v4.6.0` - Component registry (shadcn/ui)
-- `tailwindcss v4.2.4` - CSS framework
-- `react-hook-form v7.75.0` - Form hooks
-- `zod v4.4.2` - Schema validation
-- `date-fns v4.1.0` - Date utilities
-- `lucide-react v1.14.0` - Icon library
-- `zustand v5.0.13` - Client state management
-- `vaul v1.1.2` - Drawer/dialog primitives
-- `cmdk v1.1.1` - Command menu
-- `next-themes v0.4.6` - Theme switching
-- `embla-carousel-react v8.6.0` - Carousel
-- `input-otp v1.4.2` - OTP input
-- `sonner v2.0.7` - Toast notifications
-- `dagre v0.8.5` + `@types/dagre v0.7.54` - Graph layout for React Flow
-- `react-resizable-panels v4.10.0` - Resizable panel layouts
-- `react-day-picker v9.14.0` - Calendar date picker
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `github.com/jackc/pgx/v5` | `v5.10.0` | PostgreSQL driver with connection pooling (`pgxpool`) |
+| `github.com/golang-jwt/jwt/v5` | `v5.3.0` | JWT token generation, signing (HS256), and validation |
+| `github.com/google/uuid` | `v1.6.0` | UUID generation for IDs, tokens, refresh tokens |
+| `golang.org/x/crypto` | `v0.48.0` | bcrypt password hashing (`bcrypt.GenerateFromPassword`) |
+| `github.com/stretchr/testify` | `v1.11.1` | Test assertions and suite support |
 
-**Frontend Dev:**
-- `typescript v6.0.3` - Type checking
-- `eslint v9.39.4` - Linting
-- `@vitejs/plugin-react v6.0.1` - React HMR in Vite
-- `@tailwindcss/vite v4.2.4` - Tailwind Vite plugin
+### Frontend (`web/package.json`)
+
+**State & Data:**
+| Package | Purpose |
+|---------|---------|
+| `@tanstack/react-query ^5.100.8` | Server state, cache, mutations |
+| `zustand ^5.0.13` | Client-side state management |
+
+**Routing:**
+| Package | Purpose |
+|---------|---------|
+| `@tanstack/react-router ^1.169.1` | File-based routing with route tree generation |
+| `@tanstack/router-plugin ^1.167.32` | Vite plugin for route tree auto-generation |
+
+**UI Components:**
+| Package | Purpose |
+|---------|---------|
+| `@base-ui/react ^1.4.1` | Headless UI primitives (shadcn base) |
+| `shadcn ^4.6.0` | Component scaffolding CLI |
+| `lucide-react ^1.14.0` | Icon library |
+| `cmdk ^1.1.1` | Command menu (search palette) |
+| `sonner ^2.0.7` | Toast notifications |
+| `vaul ^1.1.2` | Drawer component |
+| `embla-carousel-react ^8.6.0` | Carousel/slider |
+| `react-resizable-panels ^4.10.0` | Resizable split panels |
+| `react-day-picker ^9.14.0` | Date picker |
+| `input-otp ^1.4.2` | OTP code input |
+| `@xyflow/react ^12.10.2` | Flow chart / node-graph (org hierarchy) |
+| `dagre ^0.8.5` | Graph layout algorithm (used with xyflow) |
+| `recharts 3.8.0` | Charting library |
+
+**Forms & Validation:**
+| Package | Purpose |
+|---------|---------|
+| `react-hook-form ^7.75.0` | Form state management |
+| `@hookform/resolvers ^5.2.2` | Zod resolver integration |
+| `zod ^4.4.2` | Schema validation |
+| `@tanstack/react-form ^1.29.1` | Alternative form library |
+
+**Styling:**
+| Package | Purpose |
+|---------|---------|
+| `tailwindcss ^4.2.4` | Utility-first CSS (v4) |
+| `@tailwindcss/vite ^4.2.4` | Vite plugin for Tailwind |
+| `tailwind-merge ^3.5.0` | Tailwind class merge utility |
+| `tw-animate-css ^1.4.0` | Tailwind animation utilities |
+| `class-variance-authority ^0.7.1` | Component variant management |
+| `clsx ^2.1.1` | Class name concatenation |
+
+**Other:**
+| Package | Purpose |
+|---------|---------|
+| `date-fns ^4.1.0` | Date formatting/manipulation |
+| `next-themes ^0.4.6` | Theme (dark/light) switching |
+| `@fontsource-variable/inter ^5.2.8` | Inter variable font |
 
 ## Configuration
 
 **Backend Environment Variables:**
-| Variable | Default | Purpose |
-|---|---|---|
-| `SURREALDB_URL` | `ws://localhost:8000/rpc` | SurrealDB RPC endpoint |
-| `SURREALDB_USER` | `root` | SurrealDB username |
-| `SURREALDB_PASS` | `root` | SurrealDB password |
-| `SURREALDB_NS` | `hourglass` | SurrealDB namespace |
-| `SURREALDB_DB` | `main` | SurrealDB database |
-| `JWT_SECRET` | `dev-secret-change-in-production` | Token signing key |
-| `PORT` | `8080` | Server listen port |
-| `ALLOWED_ORIGINS` | `http://localhost:3000` | CORS allowlist (comma-separated) |
-| `GO_ENV` | (none) | Set to `production`/`staging` to enforce JWT_SECRET |
-| `DATABASE_URL` | `postgres://hourglass:hourglass@localhost:5432/hourglass` | Postgres for `cmd/migrate` |
-| `SCHEMA_DIR` | `schema` | Directory for `.surql` schema files |
+- `DATABASE_URL` — PostgreSQL connection string (default: `postgres://hourglass:hourglass@localhost:5432/hourglass?sslmode=disable`)
+- `JWT_SECRET` — HMAC-SHA256 signing key (default: `dev-secret-change-in-production`)
+- `ALLOWED_ORIGINS` — Comma-separated CORS origins (default: `http://localhost:3000`)
+- `PORT` — Server listen port (default: `8080`)
+- `GO_ENV` — Environment name (`production`, `staging`, or unset)
 
 **Frontend Environment Variables:**
-| Variable | Default | Purpose |
-|---|---|---|
-| `VITE_API_URL` | `/api` | Backend base URL (proxied to `http://localhost:8080` in Vite) |
+- `VITE_API_URL` — Backend API base URL (default: `/api`, proxied to `http://localhost:8080`)
 
-**Build Config Files:**
-- `web/vite.config.ts` - Vite config with React, Tailwind, TanStack Router plugins; API proxy to `:8080`
-- `web/tsconfig.json` - TypeScript target ES2022, path alias `@/*` → `./src/*`
-- `web/tsconfig.app.json` - App-specific TS config
-- `web/tsconfig.node.json` - Node-specific TS config (Vite config)
-- `web/eslint.config.js` - ESLint flat config
-- `web/playwright.config.ts` - Playwright E2E config
-- `.nvmrc` - Not present; Node version not pinned
-- `go.mod` / `go.sum` - Go module lock
-- `Makefile` - Build targets: `build`, `run`, `migrate-up/down`, `test`, `docker-build`
+**Build Configuration:**
+- `web/vite.config.ts` — Vite config with React plugin, Tailwind plugin, TanStack Router plugin, path alias `@/` → `./src`, dev proxy `/api` → `:8080`
+- `web/tsconfig.json` — TypeScript config: target ES2022, strict mode, path alias `@/` → `./src/*`
+- `web/eslint.config.js` — ESLint flat config with `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`
+- `Makefile` — Build, run, migrate, test, docker targets
 
 ## Platform Requirements
 
 **Development:**
-- macOS/Linux for local dev
-- Go 1.26.1
-- Node.js (for frontend with Vite)
-- Bun (for package management)
-- SurrealDB running on port 8000
-- Optional: PostgreSQL for `cmd/migrate`
+- Go 1.26.1+
+- Bun (for frontend package management and dev server)
+- PostgreSQL 15+ (local or Docker)
+- Docker & Docker Compose (optional, for containerized dev)
 
 **Production:**
-- Docker (Alpine Linux container for Go app)
-- SurrealDB (in-memory or persistent)
-- Optional: PostgreSQL 15 for migrations
+- Linux (Docker image based on `alpine:latest`)
+- PostgreSQL 15+ accessible via `DATABASE_URL`
+- JWT_SECRET must be set (required in `production`/`staging` mode)
 
 ---
 
-*Stack analysis: 2026-05-12*
+*Stack analysis: 2026-06-08*
