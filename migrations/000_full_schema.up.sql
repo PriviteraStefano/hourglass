@@ -318,6 +318,7 @@ CREATE TABLE IF NOT EXISTS expenses (
     org_id UUID NOT NULL REFERENCES organizations(id),
     user_id UUID NOT NULL REFERENCES users(id),
     project_id UUID REFERENCES projects(id),
+    customer_id UUID REFERENCES customers(id),
     unit_id UUID NOT NULL REFERENCES units(id),
     category VARCHAR(50) NOT NULL CHECK (category IN ('mileage', 'meal', 'accommodation', 'parking', 'travel_tickets', 'tolls', 'taxi', 'equipment', 'other')),
     amount DECIMAL(12,2) NOT NULL CHECK (amount > 0),
@@ -453,3 +454,33 @@ CREATE TABLE IF NOT EXISTS backup_approvers (
 
 CREATE INDEX IF NOT EXISTS idx_backup_approvers_org_id ON backup_approvers(org_id);
 CREATE INDEX IF NOT EXISTS idx_backup_approvers_user_id ON backup_approvers(user_id);
+
+-- ============================================================================
+-- 25. organization_settings
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS organization_settings (
+    organization_id UUID PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+    default_km_rate DECIMAL(10,2),
+    currency VARCHAR(10) NOT NULL DEFAULT 'EUR',
+    week_start_day SMALLINT NOT NULL DEFAULT 1,
+    timezone VARCHAR(100) NOT NULL DEFAULT 'UTC',
+    show_approval_history BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Auto-create settings row when a new organization is created
+CREATE OR REPLACE FUNCTION auto_create_org_settings()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO organization_settings (organization_id, currency, week_start_day, timezone, show_approval_history, created_at, updated_at)
+    VALUES (NEW.id, 'EUR', 1, 'UTC', TRUE, NOW(), NOW());
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_auto_create_org_settings ON organizations;
+CREATE TRIGGER trg_auto_create_org_settings
+AFTER INSERT ON organizations
+FOR EACH ROW
+EXECUTE FUNCTION auto_create_org_settings();

@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func seedFullFKChain(t *testing.T, pool *pgxpool.Pool, now time.Time) (orgID, projectID, contractID, customerID uuid.UUID) {
+func seedFullFKChain(t *testing.T, pool *pgxpool.Pool, now time.Time) (orgID, projectID, subprojectID, wgID, unitID uuid.UUID) {
 	t.Helper()
 	orgID = seedOrg(t, pool, now)
 
 	// Create a customer
-	customerID = uuid.New()
+	customerID := uuid.New()
 	_, err := pool.Exec(context.Background(),
 		`INSERT INTO customers (id, org_id, name, contact_name, email, is_active, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, true, $6, $6)`,
@@ -23,7 +23,7 @@ func seedFullFKChain(t *testing.T, pool *pgxpool.Pool, now time.Time) (orgID, pr
 	require.NoError(t, err)
 
 	// Create a contract
-	contractID = uuid.New()
+	contractID := uuid.New()
 	_, err = pool.Exec(context.Background(),
 		`INSERT INTO contracts (id, name, km_rate, currency, customer_id, governance_model, created_by_org_id, is_shared, is_active, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, false, true, $8, $8)`,
@@ -38,7 +38,32 @@ func seedFullFKChain(t *testing.T, pool *pgxpool.Pool, now time.Time) (orgID, pr
 		projectID, orgID, "Export Project", "billable", "billable", contractID, customerID, "creator_controlled", orgID, now)
 	require.NoError(t, err)
 
-	return orgID, projectID, contractID, customerID
+	// Create a subproject
+	subprojectID = uuid.New()
+	_, err = pool.Exec(context.Background(),
+		`INSERT INTO subprojects (id, project_id, name, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $4)`,
+		subprojectID, projectID, "Export Subproject", now)
+	require.NoError(t, err)
+
+	// Create a unit
+	unitID = uuid.New()
+	_, err = pool.Exec(context.Background(),
+		`INSERT INTO units (id, org_id, name, code, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $5)`,
+		unitID, orgID, "Export Unit", "EXP", now)
+	require.NoError(t, err)
+
+	// Create a working group
+	wgID = uuid.New()
+	managerID := seedUser(t, pool, now)
+	_, err = pool.Exec(context.Background(),
+		`INSERT INTO working_groups (id, org_id, subproject_id, name, manager_id, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+		wgID, orgID, subprojectID, "Export WG", managerID, now)
+	require.NoError(t, err)
+
+	return orgID, projectID, subprojectID, wgID, unitID
 }
 
 func TestExportRepository_Timesheets(t *testing.T) {
@@ -49,14 +74,14 @@ func TestExportRepository_Timesheets(t *testing.T) {
 	repo := NewExportRepository(pool)
 	now := time.Now().UTC()
 
-	orgID, projectID, _, _ := seedFullFKChain(t, pool, now)
+	orgID, projectID, subprojectID, wgID, unitID := seedFullFKChain(t, pool, now)
 	userID := seedUser(t, pool, now)
 
 	// Create a time entry
 	_, err := pool.Exec(context.Background(),
-		`INSERT INTO time_entries (id, org_id, user_id, project_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $9, $9)`,
-		uuid.New(), orgID, userID, projectID, 7.5, "Export test entry", now, "draft", now)
+		`INSERT INTO time_entries (id, org_id, user_id, project_id, subproject_id, wg_id, unit_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, $12, $12)`,
+		uuid.New(), orgID, userID, projectID, subprojectID, wgID, unitID, 7.5, "Export test entry", now, "draft", now)
 	require.NoError(t, err)
 
 	from := now.Add(-24 * time.Hour)
@@ -83,14 +108,14 @@ func TestExportRepository_Expenses(t *testing.T) {
 	repo := NewExportRepository(pool)
 	now := time.Now().UTC()
 
-	orgID, projectID, _, _ := seedFullFKChain(t, pool, now)
+	orgID, projectID, _, _, unitID := seedFullFKChain(t, pool, now)
 	userID := seedUser(t, pool, now)
 
 	// Create an expense
 	_, err := pool.Exec(context.Background(),
 		`INSERT INTO expenses (id, org_id, user_id, project_id, unit_id, category, amount, km_distance, description, expense_date, status, is_deleted, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, $12, $12)`,
-		uuid.New(), orgID, userID, projectID, uuid.New(), "mileage", 45.0, 120.5, "Export expense test", now, "draft", now)
+		uuid.New(), orgID, userID, projectID, unitID, "mileage", 45.0, 120.5, "Export expense test", now, "draft", now)
 	require.NoError(t, err)
 
 	from := now.Add(-24 * time.Hour)
@@ -141,22 +166,22 @@ func TestExportRepository_Timesheets_EmployeeFilter(t *testing.T) {
 	repo := NewExportRepository(pool)
 	now := time.Now().UTC()
 
-	orgID, projectID, _, _ := seedFullFKChain(t, pool, now)
+	orgID, projectID, subprojectID, wgID, unitID := seedFullFKChain(t, pool, now)
 	userID := seedUser(t, pool, now)
 	otherUserID := seedUser(t, pool, now)
 
 	// Entry for userID
 	_, err := pool.Exec(context.Background(),
-		`INSERT INTO time_entries (id, org_id, user_id, project_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $9, $9)`,
-		uuid.New(), orgID, userID, projectID, 7.5, "Employee entry", now, "draft", now)
+		`INSERT INTO time_entries (id, org_id, user_id, project_id, subproject_id, wg_id, unit_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, $12, $12)`,
+		uuid.New(), orgID, userID, projectID, subprojectID, wgID, unitID, 7.5, "Employee entry", now, "draft", now)
 	require.NoError(t, err)
 
 	// Entry for otherUserID
 	_, err = pool.Exec(context.Background(),
-		`INSERT INTO time_entries (id, org_id, user_id, project_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $9, $9)`,
-		uuid.New(), orgID, otherUserID, projectID, 5.0, "Other employee entry", now, "draft", now)
+		`INSERT INTO time_entries (id, org_id, user_id, project_id, subproject_id, wg_id, unit_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, $12, $12)`,
+		uuid.New(), orgID, otherUserID, projectID, subprojectID, wgID, unitID, 5.0, "Other employee entry", now, "draft", now)
 	require.NoError(t, err)
 
 	from := now.Add(-24 * time.Hour)
@@ -177,7 +202,7 @@ func TestExportRepository_Expenses_EmployeeFilter(t *testing.T) {
 	repo := NewExportRepository(pool)
 	now := time.Now().UTC()
 
-	orgID, projectID, _, _ := seedFullFKChain(t, pool, now)
+	orgID, projectID, _, _, unitID := seedFullFKChain(t, pool, now)
 	userID := seedUser(t, pool, now)
 	otherUserID := seedUser(t, pool, now)
 
@@ -185,14 +210,14 @@ func TestExportRepository_Expenses_EmployeeFilter(t *testing.T) {
 	_, err := pool.Exec(context.Background(),
 		`INSERT INTO expenses (id, org_id, user_id, project_id, unit_id, category, amount, description, expense_date, status, is_deleted, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, $11, $11)`,
-		uuid.New(), orgID, userID, projectID, uuid.New(), "meal", 32.0, "Employee expense", now, "draft", now)
+		uuid.New(), orgID, userID, projectID, unitID, "meal", 32.0, "Employee expense", now, "draft", now)
 	require.NoError(t, err)
 
 	// Entry for otherUserID
 	_, err = pool.Exec(context.Background(),
 		`INSERT INTO expenses (id, org_id, user_id, project_id, unit_id, category, amount, description, expense_date, status, is_deleted, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, $11, $11)`,
-		uuid.New(), orgID, otherUserID, projectID, uuid.New(), "meal", 48.0, "Other employee expense", now, "draft", now)
+		uuid.New(), orgID, otherUserID, projectID, unitID, "meal", 48.0, "Other employee expense", now, "draft", now)
 	require.NoError(t, err)
 
 	from := now.Add(-24 * time.Hour)

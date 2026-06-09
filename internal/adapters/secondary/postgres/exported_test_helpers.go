@@ -102,6 +102,7 @@ func TeardownTestSchema(t *testing.T, pool *pgxpool.Pool) {
 		"units",
 		"organization_memberships",
 		"users",
+		"organization_settings",
 		"organizations",
 		"verification_tokens",
 	}

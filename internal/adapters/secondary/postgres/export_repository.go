@@ -40,7 +40,7 @@ func (r *ExportRepository) Timesheets(ctx context.Context, orgID uuid.UUID, from
 	roleSQL, paramCount := roleFilter("te.user_id", role)
 
 	query := `SELECT 'time_entry' AS entry_type, te.entry_date AS date,
-		u.name AS employee,
+		CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS employee,
 		COALESCE(p.name, '') AS project,
 		COALESCE(c.name, '') AS contract,
 		COALESCE(cu.name, '') AS customer,
@@ -74,7 +74,7 @@ func (r *ExportRepository) Expenses(ctx context.Context, orgID uuid.UUID, from, 
 	roleSQL, paramCount := roleFilter("e.user_id", role)
 
 	query := `SELECT 'expense' AS entry_type, e.expense_date AS date,
-		u.name AS employee,
+		CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS employee,
 		COALESCE(p.name, '') AS project,
 		COALESCE(c.name, '') AS contract,
 		COALESCE(cu.name, '') AS customer,
