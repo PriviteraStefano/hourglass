@@ -136,6 +136,16 @@ None — no new network endpoints, auth paths, or trust boundary changes.
 - Ready for Plan 06: E2E verification
 - Smoke test passes (register → login → authenticated API call)
 
+## Self-Check: PASSED
+
+- All 16 internal packages pass: ✓
+- Smoke test (TestSmoke): ✓
+- No t.Skip('Plan 05') remaining: ✓
+- All 6 commits for plan 00-05 exist: ✓
+- All 14 modified files verified on disk: ✓
+- SUMMARY.md created: ✓
+- STATE.md updated: ✓
+
 ---
 
 *Phase: 00-testing-foundation*
