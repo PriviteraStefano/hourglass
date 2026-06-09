@@ -56,6 +56,9 @@ const refreshMutationOpts = mutationOptions({
     api<AuthResponse>('/auth/refresh', {
       method: 'POST',
     }),
+  onError: () => {
+    location.href = '/login'
+  },
   onSuccess: (data: AuthResponse, _, __, {client}) => {
     if (data) {
       client.setQueryData(['auth', 'me'], data.user)
@@ -93,7 +96,7 @@ const acceptInvitationMutationOpts = mutationOptions({
 
 const requestPasswordResetMutationOpts = mutationOptions({
   mutationFn: (data: PasswordResetRequest) =>
-    api<{ message: string; code?: string }>('/auth/password-reset/request', {
+    api<{ message: string }>('/auth/password-reset/request', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
