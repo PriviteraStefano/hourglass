@@ -4,6 +4,7 @@ import (
 	"log"
 	stdhttp "net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/stefanoprivitera/hourglass/internal/adapters/primary/http"
@@ -74,7 +75,13 @@ func main() {
 	)
 	authHandler := http.NewAuthHandler(hexAuthService, invitationService)
 
-	authRateLimiter := middleware.NewRateLimiter(5, 100)
+	rateLimit := 5
+	if rl := os.Getenv("RATE_LIMIT"); rl != "" {
+		if v, err := strconv.Atoi(rl); err == nil && v > 0 {
+			rateLimit = v
+		}
+	}
+	authRateLimiter := middleware.NewRateLimiter(rateLimit, 100)
 	passwordResetRateLimiter := middleware.NewRateLimiter(3, 60)
 
 	mux.Handle("POST /auth/register", authRateLimiter.Middleware(stdhttp.HandlerFunc(authHandler.Register)))
