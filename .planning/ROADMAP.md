@@ -38,7 +38,7 @@ Plans:
 
 ## Phase 1: Authorization
 
-**Status:** Not started
+**Status:** Planned — 3 plans in 2 waves
 
 **Goal:** Frontend auth integration — login/register pages, protected route handling, auth hydration for all features.
 
@@ -62,6 +62,17 @@ Plans:
 - `GET /auth/memberships` returns membership list without panic
 - Cookie refresh flow works (401 → POST /auth/refresh → retry)
 - Login form validation works (empty fields, wrong password, invalid email)
+
+### Waves
+
+- Wave 1: Plan 01 (backend) + Plan 02 (frontend) — parallel
+- Wave 2: Plan 03 (E2E verification)
+
+Plans:
+
+- [ ] 01-01-PLAN.md — Backend auth fixes: Register token generation + cookies, password reset entropy AUTH-01, AUTH-02
+- [ ] 01-02-PLAN.md — Frontend auth integration: OrgSwitcher, / redirect, password reset API type AUTH-03, AUTH-04, AUTH-05
+- [ ] 01-03-PLAN.md — End-to-end verification of all AUTH requirements AUTH-01-05
 
 ---
 
