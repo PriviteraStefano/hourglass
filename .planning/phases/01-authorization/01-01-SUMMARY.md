@@ -118,6 +118,16 @@ Each task was committed atomically:
 - Ready for Plan 01-02: frontend auth integration (register flow will now receive cookies from backend)
 - Password reset hardening complete (entropy improved, code leak verified)
 
+## Self-Check: PASSED
+
+- ✅ SUMMARY.md exists at `.planning/phases/01-authorization/01-01-SUMMARY.md`
+- ✅ `go build ./...` passes
+- ✅ `go test ./internal/core/services/auth/...` passes (all subtests)
+- ✅ `go test ./internal/core/services/password_reset/...` passes (all subtests)
+- ✅ 3 git commits for plan 01-01 exist (2 task commits + 1 metadata)
+- ✅ STATE.md updated (position, decisions, metrics)
+- ✅ ROADMAP.md updated (01-01 marked complete)
+
 ---
 
 *Phase: 01-authorization*
