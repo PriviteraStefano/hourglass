@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-06-09T23:32:07.000Z"
+last_updated: "2026-06-09T23:36:01.005Z"
 last_activity: 2026-06-09
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 28
+  total_plans: 27
   completed_plans: 21
-  percent: 71
+  percent: 25
 ---
 
 # Phase State
@@ -20,7 +20,7 @@ progress:
 - **Last activity:** 2026-06-09
 - **Source:** `.planning/phases/00-testing-foundation/00-CONTEXT.md`
 - **Intel:** `.planning/intel/`
-- **Completed:** Plan 01-01 (Backend auth fixes — Register cookies + password reset entropy)
+- **Completed:** Plan 01-01 (Backend auth fixes), Plan 01-02 (Frontend auth integration)
 
 ## Phase 0: testing-foundation
 
@@ -42,6 +42,7 @@ progress:
 - **Day:** Tue June 9
 - **Plans:**
   - 01-01-PLAN.md — Backend auth fixes (Register cookies + password reset entropy) [completed]
+  - 01-02-PLAN.md — Frontend auth integration (OrgSwitcher redirect API type) [completed]
 
 ## Phase 2: org-hierarchy
 
@@ -106,6 +107,9 @@ The following phases from the previous milestone structure are superseded:
 - **2026-06-09:** Token generation guarded behind orgID != uuid.Nil to avoid FK violation on refresh_tokens when registering without an organization
 - **2026-06-09:** Added crypto/rand.Int with math/big for unbiased password reset code distribution (replacing modulo-biased rand.Read)
 - **2026-06-09:** Register returns 200 instead of 201 to match Login/Bootstrap convention (response now includes tokens)
+- **2026-06-09:** OrgSwitcher self-fetches memberships via useSuspenseQuery instead of receiving organizations prop — follows ProfileMenu self-contained component pattern
+- **2026-06-09:** Full cache clear (queryClient.clear() + invalidateQueries) on org switch ensures no stale data from previous org context
+- **2026-06-09:** Landing page uses Navigate redirect to /time-entries — minimal approach per D-07, no Dashboard page in v0.1
 
 phase: 01
 plan: Not started
@@ -276,9 +280,9 @@ completed: 2026-06-09
 ## Current Position
 
 Phase: 01 (authorization) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Executing Phase 01
-Last activity: 2026-06-09 -- Plan 01-01 completed (Register cookies + password reset entropy)
+Last activity: 2026-06-09 -- Plan 01-02 completed (OrgSwitcher + redirect + API type)
 
 ## Performance Metrics
 
@@ -291,3 +295,5 @@ Last activity: 2026-06-09 -- Plan 01-01 completed (Register cookies + password r
 | Phase 00-testing-foundation P05 | 23 min | 3 tasks | 14 files |
 | Phase 00-testing-foundation P06 | 20 min | 2 tasks | 7 files |
 | Phase 01-authorization P01 | 3 min | 2 tasks | 3 files |
+| Phase 01-authorization P02 | 2 min | 2 tasks | 4 files |
+| Phase 01-authorization P02 | 2 min | 2 tasks | 4 files |

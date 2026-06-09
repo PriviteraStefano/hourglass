@@ -20,9 +20,9 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 
 - [ ] **AUTH-01**: Login page with error handling
 - [ ] **AUTH-02**: Register page with form validation
-- [ ] **AUTH-03**: Protected route redirect works end-to-end
-- [ ] **AUTH-04**: AppShell with user profile, org switcher, logout
-- [ ] **AUTH-05**: Cookie refresh flow works (401 → POST /auth/refresh → retry)
+- [x] **AUTH-03**: Protected route redirect works end-to-end
+- [x] **AUTH-04**: AppShell with user profile, org switcher, logout
+- [x] **AUTH-05**: Cookie refresh flow works (401 → POST /auth/refresh → retry)
 
 ### Org Hierarchy
 
@@ -119,9 +119,9 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 | TEST-06 | Phase 0 | Complete |
 | AUTH-01 | Phase 1 | Pending |
 | AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 1 | Pending |
-| AUTH-05 | Phase 1 | Pending |
+| AUTH-03 | Phase 1 | Complete |
+| AUTH-04 | Phase 1 | Complete |
+| AUTH-05 | Phase 1 | Complete |
 | ORG-01 | Phase 2 | Pending |
 | ORG-02 | Phase 2 | Pending |
 | ORG-03 | Phase 2 | Pending |
