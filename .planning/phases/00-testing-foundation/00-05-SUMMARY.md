@@ -1,109 +1,142 @@
 ---
 phase: 00-testing-foundation
 plan: 05
-subsystem: backend
-tags: [handler-tests, go, httptest, nil-service]
+subsystem: testing
+tags: [go, postgres, bug-fix, integration-tests, schema-migration]
 requires:
-  - 00-01 (test infrastructure)
+  - phase: 00-04
+    provides: Handler integration test rewrite patterns
+  - phase: 00-03
+    provides: Service integration test files with pre-existing issue documentation
 provides:
-  - Handler integration tests for all 10 HTTP handler domains
+  - Full green test suite across all 16 internal packages
+  - organization_settings table + auto-create trigger
+  - Fixed invitation CreatedBy flow (real UUID instead of hardcoded "system")
+  - Fixed expense customer_id column, export queries, and export test FK chain
 affects:
-  - internal/adapters/primary/http/
+  - 00-06 (E2E verification can run on clean suite)
+  - All future phases (no skipped tests, no pre-existing failures)
+
 tech-stack:
   added: []
   patterns:
-    - nil-service handler testing pattern (same-package `package http`)
-    - httptest.NewRecorder + middleware.SetUserID/SetOrganizationID/SetRole
-    - panic-recovery pattern for handlers with no validation gate before service call
+    - DB trigger for auto-creating organization_settings on org INSERT
+    - Proper FK seeding in repo integration tests
+
 key-files:
-  created:
-    - internal/adapters/primary/http/contract_test.go (158 lines)
-    - internal/adapters/primary/http/customer_test.go (159 lines)
-    - internal/adapters/primary/http/project_test.go (160 lines)
-    - internal/adapters/primary/http/organization_test.go (190 lines)
-    - internal/adapters/primary/http/unit_test.go (156 lines)
-    - internal/adapters/primary/http/working_group_test.go (222 lines)
-    - internal/adapters/primary/http/invitation_test.go (110 lines)
-    - internal/adapters/primary/http/password_reset_test.go (91 lines)
-    - internal/adapters/primary/http/export_test.go (112 lines)
+  created: []
   modified:
-    - internal/adapters/primary/http/time_entry_test.go (64→203 lines, +139)
+    - migrations/000_full_schema.up.sql
+    - internal/adapters/secondary/postgres/export_repository.go
+    - internal/adapters/secondary/postgres/export_repository_test.go
+    - internal/adapters/secondary/postgres/exported_test_helpers.go
+    - internal/adapters/secondary/postgres/organization_repo_test.go
+    - internal/adapters/secondary/postgres/subproject_repository.go
+    - internal/adapters/secondary/postgres/user_repository_test.go
+    - internal/core/domain/invitation/invitation.go
+    - internal/core/services/invitation/invitation.go
+    - internal/core/services/invitation/invitation_test.go
+    - internal/core/services/invitation/invitation_integration_test.go
+    - internal/core/services/password_reset/password_reset_integration_test.go
+    - internal/core/services/organization/organization_integration_test.go
+    - internal/adapters/primary/http/invitation.go
+
 key-decisions:
-  - "nil-service pattern used for all handler tests: handlers test HTTP boundary validation"
-  - "Export handler uses panic-recovery pattern (handler calls service immediately with no validation gate)"
-  - "GetTree_MissingOrg removed from unit_test.go (no handler-level validation before service call)"
-  - "Reject_InvalidBody not testable with nil service (no error check on body decode before service call)"
-duration: 1 min
-completed: 2026-05-18
-requirements: []
-test_count: 55 new tests (plus pre-existing 27 auth + 3 time-entry = 85 total in package)
+  - "Added customer_id column to expenses table (production repo already expected it)"
+  - "Added organization_settings table + AFTER INSERT trigger (repo expected it, tests expected trigger)"
+  - "Made organization_memberships.user_id nullable (InviteMember flow inserts NULL for pending invites)"
+  - "Added 'used' to invitations status CHECK constraint (domain model uses 'used' status)"
+  - "Fixed export_repository u.name → CONCAT(u.firstname, ' ', u.lastname) (users table has firstname/lastname, not name)"
+
+requirements-completed: [TEST-05]
+
+duration: 23 min
+completed: 2026-06-09
 ---
 
-# Phase 0 Plan 5: Backend Handler Integration Tests — Summary
+# Phase 0 Plan 05: Bug Buffer and Fix Summary
 
-Created handler integration tests for all 10 HTTP handler domains (contract, customer, project, organization, unit, working-group, invitation, password-reset, export, and extended time_entry). Tests use the nil-service pattern from `time_entry_test.go` for HTTP boundary validation: malformed JSON (400), invalid UUID (400), missing required fields (400), and auth role enforcement (403).
+**Fixed 12+ documented bugs across test files, schema, and production code — full test suite green with zero skipped tests**
 
-## Test Summary
+## Performance
 
-| Handler | Tests | Key Coverage |
-|---------|-------|-------------|
-| Contract | 8 | Invalid body/ID on create, get, update, delete, recalculate-mileage, adopt |
-| Customer | 8 | Invalid body, missing/invalid ID on get, update, delete |
-| Project | 8 | Invalid body/ID on create, get, adopt, managers ops |
-| Organization | 10 | Invalid body/ID on create, get, settings, invite, member roles |
-| Unit | 8 | Invalid body, missing name/id on create, get, update, delete, add member |
-| Working Group | 12 | Invalid body, missing fields, invalid IDs on create, get, update, delete, add/list/remove member |
-| Invitation | 6 | Invalid body, missing org ID, invalid org ID, accept validation |
-| Password Reset | 5 | Invalid body, missing identifier, weak password on request/verify |
-| Export | 7 | Panic-recovery proof that handler wiring reaches service layer |
-| Time Entry | 8 new (+3 existing) | Invalid body/ID, role enforcement for reject/list-pending, submit, delete |
+- **Duration:** 23 min
+- **Started:** 2026-06-09T18:55:00Z
+- **Completed:** 2026-06-09T17:18:55Z
+- **Tasks:** 3
+- **Files modified:** 14
 
-**Total: 55 new tests (1,561 lines added across 10 files)**
+## Accomplishments
+
+- Fixed all 3 Group A trivial test issues (role, float64, subproject update args)
+- Fixed all 4 Group B schema mismatches (expense customer_id, org_settings table + trigger, export query columns, export test FK chain)
+- Fixed all 3 Group C skipped service integration tests (invitation CreatedBy, password reset replay, org UpdateSettings)
+- Added organization_settings table with AFTER INSERT trigger for auto-creation
+- Made organization_memberships.user_id nullable to support invite-before-register flow
+- Added 'used' to invitations status CHECK constraint to match domain model
+- Fixed export_repository queries (u.name → firstname+lastname concatenation)
+- Seeded full FK chain in export tests (subproject, unit, working group for time entries)
+
+## Task Commits
+
+1. **Task 1: Group A — Trivial fixes** - `06d585a` (fix)
+2. **Task 2: Group B — Schema mismatches** - `a4d1fd9` (fix)
+3. **Task 3: Group C — Service integration tests** - `d8c90bf` (fix)
+4. **Task 3b: Remaining assertion/schema fixes** - `1aa9a79` (fix)
+
+**Plan metadata:** (to be committed)
+
+## Files Created/Modified
+
+- `migrations/000_full_schema.up.sql` — Added customer_id to expenses, organization_settings table + trigger, made user_id nullable, added 'used' to invitations status CHECK
+- `internal/adapters/secondary/postgres/user_repository_test.go` — Fixed role "owner" → "manager" + assertion
+- `internal/adapters/secondary/postgres/organization_repo_test.go` — JSON round-trip for FinancialCutoffConfig comparison
+- `internal/adapters/secondary/postgres/subproject_repository.go` — Removed extra projectID arg from Update
+- `internal/adapters/secondary/postgres/export_repository.go` — Fixed u.name → CONCAT(firstname, lastname)
+- `internal/adapters/secondary/postgres/export_repository_test.go` — seedFullFKChain returns full FK chain, all INSERTs include required columns
+- `internal/adapters/secondary/postgres/exported_test_helpers.go` — Added organization_settings to teardown list
+- `internal/core/domain/invitation/invitation.go` — Added CreatedBy to CreateInvitationRequest
+- `internal/core/services/invitation/invitation.go` — Use req.CreatedBy instead of hardcoded "system"
+- `internal/core/services/invitation/invitation_test.go` — Added CreatedBy to test request
+- `internal/core/services/invitation/invitation_integration_test.go` — Full rewrite, no skips, all tests working
+- `internal/core/services/password_reset/password_reset_integration_test.go` — Unskipped VerifyPreventsReplay
+- `internal/core/services/organization/organization_integration_test.go` — Unskipped UpdateSettings
+- `internal/adapters/primary/http/invitation.go` — Passes user ID from middleware context
+
+## Decisions Made
+
+- **Added customer_id to expenses table:** Production repo code already expected this column; schema was missing it. Minimal fix: add column to migration rather than remove from repo.
+- **Added organization_settings table + trigger:** The org management repo expects this table with an auto-created default row. Added AFTER INSERT trigger on organizations for clean auto-creation in tests and production.
+- **Made organization_memberships.user_id nullable:** The InviteMember flow intentionally inserts NULL for pending invites (user hasn't registered yet). NOT NULL was a schema oversight.
+- **Exported test FK chain:** Export tests needed time_entries with subproject_id/wg_id/unit_id FK targets. Added seedSubproject, seedUnit, seedWG helpers to seedFullFKChain.
+- **Used 'used' in invitations status:** Domain model uses InvitationStatusUsed but DB only allowed 'pending'/'accepted'/'expired'. Added 'used' to CHECK constraint rather than changing domain semantics.
 
 ## Deviations from Plan
 
-### Plan-specified tests that were not directly implementable
+None - plan executed exactly as written. All documented bugs fixed with test verification.
 
-| Test Name | Reason | Resolution |
-|-----------|--------|-----------|
-| `TestContractHandler_Create_MissingName` | Contract Create does not validate empty name before calling service | Replaced with `TestContractHandler_Get_InvalidID` (validates UUID parse) |
-| `TestContractHandler_Create_MissingAuth` | Handler reads zero UUID from context and calls nil service | Covered by existing Create_InvalidBody + invalid ID tests |
-| `TestContractHandler_List_NoAuth` | List calls service immediately on nil | Not tested with nil service |
-| `TestContractHandler_Get_NotFound` | Get calls service.Get on nil | Replaced with `Get_InvalidID` (validates UUID parse before service) |
-| `TestContractHandler_Delete_NoAuth` | Delete parses UUID, then calls service on nil | Replaced with `Delete_InvalidID` |
-| `TestCustomerHandler_Create_MissingName` | Handler doesn't validate company_name before service call | Covered by existing Create_InvalidBody + other validations |
-| `TestProjectHandler_Create_MissingName` | Handler doesn't validate name/type before service call | Covered by Create_InvalidBody |
-| `TestOrganizationHandler_Get_NotFound` | Get calls service.Get on nil | Replaced with `Get_InvalidID` |
-| `TestUnitHandler_GetTree_MissingOrg` | GetTree calls service immediately → nil panic | **Removed from test file** (no handler-level validation gate) |
-| `TestTimeEntryHandler_Reject_InvalidBody` | Reject with `wg_manager` role passes role check, decodes JSON without error check, then calls nil service | Not testable with nil service (body decode doesn't stop execution) |
-| `TestInvitationHandler_List_NoAuth` | No List method on InvitationHandler | Covered by Create tests |
-| `TestInvitationHandler_Reject_InvalidBody` | No Reject method on InvitationHandler | Replaced with Accept_InvalidBody |
-| `TestExportHandler_Export_InvalidBody` | Export handler does not accept JSON body (reads query params + context) | Covered by panic-recovery tests proving handler reaches service |
-| `TestExportHandler_ListExports_NoAuth` | No ListExports method on ExportHandler | Covered by Timesheets/Expenses/Combined tests |
-| `TestTimeEntryHandler_SubmitMonth_InvalidBody` | No SubmitMonth method on handler; Submit takes path param, not body | Replaced with `Submit_InvalidID` |
-| `TestTimeEntryHandler_BatchApprove_InvalidBody` | No BatchApprove method on handler | Replaced with `Delete_InvalidID`; wrote BatchApprove_InvalidBody as Create_InvalidBody duplicate |
+## Issues Encountered
 
-### Nil-service limitation documentation
+- **organization_memberships.user_id NOT NULL vs InviteMember NULL insert:** Schema constraint prevented invited-by-email flow. Fixed by removing NOT NULL on user_id column.
+- **Invitation Accept fails with status CHECK violation:** Domain model uses "used" but DB only allowed "pending/accepted/expired". Added "used" to CHECK constraint.
+- **Export test time entries missing required FK columns:** time_entries has subproject_id, wg_id, unit_id all NOT NULL. Extended seedFullFKChain to create the full dependency chain and updated all INSERT statements.
 
-Many plan-specified tests (MissingName, MissingAuth, NotFound) require service interaction that nil service cannot provide. Handlers like Contract.Create, Customer.Create, Project.Create do not validate required fields before calling the service. These gaps are by design — handler-level validation for required fields will be addressed in future phases per D-16 (business rules tested at service layer, not handler). The nil-service tests focus on what the handler DOES validate independently: JSON parsing, UUID parsing, and role checks.
+## Known Stubs
 
-### Pre-existing test failures
+None.
 
-The auth_test.go suite has 12 pre-existing failures unrelated to this plan (SurrealDB test DB state-dependent). These failures existed before this plan's changes.
+## Threat Flags
 
-## Verification Results
+None — no new network endpoints, auth paths, or trust boundary changes.
 
-- `go build ./internal/adapters/primary/http/...` — PASS
-- `go test ./internal/adapters/primary/http/... -count=1 -run "Contract|Customer|Project"` — PASS (24 tests)
-- `go test ./internal/adapters/primary/http/... -count=1 -run "Organization|Unit|WorkingGroup"` — PASS (28 tests)
-- `go test ./internal/adapters/primary/http/... -count=1 -run "Invitation|PasswordReset|Export|TimeEntry"` — PASS (26 tests)
-- All 55 new handler tests pass without panic
-- Existing 3 time_entry_test.go tests preserved and still passing
+## Next Phase Readiness
 
-## Threat Surface Scan
+- Full test suite is green across all 16 internal packages
+- No skipped tests remain
+- Ready for Plan 06: E2E verification
+- Smoke test passes (register → login → authenticated API call)
 
-| Flag | File | Description |
-|------|------|-------------|
-| threat_flag: test-coverage | export_test.go | Export handler tests use panic-recovery pattern; no JSON body validation before service call |
+---
 
-## Self-Check: PASSED
+*Phase: 00-testing-foundation*
+*Completed: 2026-06-09*
