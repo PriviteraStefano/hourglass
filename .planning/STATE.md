@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-06-09T23:26:44.319Z"
+last_updated: "2026-06-09T23:32:07.000Z"
 last_activity: 2026-06-09
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 24
-  completed_plans: 19
-  percent: 25
+  total_plans: 28
+  completed_plans: 21
+  percent: 71
 ---
 
 # Phase State
@@ -20,11 +20,11 @@ progress:
 - **Last activity:** 2026-06-09
 - **Source:** `.planning/phases/00-testing-foundation/00-CONTEXT.md`
 - **Intel:** `.planning/intel/`
-- **Completed:** Plan 06 (E2E verification — 16/19 test pass, Phase 0 complete)
+- **Completed:** Plan 01-01 (Backend auth fixes — Register cookies + password reset entropy)
 
 ## Phase 0: testing-foundation
 
-- **Status:** Ready to execute
+- **Status:** Executing Phase 01
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -36,10 +36,12 @@ progress:
 
 ## Phase 1: authorization
 
-- **Status:** Not started
+- **Status:** In progress
 - **Goal:** Fix broken auth endpoints
 - **Depends on:** Phase 0
 - **Day:** Tue June 9
+- **Plans:**
+  - 01-01-PLAN.md — Backend auth fixes (Register cookies + password reset entropy) [completed]
 
 ## Phase 2: org-hierarchy
 
@@ -101,6 +103,9 @@ The following phases from the previous milestone structure are superseded:
 
 - **2026-06-08:** testcontainers-go v0.42.0 selected as integration test infrastructure, replacing DATABASE_URL-dependent TestPool with SetupPackageContainer using sync.Once container lifecycle. Migration paths resolve relative to Go module root.
 - [Phase 00-testing-foundation]: ---
+- **2026-06-09:** Token generation guarded behind orgID != uuid.Nil to avoid FK violation on refresh_tokens when registering without an organization
+- **2026-06-09:** Added crypto/rand.Int with math/big for unbiased password reset code distribution (replacing modulo-biased rand.Read)
+- **2026-06-09:** Register returns 200 instead of 201 to match Login/Bootstrap convention (response now includes tokens)
 
 phase: 01
 plan: Not started
@@ -270,10 +275,10 @@ completed: 2026-06-09
 
 ## Current Position
 
-Phase: 00 (testing-foundation) — COMPLETE
-Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-06-09 -- Plan 06 completed (E2E verification)
+Phase: 01 (authorization) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 01
+Last activity: 2026-06-09 -- Plan 01-01 completed (Register cookies + password reset entropy)
 
 ## Performance Metrics
 
@@ -285,3 +290,4 @@ Last activity: 2026-06-09 -- Plan 06 completed (E2E verification)
 | Phase 00-testing-foundation P04 | 42 min | 3 tasks | 6 files |
 | Phase 00-testing-foundation P05 | 23 min | 3 tasks | 14 files |
 | Phase 00-testing-foundation P06 | 20 min | 2 tasks | 7 files |
+| Phase 01-authorization P01 | 3 min | 2 tasks | 3 files |

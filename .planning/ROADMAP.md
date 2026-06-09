@@ -38,7 +38,7 @@ Plans:
 
 ## Phase 1: Authorization
 
-**Status:** Planned — 3 plans in 2 waves
+**Status:** In progress — Plan 01-01 complete, Plans 01-02/01-03 pending
 
 **Goal:** Frontend auth integration — login/register pages, protected route handling, auth hydration for all features.
 
@@ -71,7 +71,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Backend auth fixes: Register token generation + cookies, password reset entropy AUTH-01, AUTH-02
+- [x] 01-01-PLAN.md — Backend auth fixes: Register token generation + cookies, password reset entropy AUTH-01, AUTH-02
 - [ ] 01-02-PLAN.md — Frontend auth integration: OrgSwitcher, / redirect, password reset API type AUTH-03, AUTH-04, AUTH-05
 
 **Wave 2** *(blocked on Wave 1 completion)*
