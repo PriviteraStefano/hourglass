@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+test.describe.configure({ mode: 'serial' });
+
 const PREFIX = `cust_${Date.now()}`;
 const EMAIL = `${PREFIX}@test.com`;
 const PASSWORD = 'Password123!';

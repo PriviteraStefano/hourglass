@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+test.describe.configure({ mode: 'serial' });
+
 const PREFIX = `cntr_${Date.now()}`;
 const EMAIL = `${PREFIX}@test.com`;
 const PASSWORD = 'Password123!';
@@ -20,7 +22,6 @@ test.describe('Contracts CRUD', () => {
 
     await page.goto('/contracts');
     await page.waitForLoadState('networkidle');
-    // Check for create/list buttons — the page may show a list or create view
     const createBtn = page.getByRole('button', { name: /create|add|new/i }).first();
     if (await createBtn.isVisible()) {
       await createBtn.click();

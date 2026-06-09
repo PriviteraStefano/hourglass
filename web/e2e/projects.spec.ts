@@ -1,19 +1,19 @@
 import { test, expect } from '@playwright/test';
 
+test.describe.configure({ mode: 'serial' });
+
 const PREFIX = `proj_${Date.now()}`;
 const EMAIL = `${PREFIX}@test.com`;
 const PASSWORD = 'Password123!';
 
 test.describe('Projects CRUD', () => {
   test.beforeAll(async ({ request }) => {
-    // Register user for this spec file
     await request.post('http://localhost:8080/auth/register', {
       data: { email: EMAIL, username: `${PREFIX}_user`, password: PASSWORD, firstname: 'Test', lastname: 'User', organization_name: `${PREFIX}_org` },
     });
   });
 
   test('create project', async ({ page }) => {
-    // Login via page-level API call to set cookies in the browser context
     await page.goto('/login');
     await page.fill('input[name="identifier"]', EMAIL);
     await page.fill('input[name="password"]', PASSWORD);
