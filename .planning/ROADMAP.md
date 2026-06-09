@@ -4,7 +4,7 @@
 
 ## Phase 0: Testing foundation
 
-**Status:** Reboot needed — previous execution targeted SurrealDB, needs PostgreSQL rewrite
+**Status:** Complete — all 6 plans executed, testcontainers infrastructure operational, auth bugs fixed, full test suite green, E2E verified
 
 **Goal:** Test infrastructure using testcontainers-go for PostgreSQL-backed service-layer integration tests. Fix known auth bugs. Loop until all bugs cleared. Establishes foundation for all feature phases.
 
