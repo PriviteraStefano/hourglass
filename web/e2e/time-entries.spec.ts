@@ -13,12 +13,17 @@ test.describe('Time Entries CRUD', () => {
     });
   });
 
-  test('create time entry', async ({ page }) => {
+  async function login(page: any) {
     await page.goto('/login');
+    await page.waitForLoadState('networkidle');
     await page.fill('input[name="identifier"]', EMAIL);
     await page.fill('input[name="password"]', PASSWORD);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
+    await page.waitForLoadState('networkidle');
+  }
+
+  test('create time entry', async ({ page }) => {
+    await login(page);
 
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
@@ -34,11 +39,7 @@ test.describe('Time Entries CRUD', () => {
   });
 
   test('view time entry details', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', EMAIL);
-    await page.fill('input[name="password"]', PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
+    await login(page);
 
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
@@ -50,11 +51,7 @@ test.describe('Time Entries CRUD', () => {
   });
 
   test('edit time entry', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', EMAIL);
-    await page.fill('input[name="password"]', PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
+    await login(page);
 
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
@@ -72,11 +69,7 @@ test.describe('Time Entries CRUD', () => {
   });
 
   test('delete time entry', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', EMAIL);
-    await page.fill('input[name="password"]', PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
+    await login(page);
 
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
