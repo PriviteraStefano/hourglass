@@ -1,7 +1,6 @@
 import {SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar} from "@/components/ui/sidebar.tsx";
-import {useSuspenseQuery} from "@tanstack/react-query";
+import {useMutation, useQueryClient, useSuspenseQuery} from "@tanstack/react-query";
 import {AuthApis} from "@/api/auth.ts";
-import {Organization} from "@/types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,12 +11,21 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu.tsx";
 import {ChevronsUpDown, HourglassIcon, Plus} from "lucide-react";
+import {useNavigate} from "@tanstack/react-router";
 
-export function OrgSwitcher({organizations}: {
-  organizations: Array<Organization>
-}) {
+export function OrgSwitcher() {
   const {isMobile} = useSidebar()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const {data: {organization}} = useSuspenseQuery(AuthApis.profileQueryOpts)
+  const {data: membershipsData} = useSuspenseQuery(AuthApis.membershipsQueryOpts)
+  const {mutateAsync: switchOrg} = useMutation(AuthApis.switchOrganizationMutationOpts)
+
+  const handleSwitch = async (orgId: string) => {
+    await switchOrg({organization_id: orgId})
+    queryClient.clear()
+    await queryClient.invalidateQueries({queryKey: ['auth', 'me']})
+  }
 
   return (
     <SidebarMenu>
@@ -49,15 +57,16 @@ export function OrgSwitcher({organizations}: {
               <DropdownMenuLabel className="text-xs text-muted-foreground">
                 Organizations
               </DropdownMenuLabel>
-              {organizations.map((org) => (
+              {membershipsData.memberships.map((membership) => (
                 <DropdownMenuItem
-                  key={org.name}
-                  onClick={() => {
-                  }}
+                  key={membership.organization.id}
+                  onClick={() => handleSwitch(membership.organization.id)}
                   className="gap-2 p-2"
                 >
-                  {org.name}
-                  {/*<DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>*/}
+                  <div className="flex flex-col">
+                    <span>{membership.organization.name}</span>
+                    <span className="text-xs text-muted-foreground">{membership.membership.role}</span>
+                  </div>
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator/>

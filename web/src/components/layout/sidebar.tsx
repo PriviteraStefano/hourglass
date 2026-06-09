@@ -28,6 +28,8 @@ import {
 import {ThemeToggle} from '@/components/theme-toggle.tsx'
 import {ProfileMenu} from "@/components/app/profile-menu.tsx";
 import {OrgSwitcher} from "@/components/app/org-switcher.tsx";
+import {Suspense} from "react";
+import {Skeleton} from "@/components/ui/skeleton.tsx";
 
 
 const navItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon; disabled?: boolean }> = [
@@ -54,7 +56,9 @@ export function AppSidebar() {
   return (
     <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader>
-        <OrgSwitcher organizations={[]}/>
+        <Suspense fallback={<Skeleton className="h-6 w-32"/>}>
+        <OrgSwitcher/>
+        </Suspense>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -78,7 +82,7 @@ export function AppSidebar() {
 
         <SidebarGroup>
           <SidebarGroupLabel>
-            Time
+            Tracking
           </SidebarGroupLabel>
           <SidebarMenu>
             {navItems.map((item) => (
