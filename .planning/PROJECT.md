@@ -37,6 +37,13 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 - ✓ Server compiles and runs with zero SurrealDB imports — Pg-3
 - ✓ ~7,300 lines SurrealDB code deleted — Pg-3
 - ✓ MVP demo seed data (6 users, 3 contracts, 6 projects, 12 time entries, 6 expenses) — Phase 5
+- ✓ Testcontainers-go infrastructure for PostgreSQL-backed integration tests — Phase 0
+- ✓ 4 auth bugs fixed (nil pointers, empty profiles, 500s for bad input) — Phase 0
+- ✓ Auth security cleanup (refresh token rotation, cookie unification, password reset hardening, auth rate limiting) — Phase 0
+- ✓ 9 service-layer integration test files against real PostgreSQL — Phase 0
+- ✓ 8 handler integration test files against real PostgreSQL — Phase 0
+- ✓ All 6 E2E Playwright specs verified — Phase 0
+- ✓ Full Go backend test suite green (16 packages, zero skipped tests) — Phase 0
 - ✓ Testify, shared testdata factories, service tests (auth/org/time-entry/contract/project/customer/unit/WG/invitation/password-reset/export), handler integration tests, repository tests, frontend Vitest — Phase 0 (SurrealDB era, needs PG reboot)
 - ✓ Playwright E2E tests for all CRUD flows — Phase 0
 
