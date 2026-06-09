@@ -63,7 +63,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.RespondWithJSON(w, http.StatusCreated, resp)
+	secure := cookies.IsSecureRequest(r)
+	cookies.SetAccessTokenCookie(w, resp.Token, secure)
+	cookies.SetRefreshTokenCookie(w, resp.RefreshToken, secure)
+
+	api.RespondWithJSON(w, http.StatusOK, resp)
 }
 
 type LoginRequest struct {

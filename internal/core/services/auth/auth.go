@@ -212,24 +212,30 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*RegisterR
 		membership, _ = s.orgRepo.GetMembership(ctx, user.ID, orgID)
 	}
 
-	token, err := s.tokenService.GenerateToken(user.ID, orgID, "employee", user.Email)
-	if err != nil {
-		return nil, err
-	}
+	var token string
+	var refreshToken string
+	var expiresAt time.Time
+	if orgID != uuid.Nil {
+		token, err = s.tokenService.GenerateToken(user.ID, orgID, "employee", user.Email)
+		if err != nil {
+			return nil, err
+		}
 
-	refreshToken, err := s.tokenService.GenerateRefreshToken()
-	if err != nil {
-		return nil, err
-	}
-	refreshHash := s.tokenService.HashRefreshToken(refreshToken)
-	if err := s.refreshTokenRepo.Add(ctx, user.ID, orgID, refreshHash, time.Now().Add(7*24*time.Hour)); err != nil {
-		return nil, err
+		refreshToken, err = s.tokenService.GenerateRefreshToken()
+		if err != nil {
+			return nil, err
+		}
+		refreshHash := s.tokenService.HashRefreshToken(refreshToken)
+		if err := s.refreshTokenRepo.Add(ctx, user.ID, orgID, refreshHash, time.Now().Add(7*24*time.Hour)); err != nil {
+			return nil, err
+		}
+		expiresAt = time.Now().Add(15 * time.Minute)
 	}
 
 	return &RegisterResponse{
 		Token:        token,
 		RefreshToken: refreshToken,
-		ExpiresAt:    time.Now().Add(15 * time.Minute),
+		ExpiresAt:    expiresAt,
 		UserWithMembership: *buildUserWithMembershipPtr(user, orgID, org, membership),
 	}, nil
 }

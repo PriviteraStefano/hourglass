@@ -3,6 +3,7 @@ package password_reset
 import (
 	"context"
 	"crypto/rand"
+	"math/big"
 	"time"
 
 	"github.com/google/uuid"
@@ -100,11 +101,17 @@ func (s *Service) Verify(ctx context.Context, identifier, code, password string)
 const resetCodeCharset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 func generateResetCode() string {
-	b := make([]byte, 8)
-	rand.Read(b)
-	result := make([]byte, len(b))
-	for i, v := range b {
-		result[i] = resetCodeCharset[int(v)%len(resetCodeCharset)]
+	code := make([]byte, 8)
+	for i := range code {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(resetCodeCharset))))
+		if err != nil {
+			// Fall back to biased distribution on crypto error (extremely rare)
+			b := make([]byte, 1)
+			rand.Read(b)
+			code[i] = resetCodeCharset[int(b[0])%len(resetCodeCharset)]
+			continue
+		}
+		code[i] = resetCodeCharset[n.Int64()]
 	}
-	return string(result)
+	return string(code)
 }
