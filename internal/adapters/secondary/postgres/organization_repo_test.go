@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -33,7 +34,11 @@ func TestOrganizationRepository_Add_GetByID(t *testing.T) {
 	require.Equal(t, org.Name, got.Name)
 	require.Equal(t, org.Slug, got.Slug)
 	require.Equal(t, org.FinancialCutoffDays, got.FinancialCutoffDays)
-	require.Equal(t, org.FinancialCutoffConfig, got.FinancialCutoffConfig)
+	// Round-trip through JSON to match JSONB deserialization (ints become float64)
+	cfgJSON, _ := json.Marshal(org.FinancialCutoffConfig)
+	var expectedCfg map[string]interface{}
+	json.Unmarshal(cfgJSON, &expectedCfg)
+	require.Equal(t, expectedCfg, got.FinancialCutoffConfig)
 }
 
 func TestOrganizationRepository_GetByID_NotFound(t *testing.T) {

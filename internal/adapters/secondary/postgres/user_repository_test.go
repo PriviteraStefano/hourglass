@@ -257,7 +257,7 @@ func TestUserRepository_AddWithOrgAndMembership(t *testing.T) {
 
 	user := auth.NewUser(uniqueEmail(), uniqueUsername(), "Full", "Flow", "hash")
 	org := auth.NewOrganization("New Org", "new-org-"+uuid.New().String()[:8], "Description")
-	membership := auth.NewOrganizationMembership(user.ID, org.ID, "owner")
+	membership := auth.NewOrganizationMembership(user.ID, org.ID, "manager")
 
 	err := repo.AddWithOrgAndMembership(context.Background(), user, org, membership)
 	require.NoError(t, err)

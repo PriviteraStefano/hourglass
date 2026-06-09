@@ -85,16 +85,11 @@ func (r *SubprojectRepository) Update(ctx context.Context, sp *models.Subproject
 	if err != nil {
 		return nil, fmt.Errorf("parse subproject id: %w", err)
 	}
-	projectID, err := uuid.Parse(sp.ProjectID)
-	if err != nil {
-		return nil, fmt.Errorf("parse project_id: %w", err)
-	}
-
 	query := `UPDATE subprojects SET name = $1, description = $2, sequence_order = $3, is_active = $4, updated_at = NOW()
 		WHERE id = $5
 		RETURNING id, project_id, name, description, sequence_order, is_active, created_at, updated_at`
 	return scanSubproject(r.pool.QueryRow(ctx, query,
-		sp.Name, sp.Description, sp.SequenceOrder, sp.IsActive, uid, projectID))
+		sp.Name, sp.Description, sp.SequenceOrder, sp.IsActive, uid))
 }
 
 // Delete removes a subproject by its string ID.
