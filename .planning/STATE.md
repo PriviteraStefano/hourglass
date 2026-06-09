@@ -3,24 +3,24 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-06-09T01:40:00Z"
-last_activity: 2026-06-09
+last_updated: "2026-06-09T17:19:32.469Z"
+last_activity: 2026-06-08
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 25
-  completed_plans: 20
-  percent: 80
+  completed_plans: 21
+  percent: 84
 ---
 
 # Phase State
 
 ## Session
 
-- **Last activity:** 2026-06-08
+- **Last activity:** 2026-06-09
 - **Source:** `.planning/phases/00-testing-foundation/00-CONTEXT.md`
 - **Intel:** `.planning/intel/`
-- **Completed:** Plan 04 (handler test rewrite)
+- **Completed:** Plan 05 (bug buffer — all documented bugs fixed, full green suite)
 
 ## Phase 0: testing-foundation
 
@@ -30,7 +30,7 @@ progress:
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
   - 00-03-PLAN.md — Service test rewrite (Wave 3, depends on 01+02) [completed]
   - 00-04-PLAN.md — Handler test rewrite (Wave 4, depends on 03) [completed]
-  - 00-05-PLAN.md — Bug buffer with human review (Wave 5, depends on 04)
+  - 00-05-PLAN.md — Bug buffer with human review (Wave 5, depends on 04) [completed]
   - 00-06-PLAN.md — E2E verification (Wave 6, depends on 05)
 - **Last Activity:** 2026-06-09
 
@@ -284,3 +284,4 @@ Last activity: 2026-06-09 -- Plan 04 completed
 | Phase 00-testing-foundation P03 | 5 min | 3 tasks | 10 files |
 | Phase 00-testing-foundation P04 | 42 min | 3 tasks | 6 files |
 | Phase 00-testing-foundation P04 | 42min | 3 tasks | 6 files |
+| Phase 00-testing-foundation P05 | 23min --tasks 3 --files 14 | - tasks | - files |
