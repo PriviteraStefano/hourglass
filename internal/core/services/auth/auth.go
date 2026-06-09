@@ -65,6 +65,9 @@ type Organization struct {
 }
 
 type RegisterResponse struct {
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
+	ExpiresAt    time.Time `json:"expires_at"`
 	UserWithMembership
 }
 
@@ -209,7 +212,24 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*RegisterR
 		membership, _ = s.orgRepo.GetMembership(ctx, user.ID, orgID)
 	}
 
+	token, err := s.tokenService.GenerateToken(user.ID, orgID, "employee", user.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	refreshToken, err := s.tokenService.GenerateRefreshToken()
+	if err != nil {
+		return nil, err
+	}
+	refreshHash := s.tokenService.HashRefreshToken(refreshToken)
+	if err := s.refreshTokenRepo.Add(ctx, user.ID, orgID, refreshHash, time.Now().Add(7*24*time.Hour)); err != nil {
+		return nil, err
+	}
+
 	return &RegisterResponse{
+		Token:        token,
+		RefreshToken: refreshToken,
+		ExpiresAt:    time.Now().Add(15 * time.Minute),
 		UserWithMembership: *buildUserWithMembershipPtr(user, orgID, org, membership),
 	}, nil
 }
