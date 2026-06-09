@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-06-09T17:19:32.469Z"
-last_activity: 2026-06-08
+last_updated: "2026-06-09T23:26:44.319Z"
+last_activity: 2026-06-09
 progress:
   total_phases: 8
-  completed_phases: 3
-  total_plans: 25
-  completed_plans: 22
-  percent: 88
+  completed_phases: 2
+  total_plans: 24
+  completed_plans: 19
+  percent: 25
 ---
 
 # Phase State
@@ -24,7 +24,7 @@ progress:
 
 ## Phase 0: testing-foundation
 
-- **Status:** Complete
+- **Status:** Ready to execute
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -102,8 +102,8 @@ The following phases from the previous milestone structure are superseded:
 - **2026-06-08:** testcontainers-go v0.42.0 selected as integration test infrastructure, replacing DATABASE_URL-dependent TestPool with SetupPackageContainer using sync.Once container lifecycle. Migration paths resolve relative to Go module root.
 - [Phase 00-testing-foundation]: ---
 
-phase: 00-testing-foundation
-plan: 03
+phase: 01
+plan: Not started
 subsystem: testing
 tags: [go, testcontainers, postgres, integration-tests]
 requires:
@@ -272,7 +272,7 @@ completed: 2026-06-09
 
 Phase: 00 (testing-foundation) — COMPLETE
 Plan: 6 of 6
-Status: Phase complete
+Status: Ready to execute
 Last activity: 2026-06-09 -- Plan 06 completed (E2E verification)
 
 ## Performance Metrics

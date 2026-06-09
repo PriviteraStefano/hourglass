@@ -69,9 +69,13 @@ Plans:
 - Wave 2: Plan 03 (E2E verification)
 
 Plans:
+**Wave 1**
 
 - [ ] 01-01-PLAN.md — Backend auth fixes: Register token generation + cookies, password reset entropy AUTH-01, AUTH-02
 - [ ] 01-02-PLAN.md — Frontend auth integration: OrgSwitcher, / redirect, password reset API type AUTH-03, AUTH-04, AUTH-05
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 01-03-PLAN.md — End-to-end verification of all AUTH requirements AUTH-01-05
 
 ---
