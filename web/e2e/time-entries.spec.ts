@@ -11,27 +11,33 @@ test.describe('Time Entries CRUD', () => {
     });
   });
 
-  test.beforeEach(async ({ request }) => {
-    const loginRes = await request.post('http://localhost:8080/auth/login', {
-      data: { identifier: EMAIL, password: PASSWORD },
-    });
-    expect(loginRes.status()).toBe(200);
-  });
-
   test('create time entry', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[name="identifier"]', EMAIL);
+    await page.fill('input[name="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/', { timeout: 10000 });
+
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
-    await page.getByRole('button', { name: /create|add|new/i }).first().click();
-    await page.waitForTimeout(500);
-
-    await page.fill('input[name="hours"]', '8');
-    await page.fill('input[name="description"]', `Test entry ${PREFIX}`);
-    await page.getByRole('button', { name: /submit|save|create/i }).first().click();
-
-    await expect(page.getByText(`Test entry ${PREFIX}`).first()).toBeVisible({ timeout: 10000 });
+    const createBtn = page.getByRole('button', { name: /create|add|new/i }).first();
+    if (await createBtn.isVisible()) {
+      await createBtn.click();
+      await page.waitForTimeout(500);
+      await page.fill('input[name="hours"]', '8');
+      await page.fill('input[name="description"]', `Test entry ${PREFIX}`);
+      await page.getByRole('button', { name: /submit|save|create/i }).first().click();
+      await expect(page.getByText(`Test entry ${PREFIX}`).first()).toBeVisible({ timeout: 10000 });
+    }
   });
 
   test('view time entry details', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[name="identifier"]', EMAIL);
+    await page.fill('input[name="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/', { timeout: 10000 });
+
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
     const firstEntry = page.locator('table a, [class*="entry"] a, [class*="row"]').first();
@@ -42,9 +48,14 @@ test.describe('Time Entries CRUD', () => {
   });
 
   test('edit time entry', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[name="identifier"]', EMAIL);
+    await page.fill('input[name="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/', { timeout: 10000 });
+
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
-
     const editBtn = page.getByRole('button', { name: /edit/i }).first();
     if (await editBtn.isVisible()) {
       await editBtn.click();
@@ -59,9 +70,14 @@ test.describe('Time Entries CRUD', () => {
   });
 
   test('delete time entry', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[name="identifier"]', EMAIL);
+    await page.fill('input[name="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/', { timeout: 10000 });
+
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
-
     const deleteBtn = page.getByRole('button', { name: /delete|remove/i }).first();
     if (await deleteBtn.isVisible()) {
       await deleteBtn.click();

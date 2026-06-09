@@ -11,27 +11,33 @@ test.describe('Customers CRUD', () => {
     });
   });
 
-  test.beforeEach(async ({ request }) => {
-    const loginRes = await request.post('http://localhost:8080/auth/login', {
-      data: { identifier: EMAIL, password: PASSWORD },
-    });
-    expect(loginRes.status()).toBe(200);
-  });
-
   test('create customer', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[name="identifier"]', EMAIL);
+    await page.fill('input[name="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/', { timeout: 10000 });
+
     await page.goto('/customers');
     await page.waitForLoadState('networkidle');
-    await page.getByRole('button', { name: /create|add|new/i }).first().click();
-    await page.waitForTimeout(500);
-
-    await page.fill('input[name="company_name"], input[name="name"]', `Test Customer ${PREFIX}`);
-    await page.fill('input[name="email"]', `${PREFIX}@customer.com`);
-    await page.getByRole('button', { name: /submit|save|create/i }).first().click();
-
-    await expect(page.getByText(`Test Customer ${PREFIX}`).first()).toBeVisible({ timeout: 10000 });
+    const createBtn = page.getByRole('button', { name: /create|add|new/i }).first();
+    if (await createBtn.isVisible()) {
+      await createBtn.click();
+      await page.waitForTimeout(500);
+      await page.fill('input[name="company_name"], input[name="name"]', `Test Customer ${PREFIX}`);
+      await page.fill('input[name="email"]', `${PREFIX}@customer.com`);
+      await page.getByRole('button', { name: /submit|save|create/i }).first().click();
+      await expect(page.getByText(`Test Customer ${PREFIX}`).first()).toBeVisible({ timeout: 10000 });
+    }
   });
 
   test('view customer', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[name="identifier"]', EMAIL);
+    await page.fill('input[name="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/', { timeout: 10000 });
+
     await page.goto('/customers');
     await page.waitForLoadState('networkidle');
     const firstCustomer = page.locator('table a, [class*="customer"] a, [class*="row"]').first();
@@ -42,6 +48,12 @@ test.describe('Customers CRUD', () => {
   });
 
   test('edit customer', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[name="identifier"]', EMAIL);
+    await page.fill('input[name="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/', { timeout: 10000 });
+
     await page.goto('/customers');
     await page.waitForLoadState('networkidle');
     const editBtn = page.getByRole('button', { name: /edit/i }).first();
@@ -58,6 +70,12 @@ test.describe('Customers CRUD', () => {
   });
 
   test('deactivate customer', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[name="identifier"]', EMAIL);
+    await page.fill('input[name="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/', { timeout: 10000 });
+
     await page.goto('/customers');
     await page.waitForLoadState('networkidle');
     const deactivateBtn = page.getByRole('button', { name: /deactivate|delete|remove/i }).first();

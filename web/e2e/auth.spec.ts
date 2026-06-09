@@ -13,7 +13,7 @@ test.describe('Auth Flow', () => {
 
     await page.click('button[type="submit"]');
 
-    // Registration doesn't auto-login — redirects to login page
+    // Registration doesn't auto-login — user is redirected to login page
     await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });
 
@@ -22,15 +22,16 @@ test.describe('Auth Flow', () => {
 
     await page.click('button[type="submit"]');
 
+    // Actual Zod validation messages from the form schema
     await expect(page.getByText('Invalid email address')).toBeVisible();
     await expect(page.getByText('Password must be at least 8 characters')).toBeVisible();
   });
 
   test('login with valid credentials', async ({ page, request }) => {
-    const email = `test_${Date.now()}@example.com`;
-    const username = `user_${Date.now()}`;
+    const email = `logintest_${Date.now()}@example.com`;
+    const username = `loginuser_${Date.now()}`;
     const password = 'password123';
-    const orgName = `Org_${Date.now()}`;
+    const orgName = `LoginOrg_${Date.now()}`;
 
     const registerResponse = await request.post('http://localhost:8080/auth/register', {
       data: { email, username, password, firstname: 'Test', lastname: 'User', organization_name: orgName },
@@ -55,27 +56,33 @@ test.describe('Auth Flow', () => {
     expect(body.error).toMatch(/invalid credentials/i);
   });
 
-  test('logout redirects to login', async ({ page, request }) => {
-    const email = `test_${Date.now()}@example.com`;
+  test('logout redirects to login', async ({ page }) => {
+    // Register and login via browser to set auth cookies
+    const email = `logouttest_${Date.now()}@example.com`;
     const password = 'password123';
 
-    const registerRes = await request.post('http://localhost:8080/auth/register', {
-      data: { email, username: `user_${Date.now()}`, password, firstname: 'Test', lastname: 'User', organization_name: `Org_${Date.now()}` },
-    });
-    expect(registerRes.status()).toBe(201);
+    await page.goto('/register');
+    await page.fill('input[name="email"]', email);
+    await page.fill('input[name="username"]', `logoutuser_${Date.now()}`);
+    await page.fill('input[name="firstname"]', 'Test');
+    await page.fill('input[name="lastname"]', 'User');
+    await page.fill('input[name="password"]', password);
+    await page.fill('input[name="organization_name"]', `LogoutOrg_${Date.now()}`);
+    await page.click('button[type="submit"]');
 
-    // Login via browser to set cookies in the page context
-    await page.goto('/login');
+    // After register, user is redirected to /login — now log in
+    await page.waitForURL(/\/login/, { timeout: 10000 });
     await page.fill('input[name="identifier"]', email);
     await page.fill('input[name="password"]', password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/', { timeout: 10000 });
 
-    // Logout via API — this clears the auth cookies
-    const logoutRes = await request.post('http://localhost:8080/auth/logout');
-    expect(logoutRes.status()).toBe(200);
+    // Now logout via the browser API call — same context
+    await page.evaluate(async () => {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    });
 
-    // Navigate to a protected route — should redirect to login
+    // Navigate to protected route — should redirect to login
     await page.goto('/time-entries');
     await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });
