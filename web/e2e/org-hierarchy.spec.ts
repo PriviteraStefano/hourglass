@@ -6,7 +6,7 @@ test.describe('Org Hierarchy CRUD', () => {
   test.beforeAll(async ({ request }) => {
     const email = `${PREFIX}@test.com`;
     await request.post('http://localhost:8080/auth/register', {
-      data: { email, username: `${PREFIX}_user`, password: 'Password123!', organization_name: `${PREFIX}_org` },
+      data: { email, username: `${PREFIX}_user`, password: 'Password123!', firstname: 'Test', lastname: 'User', organization_name: `${PREFIX}_org` },
     });
   });
 
@@ -15,7 +15,7 @@ test.describe('Org Hierarchy CRUD', () => {
     await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
     await page.fill('input[name="password"]', 'Password123!');
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/(dashboard|time-entries)/, { timeout: 10000 });
+    await page.waitForURL('/', { timeout: 10000 });
 
     await page.goto('/org-hierarchy');
     await page.waitForLoadState('networkidle');
@@ -35,7 +35,7 @@ test.describe('Org Hierarchy CRUD', () => {
     await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
     await page.fill('input[name="password"]', 'Password123!');
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/(dashboard|time-entries)/, { timeout: 10000 });
+    await page.waitForURL('/', { timeout: 10000 });
 
     await page.goto('/org-hierarchy');
     await page.waitForLoadState('networkidle');
@@ -55,7 +55,7 @@ test.describe('Org Hierarchy CRUD', () => {
     await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
     await page.fill('input[name="password"]', 'Password123!');
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/(dashboard|time-entries)/, { timeout: 10000 });
+    await page.waitForURL('/', { timeout: 10000 });
 
     await page.goto('/org-hierarchy');
     await page.waitForLoadState('networkidle');
