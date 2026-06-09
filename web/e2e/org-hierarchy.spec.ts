@@ -1,22 +1,24 @@
 import { test, expect } from '@playwright/test';
 
 const PREFIX = `org_${Date.now()}`;
+const EMAIL = `${PREFIX}@test.com`;
+const PASSWORD = 'Password123!';
 
 test.describe('Org Hierarchy CRUD', () => {
   test.beforeAll(async ({ request }) => {
-    const email = `${PREFIX}@test.com`;
     await request.post('http://localhost:8080/auth/register', {
-      data: { email, username: `${PREFIX}_user`, password: 'Password123!', firstname: 'Test', lastname: 'User', organization_name: `${PREFIX}_org` },
+      data: { email: EMAIL, username: `${PREFIX}_user`, password: PASSWORD, firstname: 'Test', lastname: 'User', organization_name: `${PREFIX}_org` },
     });
   });
 
-  test('create unit', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
+  test.beforeEach(async ({ request }) => {
+    const loginRes = await request.post('http://localhost:8080/auth/login', {
+      data: { identifier: EMAIL, password: PASSWORD },
+    });
+    expect(loginRes.status()).toBe(200);
+  });
 
+  test('create unit', async ({ page }) => {
     await page.goto('/org-hierarchy');
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: /create|add|new unit/i }).first().click();
@@ -31,12 +33,6 @@ test.describe('Org Hierarchy CRUD', () => {
   });
 
   test('create working group', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/org-hierarchy');
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: /create|add|new.*group/i }).first().click();
@@ -51,12 +47,6 @@ test.describe('Org Hierarchy CRUD', () => {
   });
 
   test('edit unit', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/org-hierarchy');
     await page.waitForLoadState('networkidle');
     const editBtn = page.getByRole('button', { name: /edit/i }).first();

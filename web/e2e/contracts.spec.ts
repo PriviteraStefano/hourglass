@@ -1,22 +1,25 @@
 import { test, expect } from '@playwright/test';
 
 const PREFIX = `cntr_${Date.now()}`;
+const EMAIL = `${PREFIX}@test.com`;
+const PASSWORD = 'Password123!';
 
 test.describe('Contracts CRUD', () => {
   test.beforeAll(async ({ request }) => {
-    const email = `${PREFIX}@test.com`;
     await request.post('http://localhost:8080/auth/register', {
-      data: { email, username: `${PREFIX}_user`, password: 'Password123!', firstname: 'Test', lastname: 'User', organization_name: `${PREFIX}_org` },
+      data: { email: EMAIL, username: `${PREFIX}_user`, password: PASSWORD, firstname: 'Test', lastname: 'User', organization_name: `${PREFIX}_org` },
     });
   });
 
-  test('create contract', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
+  test.beforeEach(async ({ request }) => {
+    // Ensure logged in before each test
+    const loginRes = await request.post('http://localhost:8080/auth/login', {
+      data: { identifier: EMAIL, password: PASSWORD },
+    });
+    expect(loginRes.status()).toBe(200);
+  });
 
+  test('create contract', async ({ page }) => {
     await page.goto('/contracts');
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: /create|add|new/i }).first().click();
@@ -29,12 +32,6 @@ test.describe('Contracts CRUD', () => {
   });
 
   test('view contract', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/contracts');
     await page.waitForLoadState('networkidle');
     const firstContract = page.locator('table a, [class*="contract"] a, [class*="row"]').first();
@@ -45,12 +42,6 @@ test.describe('Contracts CRUD', () => {
   });
 
   test('edit contract', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/contracts');
     await page.waitForLoadState('networkidle');
     const editBtn = page.getByRole('button', { name: /edit/i }).first();
@@ -67,12 +58,6 @@ test.describe('Contracts CRUD', () => {
   });
 
   test('deactivate contract', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/contracts');
     await page.waitForLoadState('networkidle');
     const deactivateBtn = page.getByRole('button', { name: /deactivate|delete|remove/i }).first();

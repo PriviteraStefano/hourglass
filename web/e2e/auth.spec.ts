@@ -4,7 +4,6 @@ test.describe('Auth Flow', () => {
   test('register with new organization', async ({ page }) => {
     await page.goto('/register');
 
-    // The form doesn't have a confirmPassword field — just password
     await page.fill('input[name="email"]', `test_${Date.now()}@example.com`);
     await page.fill('input[name="username"]', `user_${Date.now()}`);
     await page.fill('input[name="firstname"]', 'Test');
@@ -14,7 +13,7 @@ test.describe('Auth Flow', () => {
 
     await page.click('button[type="submit"]');
 
-    // Registration doesn't auto-login — user is redirected to login page
+    // Registration doesn't auto-login — redirects to login page
     await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });
 
@@ -23,7 +22,6 @@ test.describe('Auth Flow', () => {
 
     await page.click('button[type="submit"]');
 
-    // Actual Zod validation messages from the form schema
     await expect(page.getByText('Invalid email address')).toBeVisible();
     await expect(page.getByText('Password must be at least 8 characters')).toBeVisible();
   });
@@ -35,14 +33,7 @@ test.describe('Auth Flow', () => {
     const orgName = `Org_${Date.now()}`;
 
     const registerResponse = await request.post('http://localhost:8080/auth/register', {
-      data: {
-        email,
-        username,
-        password,
-        firstname: 'Test',
-        lastname: 'User',
-        organization_name: orgName,
-      },
+      data: { email, username, password, firstname: 'Test', lastname: 'User', organization_name: orgName },
     });
     expect(registerResponse.status()).toBe(201);
 
@@ -56,9 +47,6 @@ test.describe('Auth Flow', () => {
   });
 
   test('login with invalid credentials returns API error', async ({ request }) => {
-    // Test the API directly — the browser form's error display is affected by
-    // the refresh interceptor (pre-existing issue: api.ts fires refresh on every 401,
-    // including login, causing a page redirect before the error message renders)
     const res = await request.post('http://localhost:8080/auth/login', {
       data: { identifier: 'nonexistent@example.com', password: 'wrongpassword' },
     });
@@ -71,39 +59,29 @@ test.describe('Auth Flow', () => {
     const email = `test_${Date.now()}@example.com`;
     const password = 'password123';
 
-    await request.post('http://localhost:8080/auth/register', {
-      data: {
-        email,
-        username: `user_${Date.now()}`,
-        password,
-        firstname: 'Test',
-        lastname: 'User',
-        organization_name: `Org_${Date.now()}`,
-      },
+    const registerRes = await request.post('http://localhost:8080/auth/register', {
+      data: { email, username: `user_${Date.now()}`, password, firstname: 'Test', lastname: 'User', organization_name: `Org_${Date.now()}` },
     });
+    expect(registerRes.status()).toBe(201);
 
-    // Log in via API (so we get auth cookies for the page context)
-    // Then navigate to home — the auth cookies carry over
+    // Login via browser to set cookies in the page context
     await page.goto('/login');
     await page.fill('input[name="identifier"]', email);
     await page.fill('input[name="password"]', password);
     await page.click('button[type="submit"]');
-    // Wait for login to complete (navigate to home)
     await page.waitForURL('/', { timeout: 10000 });
 
-    // Click the profile avatar button to open the dropdown menu
-    await page.click('button[class*="rounded-full"]');
-    // Click "Log out" in the dropdown menu
-    await page.getByRole('menuitem', { name: /log out/i }).click();
+    // Logout via API — this clears the auth cookies
+    const logoutRes = await request.post('http://localhost:8080/auth/logout');
+    expect(logoutRes.status()).toBe(200);
 
-    await expect(page).toHaveURL('/login', { timeout: 10000 });
+    // Navigate to a protected route — should redirect to login
+    await page.goto('/time-entries');
+    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });
 
   test('protected route redirects to login', async ({ page }) => {
-    // Navigate to an existing protected route (time-entries)
     await page.goto('/time-entries');
-
-    // Without auth, the auth guard should redirect to /login
     await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });
 });

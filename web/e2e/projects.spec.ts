@@ -1,29 +1,25 @@
 import { test, expect } from '@playwright/test';
 
 const PREFIX = `proj_${Date.now()}`;
+const EMAIL = `${PREFIX}@test.com`;
+const PASSWORD = 'Password123!';
 
 test.describe('Projects CRUD', () => {
-  let cookies: string;
-
   test.beforeAll(async ({ request }) => {
-    const email = `${PREFIX}@test.com`;
     await request.post('http://localhost:8080/auth/register', {
-      data: { email, username: `${PREFIX}_user`, password: 'Password123!', firstname: 'Test', lastname: 'User', organization_name: `${PREFIX}_org` },
+      data: { email: EMAIL, username: `${PREFIX}_user`, password: PASSWORD, firstname: 'Test', lastname: 'User', organization_name: `${PREFIX}_org` },
     });
+  });
+
+  test.beforeEach(async ({ page, request }) => {
+    // Ensure logged in: login via API so cookies are available to page context
     const loginRes = await request.post('http://localhost:8080/auth/login', {
-      data: { identifier: email, password: 'Password123!' },
+      data: { identifier: EMAIL, password: PASSWORD },
     });
-    const setCookie = loginRes.headers()['set-cookie'];
-    cookies = Array.isArray(setCookie) ? setCookie.join('; ') : setCookie || '';
+    expect(loginRes.status()).toBe(200);
   });
 
   test('create project', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/projects');
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: /create|add|new/i }).first().click();
@@ -36,12 +32,6 @@ test.describe('Projects CRUD', () => {
   });
 
   test('view project', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/projects');
     await page.waitForLoadState('networkidle');
     const firstProject = page.locator('table a, [class*="project"] a, [class*="row"]').first();
@@ -52,12 +42,6 @@ test.describe('Projects CRUD', () => {
   });
 
   test('edit project', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/projects');
     await page.waitForLoadState('networkidle');
     const editBtn = page.getByRole('button', { name: /edit/i }).first();
@@ -74,12 +58,6 @@ test.describe('Projects CRUD', () => {
   });
 
   test('deactivate project', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/projects');
     await page.waitForLoadState('networkidle');
     const deactivateBtn = page.getByRole('button', { name: /deactivate|delete|remove/i }).first();

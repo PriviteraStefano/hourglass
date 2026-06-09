@@ -1,29 +1,24 @@
 import { test, expect } from '@playwright/test';
 
 const PREFIX = `te_${Date.now()}`;
+const EMAIL = `${PREFIX}@test.com`;
+const PASSWORD = 'Password123!';
 
 test.describe('Time Entries CRUD', () => {
-  let cookies: string;
-
   test.beforeAll(async ({ request }) => {
-    const email = `${PREFIX}@test.com`;
     await request.post('http://localhost:8080/auth/register', {
-      data: { email, username: `${PREFIX}_user`, password: 'Password123!', firstname: 'Test', lastname: 'User', organization_name: `${PREFIX}_org` },
+      data: { email: EMAIL, username: `${PREFIX}_user`, password: PASSWORD, firstname: 'Test', lastname: 'User', organization_name: `${PREFIX}_org` },
     });
+  });
+
+  test.beforeEach(async ({ request }) => {
     const loginRes = await request.post('http://localhost:8080/auth/login', {
-      data: { identifier: email, password: 'Password123!' },
+      data: { identifier: EMAIL, password: PASSWORD },
     });
-    const setCookie = loginRes.headers()['set-cookie'];
-    cookies = Array.isArray(setCookie) ? setCookie.join('; ') : setCookie || '';
+    expect(loginRes.status()).toBe(200);
   });
 
   test('create time entry', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: /create|add|new/i }).first().click();
@@ -36,13 +31,7 @@ test.describe('Time Entries CRUD', () => {
     await expect(page.getByText(`Test entry ${PREFIX}`).first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('view time entry details', async ({ page, request }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
+  test('view time entry details', async ({ page }) => {
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
     const firstEntry = page.locator('table a, [class*="entry"] a, [class*="row"]').first();
@@ -53,12 +42,6 @@ test.describe('Time Entries CRUD', () => {
   });
 
   test('edit time entry', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
 
@@ -76,12 +59,6 @@ test.describe('Time Entries CRUD', () => {
   });
 
   test('delete time entry', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="identifier"]', `${PREFIX}@test.com`);
-    await page.fill('input[name="password"]', 'Password123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 10000 });
-
     await page.goto('/time-entries');
     await page.waitForLoadState('networkidle');
 
