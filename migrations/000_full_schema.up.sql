@@ -82,7 +82,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_units_org_code ON units(org_id, code);
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS organization_memberships (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     role VARCHAR(50) NOT NULL CHECK (role IN ('employee', 'manager', 'finance', 'customer')),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -366,7 +366,7 @@ CREATE TABLE IF NOT EXISTS invitations (
     code VARCHAR(255) NOT NULL UNIQUE,
     invite_token VARCHAR(255) NOT NULL UNIQUE,
     email VARCHAR(255),
-    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'expired')),
+    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'expired', 'used')),
     created_by UUID NOT NULL REFERENCES users(id),
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

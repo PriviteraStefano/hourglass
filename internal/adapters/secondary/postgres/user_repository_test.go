@@ -278,7 +278,7 @@ func TestUserRepository_AddWithOrgAndMembership(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, memberships, 1)
 	require.Equal(t, org.ID, memberships[0].OrganizationID)
-	require.Equal(t, "owner", memberships[0].Role)
+	require.Equal(t, "manager", memberships[0].Role)
 }
 
 func TestUserRepository_Add_DuplicateEmail(t *testing.T) {
