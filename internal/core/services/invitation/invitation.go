@@ -35,7 +35,7 @@ func (s *Service) Create(ctx context.Context, req *invitation.CreateInvitationRe
 		Email:          req.Email,
 		Status:         invitation.InvitationStatusPending,
 		ExpiresAt:      time.Now().Add(time.Duration(expiresInDays) * 24 * time.Hour),
-		CreatedBy:      "system",
+		CreatedBy:      req.CreatedBy.String(),
 		CreatedAt:      time.Now(),
 	}
 

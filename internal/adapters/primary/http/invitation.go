@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/invitation"
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
+	"github.com/stefanoprivitera/hourglass/internal/middleware"
 	"github.com/stefanoprivitera/hourglass/pkg/api"
 )
 
@@ -48,6 +49,7 @@ func (h *InvitationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		OrganizationID: orgID,
 		Email:          req.Email,
 		ExpiresInDays:  req.ExpiresInDays,
+		CreatedBy:      middleware.GetUserID(r.Context()),
 	}
 
 	inv, err := h.service.Create(ctx, svcReq)

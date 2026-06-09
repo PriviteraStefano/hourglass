@@ -126,6 +126,28 @@ func TestPasswordResetIntegration(t *testing.T) {
 	})
 
 	t.Run("VerifyPreventsReplay", func(t *testing.T) {
-		t.Skip("Skipped: MarkUsed + revocation verification requires tracking code hash — tracked for Plan 05")
+		svc := realRepoFixture(t, pool)
+		now := time.Now()
+
+		userID := uuid.New()
+		_, err := pool.Exec(context.Background(),
+			`INSERT INTO users (id, email, username, firstname, lastname, password_hash, is_active, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, true, $7, $7)`,
+			userID, "replay@test.com", "replay_"+uuid.New().String()[:8],
+			"Replay", "User", "oldhash", now)
+		require.NoError(t, err)
+
+		// Request a reset code
+		code, _, err := svc.Request(context.Background(), "replay@test.com")
+		require.NoError(t, err)
+		require.NotEmpty(t, code)
+
+		// First use should succeed
+		err = svc.Verify(context.Background(), "replay@test.com", code, "newSecurePass1!")
+		assert.NoError(t, err)
+
+		// Second use of same code should fail (replay protection)
+		err = svc.Verify(context.Background(), "replay@test.com", code, "anotherPass2!")
+		assert.Error(t, err)
 	})
 }

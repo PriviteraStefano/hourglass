@@ -138,7 +138,33 @@ func TestOrgIntegration(t *testing.T) {
 	})
 
 	t.Run("UpdateSettings", func(t *testing.T) {
-		t.Skip("Skipped: organization_settings table missing from schema — tracked for Plan 05")
+		svc := realRepoFixture(t, pool)
+		ownerID := seedUser(t, pool)
+
+		org, err := svc.Create(context.Background(), ownerID,
+			&orgdomain.CreateOrganizationRequest{Name: "Settings Update Org"})
+		require.NoError(t, err)
+		require.NotNil(t, org)
+
+		// Update settings as finance role (svc.Create creates owner as finance)
+		kmRate := 0.55
+		wsd := 0
+		showHistory := false
+		updated, err := svc.UpdateSettings(context.Background(), string(models.RoleFinance), org.ID,
+			&orgdomain.UpdateSettingsRequest{
+				DefaultKmRate:       &kmRate,
+				Currency:            "USD",
+				WeekStartDay:        &wsd,
+				Timezone:            "America/New_York",
+				ShowApprovalHistory: &showHistory,
+			})
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+		assert.Equal(t, "USD", updated.Currency)
+		assert.Equal(t, "America/New_York", updated.Timezone)
+		assert.False(t, updated.ShowApprovalHistory)
+		assert.NotNil(t, updated.DefaultKmRate)
+		assert.Equal(t, 0.55, *updated.DefaultKmRate)
 	})
 
 	t.Run("UpdateSettings_ForbiddenForNonFinance", func(t *testing.T) {

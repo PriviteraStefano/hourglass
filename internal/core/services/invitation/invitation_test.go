@@ -50,6 +50,7 @@ func TestService_Create(t *testing.T) {
 			OrganizationID: uuid.New(),
 			Email:          "newmember@example.com",
 			ExpiresInDays:  7,
+			CreatedBy:      uuid.New(),
 		})
 		assert.NoError(t, err)
 		require.NotNil(t, result)

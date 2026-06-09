@@ -14,15 +14,15 @@ var (
 )
 
 type Invitation struct {
-	ID             uuid.UUID
-	OrganizationID uuid.UUID
-	Code           string
-	InviteToken    string
-	Email          string
-	Status         InvitationStatus
-	ExpiresAt      time.Time
-	CreatedBy      string
-	CreatedAt      time.Time
+	ID             uuid.UUID       `json:"id"`
+	OrganizationID uuid.UUID       `json:"organization_id"`
+	Code           string          `json:"code"`
+	InviteToken    string          `json:"invite_token"`
+	Email          string          `json:"email"`
+	Status         InvitationStatus `json:"status"`
+	ExpiresAt      time.Time       `json:"expires_at"`
+	CreatedBy      string          `json:"created_by"`
+	CreatedAt      time.Time       `json:"created_at"`
 }
 
 type InvitationStatus string
@@ -42,14 +42,15 @@ func (i *Invitation) IsUsable() bool {
 }
 
 type CreateInvitationRequest struct {
-	OrganizationID uuid.UUID
-	Email          string
-	ExpiresInDays  int
+	OrganizationID uuid.UUID `json:"organization_id"`
+	Email          string    `json:"email"`
+	ExpiresInDays  int       `json:"expires_in_days"`
+	CreatedBy      uuid.UUID `json:"created_by"`
 }
 
 type AcceptInvitationRequest struct {
-	Token    string
-	Email    string
-	Username string
-	Password string
+	Token    string `json:"token"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
