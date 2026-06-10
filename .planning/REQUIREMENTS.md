@@ -133,13 +133,13 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 | CUST-04 | Phase 3 | In progress (409 already implemented) |
 | CUST-05 | Phase 3 | In progress (backend is_internal done) |
 | CUST-06 | Phase 3 | Pending |
-| CTRT-01 | Phase 4 | Pending |
-| CTRT-02 | Phase 4 | Pending |
-| CTRT-03 | Phase 4 | Pending |
-| CTRT-04 | Phase 4 | Pending |
-| CTRT-05 | Phase 4 | Pending |
-| CTRT-06 | Phase 4 | Pending |
-| CTRT-07 | Phase 4 | Pending |
+| CTRT-01 | Phase 4 | In progress (list page already built) |
+| CTRT-02 | Phase 4 | In progress (plan 01: customer_id on create) |
+| CTRT-03 | Phase 4 | In progress (edit already built, detail page exists) |
+| CTRT-04 | Phase 4 | In progress (plan 01: HasProjects check) |
+| CTRT-05 | Phase 4 | In progress (projects list on detail already built) |
+| CTRT-06 | Phase 4 | In progress (plan 01: combobox with Internal suffix) |
+| CTRT-07 | Phase 4 | In progress (already working — zero-value validation absence) |
 | PROJ-01 | Phase 5 | Pending |
 | PROJ-02 | Phase 5 | Pending |
 | PROJ-03 | Phase 5 | Pending |

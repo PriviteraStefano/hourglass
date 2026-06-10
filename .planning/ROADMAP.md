@@ -180,7 +180,7 @@ Already exists (CustomerRepository, Customer handler)
 
 ## Phase 4: Contracts
 
-**Status:** Not started
+**Status:** Planned — 1 plan, 8 tasks, 3 waves
 
 **Goal:** Contract CRUD with customer dropdown, project display on detail page, delete protection.
 
@@ -194,29 +194,33 @@ Already exists (CustomerRepository, Customer handler)
 
 ### Key behaviors
 
-- Contract list page with filtering (status, org)
-- Create contract — includes customer dropdown (from Phase 3)
-- Edit contract
-- Delete contract (blocked if has active projects)
-- Projects list displayed on contract detail page (from Phase 5)
-- "Internal customer" option in customer selector
+- Contract list page with filtering (status, org) — ✅ already built
+- Create contract — includes customer dropdown (from Phase 3) — ⏳ customer_id wiring (plan 01)
+- Edit contract — ✅ already built (customer Select on detail page)
+- Delete contract — blocked if has active projects — ⏳ HasProjects check (plan 01)
+- Projects list displayed on contract detail page (from Phase 5) — ✅ already built
+- "Internal customer" option in customer selector — ⏳ combobox UX (plan 01)
+- Zero-value contracts allowed — ✅ already working
 
-### Backend
+### Scope of this phase
 
-Already exists (ContractRepository, Contract handler)
+Backend gaps: add `customer_id` to CreateContractRequest, add `HasProjects` to delete protection, add `ErrHasActiveProjects` error.
+Frontend gaps: add customer combobox to CreateContractDialog, add `customer_id` to frontend type.
+Tests: backend service unit tests + frontend API tests.
 
-### Frontend files to create
+### Plans
 
-- `web/src/routes/_authenticated/contracts/index.tsx`
-- `web/src/routes/_authenticated/contracts/new.tsx`
-- `web/src/routes/_authenticated/contracts/$id.tsx`
-- Components: contract-form.tsx, contract-table.tsx, projects-on-contract.tsx
+| Plan | Objective | Wave | Tasks | Files |
+|------|-----------|------|-------|-------|
+| [ ] 04-01 | Contract create with customer + HasProjects delete guard | 1 | 8 | 13 |
 
 ### Edge cases
 
-- Contract without customer (existing data) still renders
-- Contract with adopted projects shown differently
-- Zero-value contracts allowed
+- Contract without customer (existing data) still renders — ✅ already handled
+- Contract with adopted projects shown differently — deferred to Phase 5
+- Zero-value contracts allowed — ✅ already working
+- Create with "No customer" stores NULL in DB — covered by nullable `*uuid.UUID`
+- Delete blocked by projects returns specific 409 — distinct from time entries 409
 
 ---
 
