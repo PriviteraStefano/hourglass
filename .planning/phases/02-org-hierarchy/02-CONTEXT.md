@@ -23,7 +23,7 @@ Org tree visualization using ReactFlow, unit CRUD with parent-unit hierarchy, me
 - **D-03:** When setting a member as primary, unset other primary flags for that user's memberships (one primary per user enforced at service layer).
 
 ### Dedicated Pages vs Side Panel
-- **D-04:** Sheet-only for v0.1. No dedicated `units/$id.tsx` or `members/$id.tsx` routes. Deferred to v0.0.2 backlog.
+- **D-04:** [informational] Sheet-only for v0.1. No dedicated `units/$id.tsx` or `members/$id.tsx` routes. Deferred to v0.0.2 backlog.
 
 ### Delete Protection Enforcement
 - **D-05:** Full backend enforcement. Planner adds to `Delete` service method:
@@ -31,29 +31,29 @@ Org tree visualization using ReactFlow, unit CRUD with parent-unit hierarchy, me
   - Children check — cannot delete if unit has child units (use `GetDescendants` or add `HasChildren`)
   - Members check — already exists (`HasMembers`)
 - **D-06:** Return proper 400-level error messages for each constraint.
-- **D-07:** Frontend cascading delete continues to handle deletion of children first (backward compat with current dialog).
+- **D-07:** [informational] Frontend cascading delete continues to handle deletion of children first (backward compat with current dialog).
 
 ### Reparent Mutation API
 - **D-08:** Switch `ReparentConfirmDialog` to use dedicated `reparentUnitMutationOpts` instead of `updateUnitMutationOpts`. Cleaner contract — only sends `{parent_unit_id}`.
 - **D-09:** Remove unused `pendingEdgeConnect` from Zustand store (`org-hierarchy-context.tsx`). Reparent flow: `onConnect` → `reparentUnit(dragUnit, targetUnit)` → dialog reads `draggingUnit`/`reparentTarget` → confirm calls `reparentUnitMutationOpts`.
 
 ### End-Date Support
-- **D-10:** `end_date` stays schema-only for v0.1. No UI to set it. The `PUT` members endpoint (D-02) can accept `end_date` but frontend won't expose it.
+- **D-10:** [informational] `end_date` stays schema-only for v0.1. No UI to set it. The `PUT` members endpoint (D-02) can accept `end_date` but frontend won't expose it.
 
 ### Tree Default Expand State
-- **D-11:** Keep current behavior — fully expanded on load.
+- **D-11:** [informational] Keep current behavior — fully expanded on load.
 
 ### Auto-Generated Unit Code
-- **D-12:** Keep current UX — code auto-generates from name via slugify, user can override.
+- **D-12:** [informational] Keep current UX — code auto-generates from name via slugify, user can override.
 
 ### Members View Performance
-- **D-13:** Planner adds a batch endpoint `GET /units/members?unit_ids=...` so the members view makes 1 request instead of N per visible unit.
-- **D-14:** Keep per-node member fetching as fallback for single-unit detail.
+- **D-13:** Planner adds a batch endpoint `GET /units/members/batch?unit_ids=...` so the members view makes 1 request instead of N per visible unit.
+- **D-14:** [informational] Keep per-node member fetching as fallback for single-unit detail.
 
 ### Subtree Members in Side Panel
 - **D-15:** Side panel (UnitDetailPanel) shows both direct members and descendant unit members.
 - **D-16:** Layout: "Direct Members" section (current list) followed by expandable groups per child unit. Each group header: "▶ [Sub-unit Name] (N members)". Expanded group shows its members and recursively its child units' members. All in the side panel sheet.
-- **D-17:** Fetch strategy TBD by planner — either batch endpoint (D-13) extended to accept subtree scope, or recursive fetches for visible subtree.
+- **D-17:** Fetch strategy TBD by planner — either batch endpoint (D-13) extended to accept subtree scope, or recursive fetches for visible subtree. (RESOLVED: per-unit fetches via batch endpoint with `enabled` guards)
 
 </decisions>
 
@@ -117,7 +117,7 @@ Org tree visualization using ReactFlow, unit CRUD with parent-unit hierarchy, me
 
 ### Missing Backend Endpoints
 - `PUT /units/{id}/members/{membershipId}` — For updating `is_primary` and `end_date` (D-02)
-- `GET /units/members?unit_ids=...` — Batch members endpoint (D-13)
+- `GET /units/members/batch?unit_ids=...` — Batch members endpoint (D-13)
 - Delete protection: root unit + children checks in service layer (D-05)
 - Unit repository: `HasChildren` method needed
 
