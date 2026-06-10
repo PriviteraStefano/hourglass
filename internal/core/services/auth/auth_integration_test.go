@@ -54,7 +54,7 @@ func TestAuthIntegration(t *testing.T) {
 		assert.Equal(t, "John Doe", resp.User.Name)
 		assert.True(t, resp.User.IsActive)
 		assert.NotEmpty(t, resp.Membership.ID)
-		assert.Equal(t, "employee", resp.Membership.Role)
+		assert.Equal(t, "manager", resp.Membership.Role)
 		assert.NotEmpty(t, resp.Organization.ID)
 		assert.Equal(t, "Acme Corp", resp.Organization.Name)
 	})
@@ -192,7 +192,7 @@ func TestAuthIntegration(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, profile)
 		assert.Equal(t, regResp.User.ID, profile.User.ID)
-		assert.Equal(t, "employee", profile.Membership.Role)
+		assert.Equal(t, "manager", profile.Membership.Role)
 		assert.Equal(t, regResp.Membership.OrganizationID, profile.Membership.OrganizationID)
 	})
 

@@ -182,11 +182,13 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*RegisterR
 		return nil, err
 	}
 
+	role := "employee"
 	var orgID uuid.UUID
 	if req.OrgID != "" {
 		parsed, _ := uuid.Parse(req.OrgID)
 		orgID = parsed
 	} else if req.OrgName != "" {
+		role = "manager"
 		orgSlug := generateSlug(req.OrgName)
 		org := authdomain.NewOrganization(req.OrgName, orgSlug, "Organization")
 		if err := s.orgRepo.Add(ctx, org); err != nil {
@@ -196,7 +198,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*RegisterR
 	}
 
 	if orgID != uuid.Nil {
-		membership := authdomain.NewOrganizationMembership(user.ID, orgID, "employee")
+		membership := authdomain.NewOrganizationMembership(user.ID, orgID, role)
 		if err := s.orgRepo.AddMembership(ctx, membership); err != nil {
 			return nil, err
 		}
@@ -216,7 +218,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*RegisterR
 	var refreshToken string
 	var expiresAt time.Time
 	if orgID != uuid.Nil {
-		token, err = s.tokenService.GenerateToken(user.ID, orgID, "employee", user.Email)
+		token, err = s.tokenService.GenerateToken(user.ID, orgID, role, user.Email)
 		if err != nil {
 			return nil, err
 		}
@@ -450,13 +452,13 @@ func (s *Service) Bootstrap(ctx context.Context, req BootstrapRequest) (*Bootstr
 		return nil, err
 	}
 
-	membership := authdomain.NewOrganizationMembership(user.ID, org.ID, "employee")
+	membership := authdomain.NewOrganizationMembership(user.ID, org.ID, "manager")
 	if err := s.orgRepo.AddMembership(ctx, membership); err != nil {
 		return nil, err
 	}
 
 	tokenUserID := user.ID
-	token, err := s.tokenService.GenerateToken(tokenUserID, org.ID, "employee", user.Email)
+	token, err := s.tokenService.GenerateToken(tokenUserID, org.ID, "manager", user.Email)
 	if err != nil {
 		return nil, err
 	}
