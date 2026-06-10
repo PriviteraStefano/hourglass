@@ -1,4 +1,5 @@
 import {useSuspenseQuery} from '@tanstack/react-query'
+import {useNavigate} from '@tanstack/react-router'
 import {SearchIcon, PlusIcon, Building2, Mail, Phone, MapPin} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Badge} from '@/components/ui/badge'
@@ -75,17 +76,26 @@ function CustomerCard({
   customer: Customer
   onEdit: () => void
 }) {
+  const navigate = useNavigate()
   const openDelete = useCustomersStore(s => s.openDelete)
 
   return (
-    <div className="border rounded-lg p-4 space-y-3 hover:bg-muted/50 transition-colors">
+    <div
+      className="border rounded-lg p-4 space-y-3 hover:bg-muted/50 transition-colors cursor-pointer"
+      onClick={() => navigate({to: '/customers/$id', params: {id: customer.id}})}
+    >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
           <div className="bg-primary/10 p-2 rounded-lg">
             <Building2 className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-medium">{customer.company_name}</h3>
+            <h3 className="font-medium">
+              {customer.company_name}
+              {customer.is_internal && (
+                <Badge variant="secondary" className="ml-2">Internal</Badge>
+              )}
+            </h3>
             {customer.contact_name && (
               <p className="text-sm text-muted-foreground">{customer.contact_name}</p>
             )}
@@ -118,13 +128,13 @@ function CustomerCard({
       </div>
 
       <div className="flex gap-2 pt-2">
-        <Button variant="outline" size="sm" onClick={onEdit}>
+        <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
           Edit
         </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => openDelete(customer)}
+          onClick={(e) => { e.stopPropagation(); openDelete(customer); }}
           className="text-destructive hover:text-destructive"
         >
           Delete
