@@ -82,4 +82,40 @@ describe('CustomersApis', () => {
     const result = await opts.queryFn()
     expect(result).toEqual(mockCustomerWithContracts)
   })
+
+  it('updateCustomerMutationOpts sends PUT /api/customers/:id', async () => {
+    const updatePayload = {company_name: 'Updated Corp'}
+    const updatedCustomer = {
+      id: 'cust1', organization_id: 'o1', company_name: 'Updated Corp',
+      contact_name: 'John', email: 'john@acme.com',
+      phone: '+123', vat_number: 'VAT123', address: '123 Main St',
+      is_internal: false, is_active: true, created_at: '2025-01-01T00:00:00Z',
+    }
+
+    let capturedBody: unknown = null
+    server.use(
+      http.put('/api/customers/cust1', async ({request}) => {
+        capturedBody = await request.json()
+        return HttpResponse.json({data: updatedCustomer})
+      }),
+    )
+
+    const result = await CustomersApis.updateCustomerMutationOpts.mutationFn({id: 'cust1', data: updatePayload})
+    expect(capturedBody).toEqual(updatePayload)
+    expect(result).toEqual(updatedCustomer)
+  })
+
+  it('deleteCustomerMutationOpts sends DELETE /api/customers/:id', async () => {
+    let capturedUrl = ''
+    server.use(
+      http.delete('/api/customers/:id', ({request}) => {
+        capturedUrl = request.url
+        return HttpResponse.json({data: null}, {status: 200})
+      }),
+    )
+
+    const result = await CustomersApis.deleteCustomerMutationOpts.mutationFn('cust1')
+    expect(capturedUrl).toContain('/api/customers/cust1')
+    expect(result).toBeNull()
+  })
 })
