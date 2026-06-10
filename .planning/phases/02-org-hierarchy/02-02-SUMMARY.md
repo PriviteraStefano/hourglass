@@ -76,6 +76,16 @@ None - no external service configuration required.
 ## Next Phase Readiness
 - Reparent flow cleansed of dead state. Ready for Plan 03 (frontend features).
 
+## Self-Check: PASSED
+
+- [x] SUMMARY.md exists on disk
+- [x] Task commit `358b4dd` exists in git log
+- [x] No `pendingEdgeConnect` references remain anywhere in codebase
+- [x] ReparentConfirmDialog imports `reparentUnitMutationOpts` (not `updateUnitMutationOpts`)
+- [x] ReparentConfirmDialog sends `{id, parent_unit_id}` only (verified by reading dialog code)
+- [x] OrgHierarchyPage no longer references `setPendingEdgeConnect`
+- [x] Plan metadata commit `c598ae7` exists
+
 ---
 *Phase: 02-org-hierarchy*
 *Completed: 2026-06-10*
