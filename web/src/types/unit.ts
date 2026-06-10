@@ -67,3 +67,10 @@ export const AddUnitMemberRequestSchema = z.object({
 })
 
 export type AddUnitMemberRequest = z.infer<typeof AddUnitMemberRequestSchema>
+
+export const UpdateUnitMemberRequestSchema = z.object({
+  is_primary: z.boolean(),
+  end_date: z.string().nullable().optional(),
+})
+
+export type UpdateUnitMemberRequest = z.infer<typeof UpdateUnitMemberRequestSchema>

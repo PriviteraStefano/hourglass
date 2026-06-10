@@ -15,8 +15,8 @@ import {
 const OrgMemberSchema = z.object({
   id: z.string(),
   user_id: z.string().nullable(),
-  user_name: z.string(),
-  user_email: z.string(),
+  user_name: z.string().optional(),
+  user_email: z.string().optional(),
   role: z.string(),
   is_active: z.boolean(),
 })
@@ -112,6 +112,22 @@ export const addUnitMemberMutationOpts = mutationOptions({
 export const removeUnitMemberMutationOpts = mutationOptions({
   mutationFn: ({unitId, membershipId}: { unitId: string; membershipId: string }) =>
     api<void>(`/units/${unitId}/members/${membershipId}`, {method: 'DELETE'}),
+  onSuccess: (_, {unitId}, {client}) => {
+    client.invalidateQueries({queryKey: ['units', 'members', unitId]})
+    client.invalidateQueries({queryKey: ['units', 'tree']})
+  },
+})
+
+export const updateUnitMemberMutationOpts = mutationOptions({
+  mutationFn: ({unitId, membershipId, is_primary}: {
+    unitId: string
+    membershipId: string
+    is_primary: boolean
+  }) =>
+    api<import('@/types/unit.ts').UnitMember>(`/units/${unitId}/members/${membershipId}`, {
+      method: 'PUT',
+      body: JSON.stringify({is_primary}),
+    }),
   onSuccess: (_, {unitId}, {client}) => {
     client.invalidateQueries({queryKey: ['units', 'members', unitId]})
     client.invalidateQueries({queryKey: ['units', 'tree']})
