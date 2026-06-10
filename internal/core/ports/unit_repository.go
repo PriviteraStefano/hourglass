@@ -19,4 +19,16 @@ type UnitRepository interface {
 	AddMember(ctx context.Context, m *unit.UnitMember) (*unit.UnitMember, error)
 	RemoveMember(ctx context.Context, id string) error
 	GetMemberCountsByOrg(ctx context.Context, orgID uuid.UUID) (map[string]int, error)
+
+	// UpdateMember updates a unit membership (is_primary, end_date).
+	UpdateMember(ctx context.Context, m *unit.UnitMember) (*unit.UnitMember, error)
+
+	// HasChildren returns true if the unit has at least one child unit.
+	HasChildren(ctx context.Context, id string) (bool, error)
+
+	// ListMembersByUnitIDs returns members for multiple unit IDs at once.
+	ListMembersByUnitIDs(ctx context.Context, orgID uuid.UUID, unitIDs []string) ([]unit.UnitMember, error)
+
+	// ListMembershipsForUser returns all unit memberships for a user across all units.
+	ListMembershipsForUser(ctx context.Context, userID uuid.UUID) ([]unit.UnitMember, error)
 }

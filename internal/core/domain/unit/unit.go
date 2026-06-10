@@ -13,6 +13,8 @@ var (
 	ErrCircularParent          = errors.New("cannot make unit a descendant of itself")
 	ErrCannotDeleteWithMembers = errors.New("cannot delete unit with members")
 	ErrMemberNotFound          = errors.New("unit member not found")
+	ErrCannotDeleteRootUnit    = errors.New("cannot delete root unit")
+	ErrCannotDeleteWithChildren = errors.New("cannot delete unit with child units")
 )
 
 type Unit struct {
@@ -60,17 +62,17 @@ type UnitTreeNode struct {
 }
 
 type UnitMember struct {
-	ID         string     `json:"id"`
-	OrgID      uuid.UUID  `json:"org_id"`
-	UserID     uuid.UUID  `json:"user_id"`
-	UserName   string     `json:"user_name"`
-	UserEmail  string     `json:"user_email"`
-	UnitID     string     `json:"unit_id"`
-	IsPrimary  bool       `json:"is_primary"`
-	Role       string     `json:"role"`
-	StartDate  time.Time  `json:"start_date"`
+	ID         string    `json:"id"`
+	OrgID      uuid.UUID `json:"org_id"`
+	UserID     uuid.UUID `json:"user_id"`
+	UserName   string    `json:"user_name"`
+	UserEmail  string    `json:"user_email"`
+	UnitID     string    `json:"unit_id"`
+	IsPrimary  bool      `json:"is_primary"`
+	Role       string    `json:"role"`
+	StartDate  time.Time `json:"start_date"`
 	EndDate    *time.Time `json:"end_date,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type AddUnitMemberRequest struct {

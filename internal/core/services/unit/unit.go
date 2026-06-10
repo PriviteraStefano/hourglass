@@ -122,6 +122,20 @@ func (s *Service) cascadeHierarchyLevel(ctx context.Context, parent *unit.Unit) 
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
+	u, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if u.HierarchyLevel == 0 {
+		return unit.ErrCannotDeleteRootUnit
+	}
+	hasChildren, err := s.repo.HasChildren(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasChildren {
+		return unit.ErrCannotDeleteWithChildren
+	}
 	hasMembers, err := s.repo.HasMembers(ctx, id)
 	if err != nil {
 		return err
@@ -182,4 +196,45 @@ func (s *Service) AddMember(ctx context.Context, unitID string, orgID uuid.UUID,
 
 func (s *Service) RemoveMember(ctx context.Context, id string) error {
 	return s.repo.RemoveMember(ctx, id)
+}
+
+func (s *Service) UpdateMember(ctx context.Context, unitID, membershipID string, isPrimary bool, endDate *time.Time) (*unit.UnitMember, error) {
+	members, err := s.repo.ListMembers(ctx, unitID)
+	if err != nil {
+		return nil, err
+	}
+
+	var targetMember *unit.UnitMember
+	for _, m := range members {
+		if m.ID == membershipID {
+			targetMember = &m
+			break
+		}
+	}
+	if targetMember == nil {
+		return nil, unit.ErrMemberNotFound
+	}
+
+	if isPrimary {
+		allMemberships, err := s.repo.ListMembershipsForUser(ctx, targetMember.UserID)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range allMemberships {
+			if m.IsPrimary && m.ID != membershipID {
+				m.IsPrimary = false
+				if _, err := s.repo.UpdateMember(ctx, &m); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
+	targetMember.IsPrimary = isPrimary
+	targetMember.EndDate = endDate
+	return s.repo.UpdateMember(ctx, targetMember)
+}
+
+func (s *Service) ListMembersByUnitIDs(ctx context.Context, orgID uuid.UUID, unitIDs []string) ([]unit.UnitMember, error) {
+	return s.repo.ListMembersByUnitIDs(ctx, orgID, unitIDs)
 }
