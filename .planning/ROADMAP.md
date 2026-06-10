@@ -82,7 +82,7 @@ Plans:
 
 ## Phase 2: Org Hierarchy
 
-**Status:** Not started
+**Status:** Plans ready
 
 **Goal:** Organization tree visualization using ReactFlow, unit CRUD with parent-unit hierarchy, member management, edge-driven reparenting.
 
@@ -102,16 +102,23 @@ Plans:
 - Org tree visualization using ReactFlow
 - Edge-driven reparenting — drag edge to reassign unit parent
 
-### Backend
+### Status per requirement
 
-Already exists (UnitRepository, UnitMemberRepository, Unit handler)
+| Req | Description | Status |
+|-----|-------------|--------|
+| ORG-01 | Org tree visualization using ReactFlow | ✅ Already implemented in org-hierarchy-page.tsx |
+| ORG-02 | Unit CRUD with parent-unit hierarchy | ✅ Already implemented (backend + frontend dialogs) |
+| ORG-03 | Member management — add/remove/primary | ⏳ Planned: backend PUT endpoint (02-01), frontend primary UI + subtree members (02-03) |
+| ORG-04 | Edge-driven reparenting | ⏳ Planned: dialog switch to dedicated mutation (02-02) |
+| ORG-05 | Delete protection (root/children/members) | ⏳ Planned: backend enforcement (02-01) |
 
-### Frontend files to create
+### Plans
 
-- `web/src/routes/_authenticated/org-hierarchy/index.tsx`
-- `web/src/routes/_authenticated/org-hierarchy/units/$id.tsx`
-- `web/src/routes/_authenticated/org-hierarchy/members/$id.tsx`
-- Components: org-tree.tsx (ReactFlow), unit-form.tsx, member-list.tsx
+| Plan | Objective | Wave | Tasks | Files |
+|------|-----------|------|-------|-------|
+| [ ] 02-01 | Backend: delete protection + PUT member endpoint + batch members | 1 | 3 | 9 |
+| [ ] 02-02 | Frontend: reparent mutation switch + pendingEdgeConnect cleanup | 1 | 2 | 3 |
+| [ ] 02-03 | Frontend: "Make Primary" UI + subtree member groups | 2 | 2 | 3 |
 
 ### Edge cases
 
