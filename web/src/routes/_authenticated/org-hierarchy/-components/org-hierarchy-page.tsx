@@ -1,8 +1,8 @@
 import * as React from 'react'
-import {useCallback, useMemo, useState} from 'react'
-import {Background, Controls, type Edge, MiniMap, type Node, ReactFlow, ReactFlowProvider,} from '@xyflow/react'
+import {useCallback, useMemo} from 'react'
+import {Background, Controls, type Edge, type EdgeMouseHandler, MiniMap, type Node, ReactFlow, ReactFlowProvider,} from '@xyflow/react'
 import {useQueries, useSuspenseQuery} from '@tanstack/react-query'
-import {unitMembersQueryOpts, unitTreeQueryOpts} from '@/api/units.ts'
+import {orgMembersQueryOpts, unitMembersQueryOpts, unitTreeQueryOpts} from '@/api/units.ts'
 import type {Unit, UnitMember, UnitTreeNode} from '@/types/unit.ts'
 import {findNode, flattenTree, getDescendantIds, getDescendants} from './utils/tree-utils'
 import {getLayoutElements} from './flow/dagre-layout'
@@ -26,7 +26,6 @@ function buildNodes(
   viewMode: 'tree' | 'members',
   membersMap: Map<string, UnitMember[]>,
   membersLoadingSet: Set<string>,
-  dragHoverId: string | null,
   handlers: {
     onAddSubUnit: (parentId: string) => void
     onEdit: (id: string) => void
@@ -42,8 +41,8 @@ function buildNodes(
         id: node.unit.id,
         type: 'bu',
         position: {x: 0, y: 0},
-        data: treeNodeToNodeData(node, handlers, collapsedIds, viewMode, membersMap, membersLoadingSet, dragHoverId),
-        draggable: true,
+        data: treeNodeToNodeData(node, handlers, collapsedIds, viewMode, membersMap, membersLoadingSet),
+        draggable: false,
       })
       if (!collapsedIds.has(node.unit.id) && node.children) {
         walk(node.children)
@@ -72,6 +71,7 @@ function buildEdges(
             target: child.unit.id,
             type: 'smoothstep' as const,
             animated: true,
+            selectable: true,
           })
         }
         walk(node.children)
@@ -129,10 +129,6 @@ function OrgHierarchyFlow() {
   const editUnit = useOrgHierarchyStore(s => s.editUnit)
   const deleteUnit = useOrgHierarchyStore(s => s.deleteUnit)
   const reparentUnit = useOrgHierarchyStore(s => s.reparentUnit)
-  const setDraggingUnit = useOrgHierarchyStore(s => s.setDraggingUnit)
-  const setReparentTarget = useOrgHierarchyStore(s => s.setReparentTarget)
-
-  const [dragHoverId, setDragHoverId] = useState<string | null>(null)
 
   const allUnits = useMemo(() => flattenTree(tree), [tree])
   const allUnitsMap = useMemo(() => new Map(allUnits.map((u) => [u.id, u])), [allUnits])
@@ -206,7 +202,7 @@ function OrgHierarchyFlow() {
   }, [viewMode, allUnits, visibleUnitIds, memberQueries])
 
   const {nodes, edges} = useMemo(() => {
-    const initialNodes = buildNodes(tree, collapsedIds, viewMode, membersMap, membersLoadingSet, dragHoverId, {
+    const initialNodes = buildNodes(tree, collapsedIds, viewMode, membersMap, membersLoadingSet, {
       onAddSubUnit: actions.addUnit,
       onEdit: actions.editUnit,
       onDelete: actions.deleteUnit,
@@ -220,7 +216,7 @@ function OrgHierarchyFlow() {
       }
     }
     return getLayoutElements(initialNodes, initialEdges)
-  }, [tree, collapsedIds, viewMode, membersMap, membersLoadingSet, dragHoverId, allUnits, allUnitsMap, searchQuery, actions.addUnit, actions.editUnit, actions.deleteUnit, toggleCollapsed])
+  }, [tree, collapsedIds, viewMode, membersMap, membersLoadingSet, allUnits, allUnitsMap, searchQuery, actions.addUnit, actions.editUnit, actions.deleteUnit, toggleCollapsed])
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -232,58 +228,23 @@ function OrgHierarchyFlow() {
     [allUnitsMap, setSelectedUnit]
   )
 
-  const onNodeDragStart = useCallback(() => {
-    setDragHoverId(null)
-  }, [])
-
-  const onNodeDrag = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      const draggedNodeId = node.id
-      const descendantIds = getDescendantIds(draggedNodeId, tree)
-      const nodesArr = document.querySelectorAll('[data-id]')
-      let hoverId: string | null = null
-      for (const el of nodesArr) {
-        const rect = el.getBoundingClientRect()
-        if (rect.width === 0) continue
-        const elId = el.getAttribute('data-id')
-        if (elId && elId !== draggedNodeId) {
-          if (descendantIds.has(elId)) continue
-          const centerX = rect.left + rect.width / 2
-          const centerY = rect.top + rect.height / 2
-          if (node.position.x < centerX && node.position.x + 200 > centerX &&
-            node.position.y < centerY && node.position.y + 60 > centerY) {
-            hoverId = elId
-            break
-          }
-        }
+  const onConnect = useCallback(
+    (params: { source: string; target: string }) => {
+      const sourceUnit = allUnitsMap.get(params.source)
+      const targetUnit = allUnitsMap.get(params.target)
+      if (sourceUnit && targetUnit) {
+        reparentUnit(sourceUnit, targetUnit)
       }
-      setDragHoverId(hoverId)
     },
-    [tree]
+    [allUnitsMap, reparentUnit]
   )
 
-  const onNodeDragStop = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      const dragUnit = allUnitsMap.get(node.id)
-      if (!dragUnit) return
-      const descendantIds = getDescendantIds(dragUnit.id, tree)
-      const nodesArr = document.querySelectorAll('[data-id]')
-      let targetId: string | null = null
-      for (const el of nodesArr) {
-        const rect = el.getBoundingClientRect()
-        if (rect.width === 0) continue
-        const elId = el.getAttribute('data-id')
-        if (elId && elId !== node.id && !descendantIds.has(elId)) {
-          targetId = elId
-          break
-        }
-      }
-      if (!targetId) return
-      const targetUnit = allUnitsMap.get(targetId) ?? null
-      setDraggingUnit(dragUnit)
-      setReparentTarget(targetUnit)
+  const isValidConnection = useCallback(
+    (connection: { source: string; target: string }) => {
+      const descendantIds = getDescendantIds(connection.source, tree)
+      return !descendantIds.has(connection.target)
     },
-    [allUnitsMap, tree, setDraggingUnit, setReparentTarget]
+    [tree]
   )
 
   return (
@@ -292,9 +253,8 @@ function OrgHierarchyFlow() {
         nodes={nodes}
         edges={edges}
         onNodeClick={onNodeClick}
-        onNodeDragStart={onNodeDragStart}
-        onNodeDrag={onNodeDrag}
-        onNodeDragStop={onNodeDragStop}
+        onConnect={onConnect}
+        isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         colorMode={theme}
         fitView
@@ -327,11 +287,46 @@ const OrgHierarchy = {
 }
 
 export function OrgHierarchyPage() {
+  const {data: tree} = useSuspenseQuery(unitTreeQueryOpts)
+  const {data: orgMembers} = useSuspenseQuery(orgMembersQueryOpts)
+
+  const allUnits = useMemo(() => flattenTree(tree), [tree])
+  const allUnitUserIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const u of allUnits) {
+      ids.add(u.id)
+    }
+    return ids
+  }, [allUnits])
+
+  const memberQueries = useQueries({
+    queries: allUnits.map((u) => ({
+      ...unitMembersQueryOpts(u.id),
+      staleTime: 60_000,
+    })),
+  })
+
+  const nonMemberCount = useMemo(() => {
+    const unitUserIds = new Set<string>()
+    for (const q of memberQueries) {
+      if (q.data) {
+        for (const m of q.data) {
+          if (m.user_id) unitUserIds.add(m.user_id)
+        }
+      }
+    }
+    let count = 0
+    for (const m of orgMembers ?? []) {
+      if (m.user_id && !unitUserIds.has(m.user_id)) count++
+    }
+    return count
+  }, [orgMembers, memberQueries])
+
   return (
     <OrgHierarchy.Root>
       <ReactFlowProvider>
         <Header className="border-">
-          <OrgHierarchy.Toolbar/>
+          <OrgHierarchy.Toolbar nonMemberCount={nonMemberCount}/>
         </Header>
         <Body>
           <div className="h-full flex flex-col relative w-full bg-background">

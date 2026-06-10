@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import {useOrgHierarchyStore} from "@/routes/_authenticated/org-hierarchy/-context/org-hierarchy-context.tsx";
 import {useMutation} from "@tanstack/react-query";
-import {updateUnitMutationOpts} from "@/api/units.ts";
+import {reparentUnitMutationOpts} from "@/api/units.ts";
 import {toast} from "sonner";
 
 export function ReparentConfirmDialog() {
@@ -21,7 +21,7 @@ export function ReparentConfirmDialog() {
 
   const reparentOpen = draggingUnit !== null && reparentTarget !== null
 
-  const {mutateAsync: updateUnit} = useMutation(updateUnitMutationOpts)
+  const {mutateAsync: reparentUnit} = useMutation(reparentUnitMutationOpts)
 
   if (!draggingUnit || !reparentTarget) return null
 
@@ -34,14 +34,9 @@ export function ReparentConfirmDialog() {
 
   const handleConfirm = async () => {
     try {
-      await updateUnit({
+      await reparentUnit({
         id: draggingUnit.id,
-        body: {
-          name: draggingUnit.name,
-          code: draggingUnit.code,
-          description: draggingUnit.description,
-          parent_unit_id: reparentTarget.id
-        }
+        parent_unit_id: reparentTarget.id,
       })
       toast.success("Unit moved successfully")
       onOpenChange(false)
@@ -57,8 +52,8 @@ export function ReparentConfirmDialog() {
           <AlertDialogTitle>Move Unit</AlertDialogTitle>
           <AlertDialogDescription>
             {reparentTarget
-              ? `Move "${draggingUnit?.name}" under "${reparentTarget.name}"?`
-              : `Move "${draggingUnit?.name}" to root level?`
+              ? `Move "${draggingUnit.name}" under "${reparentTarget.name}"?`
+              : `Move "${draggingUnit.name}" to root level?`
             }
           </AlertDialogDescription>
         </AlertDialogHeader>
