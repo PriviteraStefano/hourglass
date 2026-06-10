@@ -124,7 +124,7 @@ func TestSmoke(t *testing.T) {
 
 	// Organizations
 	orgMgmtRepo := postgres.NewOrganizationManagementRepository(pool)
-	orgMgmtService := orgsvc.NewService(orgMgmtRepo)
+	orgMgmtService := orgsvc.NewService(orgMgmtRepo, customerService)
 	orgHandler := http.NewOrganizationHandler(orgMgmtService)
 
 	// Projects

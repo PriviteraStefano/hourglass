@@ -12,6 +12,7 @@ import (
 
 	orgdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/organization"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
+	customersvc "github.com/stefanoprivitera/hourglass/internal/core/services/customer"
 
 	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/postgres"
 	"github.com/stefanoprivitera/hourglass/internal/models"
@@ -24,7 +25,9 @@ func realRepoFixture(t *testing.T, pool *pgxpool.Pool) *Service {
 	t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
 
 	repo := postgres.NewOrganizationManagementRepository(pool)
-	return NewService(repo)
+	customerRepo := postgres.NewCustomerRepository(pool)
+	customerSvc := customersvc.NewService(customerRepo)
+	return NewService(repo, customerSvc)
 }
 
 // seedUser creates a user row and returns the ID.

@@ -114,7 +114,7 @@ func main() {
 	hexCustomerHandler := http.NewCustomerHandler(customerService)
 
 	orgMgmtRepo := postgres.NewOrganizationManagementRepository(pool)
-	orgMgmtService := orgsvc.NewService(orgMgmtRepo)
+	orgMgmtService := orgsvc.NewService(orgMgmtRepo, customerService)
 	orgHandler := http.NewOrganizationHandler(orgMgmtService)
 
 	projectRepo := postgres.NewProjectRepository(pool)

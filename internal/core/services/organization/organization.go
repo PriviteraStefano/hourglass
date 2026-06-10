@@ -2,21 +2,24 @@ package organization
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	orgdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/organization"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
+	customersvc "github.com/stefanoprivitera/hourglass/internal/core/services/customer"
 	"github.com/stefanoprivitera/hourglass/internal/models"
 )
 
 type Service struct {
-	repo ports.OrganizationManagementRepository
+	repo            ports.OrganizationManagementRepository
+	customerService *customersvc.Service
 }
 
-func NewService(repo ports.OrganizationManagementRepository) *Service {
-	return &Service{repo: repo}
+func NewService(repo ports.OrganizationManagementRepository, customerService *customersvc.Service) *Service {
+	return &Service{repo: repo, customerService: customerService}
 }
 
 func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *orgdomain.CreateOrganizationRequest) (*orgdomain.Organization, error) {
@@ -37,6 +40,14 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *orgdomain.C
 	if err := s.repo.CreateOrganization(ctx, org, userID, models.RoleFinance); err != nil {
 		return nil, err
 	}
+
+	// Auto-create internal customer for the new org (D-03). Log error but don't fail.
+	if s.customerService != nil {
+		if _, err := s.customerService.CreateInternalCustomer(ctx, org.ID, org.Name); err != nil {
+			log.Printf("WARNING: failed to create internal customer for org %s: %v", org.Name, err)
+		}
+	}
+
 	return org, nil
 }
 

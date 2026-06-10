@@ -13,7 +13,7 @@ import (
 
 func newMockService() (*Service, *testdata.MockOrgMgmtRepo) {
 	repo := &testdata.MockOrgMgmtRepo{}
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	return svc, repo
 }
 
