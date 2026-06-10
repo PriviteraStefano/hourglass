@@ -9,8 +9,8 @@ progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 30
-  completed_plans: 24
-  percent: 89
+  completed_plans: 25
+  percent: 83
 ---
 
 # Phase State
@@ -18,9 +18,9 @@ progress:
 ## Session
 
 - **Last activity:** 2026-06-10
-- **Source:** `.planning/phases/00-testing-foundation/00-CONTEXT.md`
+- **Source:** `.planning/phases/03-customers/03-CONTEXT.md`
 - **Intel:** `.planning/intel/`
-- **Completed:** Plan 01-01 (Backend auth fixes), Plan 01-02 (Frontend auth integration)
+- **Completed:** Plan 03-01 (Backend: migration, search, internal customer), Plan 03-02 (Frontend: API, sidebar, detail page), Plan 03-03 (Frontend polish: badge, cards, form lock, tests)
 
 ## Phase 0: testing-foundation
 
@@ -60,6 +60,7 @@ progress:
 - **Plans:**
   - 03-01-PLAN.md — Backend foundation: migration, search, internal customer support [completed]
   - 03-02-PLAN.md — Frontend core: API layer, sidebar, customer detail page [completed]
+  - 03-03-PLAN.md — Frontend polish: internal badge, clickable cards, form lock, toast fix, tests [completed]
 
 ## Phase 4: contracts
 

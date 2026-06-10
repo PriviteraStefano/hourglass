@@ -124,7 +124,7 @@ Already exists (UnitRepository, UnitMemberRepository, Unit handler)
 
 ## Phase 3: Customers
 
-**Status:** In progress (Plan 01 complete)
+**Status:** Complete — all 3 plans executed, full customer CRUD with internal customers, search, detail page, sidebar nav, and test coverage
 
 **Goal:** Full customer CRUD with internal customer support, search/filter, delete protection.
 
