@@ -9,8 +9,8 @@ progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 27
-  completed_plans: 22
-  percent: 38
+  completed_plans: 23
+  percent: 42
 ---
 
 # Phase State
@@ -53,10 +53,12 @@ progress:
 
 ## Phase 3: customers
 
-- **Status:** Not started
+- **Status:** In progress
 - **Goal:** Full customer CRUD
 - **Depends on:** Phase 1
 - **Day:** Wed-Thu June 10-11
+- **Plans:**
+  - 03-01-PLAN.md — Backend foundation: migration, search, internal customer support [completed]
 
 ## Phase 4: contracts
 

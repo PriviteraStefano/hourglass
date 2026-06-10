@@ -34,11 +34,11 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 
 ### Customers
 
-- [ ] **CUST-01**: Customer list page with search/filter
-- [ ] **CUST-02**: Create customer (name, contact name, email, phone, VAT, address)
-- [ ] **CUST-03**: Edit customer
-- [ ] **CUST-04**: Delete customer — 409 if has active contracts (show tooltip with count)
-- [ ] **CUST-05**: Internal customer (organization itself) visual indicator with badge
+- [ ] **CUST-01**: Customer list page with search/filter — ✓ Backend search via ILIKE (03-01)
+- [ ] **CUST-02**: Create customer (name, contact name, email, phone, VAT, address) — ✓ Infrastructure (is_internal column) (03-01)
+- [ ] **CUST-03**: Edit customer — ✓ Company_name lock for internal (03-01)
+- [ ] **CUST-04**: Delete customer — 409 if has active contracts (show tooltip with count) — ✓ Backend 409 already existed
+- [ ] **CUST-05**: Internal customer (organization itself) visual indicator with badge — ✓ Backend: is_internal column, CreateInternalCustomer, auto-creation, company_name lock (03-01)
 - [ ] **CUST-06**: Empty state when no customers
 
 ### Contracts
@@ -127,11 +127,11 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 | ORG-03 | Phase 2 | Pending |
 | ORG-04 | Phase 2 | Pending |
 | ORG-05 | Phase 2 | Pending |
-| CUST-01 | Phase 3 | Pending |
-| CUST-02 | Phase 3 | Pending |
-| CUST-03 | Phase 3 | Pending |
-| CUST-04 | Phase 3 | Pending |
-| CUST-05 | Phase 3 | Pending |
+| CUST-01 | Phase 3 | In progress (backend search done) |
+| CUST-02 | Phase 3 | In progress (infrastructure done) |
+| CUST-03 | Phase 3 | In progress (company_name lock done) |
+| CUST-04 | Phase 3 | In progress (409 already implemented) |
+| CUST-05 | Phase 3 | In progress (backend is_internal done) |
 | CUST-06 | Phase 3 | Pending |
 | CTRT-01 | Phase 4 | Pending |
 | CTRT-02 | Phase 4 | Pending |
