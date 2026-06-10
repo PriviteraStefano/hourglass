@@ -5,7 +5,7 @@ import {Badge} from '@/components/ui/badge'
 import {Separator} from '@/components/ui/separator'
 import {Skeleton} from '@/components/ui/skeleton'
 import {Avatar, AvatarFallback} from '@/components/ui/avatar'
-import {Edit, Plus, Trash2, Users, X as XIcon} from 'lucide-react'
+import {ChevronDown, ChevronRight, Edit, Plus, Trash2, Users, X as XIcon} from 'lucide-react'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -22,10 +22,11 @@ import {
   removeUnitMemberMutationOpts,
   unitMembersQueryOpts,
   unitTreeQueryOpts,
+  updateUnitMemberMutationOpts,
 } from '@/api/units.ts'
 import {useOrgHierarchyStore} from "@/routes/_authenticated/org-hierarchy/-context/org-hierarchy-context.tsx";
 import {flattenTree} from '../utils/tree-utils'
-import type {Unit, UnitMember} from '@/types/unit.ts'
+import type {Unit, UnitMember, UnitTreeNode} from '@/types/unit.ts'
 import {toast} from 'sonner'
 
 function useBreadcrumbs(unit: Unit | null) {
@@ -47,7 +48,11 @@ function useBreadcrumbs(unit: Unit | null) {
   }, [unit, unitsMap])
 }
 
-function MemberRow({member, onRemove}: { member: UnitMember; onRemove?: () => void }) {
+function MemberRow({member, onRemove, onMakePrimary}: {
+  member: UnitMember
+  onRemove?: () => void
+  onMakePrimary?: () => void
+}) {
   const initials = member.user_name
     .split(' ')
     .map((n) => n[0])
@@ -64,19 +69,30 @@ function MemberRow({member, onRemove}: { member: UnitMember; onRemove?: () => vo
         <p className="text-sm font-medium truncate">{member.user_name}</p>
         <p className="text-xs text-muted-foreground truncate">{member.role}</p>
       </div>
-      {member.is_primary && (
-        <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">Primary</Badge>
-      )}
-      {onRemove && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={onRemove}
-        >
-          <XIcon className="h-3 w-3 text-muted-foreground"/>
-        </Button>
-      )}
+      <div className="flex items-center gap-1">
+        {member.is_primary ? (
+          <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">Primary</Badge>
+        ) : onMakePrimary && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-[10px] px-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={onMakePrimary}
+          >
+            Make Primary
+          </Button>
+        )}
+        {onRemove && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={onRemove}
+          >
+            <XIcon className="h-3 w-3 text-muted-foreground"/>
+          </Button>
+        )}
+      </div>
     </div>
   )
 }
@@ -151,6 +167,86 @@ function AddMemberPopover({unitId}: { unitId: string }) {
   )
 }
 
+function SubtreeMembersSection({unitId}: { unitId: string }) {
+  const {data: tree} = useSuspenseQuery(unitTreeQueryOpts)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+
+  const findNode = (nodes: UnitTreeNode[], id: string): UnitTreeNode | undefined => {
+    for (const n of nodes) {
+      if (n.unit.id === id) return n
+      const found = n.children ? findNode(n.children, id) : undefined
+      if (found) return found
+    }
+    return undefined
+  }
+
+  const node = findNode(tree, unitId)
+  if (!node?.children?.length) return null
+
+  return (
+    <div className="mt-4">
+      <h4 className="text-sm font-medium mb-2 flex items-center gap-1.5">
+        <Users className="h-3.5 w-3.5"/>
+        Sub-unit Members
+      </h4>
+      {node.children.map((child) => (
+        <SubtreeGroup
+          key={child.unit.id}
+          node={child}
+          expanded={expandedGroups.has(child.unit.id)}
+          onToggle={() => {
+            const next = new Set(expandedGroups)
+            if (next.has(child.unit.id)) next.delete(child.unit.id)
+            else next.add(child.unit.id)
+            setExpandedGroups(next)
+          }}
+          depth={1}
+        />
+      ))}
+    </div>
+  )
+}
+
+function SubtreeGroup({node, expanded, onToggle, depth}: {
+  node: UnitTreeNode
+  expanded: boolean
+  onToggle: () => void
+  depth: number
+}) {
+  const {data: memberData} = useQuery({
+    ...unitMembersQueryOpts(node.unit.id),
+    enabled: expanded,
+  })
+
+  return (
+    <div style={{marginLeft: `${depth * 12}px`}} className="mb-1">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-1 text-xs font-medium py-1 hover:text-foreground w-full text-left"
+      >
+        {expanded ? <ChevronDown className="h-3 w-3"/> : <ChevronRight className="h-3 w-3"/>}
+        {node.unit.name} ({memberData?.length ?? 0} members)
+      </button>
+      {expanded && memberData && (
+        <div className="space-y-0.5">
+          {memberData.map((m) => (
+            <MemberRow key={m.id} member={m} />
+          ))}
+          {node.children?.map((child) => (
+            <SubtreeGroup
+              key={child.unit.id}
+              node={child}
+              expanded={false}
+              onToggle={() => {}}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BreadcrumbNav({breadcrumbs, onNavigate}: { breadcrumbs: Unit[]; onNavigate: (unit: Unit) => void }) {
   if (breadcrumbs.length <= 1) return null
 
@@ -196,6 +292,7 @@ export function UnitDetailPanel() {
     enabled: !!selectedUnit
   })
   const {mutateAsync: removeMember} = useMutation(removeUnitMemberMutationOpts)
+  const {mutateAsync: updateMemberPrimary} = useMutation(updateUnitMemberMutationOpts)
 
   const onEdit = () => {
     if (selectedUnit) editUnit(selectedUnit)
@@ -215,6 +312,20 @@ export function UnitDetailPanel() {
         error: 'Failed to remove member',
       }
     )
+  }
+
+  const handleMakePrimary = async (member: UnitMember) => {
+    if (!selectedUnit) return
+    try {
+      await updateMemberPrimary({
+        unitId: selectedUnit.id,
+        membershipId: member.id,
+        is_primary: true,
+      })
+      toast.success(`Set "${member.user_name}" as primary member`)
+    } catch {
+      toast.error('Failed to update member')
+    }
   }
 
   return (
@@ -260,6 +371,7 @@ export function UnitDetailPanel() {
                         key={m.id}
                         member={m}
                         onRemove={() => handleRemoveMember(m)}
+                        onMakePrimary={m.is_primary ? undefined : () => handleMakePrimary(m)}
                       />
                     ))}
                   </div>
@@ -270,6 +382,8 @@ export function UnitDetailPanel() {
                   <AddMemberPopover unitId={selectedUnit.id}/>
                 </div>
               </div>
+
+              <SubtreeMembersSection unitId={selectedUnit.id} />
 
               <Separator/>
 
