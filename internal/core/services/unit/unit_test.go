@@ -21,11 +21,12 @@ func setupService(t *testing.T) (*Service, *testdata.MockUnitRepo) {
 
 func seedUnit(repo *testdata.MockUnitRepo, overrides ...func(*unitdomain.Unit)) *unitdomain.Unit {
 	u := &unitdomain.Unit{
-		ID:        uuid.New().String(),
-		OrgID:     uuid.New(),
-		Name:      "Test Unit",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:             uuid.New().String(),
+		OrgID:          uuid.New(),
+		Name:           "Test Unit",
+		HierarchyLevel: 1,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 	for _, o := range overrides {
 		o(u)

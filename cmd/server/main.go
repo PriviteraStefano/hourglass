@@ -147,6 +147,8 @@ func main() {
 	mux.HandleFunc("GET /units/{id}/members", middleware.Auth(authService, unitHandler.ListMembers))
 	mux.HandleFunc("POST /units/{id}/members", middleware.Auth(authService, unitHandler.AddMember))
 	mux.HandleFunc("DELETE /units/{id}/members/{membership_id}", middleware.Auth(authService, unitHandler.RemoveMember))
+	mux.HandleFunc("PUT /units/{id}/members/{membership_id}", middleware.Auth(authService, unitHandler.UpdateMember))
+	mux.HandleFunc("GET /units/members/batch", middleware.Auth(authService, unitHandler.ListMembersBatch))
 
 	mux.HandleFunc("GET /working-groups", middleware.Auth(authService, wgHandler.List))
 	mux.HandleFunc("POST /working-groups", middleware.Auth(authService, wgHandler.Create))

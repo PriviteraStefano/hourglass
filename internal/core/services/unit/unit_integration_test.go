@@ -138,15 +138,21 @@ func TestUnitIntegration(t *testing.T) {
 			orgID, "Org for Delete", "org-del-"+uuid.New().String()[:8], time.Now(), time.Now())
 		require.NoError(t, err)
 
-		u, err := svc.Create(context.Background(), &unit.CreateUnitRequest{
-			OrgID: orgID, Name: "To Delete", Code: "DEL",
+		root, err := svc.Create(context.Background(), &unit.CreateUnitRequest{
+			OrgID: orgID, Name: "Root", Code: "ROOT",
 		})
 		require.NoError(t, err)
 
-		err = svc.Delete(context.Background(), u.ID)
+		child, err := svc.Create(context.Background(), &unit.CreateUnitRequest{
+			OrgID: orgID, Name: "To Delete", Code: "DEL", ParentUnitID: root.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, child.HierarchyLevel)
+
+		err = svc.Delete(context.Background(), child.ID)
 		require.NoError(t, err)
 
-		got, err := svc.Get(context.Background(), u.ID)
+		got, err := svc.Get(context.Background(), child.ID)
 		assert.ErrorIs(t, err, unit.ErrUnitNotFound)
 		assert.Nil(t, got)
 	})
@@ -156,5 +162,139 @@ func TestUnitIntegration(t *testing.T) {
 
 		_, err := svc.Get(context.Background(), uuid.New().String())
 		assert.ErrorIs(t, err, unit.ErrUnitNotFound)
+	})
+
+	t.Run("UpdateMember", func(t *testing.T) {
+		svc := realRepoFixture(t, pool)
+		ctx := context.Background()
+
+		orgID := uuid.New()
+		_, err := pool.Exec(ctx,
+			`INSERT INTO organizations (id, name, slug, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)`,
+			orgID, "Org for UpdateMember", "org-um-"+uuid.New().String()[:8], time.Now(), time.Now())
+		require.NoError(t, err)
+
+		userID := uuid.New()
+		_, err = pool.Exec(ctx,
+			`INSERT INTO users (id, firstname, lastname, email, password_hash) VALUES ($1, 'Jane', 'Doe', 'jane@test.com', 'hash')`,
+			userID)
+		require.NoError(t, err)
+
+		unit1, err := svc.Create(ctx, &unit.CreateUnitRequest{OrgID: orgID, Name: "Unit A", Code: "UA"})
+		require.NoError(t, err)
+
+		added, err := svc.AddMember(ctx, unit1.ID, orgID, &unit.AddUnitMemberRequest{
+			UserID: userID, Role: "employee", IsPrimary: false,
+		})
+		require.NoError(t, err)
+		require.False(t, added.IsPrimary)
+
+		updated, err := svc.UpdateMember(ctx, unit1.ID, added.ID, true, nil)
+		require.NoError(t, err)
+		require.True(t, updated.IsPrimary)
+
+		// Create a second unit and add the same user, set as primary
+		unit2, err := svc.Create(ctx, &unit.CreateUnitRequest{OrgID: orgID, Name: "Unit B", Code: "UB"})
+		require.NoError(t, err)
+
+		added2, err := svc.AddMember(ctx, unit2.ID, orgID, &unit.AddUnitMemberRequest{
+			UserID: userID, Role: "employee", IsPrimary: false,
+		})
+		require.NoError(t, err)
+
+		// Setting second membership as primary should unset the first
+		_, err = svc.UpdateMember(ctx, unit2.ID, added2.ID, true, nil)
+		require.NoError(t, err)
+
+		// Verify first membership is no longer primary
+		members1, err := svc.ListMembers(ctx, unit1.ID)
+		require.NoError(t, err)
+		for _, m := range members1 {
+			if m.ID == added.ID {
+				assert.False(t, m.IsPrimary, "first membership should no longer be primary")
+			}
+		}
+	})
+
+	t.Run("Delete_RootUnit", func(t *testing.T) {
+		svc := realRepoFixture(t, pool)
+
+		orgID := uuid.New()
+		_, err := pool.Exec(context.Background(),
+			`INSERT INTO organizations (id, name, slug, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)`,
+			orgID, "Org for Root Unit", "org-root-"+uuid.New().String()[:8], time.Now(), time.Now())
+		require.NoError(t, err)
+
+		u, err := svc.Create(context.Background(), &unit.CreateUnitRequest{
+			OrgID: orgID, Name: "Root Unit", Code: "ROOT",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, u.HierarchyLevel)
+
+		err = svc.Delete(context.Background(), u.ID)
+		assert.ErrorIs(t, err, unit.ErrCannotDeleteRootUnit)
+	})
+
+	t.Run("Delete_HasChildren", func(t *testing.T) {
+		svc := realRepoFixture(t, pool)
+
+		orgID := uuid.New()
+		_, err := pool.Exec(context.Background(),
+			`INSERT INTO organizations (id, name, slug, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)`,
+			orgID, "Org for Children", "org-child-"+uuid.New().String()[:8], time.Now(), time.Now())
+		require.NoError(t, err)
+
+		grandparent, err := svc.Create(context.Background(), &unit.CreateUnitRequest{
+			OrgID: orgID, Name: "Grandparent", Code: "GP",
+		})
+		require.NoError(t, err)
+
+		parent, err := svc.Create(context.Background(), &unit.CreateUnitRequest{
+			OrgID: orgID, Name: "Parent", Code: "PAR", ParentUnitID: grandparent.ID,
+		})
+		require.NoError(t, err)
+
+		_, err = svc.Create(context.Background(), &unit.CreateUnitRequest{
+			OrgID: orgID, Name: "Child", Code: "CHILD", ParentUnitID: parent.ID,
+		})
+		require.NoError(t, err)
+
+		err = svc.Delete(context.Background(), parent.ID)
+		assert.ErrorIs(t, err, unit.ErrCannotDeleteWithChildren)
+	})
+
+	t.Run("Delete_HasMembers", func(t *testing.T) {
+		svc := realRepoFixture(t, pool)
+		ctx := context.Background()
+
+		orgID := uuid.New()
+		_, err := pool.Exec(ctx,
+			`INSERT INTO organizations (id, name, slug, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)`,
+			orgID, "Org for Members", "org-mem-"+uuid.New().String()[:8], time.Now(), time.Now())
+		require.NoError(t, err)
+
+		userID := uuid.New()
+		_, err = pool.Exec(ctx,
+			`INSERT INTO users (id, firstname, lastname, email, password_hash) VALUES ($1, 'Bob', 'Smith', 'bob@test.com', 'hash')`,
+			userID)
+		require.NoError(t, err)
+
+		root, err := svc.Create(ctx, &unit.CreateUnitRequest{
+			OrgID: orgID, Name: "Root", Code: "ROOT",
+		})
+		require.NoError(t, err)
+
+		u, err := svc.Create(ctx, &unit.CreateUnitRequest{
+			OrgID: orgID, Name: "Unit With Members", Code: "UWM", ParentUnitID: root.ID,
+		})
+		require.NoError(t, err)
+
+		_, err = svc.AddMember(ctx, u.ID, orgID, &unit.AddUnitMemberRequest{
+			UserID: userID, Role: "employee", IsPrimary: false,
+		})
+		require.NoError(t, err)
+
+		err = svc.Delete(ctx, u.ID)
+		assert.ErrorIs(t, err, unit.ErrCannotDeleteWithMembers)
 	})
 }

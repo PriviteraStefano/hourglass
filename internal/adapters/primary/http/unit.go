@@ -3,6 +3,8 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/unit"
@@ -158,6 +160,14 @@ func (h *UnitHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			api.RespondWithError(w, http.StatusBadRequest, "cannot delete unit with members")
 			return
 		}
+		if err == unit.ErrCannotDeleteRootUnit {
+			api.RespondWithError(w, http.StatusBadRequest, "cannot delete root unit")
+			return
+		}
+		if err == unit.ErrCannotDeleteWithChildren {
+			api.RespondWithError(w, http.StatusBadRequest, "cannot delete unit with child units")
+			return
+		}
 		if err == unit.ErrUnitNotFound {
 			api.RespondWithError(w, http.StatusNotFound, "unit not found")
 			return
@@ -204,6 +214,11 @@ type AddUnitMemberRequest struct {
 	UserID    string `json:"user_id"`
 	Role      string `json:"role"`
 	IsPrimary bool   `json:"is_primary"`
+}
+
+type UpdateUnitMemberRequest struct {
+	IsPrimary bool       `json:"is_primary"`
+	EndDate   *time.Time `json:"end_date,omitempty"`
 }
 
 func (h *UnitHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
@@ -286,4 +301,53 @@ func (h *UnitHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *UnitHandler) UpdateMember(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	unitID := r.PathValue("id")
+	membershipID := r.PathValue("membership_id")
+
+	if unitID == "" || membershipID == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid unit id or membership id")
+		return
+	}
+
+	var req UpdateUnitMemberRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	m, err := h.service.UpdateMember(ctx, unitID, membershipID, req.IsPrimary, req.EndDate)
+	if err != nil {
+		if err == unit.ErrMemberNotFound {
+			api.RespondWithError(w, http.StatusNotFound, "member not found")
+			return
+		}
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to update member")
+		return
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, m)
+}
+
+func (h *UnitHandler) ListMembersBatch(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	unitIDsParam := r.URL.Query().Get("unit_ids")
+	if unitIDsParam == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "unit_ids query parameter is required")
+		return
+	}
+
+	unitIDs := strings.Split(unitIDsParam, ",")
+	orgID := middleware.GetOrganizationID(ctx)
+
+	members, err := h.service.ListMembersByUnitIDs(ctx, orgID, unitIDs)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch members")
+		return
+	}
+
+	api.RespondWithJSON(w, http.StatusOK, members)
 }

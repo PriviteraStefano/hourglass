@@ -334,8 +334,9 @@ func (m *MockOrgMgmtRepo) GetMemberRole(ctx context.Context, memberID uuid.UUID)
 }
 
 type MockContractRepo struct {
-	mu        sync.Mutex
-	Contracts map[uuid.UUID]*contractdomain.ContractResponse
+	mu            sync.Mutex
+	Contracts     map[uuid.UUID]*contractdomain.ContractResponse
+	HasProjectsFn func(ctx context.Context, contractID uuid.UUID) (int, error)
 }
 
 func (m *MockContractRepo) List(ctx context.Context, orgID uuid.UUID, scope string, isActive *bool) ([]contractdomain.ContractResponse, error) {
@@ -379,6 +380,13 @@ func (m *MockContractRepo) Delete(ctx context.Context, orgID, contractID uuid.UU
 }
 
 func (m *MockContractRepo) HasTimeEntries(ctx context.Context, contractID uuid.UUID) (int, error) {
+	return 0, nil
+}
+
+func (m *MockContractRepo) HasProjects(ctx context.Context, contractID uuid.UUID) (int, error) {
+	if m.HasProjectsFn != nil {
+		return m.HasProjectsFn(ctx, contractID)
+	}
 	return 0, nil
 }
 
@@ -598,6 +606,22 @@ func (m *MockUnitRepo) AddMember(ctx context.Context, mm *unitdomain.UnitMember)
 
 func (m *MockUnitRepo) RemoveMember(ctx context.Context, id string) error {
 	return nil
+}
+
+func (m *MockUnitRepo) HasChildren(ctx context.Context, id string) (bool, error) {
+	return false, nil
+}
+
+func (m *MockUnitRepo) UpdateMember(ctx context.Context, mm *unitdomain.UnitMember) (*unitdomain.UnitMember, error) {
+	return mm, nil
+}
+
+func (m *MockUnitRepo) ListMembersByUnitIDs(ctx context.Context, orgID uuid.UUID, unitIDs []string) ([]unitdomain.UnitMember, error) {
+	return nil, nil
+}
+
+func (m *MockUnitRepo) ListMembershipsForUser(ctx context.Context, userID uuid.UUID) ([]unitdomain.UnitMember, error) {
+	return nil, nil
 }
 
 func (m *MockUnitRepo) GetMemberCountsByOrg(ctx context.Context, orgID uuid.UUID) (map[string]int, error) {
