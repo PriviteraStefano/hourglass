@@ -124,7 +124,7 @@ Already exists (UnitRepository, UnitMemberRepository, Unit handler)
 
 ## Phase 3: Customers
 
-**Status:** Not started
+**Status:** Planning complete — 3 plans in 3 waves
 
 **Goal:** Full customer CRUD with internal customer support, search/filter, delete protection.
 
@@ -160,6 +160,14 @@ Already exists (CustomerRepository, Customer handler)
 - Delete blocked with active contracts (show tooltip with contract count)
 - Internal customer shown with badge, non-editable fields
 - Empty state when no customers
+
+### Plans
+
+| Plan | Objective | Wave | Tasks | Files |
+|------|-----------|------|-------|-------|
+| 03-01 | Backend: DB migration + search + internal customer | 1 | 3 | 8 |
+| 03-02 | Frontend: API layer + sidebar + detail page | 2 | 2 | 5 |
+| 03-03 | Frontend polish: badge, form lock, tests | 3 | 2 | 4 |
 
 ---
 
