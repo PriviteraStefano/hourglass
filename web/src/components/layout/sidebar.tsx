@@ -1,4 +1,5 @@
 import {
+  Building2,
   CheckCircleIcon,
   ClockIcon,
   FileTextIcon,
@@ -40,6 +41,7 @@ const navItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon; dis
 
 const projectItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon; disabled?: boolean }> = [
   {label: 'Contracts', href: '/contracts', icon: FileTextIcon},
+  {label: 'Customers', href: '/customers', icon: Building2},
   {label: 'Projects', href: '/projects', icon: FolderIcon},
   {label: 'Org Hierarchy', href: '/org-hierarchy', icon: NetworkIcon},
 ]
