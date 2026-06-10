@@ -175,6 +175,21 @@ func (r *UnitRepository) GetDescendants(ctx context.Context, id string) ([]unit.
 	return descendants, rows.Err()
 }
 
+// HasChildren returns true if the unit has at least one child unit.
+func (r *UnitRepository) HasChildren(ctx context.Context, id string) (bool, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return false, fmt.Errorf("parse unit id: %w", err)
+	}
+	query := `SELECT EXISTS(SELECT 1 FROM units WHERE parent_unit_id = $1)`
+	var exists bool
+	err = r.pool.QueryRow(ctx, query, uid).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("has children: %w", err)
+	}
+	return exists, nil
+}
+
 // HasMembers returns true if the unit has at least one member.
 func (r *UnitRepository) HasMembers(ctx context.Context, id string) (bool, error) {
 	uid, err := uuid.Parse(id)
@@ -203,6 +218,21 @@ func (r *UnitRepository) AddMember(ctx context.Context, m *unit.UnitMember) (*un
 // RemoveMember delegates to UnitMemberRepository.
 func (r *UnitRepository) RemoveMember(ctx context.Context, id string) error {
 	return r.members.Remove(ctx, id)
+}
+
+// UpdateMember delegates to UnitMemberRepository.
+func (r *UnitRepository) UpdateMember(ctx context.Context, m *unit.UnitMember) (*unit.UnitMember, error) {
+	return r.members.Update(ctx, m)
+}
+
+// ListMembersByUnitIDs delegates to UnitMemberRepository.
+func (r *UnitRepository) ListMembersByUnitIDs(ctx context.Context, orgID uuid.UUID, unitIDs []string) ([]unit.UnitMember, error) {
+	return r.members.ListByUnitIDs(ctx, orgID, unitIDs)
+}
+
+// ListMembershipsForUser delegates to UnitMemberRepository.
+func (r *UnitRepository) ListMembershipsForUser(ctx context.Context, userID uuid.UUID) ([]unit.UnitMember, error) {
+	return r.members.ListMembershipsForUser(ctx, userID)
 }
 
 // GetMemberCountsByOrg returns member counts keyed by unit ID (string).
