@@ -38,7 +38,7 @@ Plans:
 
 ## Phase 1: Authorization
 
-**Status:** In progress — Plan 01-01 complete, Plans 01-02/01-03 pending
+**Status:** Complete — all 3 plans executed, backend auth fixes deployed, frontend auth integration done, E2E verified
 
 **Goal:** Frontend auth integration — login/register pages, protected route handling, auth hydration for all features.
 
@@ -76,7 +76,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-03-PLAN.md — End-to-end verification of all AUTH requirements AUTH-01-05
+- [x] 01-03-PLAN.md — End-to-end verification of all AUTH requirements AUTH-01-05
 
 ---
 
