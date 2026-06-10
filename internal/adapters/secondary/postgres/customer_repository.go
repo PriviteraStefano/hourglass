@@ -20,12 +20,20 @@ func NewCustomerRepository(pool *pgxpool.Pool) *CustomerRepository {
 	return &CustomerRepository{pool: pool}
 }
 
-// ListByOrg returns customers for an organization with pagination.
-func (r *CustomerRepository) ListByOrg(ctx context.Context, orgID uuid.UUID, limit, offset int) ([]customer.Customer, error) {
-	query := `SELECT id, org_id, name, contact_name, email, phone, address, vat_number, is_active, created_at
-		FROM customers WHERE org_id = $1 ORDER BY name LIMIT $2 OFFSET $3`
+// ListByOrg returns customers for an organization with pagination and optional search.
+func (r *CustomerRepository) ListByOrg(ctx context.Context, orgID uuid.UUID, limit, offset int, search string) ([]customer.Customer, error) {
+	query := `SELECT id, org_id, name, contact_name, email, phone, address, vat_number, is_active, is_internal, created_at
+		FROM customers WHERE org_id = $1`
+	args := []interface{}{orgID, limit, offset}
 
-	rows, err := r.pool.Query(ctx, query, orgID, limit, offset)
+	if search != "" {
+		query += ` AND (name ILIKE '%' || $4 || '%' OR contact_name ILIKE '%' || $4 || '%' OR email ILIKE '%' || $4 || '%')`
+		args = append(args, search)
+	}
+
+	query += ` ORDER BY name LIMIT $2 OFFSET $3`
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list customers by org: %w", err)
 	}
@@ -37,17 +45,27 @@ func (r *CustomerRepository) ListByOrg(ctx context.Context, orgID uuid.UUID, lim
 // Create inserts a new customer and returns it.
 func (r *CustomerRepository) Create(ctx context.Context, c *customer.Customer) (*customer.Customer, error) {
 	c.ID = uuid.New()
+	c.IsInternal = false
 
-	query := `INSERT INTO customers (id, org_id, name, contact_name, email, phone, address, vat_number, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
-		RETURNING id, org_id, name, contact_name, email, phone, address, vat_number, is_active, created_at`
+	query := `INSERT INTO customers (id, org_id, name, contact_name, email, phone, address, vat_number, is_active, is_internal, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+		RETURNING id, org_id, name, contact_name, email, phone, address, vat_number, is_active, is_internal, created_at`
 	return scanCustomer(r.pool.QueryRow(ctx, query,
-		c.ID, c.OrganizationID, c.CompanyName, c.ContactName, c.Email, c.Phone, c.Address, c.VATNumber, c.IsActive))
+		c.ID, c.OrganizationID, c.CompanyName, c.ContactName, c.Email, c.Phone, c.Address, c.VATNumber, c.IsActive, c.IsInternal))
+}
+
+// CreateInternal creates an internal customer (is_internal=true) for the given org.
+func (r *CustomerRepository) CreateInternal(ctx context.Context, orgID uuid.UUID, companyName string) (*customer.Customer, error) {
+	query := `INSERT INTO customers (id, org_id, name, contact_name, email, phone, address, vat_number, is_active, is_internal, created_at, updated_at)
+		VALUES ($1, $2, $3, '', '', '', '', '', true, true, NOW(), NOW())
+		RETURNING id, org_id, name, contact_name, email, phone, address, vat_number, is_active, is_internal, created_at`
+	return scanCustomer(r.pool.QueryRow(ctx, query,
+		uuid.New(), orgID, companyName))
 }
 
 // GetByID returns a single customer, or customer.ErrCustomerNotFound.
 func (r *CustomerRepository) GetByID(ctx context.Context, id uuid.UUID) (*customer.Customer, error) {
-	query := `SELECT id, org_id, name, contact_name, email, phone, address, vat_number, is_active, created_at
+	query := `SELECT id, org_id, name, contact_name, email, phone, address, vat_number, is_active, is_internal, created_at
 		FROM customers WHERE id = $1`
 	c, err := scanCustomer(r.pool.QueryRow(ctx, query, id))
 	if err != nil {
@@ -62,11 +80,11 @@ func (r *CustomerRepository) GetByID(ctx context.Context, id uuid.UUID) (*custom
 // Update modifies an existing customer and returns it.
 func (r *CustomerRepository) Update(ctx context.Context, c *customer.Customer) (*customer.Customer, error) {
 	query := `UPDATE customers SET name = $1, contact_name = $2, email = $3, phone = $4,
-		address = $5, vat_number = $6, is_active = $7, updated_at = NOW()
-		WHERE id = $8
-		RETURNING id, org_id, name, contact_name, email, phone, address, vat_number, is_active, created_at`
+		address = $5, vat_number = $6, is_active = $7, is_internal = $8, updated_at = NOW()
+		WHERE id = $9
+		RETURNING id, org_id, name, contact_name, email, phone, address, vat_number, is_active, is_internal, created_at`
 	return scanCustomer(r.pool.QueryRow(ctx, query,
-		c.CompanyName, c.ContactName, c.Email, c.Phone, c.Address, c.VATNumber, c.IsActive, c.ID))
+		c.CompanyName, c.ContactName, c.Email, c.Phone, c.Address, c.VATNumber, c.IsActive, c.IsInternal, c.ID))
 }
 
 // Deactivate sets is_active to false for a customer.
@@ -136,7 +154,7 @@ func scanCustomer(s customerScanner) (*customer.Customer, error) {
 	err := s.Scan(
 		&c.ID, &c.OrganizationID, &c.CompanyName, &c.ContactName,
 		&c.Email, &c.Phone, &c.Address, &c.VATNumber,
-		&c.IsActive, &c.CreatedAt,
+		&c.IsActive, &c.IsInternal, &c.CreatedAt,
 	)
 	if err != nil {
 		return nil, err

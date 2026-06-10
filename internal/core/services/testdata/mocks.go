@@ -2,6 +2,7 @@ package testdata
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -386,14 +387,33 @@ type MockCustomerRepo struct {
 	Customers map[uuid.UUID]*customerdomain.Customer
 }
 
-func (m *MockCustomerRepo) ListByOrg(ctx context.Context, orgID uuid.UUID, limit, offset int) ([]customerdomain.Customer, error) {
+func (m *MockCustomerRepo) ListByOrg(ctx context.Context, orgID uuid.UUID, limit, offset int, search string) ([]customerdomain.Customer, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var result []customerdomain.Customer
 	for _, c := range m.Customers {
-		result = append(result, *c)
+		if search == "" || strings.Contains(c.CompanyName, search) || strings.Contains(c.ContactName, search) || strings.Contains(c.Email, search) {
+			result = append(result, *c)
+		}
 	}
 	return result, nil
+}
+
+func (m *MockCustomerRepo) CreateInternal(ctx context.Context, orgID uuid.UUID, companyName string) (*customerdomain.Customer, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c := &customerdomain.Customer{
+		ID:             uuid.New(),
+		OrganizationID: orgID,
+		CompanyName:    companyName,
+		IsActive:       true,
+		IsInternal:     true,
+	}
+	if m.Customers == nil {
+		m.Customers = make(map[uuid.UUID]*customerdomain.Customer)
+	}
+	m.Customers[c.ID] = c
+	return c, nil
 }
 
 func (m *MockCustomerRepo) Create(ctx context.Context, c *customerdomain.Customer) (*customerdomain.Customer, error) {

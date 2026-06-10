@@ -110,7 +110,7 @@ func TestCustomerIntegration(t *testing.T) {
 			&customerdomain.CreateCustomerRequest{CompanyName: "Customer B"})
 		require.NoError(t, err)
 
-		customers, err := svc.List(context.Background(), orgID, 100, 0)
+		customers, err := svc.List(context.Background(), orgID, 100, 0, "")
 		require.NoError(t, err)
 		assert.Len(t, customers, 2)
 	})

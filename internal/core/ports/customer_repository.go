@@ -8,8 +8,9 @@ import (
 )
 
 type CustomerRepository interface {
-	ListByOrg(ctx context.Context, orgID uuid.UUID, limit, offset int) ([]customer.Customer, error)
+	ListByOrg(ctx context.Context, orgID uuid.UUID, limit, offset int, search string) ([]customer.Customer, error)
 	Create(ctx context.Context, c *customer.Customer) (*customer.Customer, error)
+	CreateInternal(ctx context.Context, orgID uuid.UUID, companyName string) (*customer.Customer, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*customer.Customer, error)
 	Update(ctx context.Context, c *customer.Customer) (*customer.Customer, error)
 	Deactivate(ctx context.Context, id uuid.UUID) error

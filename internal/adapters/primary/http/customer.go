@@ -45,6 +45,7 @@ func (h *CustomerHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	limit := 50
 	offset := 0
+	search := r.URL.Query().Get("search")
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
 			limit = parsed
@@ -56,7 +57,7 @@ func (h *CustomerHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	customers, err := h.service.List(ctx, orgID, limit, offset)
+	customers, err := h.service.List(ctx, orgID, limit, offset, search)
 	if err != nil {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch customers")
 		return

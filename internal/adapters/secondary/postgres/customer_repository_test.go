@@ -79,12 +79,12 @@ func TestCustomerRepository_ListByOrg(t *testing.T) {
 	require.NoError(t, err)
 
 	// List by org should return 2
-	list, err := repo.ListByOrg(context.Background(), orgID, 100, 0)
+	list, err := repo.ListByOrg(context.Background(), orgID, 100, 0, "")
 	require.NoError(t, err)
 	require.Len(t, list, 2)
 
 	// Other org should have 0
-	empty, err := repo.ListByOrg(context.Background(), otherOrgID, 100, 0)
+	empty, err := repo.ListByOrg(context.Background(), otherOrgID, 100, 0, "")
 	require.NoError(t, err)
 	require.Empty(t, empty)
 }

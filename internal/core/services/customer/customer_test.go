@@ -105,14 +105,14 @@ func TestService_List_byOrg(t *testing.T) {
 	seedCustomer(repo, func(c *customerdomain.Customer) { c.OrganizationID = orgID })
 	seedCustomer(repo, func(c *customerdomain.Customer) { c.OrganizationID = orgID })
 
-	results, err := svc.List(context.Background(), orgID, 100, 0)
+	results, err := svc.List(context.Background(), orgID, 100, 0, "")
 	assert.NoError(t, err)
 	assert.Len(t, results, 3)
 }
 
 func TestService_List_empty(t *testing.T) {
 	svc, _ := setupService(t)
-	results, err := svc.List(context.Background(), uuid.New(), 100, 0)
+	results, err := svc.List(context.Background(), uuid.New(), 100, 0, "")
 	assert.NoError(t, err)
 	assert.Empty(t, results)
 }

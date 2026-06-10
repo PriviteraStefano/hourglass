@@ -18,8 +18,12 @@ func NewService(repo ports.CustomerRepository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) List(ctx context.Context, orgID uuid.UUID, limit, offset int) ([]customerdomain.Customer, error) {
-	return s.repo.ListByOrg(ctx, orgID, limit, offset)
+func (s *Service) List(ctx context.Context, orgID uuid.UUID, limit, offset int, search string) ([]customerdomain.Customer, error) {
+	return s.repo.ListByOrg(ctx, orgID, limit, offset, search)
+}
+
+func (s *Service) CreateInternalCustomer(ctx context.Context, orgID uuid.UUID, companyName string) (*customerdomain.Customer, error) {
+	return s.repo.CreateInternal(ctx, orgID, companyName)
 }
 
 func (s *Service) Create(ctx context.Context, orgID uuid.UUID, role string, req *customerdomain.CreateCustomerRequest) (*customerdomain.Customer, error) {
@@ -73,7 +77,12 @@ func (s *Service) Update(ctx context.Context, id, orgID uuid.UUID, role string, 
 	}
 
 	if req.CompanyName != "" {
-		current.CompanyName = req.CompanyName
+		// Lock company_name for internal customers (D-05)
+		if current.IsInternal && req.CompanyName != current.CompanyName {
+			// Skip the update — keep the original company_name
+		} else {
+			current.CompanyName = req.CompanyName
+		}
 	}
 	if req.ContactName != "" {
 		current.ContactName = req.ContactName
