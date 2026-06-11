@@ -1,12 +1,31 @@
+import {useState} from 'react'
 import {useNavigate} from '@tanstack/react-router'
-import {useQuery} from '@tanstack/react-query'
-import {ArrowLeftIcon, GlobeIcon, LockIcon} from 'lucide-react'
+import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
+import {toast} from 'sonner'
+import {ArrowLeftIcon, GlobeIcon, LockIcon, Trash2} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Badge} from '@/components/ui/badge'
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card'
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,} from '@/components/ui/tooltip'
+import {Skeleton} from '@/components/ui/skeleton'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {ProjectsApis} from '@/api/projects'
-import type {Project} from '@/src/types/models'
+import {EditProjectDialog} from './edit-project-dialog'
+import type {Project, Subproject} from '@/types/models'
 
 interface ProjectDetailProps {
   id: string
@@ -15,7 +34,24 @@ interface ProjectDetailProps {
 
 export function ProjectDetail({id, fromTab = 'owned'}: ProjectDetailProps) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const {data: project, isLoading} = useQuery(ProjectsApis.projectQueryOpts(id))
+
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const deleteProject = useMutation({
+    mutationFn: ProjectsApis.deleteProjectMutationOpts.mutationFn,
+    onSuccess: () => {
+      queryClient.invalidateQueries({queryKey: ['projects']})
+      toast.success('Project deleted')
+      navigate({to: '/projects', search: {tab: fromTab}})
+    },
+    onError: (error: Error) => {
+      setDeleteError(error.message)
+    },
+  })
 
   if (isLoading) {
     return <div className="text-center py-8 text-muted-foreground">Loading...</div>
@@ -60,26 +96,13 @@ export function ProjectDetail({id, fromTab = 'owned'}: ProjectDetailProps) {
           )}
         </div>
         <div className="flex gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" disabled>
-                  Edit
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Coming soon</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="destructive" disabled>
-                  Delete
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Coming soon</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Button variant="outline" onClick={() => setEditOpen(true)}>
+            Edit
+          </Button>
+          <Button variant="destructive" onClick={() => { setDeleteOpen(true); setDeleteError(null) }}>
+            <Trash2 className="w-4 h-4 mr-1" />
+            Delete
+          </Button>
         </div>
       </div>
 
@@ -108,6 +131,98 @@ export function ProjectDetail({id, fromTab = 'owned'}: ProjectDetailProps) {
           )}
         </CardContent>
       </Card>
+
+      <Accordion>
+        <AccordionItem value="subprojects">
+          <AccordionTrigger>Subprojects</AccordionTrigger>
+          <AccordionContent>
+            <SubprojectSection id={id} />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
+      <EditProjectDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        project={p}
+        onSuccess={() => {
+          queryClient.invalidateQueries({queryKey: ['projects', id]})
+        }}
+      />
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{p.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this project, remove all adoption records, and cannot be undone.
+              If this project or its subprojects have active time entries, deletion will be blocked.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && (
+            <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">
+              {deleteError}
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteProject.isPending}
+              onClick={(e) => {
+                e.preventDefault()
+                setDeleteError(null)
+                deleteProject.mutate(p.id)
+              }}
+            >
+              {deleteProject.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
+}
+
+function SubprojectSection({id}: {id: string}) {
+  const {data, isLoading, isError, refetch} = useQuery(ProjectsApis.subprojectsQueryOpts(id))
+  const subprojects = data as Subproject[] | undefined
+
+  if (isLoading) {
+    return <div className="space-y-2">
+      {[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
+    </div>
+  }
+
+  if (isError) {
+    return <div className="text-center py-4">
+      <p className="text-sm text-destructive">Failed to load subprojects.</p>
+      <Button variant="ghost" size="sm" onClick={() => refetch()} className="mt-2">
+        Retry
+      </Button>
+    </div>
+  }
+
+  if (!subprojects?.length) {
+    return <div className="text-center py-8 text-muted-foreground">
+      <p className="text-sm">No subprojects</p>
+      <p className="text-xs mt-1">Subprojects can be created through time entries or project settings.</p>
+    </div>
+  }
+
+  return <div className="space-y-2">
+    {subprojects.map(sp => (
+      <div key={sp.id} className="flex items-center justify-between py-2 border-b last:border-0">
+        <div>
+          <span className="font-medium">{sp.name}</span>
+          {sp.description && (
+            <p className="text-sm text-muted-foreground">{sp.description}</p>
+          )}
+        </div>
+        <Badge variant={sp.is_active ? 'default' : 'secondary'}>
+          {sp.is_active ? 'Active' : 'Inactive'}
+        </Badge>
+      </div>
+    ))}
+  </div>
 }
