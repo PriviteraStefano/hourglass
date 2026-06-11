@@ -82,7 +82,7 @@ Plans:
 
 ## Phase 2: Org Hierarchy
 
-**Status:** Plans ready
+**Status:** Complete — all 3 plans executed, delete protection enforced (root/children/members), PUT member endpoint Live, batch members endpoint Live, reparent dialog uses dedicated mutation, "Make Primary" button in side panel, subtree member expandable groups
 
 **Goal:** Organization tree visualization using ReactFlow, unit CRUD with parent-unit hierarchy, member management, edge-driven reparenting.
 
@@ -108,17 +108,17 @@ Plans:
 |-----|-------------|--------|
 | ORG-01 | Org tree visualization using ReactFlow | ✅ Already implemented in org-hierarchy-page.tsx |
 | ORG-02 | Unit CRUD with parent-unit hierarchy | ✅ Already implemented (backend + frontend dialogs) |
-| ORG-03 | Member management — add/remove/primary | ⏳ Planned: backend PUT endpoint (02-01), frontend primary UI + subtree members (02-03) |
-| ORG-04 | Edge-driven reparenting | ⏳ Planned: dialog switch to dedicated mutation (02-02) |
-| ORG-05 | Delete protection (root/children/members) | ⏳ Planned: backend enforcement (02-01) |
+| ORG-03 | Member management — add/remove/primary | ✅ Complete: PUT endpoint + frontend primary UI + subtree members |
+| ORG-04 | Edge-driven reparenting | ✅ Complete: reparent dialog uses dedicated mutation |
+| ORG-05 | Delete protection (root/children/members) | ✅ Complete: backend enforcement by sentinel errors |
 
 ### Plans
 
 | Plan | Objective | Wave | Tasks | Files |
 |------|-----------|------|-------|-------|
-| [ ] 02-01 | Backend: delete protection + PUT member endpoint + batch members | 1 | 3 | 9 |
-| [ ] 02-02 | Frontend: reparent mutation switch + pendingEdgeConnect cleanup | 1 | 2 | 3 |
-| [ ] 02-03 | Frontend: "Make Primary" UI + subtree member groups | 2 | 2 | 3 |
+| [x] 02-01 | Backend: delete protection + PUT member endpoint + batch members | 1 | 3 | 9 |
+| [x] 02-02 | Frontend: reparent mutation switch + pendingEdgeConnect cleanup | 1 | 2 | 3 |
+| [x] 02-03 | Frontend: "Make Primary" UI + subtree member groups | 2 | 2 | 3 |
 
 ### Edge cases
 
@@ -226,7 +226,7 @@ Tests: backend service unit tests + frontend API tests.
 
 ## Phase 5: Projects
 
-**Status:** Not started
+**Status:** Planned — 4 plans, 10 tasks, 3 waves
 
 **Goal:** Project CRUD with subproject support, org-scope filtering, governance models.
 
@@ -236,32 +236,42 @@ Tests: backend service unit tests + frontend API tests.
 
 **Day:** Fri June 12 (parallel with Phase 4)
 
-**Note:** New phase — no equivalent in previous roadmap.
+**Note:** New phase — no equivalent in previous roadmap. Replaces old Phase 5 (seed data — superseded).
 
 ### Key behaviors
 
-- Project list page with filtering (contract_id, org_id, type: billable/internal)
-- Create project (name, type, contract, governance model, scope)
-- Edit project
-- Delete project (blocked if has time entries or subprojects)
-- Subproject list on project detail
+- Project list page with filtering (contract_id, org_id, type: billable/internal) — ✅ already built
+- Create project (name, type, contract, governance model, scope) — ✅ already built
+- Edit project — ⏳ dialog-based (Plan 01 backend + Plan 03 frontend)
+- Delete project — blocked if has time entries or subprojects — ⏳ protection checks (Plan 01 + Plan 02)
+- Subproject list on project detail — ⏳ subprojects endpoint + expandable section (Plan 02 + Plan 03)
+- Distinct 409 errors for direct vs subproject active entries — ⏳ (Plan 02 handler)
+- Adopted projects display creation org — ✅ already works
 
-### Backend
+### Scope of this phase
 
-Already exists (ProjectRepository, SubprojectRepository, Project handler)
+Backend additions: UpdateProjectRequest domain type, Update/Delete/HasActiveTimeEntries on repository, Update/Delete on service with finance role gating + owner check + active time entry protection, Update/Delete/ListSubprojects on handler, route registration.
+Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hooks, EditProjectDialog component, wired Edit/Delete buttons on detail page, expandable subproject section.
 
-### Frontend files to create
+### Plans
 
-- `web/src/routes/_authenticated/projects/index.tsx`
-- `web/src/routes/_authenticated/projects/new.tsx`
-- `web/src/routes/_authenticated/projects/$id.tsx`
-- Components: project-form.tsx, project-table.tsx, subproject-list.tsx
+| Plan | Objective | Wave | Tasks | Files |
+|------|-----------|------|-------|-------|
+| [ ] 05-01 | Backend: domain + ports + mocks + repo + service for Update/Delete/HasActiveTimeEntries | 1 | 3 | 5 |
+| [ ] 05-02 | Backend: HTTP handlers (Update/Delete/ListSubprojects) + route wiring | 2 | 2 | 2 |
+| [ ] 05-03 | Frontend: API types + mutations/queries + EditProjectDialog + detail page wiring | 1 | 3 | 4 |
+| [ ] 05-04 | Tests: service tests + handler tests + build verification | 3 | 3 | 2 |
 
 ### Edge cases
 
-- Adopted projects (shared across orgs) display creation org
-- Shared vs org-scoped project filtering
-- Project without contract (internal projects)
+- Adopted projects (shared across orgs) display creation org — ✅ already works
+- Shared vs org-scoped project filtering — ✅ already works
+- Project without contract (internal projects) — contract is required per D-10
+- Delete blocked by active time entries on project — returns distinct 409 (D-06)
+- Delete blocked by active time entries on subprojects — returns distinct 409 (D-04, D-06)
+- Delete cascade-cleans adoptions — transactions (D-05)
+- Non-owner org cannot delete — forbidden (D-03)
+- Edit/Delete requires finance role — matches contract pattern
 
 ---
 
