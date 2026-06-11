@@ -118,8 +118,9 @@ func main() {
 	orgHandler := http.NewOrganizationHandler(orgMgmtService)
 
 	projectRepo := postgres.NewProjectRepository(pool)
+	subprojectRepo := postgres.NewSubprojectRepository(pool)
 	projectService := projectsvc.NewService(projectRepo)
-	projectHandler := http.NewProjectHandler(projectService)
+	projectHandler := http.NewProjectHandler(projectService, subprojectRepo)
 
 	contractRepo := postgres.NewContractRepository(pool)
 	contractService := contractsvc.NewService(contractRepo)
@@ -182,6 +183,9 @@ func main() {
 	mux.HandleFunc("GET /projects/{id}/managers", middleware.Auth(authService, projectHandler.ListManagers))
 	mux.HandleFunc("POST /projects/{id}/managers", middleware.Auth(authService, projectHandler.AddManager))
 	mux.HandleFunc("DELETE /projects/{id}/managers/{user_id}", middleware.Auth(authService, projectHandler.RemoveManager))
+	mux.HandleFunc("PUT /projects/{id}", middleware.Auth(authService, projectHandler.Update))
+	mux.HandleFunc("DELETE /projects/{id}", middleware.Auth(authService, projectHandler.Delete))
+	mux.HandleFunc("GET /projects/{id}/subprojects", middleware.Auth(authService, projectHandler.ListSubprojects))
 
 	mux.HandleFunc("GET /contracts", middleware.Auth(authService, contractHandler.List))
 	mux.HandleFunc("POST /contracts", middleware.Auth(authService, contractHandler.Create))
