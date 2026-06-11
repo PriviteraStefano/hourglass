@@ -277,9 +277,9 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 6: Time Entries + Expenses
 
-**Status:** Not started
+**Status:** Planned — 5 plans, 3 waves
 
-**Goal:** Full CRUD + approval workflow for time entries and expenses.
+**Goal:** Full CRUD + two-stage approval workflow for time entries and expenses. Flat model (one entry per project per date), client-side month computation, shared approval components.
 
 **Depends on:** Phase 5
 
@@ -289,24 +289,36 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ### Key behaviors
 
-- Time entry list with filtering (status, date range, project, user)
-- Create time entry (date, hours, project, subproject, WG, description)
-- Edit time entry (draft/submitted only)
-- Submit for approval
-- Approval workflow: employee creates → submits → manager approves → finance approves/rejects
-- Same pattern for expenses (mileage, meal, accommodation, other)
+- Time entry list with filtering (status, date range, project, user) — TIME-01
+- Create time entry (date, hours, project, subproject, WG, description) — TIME-02
+- Edit time entry (draft/submitted/rejected only) — TIME-03
+- Submit for approval — TIME-04
+- Cannot edit approved/rejected entries — TIME-05
+- Cannot delete entries with approvals — TIME-06
+- Employee cannot self-approve — TIME-07
+- Manager cannot approve own entries — TIME-08
+- Same pattern for expenses (9 categories, receipt upload) — EXPN-01-06
+- Two-stage approval workflow: draft → submitted → pending_manager → pending_finance → approved/rejected — APPR-03
+- Approval history is immutable — APPR-01
+- Rejected entries show reason — APPR-02
 
-### Backend
+### Waves
 
-Already exists (TimeEntryRepository, ExpenseRepository + handlers)
+| Wave | Plans | Description |
+|------|-------|-------------|
+| 1 | Plan 01 | Backend foundation: domain, ports, migrations, mocks |
+| 2 | Plan 02 + Plan 03 (parallel) | Service layer + handler/repo/route wiring |
+| 3 | Plan 04 + Plan 05 (sequential) | Frontend time entry UI + expense UI |
 
-### Frontend files to create
+### Plans
 
-- `web/src/routes/_authenticated/time-entries/index.tsx`
-- `web/src/routes/_authenticated/time-entries/new.tsx`
-- `web/src/routes/_authenticated/time-entries/$id.tsx`
-- Same structure for expenses
-- Components: time-entry-form.tsx, expense-form.tsx, approval-buttons.tsx, status-badge.tsx, approval-history.tsx
+| Plan | Objective | Wave | Tasks | Files |
+|------|-----------|------|-------|-------|
+| [ ] 06-01 | Backend Foundation: domain models, port interfaces, mocks, factories, migrations | 1 | 2 | 9 |
+| [ ] 06-02 | Backend Service Layer: two-stage approval in TimeEntryService, full ExpenseService, unit tests | 2 | 3 | 4 |
+| [ ] 06-03 | Backend Repos + Handlers + Route: PG repo extensions, ExpenseHandler, route wiring, tests | 2 | 3 | 7 |
+| [ ] 06-04 | Frontend Time Entry: flat model rewrite, client-side calendar, shared approval components | 3 | 3 | 10 |
+| [ ] 06-05 | Frontend Expenses: types, API, route, calendar, detail, row, sidebar link | 3 | 3 | 9 |
 
 ### Edge cases
 
@@ -316,6 +328,8 @@ Already exists (TimeEntryRepository, ExpenseRepository + handlers)
 - Manager cannot approve own entries
 - Rejected entries show reason
 - Approval history is immutable
+- WG manager == creator: skip manager approval stage (D-11)
+- km_distance only meaningful for mileage category (D-07)
 
 ---
 
