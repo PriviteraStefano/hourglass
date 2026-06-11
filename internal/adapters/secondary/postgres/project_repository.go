@@ -209,6 +209,107 @@ func (r *ProjectRepository) RemoveManager(ctx context.Context, projectID, userID
 	return nil
 }
 
+// Update dynamically builds a SET clause from non-zero fields and returns the updated project.
+func (r *ProjectRepository) Update(ctx context.Context, orgID, projectID uuid.UUID, req *projectdomain.UpdateProjectRequest) (*projectdomain.ProjectResponse, error) {
+	var sets []string
+	var args []interface{}
+	argIdx := 1
+
+	if req.Name != "" {
+		sets = append(sets, fmt.Sprintf("name = $%d", argIdx))
+		args = append(args, req.Name)
+		argIdx++
+	}
+	if req.Type != "" {
+		sets = append(sets, fmt.Sprintf("type = $%d", argIdx))
+		sets = append(sets, fmt.Sprintf("project_type = $%d", argIdx))
+		args = append(args, req.Type)
+		argIdx++
+	}
+	if req.ContractID != "" {
+		cid, err := uuid.Parse(req.ContractID)
+		if err != nil {
+			return nil, fmt.Errorf("parse contract_id: %w", err)
+		}
+		sets = append(sets, fmt.Sprintf("contract_id = $%d", argIdx))
+		args = append(args, cid)
+		argIdx++
+	}
+	if req.GovernanceModel != "" {
+		sets = append(sets, fmt.Sprintf("governance_model = $%d", argIdx))
+		args = append(args, req.GovernanceModel)
+		argIdx++
+	}
+	sets = append(sets, fmt.Sprintf("is_shared = $%d", argIdx))
+	args = append(args, req.IsShared)
+	argIdx++
+
+	if len(sets) == 0 {
+		return nil, fmt.Errorf("no fields to update")
+	}
+
+	allSets := append(sets, "updated_at = NOW()")
+	whereIdx := argIdx
+	args = append(args, projectID, orgID)
+
+	query := fmt.Sprintf(`UPDATE projects SET %s WHERE id = $%d AND created_by_org_id = $%d`,
+		strings.Join(allSets, ", "), whereIdx, whereIdx+1)
+
+	cmd, err := r.pool.Exec(ctx, query, args...)
+	if err != nil {
+		return nil, wrapPGError(err, "update project")
+	}
+	if cmd.RowsAffected() == 0 {
+		return nil, projectdomain.ErrProjectNotFound
+	}
+	return r.Get(ctx, orgID, projectID)
+}
+
+// Delete removes a project and its adoptions in a single transaction.
+func (r *ProjectRepository) Delete(ctx context.Context, orgID, projectID uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `DELETE FROM project_adoptions WHERE project_id = $1`, projectID)
+	if err != nil {
+		return wrapPGError(err, "delete project adoptions")
+	}
+
+	cmd, err := tx.Exec(ctx,
+		`DELETE FROM projects WHERE id = $1 AND created_by_org_id = $2`,
+		projectID, orgID)
+	if err != nil {
+		return wrapPGError(err, "delete project")
+	}
+	if cmd.RowsAffected() == 0 {
+		return projectdomain.ErrProjectNotFound
+	}
+
+	return tx.Commit(ctx)
+}
+
+// HasActiveTimeEntries checks if a project or its subprojects have active (non-approved, non-rejected) time entries.
+func (r *ProjectRepository) HasActiveTimeEntries(ctx context.Context, projectID uuid.UUID) (bool, bool, error) {
+	query := `SELECT
+		(SELECT COUNT(*) FROM time_entries
+		 WHERE project_id = $1
+		   AND status NOT IN ('approved', 'rejected')
+		   AND is_deleted = false) > 0 AS has_entries,
+		(SELECT COUNT(*) FROM time_entries te
+		 WHERE te.subproject_id IN (SELECT id FROM subprojects WHERE project_id = $1)
+		   AND te.status NOT IN ('approved', 'rejected')
+		   AND te.is_deleted = false) > 0 AS has_subproject_entries`
+	var hasEntries, hasSubprojectEntries bool
+	err := r.pool.QueryRow(ctx, query, projectID).Scan(&hasEntries, &hasSubprojectEntries)
+	if err != nil {
+		return false, false, fmt.Errorf("has active time entries: %w", err)
+	}
+	return hasEntries, hasSubprojectEntries, nil
+}
+
 // ---------------------------------------------------------------------------
 // Scan helpers
 // ---------------------------------------------------------------------------
