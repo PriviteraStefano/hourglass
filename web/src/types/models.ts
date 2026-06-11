@@ -80,44 +80,32 @@ export interface Subproject {
   updated_at: string
 }
 
-export interface TimeEntryItem {
-  id: string
-  time_entry_id: string
-  project_id: string
-  project?: Project
-  hours: number
-  description?: string
-}
-
 export interface TimeEntry {
   id: string
   user_id: string
-  organization_id: string
-  date: string
+  org_id: string
+  project_id: string
+  subproject_id: string
+  wg_id: string
+  unit_id: string
+  hours: number
+  description: string
+  entry_date: string
   status: EntryStatus
   current_approver_role?: 'manager' | 'finance'
   submitted_at?: string
   created_at: string
   updated_at: string
-  items: TimeEntryItem[]
 }
 
-export interface TimeEntryDaySummary {
-  date: string
-  has_draft: boolean
-  has_submitted: boolean
-  has_approved: boolean
-  has_rejected: boolean
-  total_hours: number
+export interface ApprovalRecord {
+  id: string
+  entry_id: string
+  action: 'approve' | 'reject' | 'submit'
+  actor_user_id: string
+  actor_role: string
+  comment?: string
+  created_at: string
 }
 
-export interface TimeEntryMonthlySummary {
-  days: TimeEntryDaySummary[]
-  totals: {
-    total_hours: number
-    draft_count: number
-    submitted_count: number
-    approved_count: number
-    rejected_count: number
-  }
-}
+export type ExpenseCategory = 'mileage' | 'meal' | 'accommodation' | 'parking' | 'travel_tickets' | 'tolls' | 'taxi' | 'equipment' | 'other'

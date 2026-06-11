@@ -2,20 +2,20 @@ import {mutationOptions, queryOptions} from '@tanstack/react-query'
 import {format} from 'date-fns'
 import {toast} from 'sonner'
 import {api} from '@/lib/api.ts'
-import type {CreateTimeEntryRequest, TimeEntry, TimeEntryMonthlySummary, UpdateTimeEntryRequest,} from '@/types'
+import type {CreateTimeEntryRequest, TimeEntry, UpdateTimeEntryRequest} from '@/types'
 
-function timeEntriesQueryKey(month: number, year: number) {
-  return ['time-entries', 'monthly', month, year] as const
+function timeEntriesForMonthQueryKey(month: number, year: number) {
+  return ['time-entries', 'month', month, year] as const
 }
 
 function timeEntryQueryKey(date: Date) {
-  return ['time-entries', format(date, 'yyyy-MM-dd')] as const
+  return ['time-entries', 'date', format(date, 'yyyy-MM-dd')] as const
 }
 
-function timeEntriesMonthlySummaryQueryOpts(month: number, year: number) {
+export function timeEntriesForMonthQueryOpts(month: number, year: number) {
   return queryOptions({
-    queryKey: timeEntriesQueryKey(month, year),
-    queryFn: () => api<TimeEntryMonthlySummary>(`/time-entries/monthly-summary?month=${month}&year=${year}`),
+    queryKey: timeEntriesForMonthQueryKey(month, year),
+    queryFn: () => api<TimeEntry[]>(`/time-entries?month=${month}&year=${year}`),
   })
 }
 
@@ -23,7 +23,7 @@ function timeEntryQueryOpts(date: Date) {
   const formattedDate = format(date, 'yyyy-MM-dd')
   return queryOptions({
     queryKey: timeEntryQueryKey(date),
-    queryFn: () => api<TimeEntry>(`/time-entries?date=${formattedDate}`),
+    queryFn: () => api<TimeEntry[]>(`/time-entries?date=${formattedDate}`),
     enabled: !!date,
   })
 }
@@ -33,7 +33,7 @@ const createTimeEntryMutationOpts = mutationOptions({
     api<TimeEntry>('/time-entries', {method: 'POST', body: JSON.stringify(data)}),
   onSuccess: (_, __, ___, {client}) => {
     client.invalidateQueries({queryKey: ['time-entries']})
-
+    toast.success('Entry created')
   },
 })
 const updateTimeEntryMutationOpts = mutationOptions({
@@ -58,20 +58,33 @@ const submitTimeEntryMutationOpts = mutationOptions({
     toast.success('Entry submitted for approval')
   },
 })
-const submitMonthMutationOpts = mutationOptions({
-  mutationFn: ({month, year}: { month: number; year: number }) =>
-    api(`/time-entries/submit-month`, {method: 'POST', body: JSON.stringify({month, year})}),
-  onSuccess: (_, __, ___, {client}) => {
-    client.invalidateQueries({queryKey: ['time-entries']})
-    toast.success('All drafts submitted')
-  },
+
+const approveTimeEntryMutationOpts = mutationOptions({
+  mutationFn: (id: string) =>
+    api<TimeEntry>(`/time-entries/${id}/approve`, {method: 'POST'}),
 })
+
+const rejectTimeEntryMutationOpts = mutationOptions({
+  mutationFn: ({id, reason}: { id: string; reason: string }) =>
+    api<TimeEntry>(`/time-entries/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({reason}),
+    }),
+})
+
+const pendingTimeEntriesQueryOpts = queryOptions({
+  queryKey: ['time-entries', 'pending'],
+  queryFn: () => api<TimeEntry[]>('/time-entries/pending'),
+})
+
 export const TimeEntriesApis = {
-  timeEntriesMonthlySummaryQueryOpts,
+  timeEntriesForMonthQueryOpts,
   timeEntryQueryOpts,
   createTimeEntryMutationOpts,
   updateTimeEntryMutationOpts,
   deleteTimeEntryMutationOpts,
   submitTimeEntryMutationOpts,
-  submitMonthMutationOpts,
+  approveTimeEntryMutationOpts,
+  rejectTimeEntryMutationOpts,
+  pendingTimeEntriesQueryOpts,
 }

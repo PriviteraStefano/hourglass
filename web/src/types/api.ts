@@ -58,20 +58,23 @@ export interface PasswordResetVerify {
 }
 
 export interface CreateTimeEntryRequest {
+  project_id: string
+  subproject_id: string
+  wg_id: string
+  unit_id: string
+  hours: number
+  description?: string
   date: string
-  items: Array<{
-    project_id: string
-    hours: number
-    description?: string
-  }>
 }
 
 export interface UpdateTimeEntryRequest {
-  items: Array<{
-    project_id: string
-    hours: number
-    description?: string
-  }>
+  project_id?: string
+  subproject_id?: string
+  wg_id?: string
+  unit_id?: string
+  hours?: number
+  description?: string
+  date?: string
 }
 
 export interface ApiError {
