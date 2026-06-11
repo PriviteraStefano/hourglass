@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
-status: executing
-last_updated: "2026-06-10T21:37:34.586Z"
+status: completed
+last_updated: "2026-06-11T07:53:01.573Z"
 last_activity: 2026-06-10
 progress:
-  total_phases: 9
-  completed_phases: 4
-  total_plans: 30
-  completed_plans: 25
-  percent: 44
+  total_phases: 10
+  completed_phases: 6
+  total_plans: 35
+  completed_plans: 30
+  percent: 60
 ---
 
 # Phase State
@@ -24,7 +24,7 @@ progress:
 
 ## Phase 0: testing-foundation
 
-- **Status:** Ready to execute
+- **Status:** Phase 02 complete
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -46,10 +46,14 @@ progress:
 
 ## Phase 2: org-hierarchy
 
-- **Status:** Not started
+- **Status:** Complete
 - **Goal:** Org tree visualization with ReactFlow
 - **Depends on:** Phase 1
 - **Day:** Wed-Thu June 10-11
+- **Plans:**
+  - 02-01-PLAN.md — Backend: delete protection + PUT member endpoint + batch members [completed]
+  - 02-02-PLAN.md — Frontend: reparent mutation switch + pendingEdgeConnect cleanup [completed]
+  - 02-03-PLAN.md — Frontend: "Make Primary" UI + subtree member groups [completed]
 
 ## Phase 3: customers
 
@@ -283,10 +287,10 @@ completed: 2026-06-09
 
 ## Current Position
 
-Phase: 03 — IN PROGRESS
-Plan: 2 of 3
-Status: Plan 03-02 complete
-Last activity: 2026-06-10 -- Plan 03-02 completed
+Phase: 02 — COMPLETE
+Plan: 1 of 3
+Status: Phase 02 complete
+Last activity: 2026-06-10 -- Phase 02 marked complete
 
 ## Performance Metrics
 
