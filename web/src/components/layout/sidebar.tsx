@@ -35,7 +35,7 @@ import {Skeleton} from "@/components/ui/skeleton.tsx";
 
 const navItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon; disabled?: boolean }> = [
   {label: 'Time', href: '/time-entries', icon: ClockIcon},
-  {label: 'Expenses', href: '/expenses', icon: ReceiptIcon, disabled: true},
+  {label: 'Expenses', href: '/expenses', icon: ReceiptIcon},
   {label: 'Approvals', href: '/approvals', icon: CheckCircleIcon, disabled: true},
 ]
 
