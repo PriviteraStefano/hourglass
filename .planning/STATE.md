@@ -9,8 +9,8 @@ progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 36
-  completed_plans: 34
-  percent: 73
+  completed_plans: 35
+  percent: 75
 ---
 
 # Phase State
@@ -18,7 +18,8 @@ progress:
 ## Session
 
 - **Last activity:** 2026-06-11
-- **Source:** `.planning/phases/04-contracts/04-02-PLAN.md`
+- **Completed:** Plan 05-03 (Frontend: types, API mutations/queries, EditProjectDialog, detail page wiring)
+- **Source:** `.planning/phases/05-mvp-consolidation/05-03-PLAN.md`
 - **Intel:** `.planning/intel/`
 - **Completed:** Plan 03-01 (Backend: migration, search, internal customer), Plan 03-02 (Frontend: API, sidebar, detail page), Plan 03-03 (Frontend polish: badge, cards, form lock, tests)
 - **Completed:** Plan 04-01 (Backend: customer_id on create + HasProjects delete guard)
@@ -86,6 +87,7 @@ progress:
 - **Day:** Fri June 12
 - **Plans:**
   - 05-01-PLAN.md — Backend: domain types, port interface, mocks, PG repo Update/Delete/HasActiveTimeEntries, service Update/Delete [completed]
+  - 05-03-PLAN.md — Frontend: types, API mutations/queries, EditProjectDialog, detail page wiring [completed]
 
 ## Phase 6: time-entries-and-expenses
 
@@ -320,3 +322,4 @@ Last activity: 2026-06-11 -- Phase 05 marked complete
 | Phase 04-contracts P01 | 2 min | 5 tasks | 7 files |
 | Phase 04-contracts P02 | 1 min | 3 tasks | 3 files |
 | Phase 05-projects P01 | - | 3 tasks | 5 files |
+| Phase 05-projects P03 | 5 min | 4 tasks | 5 files |

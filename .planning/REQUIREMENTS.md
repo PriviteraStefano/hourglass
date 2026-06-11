@@ -55,9 +55,9 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 
 - [ ] **PROJ-01**: Project list page with filtering (contract_id, org_id, type: billable/internal)
 - [ ] **PROJ-02**: Create project (name, type, contract, governance model, scope)
-- [ ] **PROJ-03**: Edit project
-- [ ] **PROJ-04**: Delete project — blocked if has time entries or subprojects
-- [ ] **PROJ-05**: Subproject list on project detail
+- [ ] **PROJ-03**: Edit project — frontend EditProjectDialog completed
+- [ ] **PROJ-04**: Delete project — blocked if has time entries or subprojects — frontend delete dialog + 409 handling completed
+- [ ] **PROJ-05**: Subproject list on project detail — frontend expandable section completed
 - [ ] **PROJ-06**: Adopted projects display creation org
 
 ### Time Entries
@@ -142,9 +142,9 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 | CTRT-07 | Phase 4 | In progress (already working — zero-value validation absence) |
 | PROJ-01 | Phase 5 | Pending |
 | PROJ-02 | Phase 5 | Pending |
-| PROJ-03 | Phase 5 | In progress (backend: UpdateProjectRequest + Update service/repo/mock) |
-| PROJ-04 | Phase 5 | In progress (backend: Delete service/repo/mock + active entries check) |
-| PROJ-05 | Phase 5 | Pending |
+| PROJ-03 | Phase 5 | In progress (backend + frontend edit dialog completed) |
+| PROJ-04 | Phase 5 | In progress (backend + frontend delete dialog + 409 handling completed) |
+| PROJ-05 | Phase 5 | In progress (frontend expandable subproject section completed) |
 | PROJ-06 | Phase 5 | Pending |
 | TIME-01 | Phase 6 | Pending |
 | TIME-02 | Phase 6 | Pending |

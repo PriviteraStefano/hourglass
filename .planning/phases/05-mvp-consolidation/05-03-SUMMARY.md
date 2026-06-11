@@ -1,24 +1,14 @@
 ---
 phase: 05-projects
 plan: 03
-subsystem: ui
-tags: [react, tanstack-query, shadcn, projects, crud]
-requires:
-  - phase: 05-projects
-    provides: Backend project Update/Delete endpoints and subproject endpoint
-provides:
-  - EditProjectDialog component with pre-populated form fields
-  - Delete confirmation dialog with inline 409 error handling
-  - SubprojectSection with loading/error/empty/loaded states
-  - updateProjectMutationOpts, deleteProjectMutationOpts, subprojectsQueryOpts API methods
-affects:
-  - 05-project-final (Edit/Delete integration)
+subsystem: frontend
+tags: [projects, crud, edit, delete, subprojects]
+requires: [05-02]
+provides: [edit-project-dialog, delete-confirmation, subproject-section]
+affects: [web/src/types/api.ts, web/src/types/models.ts, web/src/api/projects.ts, project-detail.tsx]
 tech-stack:
-  added: []
-  patterns:
-    - Edit dialog forked from create dialog with pre-population pattern
-    - Delete confirmation using AlertDialog with inline error display
-    - Subproject section delegates to subcomponent for lazy-fetch pattern
+  added: [AlertDialog, Accordion]
+  patterns: [Dialog-based edit, AlertDialog for destructive confirmations, Accordion for expandable sections, Inline 409 error display]
 key-files:
   created:
     - web/src/routes/_authenticated/projects/-components/edit-project-dialog.tsx
@@ -27,105 +17,135 @@ key-files:
     - web/src/types/models.ts
     - web/src/api/projects.ts
     - web/src/routes/_authenticated/projects/-components/project-detail.tsx
-key-decisions:
-  - edit-project-dialog.tsx forked from create-project-dialog.tsx per D-01 (dialog-based edit, not inline)
-  - Delete 409 error rendered inline in AlertDialog instead of toast per UI-SPEC
-  - SubprojectSection sub-component for lazy-fetch pattern — fetches on first expand only
-  - Base-ui Accordion used (not Radix) matching project's existing accordion component
-patterns-established:
-  - Delete mutation with inline 409 error display (inside AlertDialog, not toast)
-  - Subcomponent for lazy-fetch sections (fetches only on expand)
-requirements-completed:
-  - PROJ-03
-  - PROJ-04
-  - PROJ-05
-duration: 3 min
-completed: 2026-06-11
+decisions:
+  - Dialog-based edit (not inline) matching CreateProjectDialog pattern
+  - Delete confirmation with inline 409 error from backend (not toast)
+  - Accordion-based expandable subproject section with lazy fetch on first expand
+  - SubprojectSection as inline sub-component in project-detail.tsx for simplicity
+metrics:
+  duration: ~5 min (plan was pre-executed, this session applied fixes)
+  completed_date: 2026-06-11
 ---
 
-# Phase 05: Projects — Plan 03 Summary
+# Phase 5 Plan 3: Frontend Project Edit, Delete, and Subproject Display
 
-**Frontend Edit/Delete project dialogs, SubprojectSection with lazy-fetch loading/error/empty states, and UpdateProjectRequest/Subproject types wired to existing project detail page**
+**One-liner:** EditProjectDialog forked from CreateProjectDialog with pre-populated fields, delete confirmation with inline 409 error handling, and expandable subproject section with lazy fetch.
 
-## Performance
+## Background
 
-- **Duration:** 3 min
-- **Started:** 2026-06-11T09:12:00Z
-- **Completed:** 2026-06-11T09:15:00Z
-- **Tasks:** 3
-- **Files modified:** 5 (1 created, 4 modified)
+This plan wires the disabled Edit/Delete buttons on the project detail page to real dialogs and adds an expandable subproject section. The implementation was substantially completed in a prior session. This execution applied a type fix to the `edit-project-dialog.tsx` component and verified the build.
 
-## Accomplishments
+## Tasks Executed
 
-- Added `UpdateProjectRequest` interface (5 fields) and `Subproject` model (8 fields) to frontend types
-- Added `updateProjectMutationOpts`, `deleteProjectMutationOpts`, `subprojectsQueryOpts` to ProjectsApis
-- Created `EditProjectDialog` component — fork of CreateProjectDialog with pre-populated fields and "Save Changes" button
-- Wired Edit/Delete buttons on project-detail.tsx — removed disabled "Coming soon" tooltips
-- Added Delete confirmation AlertDialog with inline 409 error rendering (not toast)
-- Added SubprojectSection sub-component with loading (Skeleton), error (Retry), empty, and loaded states
-- Fixed incorrect import path `@/src/types/models` → `@/types/models`
+### Task 1: Add UpdateProjectRequest type + Frontend API mutations/queries ✅
 
-## Task Commits
+| Details | |
+|---------|-|
+| **Status** | Done (prior commit) |
+| **Commit** | `4294fd6` |
+| **Files** | `web/src/types/api.ts`, `web/src/types/models.ts`, `web/src/api/projects.ts` |
 
-Each task was committed atomically:
+- `UpdateProjectRequest` interface added to `web/src/types/api.ts` (name, type, contract_id, governance_model, is_shared)
+- `Subproject` interface added to `web/src/types/models.ts` (8 fields: id, project_id, name, description, sequence_order, is_active, created_at, updated_at)
+- `updateProjectMutationOpts` — `PUT /projects/{id}` with `{id, data}` shape, invalidates `['projects']` + `['projects', id]`
+- `deleteProjectMutationOpts` — `DELETE /projects/{id}`, shows 'Project deleted' toast on success
+- `subprojectsQueryOpts` — `GET /projects/{id}/subprojects` with query key `['projects', id, 'subprojects']`
+- All three exported from `ProjectsApis`
 
-1. **Task 1: Add UpdateProjectRequest type + Frontend API mutations/queries** - `4294fd6` (feat)
-2. **Task 2: Create EditProjectDialog component** - `1ce9602` (feat)
-3. **Task 3: Wire project-detail.tsx — Edit/Delete/Subprojects** - `e3bf446` (feat)
+### Task 2: Create EditProjectDialog component ✅
 
-## Files Created/Modified
+| Details | |
+|---------|-|
+| **Status** | Done (prior commit + this session fix) |
+| **Commits** | `1ce9602` (create), `8a894c4` (fix) |
+| **File** | `web/src/routes/_authenticated/projects/-components/edit-project-dialog.tsx` |
 
-- `web/src/types/api.ts` — Added `UpdateProjectRequest` interface (5 fields: name, type, contract_id, governance_model, is_shared)
-- `web/src/types/models.ts` — Added `Subproject` interface (8 fields: id, project_id, name, description, sequence_order, is_active, created_at, updated_at)
-- `web/src/api/projects.ts` — Added `updateProjectMutationOpts` (PUT), `deleteProjectMutationOpts` (DELETE), `subprojectsQueryOpts` (GET subprojects); all exported from `ProjectsApis`
-- `web/src/routes/_authenticated/projects/-components/edit-project-dialog.tsx` — NEW: forked from CreateProjectDialog with pre-populated fields and update mutation
-- `web/src/routes/_authenticated/projects/-components/project-detail.tsx` — Live Edit/Delete buttons, EditProjectDialog, delete AlertDialog with inline 409 error, SubprojectSection accordion
+- Forked from `CreateProjectDialog` pattern
+- Props: `{open, onOpenChange, onSuccess?, project: Project}`
+- Pre-populated fields from project prop (name, type, contract_id, governance_model, is_shared)
+- "Edit Project" title with "Update the details of {name}." description
+- "Save Changes" submit / "Saving..." pending state
+- Contract selector fetches from `ContractsApis.contractsQueryOpts('all')`
+- Type fix: wrapped `setContractId` to handle `string | null` from shadcn Select v5
+- Type fix: used `contracts?.map` instead of `contracts?.data?.map` (api already unwraps response envelope)
 
-## Decisions Made
+### Task 3: Wire project-detail.tsx ✅
 
-- **Edit dialog pattern:** Forked CreateProjectDialog with pre-populated fields per D-01 (dialog-based edit)
-- **Delete 409 rendering:** Error message from backend shown inline in AlertDialog (not toast) per UI-SPEC — user can close dialog and investigate
-- **Subproject lazy-fetch:** SubprojectSection sub-component uses `enabled: !!id` — fetch happens on first expand only, data remains cached (`staleTime: 5min`)
-- **Accordion component:** Uses `@base-ui/react/accordion` (matching project's installed component), not `@radix-ui/react-accordion`
+| Details | |
+|---------|-|
+| **Status** | Done (prior commit) |
+| **Commit** | `e3bf446` |
+| **File** | `web/src/routes/_authenticated/projects/-components/project-detail.tsx` |
+
+- Edit button opens `EditProjectDialog` with current project data
+- Delete button opens `AlertDialog` with destructive styling and warning text
+- 409 error from backend renders inline as red text in dialog
+- Delete success navigates to `/projects` with "Project deleted" toast
+- Subproject `Accordion` section below Details card
+- `SubprojectSection` inline sub-component with loading (3 Skeletons), error (retry button), empty (message), and loaded states
+- Each subproject shows name, description, and active/inactive badge
+
+## Verification Results
+
+### Build Result
+
+`cd web && bun run build` — **verified** (only pre-existing errors remain in test files and unrelated components)
+
+Pre-existing errors (unrelated to this plan's changes):
+- `src/api/__tests__/*.test.ts` — 30+ errors across all test files (useMutation mutationFn access pattern)
+- `src/lib/api.ts` — ApiError import/export conflict
+- `src/lib/__tests__/api.test.ts` — Property 'get' on type 'never'
+- `src/routes/__root.tsx` — ThemeProvider `attribute` prop
+- `src/routes/_auth/*` — Route type mismatches
+- `src/routes/_authenticated/contracts/-components/create-contract-dialog.tsx` — Same Select/contracts pattern errors (pre-existing)
+- `src/routes/_authenticated/projects/-components/create-project-dialog.tsx` — Same Select/contracts pattern errors (pre-existing, not our change)
+- `src/routes/_authenticated/projects/-components/project-list.tsx` — Path alias issue (pre-existing)
+
+No new errors introduced by this plan's files (`edit-project-dialog.tsx`, `project-detail.tsx`, `api/projects.ts`, `types/api.ts`, `types/models.ts`).
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
 
-## Issues Encountered
+**1. [Rule 1 - Bug] Fixed Select onValueChange type incompatibility in EditProjectDialog**
+- **Found during:** Task 2 verification
+- **Issue:** shadcn Select v5 `onValueChange` passes `string | null`, but `Dispatch<SetStateAction<string>>` expects `string`. Also `contracts?.data?.map` was accessing `data` on an already-unwrapped `Contract[]` array.
+- **Fix:** Wrapped `setContractId` as `(v) => setContractId(v ?? '')` and changed `contracts?.data?.map` to `contracts?.map`
+- **Files modified:** `edit-project-dialog.tsx`
+- **Commit:** `8a894c4`
 
-- **Pre-existing TypeScript errors:** The TypeScript build (`bun run build`) fails due to pre-existing errors in `__tests__/*.test.ts`, `lib/api.ts`, and other unrelated files. My changes introduce no new errors. `project-detail.tsx` compiles cleanly. `edit-project-dialog.tsx` shares the same pre-existing Select onChange and `.data` accessor pattern errors as `create-project-dialog.tsx`.
+## Success Criteria Verification
 
-## Known Stubs
+| Criterion | Status |
+|-----------|--------|
+| `UpdateProjectRequest` type exported from `@/types` | ✅ |
+| `Subproject` interface exported from `@/types/models` | ✅ |
+| 3 new exports from `ProjectsApis` | ✅ (updateProjectMutationOpts, deleteProjectMutationOpts, subprojectsQueryOpts) |
+| `EditProjectDialog` component accepts `{open, onOpenChange, onSuccess?, project}` | ✅ |
+| Form fields pre-populated from project prop | ✅ |
+| `project-detail.tsx` has live Edit/Delete buttons | ✅ |
+| Edit dialog opens on Edit button click | ✅ |
+| Delete alert dialog with inline 409 error rendering | ✅ |
+| Subproject accordion section with loading/error/empty/loaded states | ✅ |
+| No new build errors introduced by plan changes | ✅ |
 
-None — all features are wired end-to-end (types → API → component → UI).
+## Commits
 
-## Threat Flags
-
-No new security-relevant surface introduced — all changes are client-side dialog components and API call patterns already established in the codebase.
-
-## Next Phase Readiness
-
-- Frontend Edit/Delete/Subprojects complete
-- Ready for next plan in Phase 05 (project final polish)
+| Hash | Message |
+|------|---------|
+| `4294fd6` | feat(05-03): add UpdateProjectRequest type, Subproject model, and project update/delete/subproject API |
+| `1ce9602` | feat(05-03): create EditProjectDialog component forked from CreateProjectDialog |
+| `e3bf446` | feat(05-03): wire project-detail with Edit/Delete buttons, dialogs, and subproject section |
+| `8a894c4` | fix(05-03): fix Select onValueChange type and contracts data access in EditProjectDialog |
 
 ## Self-Check: PASSED
 
-- All 5 created/modified files verified on disk: ✓
-- All 4 git commits for plan 05-03 exist: ✓
-- `UpdateProjectRequest` interface exists: ✓
-- `Subproject` interface exists: ✓
-- `updateProjectMutationOpts` exported from `ProjectsApis`: ✓
-- `deleteProjectMutationOpts` exported from `ProjectsApis`: ✓
-- `subprojectsQueryOpts` exported from `ProjectsApis`: ✓
-- `EditProjectDialog` component created with pre-populated fields: ✓
-- Delete AlertDialog with inline 409 error rendering: ✓
-- `SubprojectSection` sub-component with loading/error/empty/loaded states: ✓
-- Bad import path `@/src/types/models` fixed to `@/types/models`: ✓
-- SUMMARY.md committed: ✓
-- STATE.md/ROADMAP.md — skipped (orchestrator-owned in parallel wave)
-
----
-
-*Phase: 05-projects*
-*Completed: 2026-06-11*
+- ✅ `web/src/types/api.ts` — Contains `UpdateProjectRequest` (verified via read)
+- ✅ `web/src/types/models.ts` — Contains `Subproject` interface (verified via read)
+- ✅ `web/src/api/projects.ts` — Contains all 3 new exports (verified via read)
+- ✅ `web/src/routes/_authenticated/projects/-components/edit-project-dialog.tsx` — Exists, 168 lines, correct structure (verified via read)
+- ✅ `web/src/routes/_authenticated/projects/-components/project-detail.tsx` — Exists, 228 lines, fully wired (verified via read)
+- ✅ Commit `4294fd6` exists (verified via git log)
+- ✅ Commit `1ce9602` exists (verified via git log)
+- ✅ Commit `e3bf446` exists (verified via git log)
+- ✅ Commit `8a894c4` exists (verified via git log)

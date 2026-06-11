@@ -260,7 +260,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 |------|-----------|------|-------|-------|
 | [x] 05-01 | Backend: domain + ports + mocks + repo + service for Update/Delete/HasActiveTimeEntries | 1 | 3 | 5 |
 | [ ] 05-02 | Backend: HTTP handlers (Update/Delete/ListSubprojects) + route wiring | 2 | 2 | 2 |
-| [ ] 05-03 | Frontend: API types + mutations/queries + EditProjectDialog + detail page wiring | 1 | 3 | 4 |
+| [x] 05-03 | Frontend: API types + mutations/queries + EditProjectDialog + detail page wiring | 1 | 3 | 5 |
 | [ ] 05-04 | Tests: service tests + handler tests + build verification | 3 | 3 | 2 |
 
 ### Edge cases
