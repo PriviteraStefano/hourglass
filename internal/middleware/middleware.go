@@ -84,6 +84,31 @@ func GetRole(ctx context.Context) string {
 	return ""
 }
 
+// TryAuth attempts to authenticate a request but does not reject
+// unauthenticated requests. If a valid auth_token cookie is present,
+// it sets user context values; otherwise it continues without auth.
+func TryAuth(authService *auth.Service, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("auth_token")
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		claims, err := authService.ValidateToken(cookie.Value)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
+		ctx = context.WithValue(ctx, OrganizationIDKey, claims.OrganizationID)
+		ctx = context.WithValue(ctx, RoleKey, claims.Role)
+		ctx = context.WithValue(ctx, EmailKey, claims.Email)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func GetEmail(ctx context.Context) string {
 	if email, ok := ctx.Value(EmailKey).(string); ok {
 		return email

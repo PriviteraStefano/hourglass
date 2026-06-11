@@ -202,15 +202,12 @@ func (h *TimeEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.service.CreateAuditLog(ctx, orgID, e.ID.String(), "time_entry", "created", "user", userID.String(), "", nil)
-
 	api.RespondWithJSON(w, http.StatusCreated, e)
 }
 
 func (h *TimeEntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	userID := middleware.GetUserID(ctx)
-	orgID := middleware.GetOrganizationID(ctx)
 	entryIDStr := r.PathValue("id")
 
 	entryID, err := uuid.Parse(entryIDStr)
@@ -279,7 +276,7 @@ func (h *TimeEntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err == time_entry.ErrEntryNotDraft {
-			api.RespondWithError(w, http.StatusBadRequest, "can only update draft entries")
+			api.RespondWithError(w, http.StatusBadRequest, "can only update draft, submitted or rejected entries")
 			return
 		}
 		if err == time_entry.ErrNotOwner {
@@ -289,8 +286,6 @@ func (h *TimeEntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to update time entry")
 		return
 	}
-
-	h.service.CreateAuditLog(ctx, orgID, entryIDStr, "time_entry", "edited", "user", userID.String(), "", nil)
 
 	api.RespondWithJSON(w, http.StatusOK, e)
 }
@@ -330,7 +325,6 @@ func (h *TimeEntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 func (h *TimeEntryHandler) Submit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	userID := middleware.GetUserID(ctx)
-	orgID := middleware.GetOrganizationID(ctx)
 	entryIDStr := r.PathValue("id")
 
 	entryID, err := uuid.Parse(entryIDStr)
@@ -357,20 +351,17 @@ func (h *TimeEntryHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.service.CreateAuditLog(ctx, orgID, entryIDStr, "time_entry", "submitted", "user", userID.String(), "", nil)
-
 	api.RespondWithJSON(w, http.StatusOK, e)
 }
 
 func (h *TimeEntryHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	userID := middleware.GetUserID(ctx)
-	orgID := middleware.GetOrganizationID(ctx)
 	role := middleware.GetRole(ctx)
 	entryIDStr := r.PathValue("id")
 
-	if role != "wg_manager" && role != "admin" {
-		api.RespondWithError(w, http.StatusForbidden, "only working group managers can approve entries")
+	if role != "manager" && role != "finance" {
+		api.RespondWithError(w, http.StatusForbidden, "only managers and finance can approve entries")
 		return
 	}
 
@@ -387,22 +378,16 @@ func (h *TimeEntryHandler) Approve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err == time_entry.ErrEntryNotSubmitted {
-			api.RespondWithError(w, http.StatusBadRequest, "can only approve submitted entries")
+			api.RespondWithError(w, http.StatusBadRequest, "entry cannot be approved at current status")
 			return
 		}
 		if err == time_entry.ErrForbidden {
-			api.RespondWithError(w, http.StatusForbidden, "only working group managers can approve entries")
+			api.RespondWithError(w, http.StatusForbidden, "only managers and finance can approve entries")
 			return
 		}
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to approve time entry")
 		return
 	}
-
-	actorRole := "wg_manager"
-	if role == "admin" {
-		actorRole = "admin"
-	}
-	h.service.CreateAuditLog(ctx, orgID, entryIDStr, "time_entry", "approved", actorRole, userID.String(), "", nil)
 
 	api.RespondWithJSON(w, http.StatusOK, e)
 }
@@ -410,12 +395,11 @@ func (h *TimeEntryHandler) Approve(w http.ResponseWriter, r *http.Request) {
 func (h *TimeEntryHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	userID := middleware.GetUserID(ctx)
-	orgID := middleware.GetOrganizationID(ctx)
 	role := middleware.GetRole(ctx)
 	entryIDStr := r.PathValue("id")
 
-	if role != "wg_manager" && role != "admin" {
-		api.RespondWithError(w, http.StatusForbidden, "only working group managers can reject entries")
+	if role != "manager" && role != "finance" {
+		api.RespondWithError(w, http.StatusForbidden, "only managers and finance can reject entries")
 		return
 	}
 
@@ -435,22 +419,16 @@ func (h *TimeEntryHandler) Reject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err == time_entry.ErrEntryNotSubmitted {
-			api.RespondWithError(w, http.StatusBadRequest, "can only reject submitted entries")
+			api.RespondWithError(w, http.StatusBadRequest, "entry cannot be rejected at current status")
 			return
 		}
 		if err == time_entry.ErrForbidden {
-			api.RespondWithError(w, http.StatusForbidden, "only working group managers can reject entries")
+			api.RespondWithError(w, http.StatusForbidden, "only managers and finance can reject entries")
 			return
 		}
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to reject time entry")
 		return
 	}
-
-	actorRole := "wg_manager"
-	if role == "admin" {
-		actorRole = "admin"
-	}
-	h.service.CreateAuditLog(ctx, orgID, entryIDStr, "time_entry", "rejected", actorRole, userID.String(), req.Reason, nil)
 
 	api.RespondWithJSON(w, http.StatusOK, e)
 }
@@ -461,8 +439,8 @@ func (h *TimeEntryHandler) ListPending(w http.ResponseWriter, r *http.Request) {
 	role := middleware.GetRole(ctx)
 	userID := middleware.GetUserID(ctx)
 
-	if role != "wg_manager" && role != "admin" {
-		api.RespondWithError(w, http.StatusForbidden, "only working group managers can view pending entries")
+	if role != "manager" && role != "finance" {
+		api.RespondWithError(w, http.StatusForbidden, "only managers and finance can view pending entries")
 		return
 	}
 
