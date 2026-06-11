@@ -18,6 +18,7 @@ import (
 	orgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/organization"
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
 	projectsvc "github.com/stefanoprivitera/hourglass/internal/core/services/project"
+	expsvc "github.com/stefanoprivitera/hourglass/internal/core/services/expense"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
 	unitsvc "github.com/stefanoprivitera/hourglass/internal/core/services/unit"
 	wgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/working_group"
@@ -53,9 +54,12 @@ func main() {
 	mux.HandleFunc("GET /health", healthHandler.ServeHTTP)
 
 	timeEntryRepo := postgres.NewTimeEntryRepository(pool)
-	auditLogRepo := postgres.NewAuditLogRepository(pool)
-	teService := tesvc.NewService(timeEntryRepo, auditLogRepo)
+	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo)
 	hexTEHandler := http.NewTimeEntryHandler(teService)
+
+	expenseRepo := postgres.NewExpenseRepository(pool)
+	expenseService := expsvc.NewService(expenseRepo)
+	expenseHandler := http.NewExpenseHandler(expenseService)
 
 	userRepo := postgres.NewUserRepository(pool)
 	orgRepo := postgres.NewOrganizationRepository(pool)
@@ -208,6 +212,18 @@ func main() {
 	mux.HandleFunc("POST /time-entries/{id}/approve", middleware.Auth(authService, hexTEHandler.Approve))
 	mux.HandleFunc("POST /time-entries/{id}/reject", middleware.Auth(authService, hexTEHandler.Reject))
 	mux.HandleFunc("GET /time-entries/pending", middleware.Auth(authService, hexTEHandler.ListPending))
+
+	// Expense routes
+	mux.HandleFunc("GET /expenses", middleware.Auth(authService, expenseHandler.List))
+	mux.HandleFunc("POST /expenses", middleware.Auth(authService, expenseHandler.Create))
+	mux.HandleFunc("GET /expenses/{id}", middleware.Auth(authService, expenseHandler.Get))
+	mux.HandleFunc("PUT /expenses/{id}", middleware.Auth(authService, expenseHandler.Update))
+	mux.HandleFunc("DELETE /expenses/{id}", middleware.Auth(authService, expenseHandler.Delete))
+	mux.HandleFunc("POST /expenses/{id}/submit", middleware.Auth(authService, expenseHandler.Submit))
+	mux.HandleFunc("POST /expenses/{id}/approve", middleware.Auth(authService, expenseHandler.Approve))
+	mux.HandleFunc("POST /expenses/{id}/reject", middleware.Auth(authService, expenseHandler.Reject))
+	mux.HandleFunc("GET /expenses/pending", middleware.Auth(authService, expenseHandler.ListPending))
+	mux.HandleFunc("POST /expenses/{id}/receipt", middleware.Auth(authService, expenseHandler.ReceiptUpload))
 
 	port := os.Getenv("PORT")
 	if port == "" {

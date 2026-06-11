@@ -68,7 +68,6 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	subprojectRepo := postgres.NewSubprojectRepository(pool)
 	contractRepo := postgres.NewContractRepository(pool)
 	timeEntryRepo := postgres.NewTimeEntryRepository(pool)
-	auditLogRepo := postgres.NewAuditLogRepository(pool)
 	exportRepo := postgres.NewExportRepository(pool)
 
 	// Services
@@ -82,7 +81,7 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	orgMgmtService := orgsvc.NewService(orgMgmtRepo, customerService)
 	projectService := projectsvc.NewService(projectRepo)
 	contractService := contractsvc.NewService(contractRepo)
-	teService := tesvc.NewService(timeEntryRepo, auditLogRepo)
+	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo)
 	exportService := exportsvc.NewService(exportRepo)
 
 	// Handlers

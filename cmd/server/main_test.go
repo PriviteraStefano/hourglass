@@ -50,8 +50,7 @@ func TestSmoke(t *testing.T) {
 
 	// Time entry
 	timeEntryRepo := postgres.NewTimeEntryRepository(pool)
-	auditLogRepo := postgres.NewAuditLogRepository(pool)
-	teService := tesvc.NewService(timeEntryRepo, auditLogRepo)
+	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo)
 	hexTEHandler := http.NewTimeEntryHandler(teService)
 
 	// Auth repos
@@ -129,8 +128,9 @@ func TestSmoke(t *testing.T) {
 
 	// Projects
 	projectRepo := postgres.NewProjectRepository(pool)
+	subprojectRepo := postgres.NewSubprojectRepository(pool)
 	projectService := projectsvc.NewService(projectRepo)
-	projectHandler := http.NewProjectHandler(projectService)
+	projectHandler := http.NewProjectHandler(projectService, subprojectRepo)
 
 	// Contracts
 	contractRepo := postgres.NewContractRepository(pool)
