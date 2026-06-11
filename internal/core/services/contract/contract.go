@@ -74,5 +74,14 @@ func (s *Service) Delete(ctx context.Context, role string, orgID, contractID uui
 	if count > 0 {
 		return contractdomain.ErrHasTimeEntries
 	}
+
+	projectCount, err := s.repo.HasProjects(ctx, contractID)
+	if err != nil {
+		return err
+	}
+	if projectCount > 0 {
+		return contractdomain.ErrHasActiveProjects
+	}
+
 	return s.repo.Delete(ctx, orgID, contractID)
 }

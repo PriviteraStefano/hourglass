@@ -26,6 +26,7 @@ type CreateContractRequest struct {
 	Currency        string                 `json:"currency"`
 	GovernanceModel models.GovernanceModel `json:"governance_model"`
 	IsShared        bool                   `json:"is_shared"`
+	CustomerID      *string                `json:"customer_id,omitempty"`
 }
 
 func (h *ContractHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -58,12 +59,23 @@ func (h *ContractHandler) Create(w http.ResponseWriter, r *http.Request) {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	var parsedCustomerID *uuid.UUID
+	if req.CustomerID != nil && *req.CustomerID != "" {
+		cid, err := uuid.Parse(*req.CustomerID)
+		if err != nil {
+			api.RespondWithError(w, http.StatusBadRequest, "invalid customer_id")
+			return
+		}
+		parsedCustomerID = &cid
+	}
+
 	contract, err := h.service.Create(r.Context(), orgID, &contractdomain.CreateContractRequest{
 		Name:            req.Name,
 		KmRate:          req.KmRate,
 		Currency:        req.Currency,
 		GovernanceModel: req.GovernanceModel,
 		IsShared:        req.IsShared,
+		CustomerID:      parsedCustomerID,
 	})
 	if err != nil {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid contract payload")
@@ -201,6 +213,8 @@ func (h *ContractHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			api.RespondWithError(w, http.StatusNotFound, "contract not found")
 		case contractdomain.ErrHasTimeEntries:
 			api.RespondWithError(w, http.StatusConflict, "contract has time entries and cannot be deleted")
+		case contractdomain.ErrHasActiveProjects:
+			api.RespondWithError(w, http.StatusConflict, "contract has projects and cannot be deleted")
 		default:
 			api.RespondWithError(w, http.StatusInternalServerError, "failed to delete contract")
 		}
