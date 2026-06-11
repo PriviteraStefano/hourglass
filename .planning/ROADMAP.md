@@ -180,7 +180,7 @@ Already exists (CustomerRepository, Customer handler)
 
 ## Phase 4: Contracts
 
-**Status:** In progress — plan 01 + 02 completed
+**Status:** Complete — all 2 plans executed, customer combobox with internal indicator, HasProjects delete guard, frontend + backend tests passing
 
 **Goal:** Contract CRUD with customer dropdown, project display on detail page, delete protection.
 
@@ -199,14 +199,14 @@ Already exists (CustomerRepository, Customer handler)
 - Edit contract — ✅ already built (customer Select on detail page)
 - Delete contract — blocked if has active projects — ✅ HasProjects check (plan 01)
 - Projects list displayed on contract detail page (from Phase 5) — ✅ already built
-- "Internal customer" option in customer selector — ⏳ combobox UX (plan 01)
+- "Internal customer" option in customer selector — ✅ combobox UX with "(Internal)" suffix
 - Zero-value contracts allowed — ✅ already working
 
 ### Scope of this phase
 
 Backend gaps: add `customer_id` to CreateContractRequest, add `HasProjects` to delete protection, add `ErrHasActiveProjects` error. ✅ Done in plan 01.
 Frontend gaps: add customer combobox to CreateContractDialog, add `customer_id` to frontend type.
-Tests: backend service unit tests completed, frontend API tests pending.
+Tests: backend service unit tests completed, frontend API tests completed.
 
 ### Plans
 
@@ -336,7 +336,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 7: Exports
 
-**Status:** Not started
+**Status:** Complete — frontend exports page with date range + type selector
 
 **Goal:** Downloadable CSV/Excel exports for timesheets, expenses, and combined reports.
 
