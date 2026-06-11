@@ -69,6 +69,17 @@ export interface Project {
   created_at: string
 }
 
+export interface Subproject {
+  id: string
+  project_id: string
+  name: string
+  description?: string
+  sequence_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface TimeEntryItem {
   id: string
   time_entry_id: string

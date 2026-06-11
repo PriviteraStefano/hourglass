@@ -85,9 +85,18 @@ export interface CreateContractRequest {
   currency: string
   governance_model: 'creator_controlled' | 'unanimous' | 'majority'
   is_shared: boolean
+  customer_id?: string
 }
 
 export interface CreateProjectRequest {
+  name: string
+  type: 'billable' | 'internal'
+  contract_id: string
+  governance_model: 'creator_controlled' | 'unanimous' | 'majority'
+  is_shared: boolean
+}
+
+export interface UpdateProjectRequest {
   name: string
   type: 'billable' | 'internal'
   contract_id: string

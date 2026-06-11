@@ -1,8 +1,8 @@
 import {mutationOptions, queryOptions} from '@tanstack/react-query'
 import {toast} from 'sonner'
 import {api} from '@/lib/api.ts'
-import type {CreateProjectRequest} from '@/types'
-import type {Project} from '@/types/models'
+import type {CreateProjectRequest, UpdateProjectRequest} from '@/types'
+import type {Project, Subproject} from '@/types/models'
 
 function projectsQueryKey(scope: 'owned' | 'adopted' | 'all', contractId?: string) {
   return ['projects', scope, contractId] as const
@@ -50,9 +50,40 @@ const adoptProjectMutationOpts = mutationOptions({
   },
 })
 
+const updateProjectMutationOpts = mutationOptions({
+  mutationFn: ({id, data}: { id: string; data: UpdateProjectRequest }) =>
+    api<Project>(`/projects/${id}`, {method: 'PUT', body: JSON.stringify(data)}),
+  onSuccess: (_, {id}, {client}) => {
+    client.invalidateQueries({queryKey: ['projects']})
+    client.invalidateQueries({queryKey: ['projects', id]})
+    toast.success('Project updated')
+  },
+})
+
+const deleteProjectMutationOpts = mutationOptions({
+  mutationFn: (id: string) =>
+    api<void>(`/projects/${id}`, {method: 'DELETE'}),
+  onSuccess: (_, __, {client}) => {
+    client.invalidateQueries({queryKey: ['projects']})
+    toast.success('Project deleted')
+  },
+  onError: (error: Error) => {
+    toast.error(error.message || 'Failed to delete project')
+  },
+})
+
+const subprojectsQueryOpts = (id: string) => queryOptions({
+  queryKey: ['projects', id, 'subprojects'],
+  queryFn: () => api<Subproject[]>(`/projects/${id}/subprojects`),
+  enabled: !!id,
+})
+
 export const ProjectsApis = {
   projectsQueryOpts,
   projectQueryOpts,
   createProjectMutationOpts,
   adoptProjectMutationOpts,
+  updateProjectMutationOpts,
+  deleteProjectMutationOpts,
+  subprojectsQueryOpts,
 }
