@@ -80,10 +80,12 @@ progress:
 
 ## Phase 5: projects
 
-- **Status:** Not started
+- **Status:** In progress
 - **Goal:** Project CRUD with subprojects
 - **Depends on:** Phase 4
 - **Day:** Fri June 12
+- **Plans:**
+  - 05-01-PLAN.md — Backend: domain types, port interface, mocks, PG repo Update/Delete/HasActiveTimeEntries, service Update/Delete [completed]
 
 ## Phase 6: time-entries-and-expenses
 
@@ -317,3 +319,4 @@ Last activity: 2026-06-11 -- Phase 05 marked complete
 | Phase 03-customers P02 | 2 min | 2 tasks | 5 files |
 | Phase 04-contracts P01 | 2 min | 5 tasks | 7 files |
 | Phase 04-contracts P02 | 1 min | 3 tasks | 3 files |
+| Phase 05-projects P01 | - | 3 tasks | 5 files |

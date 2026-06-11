@@ -142,8 +142,8 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 | CTRT-07 | Phase 4 | In progress (already working — zero-value validation absence) |
 | PROJ-01 | Phase 5 | Pending |
 | PROJ-02 | Phase 5 | Pending |
-| PROJ-03 | Phase 5 | Pending |
-| PROJ-04 | Phase 5 | Pending |
+| PROJ-03 | Phase 5 | In progress (backend: UpdateProjectRequest + Update service/repo/mock) |
+| PROJ-04 | Phase 5 | In progress (backend: Delete service/repo/mock + active entries check) |
 | PROJ-05 | Phase 5 | Pending |
 | PROJ-06 | Phase 5 | Pending |
 | TIME-01 | Phase 6 | Pending |
