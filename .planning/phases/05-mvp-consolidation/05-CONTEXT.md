@@ -1,53 +1,52 @@
-# Phase 5: MVP Consolidation - Context
+# Phase 5: Projects - Context
 
-**Gathered:** 2026-05-19
+**Gathered:** 2026-06-11
 **Status:** Ready for planning
 
 <domain>
 ## Phase Boundary
 
-Consolidate the project structure and create initial MVP demo seeding. Replace the existing seed data (`002_seed_tcg.surql`) with a clean, idempotent `003_seed_demo.surql` that populates all core entities so the app is immediately demonstrable. Structural cleanup is limited to deprecating the old seed file — no deep restructuring.
+Project CRUD (create, read, update, delete) with subproject display on detail page, org-scope filtering (owned/adopted/all), governance model selection, and delete protection against active time entries on the project and its subprojects.
 
-This phase is seed-focused. The Go CLI seed command is deferred to a future end-of-milestone phase.
+Builds on existing backend (ProjectHandler, ProjectService, ProjectRepository) and frontend (project-list, project-detail, create-project-dialog) that are already implemented. The existing frontend detail page has disabled Edit/Delete buttons with "Coming soon" tooltips that need to be wired.
+
+Not in scope: Subproject CRUD management (create/edit/delete subprojects) — display only. Project manager management already exists and needs no changes.
 
 </domain>
 
 <decisions>
 ## Implementation Decisions
 
-### Seed Entity Scope
-- **D-01:** **Org + projects level** — Seed org, users, units, memberships, projects, contracts, and one customer. Time entries and expenses included as sample data (3-5 per employee).
-- **D-02:** **Medium setup** — 3 contracts with 6 projects total. Realistic but not overwhelming.
-- **D-03:** **One demo customer** — Required for projects to show customer relationships.
-- **D-04:** **Full role spectrum** — 6 users: 2 managers, 1 finance, 3 employees. Covers all permission levels.
-- **D-05:** **Fresh seed file** — `003_seed_demo.surql` with clean, consistent UUIDs. Not extending `002_seed_tcg.surql`.
-- **D-06:** **Keep TCG theme** — Tech Consulting Group as the demo company.
+### Edit Project UI (PROJ-03)
+- **D-01:** **Dialog-based edit** — Reuse the CreateProjectDialog pattern as an edit dialog. Not inline page edit mode. Quick to build, consistent with existing patterns.
+- **D-02:** **All fields editable** — Name, type (billable/internal), contract, governance model, and shared toggle. No restrictions on which fields can change after creation.
 
-### Seed Mechanism
-- **D-07:** **Hybrid approach** — SurQL file first (immediately usable). Go CLI seed command deferred to a future end-of-milestone phase after Phase 0 (testing) verifies all APIs work.
-- **D-08:** **Single monolithic seed file** — `003_seed_demo.surql`. Not split by domain.
-- **D-09:** **All UUIDs throughout** — Consistent ID format, no mixed short-string IDs like `users:u108`.
-- **D-10:** **Idempotent** — Use `IF NOT EXISTS` / `OR REPLACE` patterns so re-running `cmd/schema` is safe.
-- **D-11:** **Old seed deprecated** — `002_seed_tcg.surql` renamed to `002_seed_tcg.deprecated.surql` so `cmd/schema` skips it. Kept for reference.
-- **D-12:** **Bootstrap ≠ seed** — The existing `POST /auth/bootstrap` flow stays separate. Bootstrap creates the admin org+user. Seed populates demo data. They do not conflict.
-- **D-13:** **Fixed demo credentials** — Pre-hashed bcrypt passwords in seed data (not plaintext). Demo login documented for easy access.
+### Delete Protection (PROJ-04)
+- **D-03:** **Block on active time entries only** — Check time entry status. If all time entries for the project AND its subprojects are in approved/rejected status, deletion is allowed. If any time entry is draft/submitted/pending, block deletion.
+- **D-04:** **Check time entries for subprojects too** — When evaluating delete protection, also check if any subproject of the project has active time entries. Block if any exist.
+- **D-05:** **Cascade-clean adoptions** — When the creator org deletes a shared project, delete all adoption records too. No orphaned adoptions.
+- **D-06:** **Return specific 409 errors** — Distinct error messages for "has active time entries" vs "has active subproject entries" vs other constraints.
 
-### Demo Scenario Design
-- **D-14:** **Manager as primary demo persona** — Manager sees org hierarchy, all pages, and approval workflows. Best for showing the full system.
-- **D-15:** **6 users total** — 2 managers (department leads), 1 finance user, 3 employees (time loggers). Each assigned to specific units.
-- **D-16:** **Sample time entries** — 3-5 per employee from the past week. Shows time tracking pages with real data.
-- **D-17:** **Sample expenses** — 1-2 per employee (mileage, meal). Shows expense pages with real data.
+### Subproject Display (PROJ-05)
+- **D-07:** **Expandable section on detail page** — Collapsible accordion/expandable section below project details. Shows subproject names, descriptions, and status.
+- **D-08:** **One level of nesting only** — Parent → children. No grandchild subprojects. Simple and clear for MVP.
+- **D-09:** **Dedicated backend endpoint** — `GET /projects/{id}/subprojects` returns subprojects for a project. Not embedded in ProjectResponse. Clean separation, reuses existing SubprojectRepository.
 
-### Consolidation Scope
-- **D-18:** **Seed-focused** — Consolidation means replacing the seed infrastructure. No deep structural changes, no API fixes.
-- **D-19:** **Minimal deprecation** — Rename old seed file only. No cleanup of hardcoded UUIDs in test data or codebase.
-- **D-20:** **Manual verification pass** — Run `cmd/schema`, start the server, log in as demo manager, check each page renders with data. Document any issues.
+### Contract ID
+- **D-10:** **Contract is required** — All projects must reference a contract. No nullable contract_id. Internal projects use an "Internal Operations" contract (seed data should include this).
+- **D-11:** **Seed an internal contract** — The existing seed migration (`003_seed.up.sql`) should include at least one internal/non-billable contract for internal projects.
+
+### Existing API Integration
+- **D-12:** **Org-scope filtering already works** — The existing `GET /projects?scope=owned|adopted|all&contract_id=` endpoint is sufficient. No changes needed.
+- **D-13:** **Project adoption (POST /projects/{id}/adopt) already works** — No changes needed.
+- **D-14:** **Project manager endpoints already work** — GET/POST/DELETE /projects/{id}/managers. No changes needed for MVP.
 
 ### the agent's Discretion
-- Exact bcrypt hashes for demo passwords — agent picks the implementation approach
-- Seed data structure and file formatting — agent decides SurQL style
-- Time entry and expense sample data specifics — agent picks reasonable demo values
-- Verification checklist format — agent documents findings as appropriate
+- Exact update/delete handler response format (API envelope consistent with existing patterns)
+- Subproject display component design within the expandable section (accordion vs simple expand/collapse)
+- Delete confirmation dialog wording and UX flow
+- Test file locations and specific test cases within existing patterns
+- Frontend mutation `onSuccess` behavior (navigation vs inline feedback)
 
 </decisions>
 
@@ -56,87 +55,110 @@ This phase is seed-focused. The Go CLI seed command is deferred to a future end-
 
 **Downstream agents MUST read these before planning or implementing.**
 
-### Schema & Seed
-- `schema/001_schema.surql` — Database schema (all tables, fields, indexes, permissions)
-- `schema/002_seed_tcg.surql` — Old seed file (source of truth for existing data patterns, will be deprecated)
-- `cmd/schema/main.go` — Schema/seed loader (reads `*.surql` files alphabetically)
+### Project context
+- `.planning/PROJECT.md` — Project overview, key decisions, constraints
+- `.planning/REQUIREMENTS.md` — Requirements (PROJ-01 through PROJ-06)
+- `.planning/ROADMAP.md` — Phase definitions, dependency graph, key behaviors and edge cases
+- `.planning/STATE.md` — Current phase state and session info
+- `docs/superpowers/specs/2026-06-08-mvp-consolidation-design.md` §Feature 5 — Projects design spec
 
-### Auth & Bootstrap
-- `internal/adapters/primary/http/auth.go:Bootstrap` — Bootstrap handler (POST /auth/bootstrap)
-- `internal/adapters/primary/http/auth.go:BootstrapCheck` — Bootstrap check (GET /auth/bootstrap-check)
-- `internal/core/services/auth/service.go:Bootstrap` — Bootstrap service implementation
-- `web/src/api/auth.ts:bootstrapCheckQueryOpts` — Frontend bootstrap check query
+### Backend: Project
+- `internal/core/domain/project/project.go` — Domain model (needs UpdateProjectRequest, delete-related errors)
+- `internal/core/ports/project_repository.go` — Repository interface (needs Update, Delete, HasActiveTimeEntries)
+- `internal/core/services/project/project.go` — Service layer (needs Update, Delete with protection checks)
+- `internal/core/services/project/project_test.go` — Existing unit tests (needs update/delete tests)
+- `internal/adapters/primary/http/project.go` — HTTP handler (needs Update, Delete, ListSubprojects)
+- `internal/adapters/primary/http/project_test.go` — Handler tests (needs update/delete tests)
+- `internal/adapters/secondary/postgres/project_repository.go` — PG repo (needs Update, Delete, HasActiveTimeEntries)
 
-### Domain Models (for seed data structure)
-- `internal/core/domain/user/user.go` — User domain model
-- `internal/core/domain/project/project.go` — Project domain model
-- `internal/core/domain/contract/contract.go` — Contract domain model
-- `internal/core/domain/timeentry/timeentry.go` — TimeEntry domain model
-- `internal/core/domain/expense/expense.go` — Expense domain model
-- `internal/models/models.go` — Role, Status, Governance constants
+### Backend: Subproject
+- `internal/core/ports/subproject_repository.go` — Subproject port interface (ListByProject, etc.)
+- `internal/adapters/secondary/postgres/subproject_repository.go` — PG subproject repo (full CRUD exists)
+- `internal/models/surreal_models.go` — Subproject struct (line 47-56)
 
-### Frontend Routes (to verify seed data renders)
-- `web/src/routes/_authenticated/contracts/` — Contracts page
-- `web/src/routes/_authenticated/customers/` — Customers page
-- `web/src/routes/_authenticated/projects/` — Projects page
-- `web/src/routes/_authenticated/time-entries/` — Time entries page
-- `web/src/routes/_authenticated/org-hierarchy/` — Org hierarchy page
+### Backend: Related
+- `internal/core/services/contract/contract.go` — Reference pattern for delete protection with HasProjects check (Phase 4)
+- `internal/core/services/unit/unit.go` — Reference pattern for delete protection with children/members checks (Phase 2)
+- `internal/models/models.go` — Role, Status, GovernanceModel constants
+- `cmd/server/main.go` — Route registration (needs PUT/DELETE /projects/{id} and GET /projects/{id}/subprojects)
+
+### Frontend: Projects
+- `web/src/routes/_authenticated/projects/index.tsx` — List page route
+- `web/src/routes/_authenticated/projects/-components/project-list.tsx` — List page component (tabs, search, adopt, create)
+- `web/src/routes/_authenticated/projects/-components/create-project-dialog.tsx` — Create dialog (reference for edit dialog pattern)
+- `web/src/routes/_authenticated/projects/$id.tsx` — Detail page route
+- `web/src/routes/_authenticated/projects/-components/project-detail.tsx` — Detail page component (needs edit/delete wiring, subproject section)
+- `web/src/api/projects.ts` — API module (needs update/delete mutations)
+- `web/src/types/api.ts` — CreateProjectRequest type (needs UpdateProjectRequest)
+- `web/src/types/models.ts` — Project type (line 56-70)
 
 ### Prior Phase Context
-- `.planning/phases/00-testing-foundation/00-CONTEXT.md` — Testing approach, patterns, infrastructure
-- `.planning/phases/01-org-hierarchy-edge-driven/01-CONTEXT.md` — Org hierarchy patterns
+- `.planning/phases/04-contracts/04-CONTEXT.md` — Contract CRUD patterns, delete protection, test coverage approach
+- `.planning/phases/03-customers/03-CONTEXT.md` — Customer CRUD patterns, dialog-based forms
+- `.planning/phases/02-org-hierarchy/02-CONTEXT.md` — Delete protection enforcement patterns
 
 </canonical_refs>
 
 <code_context>
 ## Existing Code Insights
 
+### Already Built (no changes needed)
+- Project list page with tabs (owned/adopted/all), search, adopt dialog
+- Create project dialog with name, type, contract, governance, shared toggle
+- Project detail page (read-only — Edit/Delete exist but are disabled with "Coming soon")
+- API module with `projectsQueryOpts`, `projectQueryOpts`, `createProjectMutationOpts`, `adoptProjectMutationOpts`
+- Full backend: handler (List, Create, Get, Adopt, ListManagers, AddManager, RemoveManager), service, repository
+- Subproject repository with full CRUD (ListByProject, GetByID, Create, Update, Delete)
+- Route wiring for GET/POST /projects, GET /projects/{id}, POST /projects/{id}/adopt, manager endpoints
+
 ### Reusable Assets
-- `schema/001_schema.surql` — Full SurrealDB schema with all table definitions, fields, indexes, permissions. Seed data must match these field types and constraints.
-- `schema/002_seed_tcg.surql` — Existing seed as reference for SurQL syntax and patterns (will be deprecated).
-- `cmd/schema/main.go` — Loads `*.surql` files alphabetically from `schema/` dir. New `003_seed_demo.surql` will be loaded after schema, before any future seeds.
-- `internal/models/models.go` — Role constants (`employee`, `manager`, `finance`, `customer`), status constants — ensure seed matches allowed values.
+- `create-project-dialog.tsx` — Reference pattern for edit dialog (copy and adapt, same form fields)
+- `internal/core/services/contract/contract.go` — Reference pattern for HasProjects-style delete protection checks
+- `internal/core/errors/sentinel.go` or domain errors — Existing sentinel error pattern for delete constraints
 
 ### Established Patterns
-- **SurQL seeding:** `CREATE table:id SET field = value` pattern in `.surql` files
-- **UUID format:** `uuid` type fields use string UUIDs (e.g., `019df6f5-ea95-735d-888b-158583ae4516`)
-- **Record links:** SurrealDB record links use `table:id` format (e.g., `organizations:u'8d152bac-...'`)
-- **Time values:** `time::now()` for timestamps in seed data
-- **Schema loading:** Files loaded alphabetically — `001_`, `002_`, `003_` ordering matters
+- Dialog-based CRUD (all existing project operations use dialogs)
+- `useMutation` with `onSuccess: (_, __, {client})` pattern for cache invalidation
+- `useSuspenseQuery` / `useQuery` for data fetching
+- Mutation `onSuccess` navigates to detail page (existing create flow)
+- Tab-scoped query keys: `['projects', scope, contractId]`
+- Detail `getByID` query key: `['projects', id]`
+- Backend: handler delegates to service → service validates → repo executes SQL → handler formats response
+- Delete protection: sentinel errors returned from service → handler maps to HTTP 409
+- Subproject ID used by time entries and working groups — subproject FK constraint ensures integrity
 
 ### Integration Points
-- Seed data connects to existing `cmd/schema/main.go` — create `003_seed_demo.surql`, deprecate `002_seed_tcg.surql`
-- Demo credentials must be bcrypt-hashed to match the auth service's password verification
-- Seed org UUID must be known for users to reference it with `RELATE` / record links
-- Manual verification requires running `go run ./cmd/schema` then `go run ./cmd/server`, then logging in from the web UI
+- Edit dialog: import `ContractsApis` for contract selector, `ProjectsApis.createProjectMutationOpts` as template (or new update mutation)
+- Delete button: delete confirmation dialog, calls new `deleteProjectMutationOpts`, handles 409 errors
+- Subproject section: needs backend endpoint `GET /projects/{id}/subprojects` → frontend fetches and displays in expandable section
+- Route registration in `cmd/server/main.go`: add PUT/DELETE /projects/{id} and GET /projects/{id}/subprojects
+- Sidebar projects nav link already exists (no change needed)
 
 </code_context>
 
 <specifics>
 ## Specific Ideas
 
-- Replace the hardcoded/unwieldy UUID mix in `002_seed_tcg.surql` with clean, consistent UUIDs throughout
-- Demo manager logs in and can see everything across all pages — best showcase
-- The Go CLI seed command (`cmd/seed`) is a future improvement after Phase 0 verifies all APIs work
-- Manual verification should check: login, org hierarchy page, projects list, contracts list, customers, time entries, expenses
+- **Edit dialog**: Model after `CreateProjectDialog` — same fields but pre-populated with existing project data. Can reuse the same form component with edit mode flag.
+- **Delete protection UX**: When delete is blocked by active time entries, show the error message from the backend 409 response inline in the dialog. No pre-fetching of protection status.
+- **Subproject expandable section**: Simple collapsible list on the detail page. Each item shows: name, description snippet, active/inactive badge.
+- **Seed data**: Include an "Internal Operations" contract in the seed for internal projects.
+- **Update on mutation success**: Navigate to detail page or show the updated data inline (the agent's discretion — match existing create pattern).
 
 </specifics>
 
 <deferred>
 ## Deferred Ideas
 
-### Go CLI Seed Command
-Build a `cmd/seed` Go CLI that seeds data by calling API endpoints. Deferred because many APIs may have bugs — Phase 0 testing will reveal these. Best tackled at end of milestone once APIs are verified.
+### Subproject CRUD Management
+Creating, editing, deleting subprojects from the frontend. Backend CRUD already exists in SubprojectRepository but no frontend or handler endpoints. Deferred because the MVP scope is display-only. Belongs in a future phase after time entries are built.
 
-### Deep Consolidation / API Fixes
-Known broken endpoints (unit members, org members) are out of scope. These belong in their own phase or can be fixed as bugs discovered by Phase 0 testing.
-
-### Major Codebase Restructuring
-Reorganizing handler/service layers, renaming files, aligning patterns — out of scope. This phase is seed-focused with minimal structural cleanup.
+### Multi-level Subproject Nesting
+Recursive subproject hierarchy (grandchildren, etc.). Deferred — one level is sufficient for MVP.
 
 </deferred>
 
 ---
 
-*Phase: 5-mvp-consolidation*
-*Context gathered: 2026-05-19*
+*Phase: 05-Projects*
+*Context gathered: 2026-06-11*
