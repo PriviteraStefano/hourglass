@@ -25,7 +25,7 @@ func NewTimeEntryRepository(pool *pgxpool.Pool) *TimeEntryRepository {
 	return &TimeEntryRepository{pool: pool}
 }
 
-const timeEntrySelectColumns = `id, org_id, user_id, project_id, subproject_id, wg_id, unit_id, hours, description, entry_date, status, is_deleted, created_from_entry_id, created_at, updated_at`
+const timeEntrySelectColumns = `id, org_id, user_id, project_id, subproject_id, wg_id, unit_id, hours, description, entry_date, status, COALESCE(current_approver_role, ''), submitted_at, is_deleted, created_from_entry_id, created_at, updated_at`
 
 // timeEntryRowScanner is satisfied by pgx.Row and pgx.Rows.
 type timeEntryRowScanner interface {
@@ -35,14 +35,21 @@ type timeEntryRowScanner interface {
 // scanTimeEntry scans a single time entry row.
 func scanTimeEntry(s timeEntryRowScanner) (*time_entry.TimeEntry, error) {
 	var e time_entry.TimeEntry
+	var currentApproverRole string
+	var submittedAt *time.Time
 	err := s.Scan(
 		&e.ID, &e.OrgID, &e.UserID, &e.ProjectID, &e.SubprojectID,
 		&e.WGID, &e.UnitID, &e.Hours, &e.Description, &e.EntryDate,
-		&e.Status, &e.IsDeleted, &e.CreatedFromEntryID, &e.CreatedAt, &e.UpdatedAt,
+		&e.Status, &currentApproverRole, &submittedAt,
+		&e.IsDeleted, &e.CreatedFromEntryID, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
+	if currentApproverRole != "" {
+		e.CurrentApproverRole = &currentApproverRole
+	}
+	e.SubmittedAt = submittedAt
 	return &e, nil
 }
 
@@ -154,14 +161,16 @@ func (r *TimeEntryRepository) Create(ctx context.Context, e *time_entry.TimeEntr
 	now := time.Now().UTC()
 
 	query := `INSERT INTO time_entries (id, org_id, user_id, project_id, subproject_id, wg_id, unit_id,
-		hours, description, entry_date, status, is_deleted, created_from_entry_id, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		hours, description, entry_date, status, current_approver_role, submitted_at,
+		is_deleted, created_from_entry_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		RETURNING ` + timeEntrySelectColumns
 
 	created, err := scanTimeEntry(r.pool.QueryRow(ctx, query,
 		e.ID, e.OrgID, e.UserID, e.ProjectID, e.SubprojectID,
 		e.WGID, e.UnitID, e.Hours, e.Description, e.EntryDate,
-		e.Status, e.IsDeleted, e.CreatedFromEntryID, now, now,
+		e.Status, e.CurrentApproverRole, e.SubmittedAt,
+		e.IsDeleted, e.CreatedFromEntryID, now, now,
 	))
 	if err != nil {
 		return nil, wrapPGError(err, "create time entry")
@@ -174,13 +183,15 @@ func (r *TimeEntryRepository) Update(ctx context.Context, e *time_entry.TimeEntr
 	query := `UPDATE time_entries SET
 		project_id = $2, subproject_id = $3, wg_id = $4, unit_id = $5,
 		hours = $6, description = $7, entry_date = $8, status = $9,
-		created_from_entry_id = $10, updated_at = NOW()
+		current_approver_role = $10, submitted_at = $11,
+		created_from_entry_id = $12, updated_at = NOW()
 		WHERE id = $1
 		RETURNING ` + timeEntrySelectColumns
 
 	updated, err := scanTimeEntry(r.pool.QueryRow(ctx, query,
 		e.ID, e.ProjectID, e.SubprojectID, e.WGID, e.UnitID,
-		e.Hours, e.Description, e.EntryDate, e.Status, e.CreatedFromEntryID,
+		e.Hours, e.Description, e.EntryDate, e.Status,
+		e.CurrentApproverRole, e.SubmittedAt, e.CreatedFromEntryID,
 	))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -218,21 +229,26 @@ func (r *TimeEntryRepository) IsPeriodLocked(ctx context.Context, orgID, project
 	return locked, nil
 }
 
-// ListPending returns submitted time entries for an org, optionally filtered by WG manager role.
+// ListPending returns pending time entries for an org, role-differentiated.
 func (r *TimeEntryRepository) ListPending(ctx context.Context, orgID uuid.UUID, role, userID string) ([]time_entry.TimeEntry, error) {
 	var query string
 	var args []interface{}
 
-	if role == "wg_manager" {
+	switch role {
+	case "manager":
 		uID, err := uuid.Parse(userID)
 		if err != nil {
 			return nil, fmt.Errorf("parse user_id: %w", err)
 		}
 		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries
-			WHERE org_id = $1 AND status = 'submitted' AND is_deleted = false
+			WHERE org_id = $1 AND status IN ('submitted', 'pending_manager') AND is_deleted = false
 			AND wg_id IN (SELECT id FROM working_groups WHERE manager_id = $2 OR $2 = ANY(delegate_ids))`
 		args = []interface{}{orgID, uID}
-	} else {
+	case "finance":
+		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries
+			WHERE org_id = $1 AND status = 'pending_finance' AND is_deleted = false`
+		args = []interface{}{orgID}
+	default:
 		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries
 			WHERE org_id = $1 AND status = 'submitted' AND is_deleted = false`
 		args = []interface{}{orgID}
@@ -254,6 +270,17 @@ type AuditLogRepository struct {
 // NewAuditLogRepository creates a new AuditLogRepository.
 func NewAuditLogRepository(pool *pgxpool.Pool) *AuditLogRepository {
 	return &AuditLogRepository{pool: pool}
+}
+
+var _ ports.TimeEntryApprovalRepository = (*TimeEntryRepository)(nil)
+
+// CreateApproval inserts a new approval record into time_entry_approvals.
+func (r *TimeEntryRepository) CreateApproval(ctx context.Context, a *time_entry.Approval) error {
+	query := `INSERT INTO time_entry_approvals (id, time_entry_id, user_id, action, comment, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`
+	_, err := r.pool.Exec(ctx, query,
+		a.ID, a.EntryID, a.ActorUserID, a.Action, a.Comment, a.CreatedAt)
+	return wrapPGError(err, "create time entry approval")
 }
 
 // Create inserts a new audit log entry into time_entry_approvals.
