@@ -10,6 +10,7 @@ import (
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
 	contractdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/contract"
 	customerdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/customer"
+	domainexpense "github.com/stefanoprivitera/hourglass/internal/core/domain/expense"
 	invitationdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/invitation"
 	orgdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/organization"
 	pwdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/password_reset"
@@ -881,4 +882,94 @@ func (m *MockPasswordHasher) Hash(password string) (string, error) {
 
 func (m *MockPasswordHasher) Check(password, hash string) bool {
 	return hash == "hashed:"+password
+}
+
+type MockTimeEntryApprovalRepo struct {
+	mu        sync.Mutex
+	Approvals []*time_entry.Approval
+}
+
+func (m *MockTimeEntryApprovalRepo) CreateApproval(ctx context.Context, a *time_entry.Approval) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Approvals = append(m.Approvals, a)
+	return nil
+}
+
+type MockExpenseRepo struct {
+	mu           sync.Mutex
+	Expenses     map[uuid.UUID]*domainexpense.Expense
+	PeriodLocked bool
+}
+
+func (m *MockExpenseRepo) List(ctx context.Context, orgID uuid.UUID, filters ports.ExpenseListFilters) ([]domainexpense.Expense, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []domainexpense.Expense
+	for _, e := range m.Expenses {
+		if e.OrgID == orgID {
+			result = append(result, *e)
+		}
+	}
+	return result, nil
+}
+
+func (m *MockExpenseRepo) GetByID(ctx context.Context, id uuid.UUID) (*domainexpense.Expense, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e, ok := m.Expenses[id]
+	if !ok {
+		return nil, domainexpense.ErrExpenseNotFound
+	}
+	return e, nil
+}
+
+func (m *MockExpenseRepo) Create(ctx context.Context, e *domainexpense.Expense) (*domainexpense.Expense, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Expenses == nil {
+		m.Expenses = make(map[uuid.UUID]*domainexpense.Expense)
+	}
+	m.Expenses[e.ID] = e
+	return e, nil
+}
+
+func (m *MockExpenseRepo) Update(ctx context.Context, e *domainexpense.Expense) (*domainexpense.Expense, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.Expenses[e.ID]
+	if !ok {
+		return nil, domainexpense.ErrExpenseNotFound
+	}
+	m.Expenses[e.ID] = e
+	return e, nil
+}
+
+func (m *MockExpenseRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.Expenses, id)
+	return nil
+}
+
+func (m *MockExpenseRepo) IsPeriodLocked(ctx context.Context, orgID, projectID uuid.UUID, entryDate string) (bool, error) {
+	return m.PeriodLocked, nil
+}
+
+func (m *MockExpenseRepo) ListPending(ctx context.Context, orgID uuid.UUID, role, userID string) ([]domainexpense.Expense, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []domainexpense.Expense
+	for _, e := range m.Expenses {
+		if e.OrgID == orgID {
+			result = append(result, *e)
+		}
+	}
+	return result, nil
+}
+
+func (m *MockExpenseRepo) CreateApproval(ctx context.Context, a *domainexpense.Approval) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return nil
 }

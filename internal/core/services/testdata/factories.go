@@ -7,6 +7,7 @@ import (
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/contract"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/customer"
+	domainexpense "github.com/stefanoprivitera/hourglass/internal/core/domain/expense"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/invitation"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/organization"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/password_reset"
@@ -201,6 +202,26 @@ func NewExpense(overrides ...func(*models.Expense)) models.Expense {
 		Date:           now,
 		CreatedAt:      now,
 		UpdatedAt:      now,
+	}
+	for _, o := range overrides {
+		o(&e)
+	}
+	return e
+}
+
+func NewExpenseDomain(overrides ...func(*domainexpense.Expense)) domainexpense.Expense {
+	now := time.Now()
+	e := domainexpense.Expense{
+		ID:        uuid.New(),
+		OrgID:     uuid.New(),
+		UserID:    uuid.New(),
+		ProjectID: uuid.New(),
+		Category:  domainexpense.CategoryMileage,
+		Amount:    100.0,
+		Status:    domainexpense.StatusDraft,
+		EntryDate: now,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 	for _, o := range overrides {
 		o(&e)
