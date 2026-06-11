@@ -8,9 +8,9 @@ last_activity: 2026-06-11
 progress:
   total_phases: 10
   completed_phases: 7
-  total_plans: 36
-  completed_plans: 36
-  percent: 78
+  total_plans: 37
+  completed_plans: 37
+  percent: 79
 ---
 
 # Phase State
@@ -19,12 +19,10 @@ progress:
 
 - **Last activity:** 2026-06-11
 - **Completed:** Plan 06-01 (Backend foundation: domain + ports + mocks + factories + migrations)
-- **Source:** `.planning/phases/06-time-entries-expenses/06-01-PLAN.md`
-- **Previous:** Plan 05-04 (Tests: service tests + handler tests + build verification)
+- **Completed:** Plan 06-02 (Backend service layer: two-stage approval + expense service)
+- **Source:** `.planning/phases/06-time-entries-expenses/06-02-PLAN.md`
+- **Previous:** Plan 06-01 (Backend foundation)
 - **Intel:** `.planning/intel/`
-- **Completed:** Plan 03-01 (Backend: migration, search, internal customer), Plan 03-02 (Frontend: API, sidebar, detail page), Plan 03-03 (Frontend polish: badge, cards, form lock, tests)
-- **Completed:** Plan 04-01 (Backend: customer_id on create + HasProjects delete guard)
-- **Completed:** Plan 04-02 (Frontend: customer combobox + internal customer indicator + tests)
 
 ## Phase 0: testing-foundation
 
@@ -100,6 +98,7 @@ progress:
 - **Day:** Sat-Sun June 13-14
 - **Plans:**
   - 06-01-PLAN.md — Backend foundation: domain models, port interfaces, mocks, factories, migrations [completed]
+  - 06-02-PLAN.md — Backend service layer: TimeEntryService two-stage approval + ExpenseService CRUD/approval [completed]
 
 ## Phase 7: exports
 
@@ -306,9 +305,9 @@ completed: 2026-06-09
 ## Current Position
 
 Phase: 06 — IN PROGRESS
-Plan: 1 of 5
-Status: Plan 01 completed
-Last activity: 2026-06-11 -- Phase 6 started with Plan 01
+Plan: 2 of 5
+Status: Plan 01 + Plan 02 completed
+Last activity: 2026-06-11 -- Phase 6 Plan 02: Backend service layer
 
 ## Performance Metrics
 
@@ -330,3 +329,4 @@ Last activity: 2026-06-11 -- Phase 6 started with Plan 01
 | Phase 05-projects P03 | 5 min | 4 tasks | 5 files |
 | Phase 05-projects P04 | 3 min | 3 tasks | 2 files |
 | Phase 06-time-entries-expenses P01 | 10 min | 2 tasks | 10 files |
+| Phase 06-time-entries-expenses P02 | 45 min | 3 tasks | 6 files |
