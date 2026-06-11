@@ -369,17 +369,19 @@ No significant state changes — this is additive CRUD functionality built on ex
 |---|-------|---------|---------------|
 | A1 | Update/Delete operations require finance role | Architecture Patterns | If user needs different role gating, change the role check in the service |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should project Update/Delete require finance role?**
    - What we know: The contract Update/Delete requires `models.RoleFinance`. The AddManager/RemoveManager (project) also requires finance. The existing project handlers don't have an Update/Delete that we can reference.
    - What's unclear: D-02 says "all fields editable" but doesn't specify role gating. It's likely that update and delete should follow the same pattern as contracts (finance-only), but this should be confirmed.
    - Recommendation: **Assume finance role** to match contract pattern. The service layer will be `if role != string(models.RoleFinance) { return ErrForbidden }`. If user wants a different gate, it's a one-line change in the service.
+   - **RESOLVED:** Plans consistently apply finance role gating for Update/Delete, matching the contract pattern.
 
 2. **Should Edit be owned-only or for adopted orgs too?**
    - What we know: Delete is owned-only (the service checks `existing.CreatedByOrgID != orgID` and returns forbidden).
    - What's unclear: Should an adopted org be able to edit project fields? The governance model suggests shared projects need consensus, but MVP may allow creator edits only.
    - Recommendation: **Assume owned-only** to match the delete pattern. Only the creating organization can edit/delete their projects.
+   - **RESOLVED:** Plans apply owner-only edit/delete, matching the contract delete pattern.
 
 ## Validation Architecture
 
