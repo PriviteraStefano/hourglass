@@ -75,10 +75,10 @@ func (r *ContractRepository) List(ctx context.Context, orgID uuid.UUID, scope st
 func (r *ContractRepository) Create(ctx context.Context, orgID uuid.UUID, req *contractdomain.CreateContractRequest) (*contractdomain.ContractResponse, error) {
 	id := uuid.New()
 
-	_, err := r.pool.Exec(ctx, `INSERT INTO contracts (id, name, km_rate, currency, governance_model,
+	_, err := r.pool.Exec(ctx, `INSERT INTO contracts (id, name, km_rate, currency, customer_id, governance_model,
 		created_by_org_id, is_shared, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())`,
-		id, req.Name, req.KmRate, req.Currency, req.GovernanceModel, orgID, req.IsShared)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW(), NOW())`,
+		id, req.Name, req.KmRate, req.Currency, req.CustomerID, req.GovernanceModel, orgID, req.IsShared)
 	if err != nil {
 		return nil, wrapPGError(err, "create contract")
 	}
@@ -250,6 +250,17 @@ func (r *ContractRepository) Delete(ctx context.Context, orgID, contractID uuid.
 		return contractdomain.ErrContractNotFound
 	}
 	return nil
+}
+
+// HasProjects returns the count of projects under this contract.
+func (r *ContractRepository) HasProjects(ctx context.Context, contractID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM projects WHERE contract_id = $1`
+	var count int
+	err := r.pool.QueryRow(ctx, query, contractID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("has projects: %w", err)
+	}
+	return count, nil
 }
 
 // HasTimeEntries returns the count of time entries for projects under this contract.
