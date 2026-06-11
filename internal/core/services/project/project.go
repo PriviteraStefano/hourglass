@@ -53,3 +53,34 @@ func (s *Service) RemoveManager(ctx context.Context, actorRole string, projectID
 	}
 	return s.repo.RemoveManager(ctx, projectID, userID)
 }
+
+func (s *Service) Update(ctx context.Context, role string, orgID, projectID uuid.UUID, req *projectdomain.UpdateProjectRequest) (*projectdomain.ProjectResponse, error) {
+	if role != string(models.RoleFinance) {
+		return nil, projectdomain.ErrForbidden
+	}
+	return s.repo.Update(ctx, orgID, projectID, req)
+}
+
+func (s *Service) Delete(ctx context.Context, role string, orgID, projectID uuid.UUID) error {
+	if role != string(models.RoleFinance) {
+		return projectdomain.ErrForbidden
+	}
+	existing, err := s.repo.Get(ctx, orgID, projectID)
+	if err != nil {
+		return err
+	}
+	if existing.CreatedByOrgID != orgID {
+		return projectdomain.ErrForbidden
+	}
+	hasEntries, hasSubprojectEntries, err := s.repo.HasActiveTimeEntries(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	if hasSubprojectEntries {
+		return projectdomain.ErrHasActiveSubprojectEntries
+	}
+	if hasEntries {
+		return projectdomain.ErrHasActiveTimeEntries
+	}
+	return s.repo.Delete(ctx, orgID, projectID)
+}
