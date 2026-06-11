@@ -9,8 +9,8 @@ progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 37
-  completed_plans: 37
-  percent: 79
+  completed_plans: 38
+  percent: 82
 ---
 
 # Phase State
@@ -22,8 +22,9 @@ progress:
 - **Completed:** Plan 06-02 (Backend service layer: two-stage approval + expense service)
 - **Completed:** Plan 06-03 (PG repos + HTTP handlers + route wiring)
 - **Completed:** Plan 06-04 (Frontend time entry UI rewrite: flat model + approval components)
-- **Source:** `.planning/phases/06-time-entries-expenses/06-04-PLAN.md`
-- **Previous:** Plan 06-03 (PG repos + HTTP handlers + route wiring)
+- **Completed:** Plan 06-05 (Frontend expense UI: types, API, route, calendar, detail, row, form, sidebar)
+- **Source:** `.planning/phases/06-time-entries-expenses/06-05-PLAN.md`
+- **Previous:** Plan 06-04 (Frontend time entry UI rewrite: flat model + approval components)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
@@ -308,10 +309,10 @@ completed: 2026-06-09
 
 ## Current Position
 
-Phase: 06 — IN PROGRESS
-Plan: 4 of 5
-Status: Plan 01 + Plan 02 + Plan 03 + Plan 04 completed
-Last activity: 2026-06-11 -- Phase 6 Plan 04: Frontend time entry UI rewrite (flat model)
+Phase: 06 — COMPLETE
+Plan: 5 of 5
+Status: All 5 plans completed — full time entry + expense frontend UI with approval workflow
+Last activity: 2026-06-11 -- Phase 6 Plan 05: Frontend expense UI (types, API, route, components)
 
 ## Performance Metrics
 
@@ -336,3 +337,4 @@ Last activity: 2026-06-11 -- Phase 6 Plan 04: Frontend time entry UI rewrite (fl
 | Phase 06-time-entries-expenses P02 | 45 min | 3 tasks | 6 files |
 | Phase 06-time-entries-expenses P03 | 25 min | 3 tasks | 12 files |
 | Phase 06-time-entries-expenses P04 | 15 min | 3 tasks | 10 files |
+| Phase 06-time-entries-expenses P05 | 12 min | 3 tasks | 10 files |
