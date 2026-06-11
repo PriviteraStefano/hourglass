@@ -60,6 +60,15 @@ func TestService_Create(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			name: "valid contract with customer",
+			req: &contractdomain.CreateContractRequest{
+				Name:            "Customer Contract",
+				GovernanceModel: models.GovernanceCreatorControlled,
+				CustomerID:      &uuid.UUID{1},
+			},
+			wantErr: nil,
+		},
+		{
 			name: "missing name",
 			req: &contractdomain.CreateContractRequest{
 				Name:            "",
@@ -192,5 +201,16 @@ func TestService_Delete(t *testing.T) {
 		seeded := seedContract(repo, func(c *contractdomain.ContractResponse) { c.CreatedByOrgID = orgID })
 		err := svc.Delete(context.Background(), string(models.RoleEmployee), orgID, seeded.ID)
 		assert.ErrorIs(t, err, contractdomain.ErrForbidden)
+	})
+
+	t.Run("blocked by projects", func(t *testing.T) {
+		svc, repo := setupService(t)
+		orgID := uuid.New()
+		seeded := seedContract(repo, func(c *contractdomain.ContractResponse) { c.CreatedByOrgID = orgID })
+		repo.HasProjectsFn = func(ctx context.Context, contractID uuid.UUID) (int, error) {
+			return 1, nil
+		}
+		err := svc.Delete(context.Background(), string(models.RoleFinance), orgID, seeded.ID)
+		assert.ErrorIs(t, err, contractdomain.ErrHasActiveProjects)
 	})
 }
