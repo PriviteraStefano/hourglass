@@ -16,4 +16,8 @@ type ProjectRepository interface {
 	ListManagers(ctx context.Context, projectID uuid.UUID) ([]projectdomain.ProjectManager, error)
 	AddManager(ctx context.Context, projectID, userID uuid.UUID) (*projectdomain.ProjectManager, error)
 	RemoveManager(ctx context.Context, projectID, userID uuid.UUID) error
+
+	Update(ctx context.Context, orgID, projectID uuid.UUID, req *projectdomain.UpdateProjectRequest) (*projectdomain.ProjectResponse, error)
+	Delete(ctx context.Context, orgID, projectID uuid.UUID) error
+	HasActiveTimeEntries(ctx context.Context, projectID uuid.UUID) (hasEntries bool, hasSubprojectEntries bool, err error)
 }

@@ -471,8 +471,9 @@ func (m *MockCustomerRepo) CountContractsByCustomer(ctx context.Context, custome
 }
 
 type MockProjectRepo struct {
-	mu       sync.Mutex
-	Projects map[uuid.UUID]*projectdomain.ProjectResponse
+	mu                   sync.Mutex
+	Projects             map[uuid.UUID]*projectdomain.ProjectResponse
+	HasActiveTimeEntriesFn func(ctx context.Context, projectID uuid.UUID) (bool, bool, error)
 }
 
 func (m *MockProjectRepo) List(ctx context.Context, orgID uuid.UUID, scope, contractID string) ([]projectdomain.ProjectResponse, error) {
@@ -513,6 +514,21 @@ func (m *MockProjectRepo) AddManager(ctx context.Context, projectID, userID uuid
 
 func (m *MockProjectRepo) RemoveManager(ctx context.Context, projectID, userID uuid.UUID) error {
 	return nil
+}
+
+func (m *MockProjectRepo) Update(ctx context.Context, orgID, projectID uuid.UUID, req *projectdomain.UpdateProjectRequest) (*projectdomain.ProjectResponse, error) {
+	return &projectdomain.ProjectResponse{}, nil
+}
+
+func (m *MockProjectRepo) Delete(ctx context.Context, orgID, projectID uuid.UUID) error {
+	return nil
+}
+
+func (m *MockProjectRepo) HasActiveTimeEntries(ctx context.Context, projectID uuid.UUID) (bool, bool, error) {
+	if m.HasActiveTimeEntriesFn != nil {
+		return m.HasActiveTimeEntriesFn(ctx, projectID)
+	}
+	return false, false, nil
 }
 
 type MockUnitRepo struct {
