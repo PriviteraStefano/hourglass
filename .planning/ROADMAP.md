@@ -180,7 +180,7 @@ Already exists (CustomerRepository, Customer handler)
 
 ## Phase 4: Contracts
 
-**Status:** In progress — plan 01 completed, plan 02 pending
+**Status:** In progress — plan 01 + 02 completed
 
 **Goal:** Contract CRUD with customer dropdown, project display on detail page, delete protection.
 
@@ -213,6 +213,7 @@ Tests: backend service unit tests completed, frontend API tests pending.
 | Plan | Objective | Wave | Tasks | Files |
 |------|-----------|------|-------|-------|
 | [x] 04-01 | Contract create with customer + HasProjects delete guard | 1 | 5 | 7 |
+| [x] 04-02 | Frontend customer combobox + internal customer indicator | 1 | 3 | 3 |
 
 ### Edge cases
 

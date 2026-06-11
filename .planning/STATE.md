@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: completed
-last_updated: "2026-06-11T14:30:20.000Z"
+last_updated: "2026-06-11T14:35:06.000Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 36
-  completed_plans: 33
-  percent: 72
+  completed_plans: 34
+  percent: 73
 ---
 
 # Phase State
@@ -18,10 +18,11 @@ progress:
 ## Session
 
 - **Last activity:** 2026-06-11
-- **Source:** `.planning/phases/04-contracts/04-01-PLAN.md`
+- **Source:** `.planning/phases/04-contracts/04-02-PLAN.md`
 - **Intel:** `.planning/intel/`
 - **Completed:** Plan 03-01 (Backend: migration, search, internal customer), Plan 03-02 (Frontend: API, sidebar, detail page), Plan 03-03 (Frontend polish: badge, cards, form lock, tests)
 - **Completed:** Plan 04-01 (Backend: customer_id on create + HasProjects delete guard)
+- **Completed:** Plan 04-02 (Frontend: customer combobox + internal customer indicator + tests)
 
 ## Phase 0: testing-foundation
 
@@ -75,6 +76,7 @@ progress:
 - **Day:** Fri June 12
 - **Plans:**
   - 04-01-PLAN.md — Backend: customer_id on create + HasProjects delete guard [completed]
+  - 04-02-PLAN.md — Frontend: customer combobox + internal customer indicator [completed]
 
 ## Phase 5: projects
 
@@ -314,3 +316,4 @@ Last activity: 2026-06-11 -- Phase 05 marked complete
 | Phase 01-authorization P02 | 2 min | 2 tasks | 4 files |
 | Phase 03-customers P02 | 2 min | 2 tasks | 5 files |
 | Phase 04-contracts P01 | 2 min | 5 tasks | 7 files |
+| Phase 04-contracts P02 | 1 min | 3 tasks | 3 files |
