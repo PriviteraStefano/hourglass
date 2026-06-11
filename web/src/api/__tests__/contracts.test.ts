@@ -46,18 +46,20 @@ describe('ContractsApis', () => {
     await opts.queryFn()
   })
 
-  it('createContractMutationOpts sends POST /api/contracts', async () => {
+  it('createContractMutationOpts sends POST /api/contracts with customer_id', async () => {
     const contractData = {
       name: 'New Contract',
       km_rate: 0.42,
       currency: 'USD',
       governance_model: 'majority' as const,
       is_shared: true,
+      customer_id: 'cust-1',
     }
     const mockContract = {
       id: 'c2', name: 'New Contract', km_rate: 0.42, currency: 'USD',
       governance_model: 'majority' as const,
       is_shared: true, is_active: true, created_by_org_id: 'o1',
+      customer_id: 'cust-1',
       created_at: '2025-01-01T00:00:00Z',
     }
 
@@ -71,6 +73,35 @@ describe('ContractsApis', () => {
 
     const result = await ContractsApis.createContractMutationOpts.mutationFn(contractData)
     expect(capturedBody).toEqual(contractData)
+    expect(result).toEqual(mockContract)
+  })
+
+  it('createContractMutationOpts without customer_id omits the field', async () => {
+    const contractData = {
+      name: 'No Customer Contract',
+      km_rate: 0.50,
+      currency: 'EUR',
+      governance_model: 'creator_controlled' as const,
+      is_shared: false,
+    }
+    const mockContract = {
+      id: 'c3', name: 'No Customer Contract', km_rate: 0.50, currency: 'EUR',
+      governance_model: 'creator_controlled' as const,
+      is_shared: false, is_active: true, created_by_org_id: 'o1',
+      created_at: '2025-01-01T00:00:00Z',
+    }
+
+    let capturedBody: unknown = null
+    server.use(
+      http.post('/api/contracts', async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json({ data: mockContract })
+      }),
+    )
+
+    const result = await ContractsApis.createContractMutationOpts.mutationFn(contractData)
+    expect(capturedBody).toEqual(contractData)
+    expect((capturedBody as Record<string, unknown>).customer_id).toBeUndefined()
     expect(result).toEqual(mockContract)
   })
 
