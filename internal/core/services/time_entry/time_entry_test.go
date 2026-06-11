@@ -3,6 +3,7 @@ package time_entry
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -12,12 +13,12 @@ import (
 	"github.com/stefanoprivitera/hourglass/internal/core/services/testdata"
 )
 
-func setupService(t *testing.T) (*Service, *testdata.MockTimeEntryRepo, *testdata.MockAuditLogRepo) {
+func setupService(t *testing.T) (*Service, *testdata.MockTimeEntryRepo, *testdata.MockTimeEntryApprovalRepo) {
 	t.Helper()
 	repo := &testdata.MockTimeEntryRepo{Entries: make(map[uuid.UUID]*time_entry.TimeEntry)}
-	auditRepo := &testdata.MockAuditLogRepo{}
-	svc := NewService(repo, auditRepo)
-	return svc, repo, auditRepo
+	approvalRepo := &testdata.MockTimeEntryApprovalRepo{}
+	svc := NewService(repo, approvalRepo)
+	return svc, repo, approvalRepo
 }
 
 // seedEntry adds a time entry to the mock repo and returns its pointer.
@@ -25,6 +26,15 @@ func seedEntry(repo *testdata.MockTimeEntryRepo, overrides ...func(*time_entry.T
 	e := testdata.NewTimeEntry(overrides...)
 	repo.Entries[e.ID] = &e
 	return &e
+}
+
+// mustParse is a convenience for parsing a time string in test assertions
+func mustParse(value string) time.Time {
+	t, err := time.Parse("2006-01-02 15:04:05", value)
+	if err != nil {
+		panic(err)
+	}
+	return t
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +184,22 @@ func TestService_Submit(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, updated)
 		assert.Equal(t, time_entry.StatusSubmitted, updated.Status)
+		require.NotNil(t, updated.CurrentApproverRole)
+		assert.Equal(t, "manager", *updated.CurrentApproverRole)
+		require.NotNil(t, updated.SubmittedAt)
+	})
+
+	t.Run("owner submits rejected entry", func(t *testing.T) {
+		svc, repo, _ := setupService(t)
+		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
+			e.UserID = userID
+			e.Status = time_entry.StatusRejected
+		})
+
+		updated, err := svc.Submit(context.Background(), entry.ID, userID)
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+		assert.Equal(t, time_entry.StatusSubmitted, updated.Status)
 	})
 
 	t.Run("non-owner cannot submit", func(t *testing.T) {
@@ -214,94 +240,124 @@ func TestService_Submit(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestService_Approve — role x action x state matrix
+// TestService_Approve — two-stage approval workflow
 // ---------------------------------------------------------------------------
 
 func TestService_Approve(t *testing.T) {
-	userID := uuid.New()
+	managerID := uuid.New()
+	financeID := uuid.New()
+	employeeID := uuid.New()
+	creatorID := uuid.New()
 
-	t.Run("wg_manager approves submitted entry", func(t *testing.T) {
-		svc, repo, _ := setupService(t)
+	t.Run("manager approves submitted → pending_finance", func(t *testing.T) {
+		svc, repo, approvalRepo := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
+			e.UserID = creatorID
 			e.Status = time_entry.StatusSubmitted
+			e.CurrentApproverRole = strPtr("manager")
 		})
 
-		updated, err := svc.Approve(context.Background(), entry.ID, userID, "wg_manager")
+		updated, err := svc.Approve(context.Background(), entry.ID, managerID, "manager")
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+		assert.Equal(t, time_entry.StatusPendingFinance, updated.Status)
+		require.NotNil(t, updated.CurrentApproverRole)
+		assert.Equal(t, "finance", *updated.CurrentApproverRole)
+
+		// Verify approval record created
+		require.Len(t, approvalRepo.Approvals, 1)
+		assert.Equal(t, "approve", approvalRepo.Approvals[0].Action)
+		assert.Equal(t, managerID, approvalRepo.Approvals[0].ActorUserID)
+	})
+
+	t.Run("finance approves pending_finance → approved", func(t *testing.T) {
+		svc, repo, approvalRepo := setupService(t)
+		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
+			e.UserID = creatorID
+			e.Status = time_entry.StatusPendingFinance
+			e.CurrentApproverRole = strPtr("finance")
+		})
+
+		updated, err := svc.Approve(context.Background(), entry.ID, financeID, "finance")
 		require.NoError(t, err)
 		require.NotNil(t, updated)
 		assert.Equal(t, time_entry.StatusApproved, updated.Status)
+		assert.Nil(t, updated.CurrentApproverRole)
+
+		// Verify approval record created
+		require.Len(t, approvalRepo.Approvals, 1)
+		assert.Equal(t, "approve", approvalRepo.Approvals[0].Action)
+		assert.Equal(t, financeID, approvalRepo.Approvals[0].ActorUserID)
 	})
 
-	t.Run("admin approves submitted entry", func(t *testing.T) {
+	t.Run("finance cannot approve submitted directly", func(t *testing.T) {
 		svc, repo, _ := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
+			e.UserID = creatorID
 			e.Status = time_entry.StatusSubmitted
 		})
 
-		updated, err := svc.Approve(context.Background(), entry.ID, userID, "admin")
-		require.NoError(t, err)
-		require.NotNil(t, updated)
-		assert.Equal(t, time_entry.StatusApproved, updated.Status)
+		updated, err := svc.Approve(context.Background(), entry.ID, financeID, "finance")
+		assert.ErrorIs(t, err, time_entry.ErrEntryNotSubmitted)
+		assert.Nil(t, updated)
 	})
 
-	t.Run("employee cannot approve", func(t *testing.T) {
+	t.Run("manager cannot approve pending_finance", func(t *testing.T) {
 		svc, repo, _ := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
+			e.UserID = creatorID
+			e.Status = time_entry.StatusPendingFinance
+		})
+
+		updated, err := svc.Approve(context.Background(), entry.ID, managerID, "manager")
+		assert.ErrorIs(t, err, time_entry.ErrEntryNotSubmitted)
+		assert.Nil(t, updated)
+	})
+
+	t.Run("self-approve by manager is forbidden", func(t *testing.T) {
+		svc, repo, _ := setupService(t)
+		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
+			e.UserID = managerID
 			e.Status = time_entry.StatusSubmitted
 		})
 
-		updated, err := svc.Approve(context.Background(), entry.ID, userID, "employee")
+		updated, err := svc.Approve(context.Background(), entry.ID, managerID, "manager")
 		assert.ErrorIs(t, err, time_entry.ErrForbidden)
 		assert.Nil(t, updated)
 	})
 
-	t.Run("manager role cannot approve", func(t *testing.T) {
+	t.Run("self-approve by finance is forbidden", func(t *testing.T) {
 		svc, repo, _ := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
-			e.Status = time_entry.StatusSubmitted
+			e.UserID = financeID
+			e.Status = time_entry.StatusPendingFinance
 		})
 
-		updated, err := svc.Approve(context.Background(), entry.ID, userID, "manager")
+		updated, err := svc.Approve(context.Background(), entry.ID, financeID, "finance")
 		assert.ErrorIs(t, err, time_entry.ErrForbidden)
 		assert.Nil(t, updated)
 	})
 
-	t.Run("finance role cannot approve", func(t *testing.T) {
+	t.Run("employee cannot approve submitted", func(t *testing.T) {
 		svc, repo, _ := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
+			e.UserID = creatorID
 			e.Status = time_entry.StatusSubmitted
 		})
 
-		updated, err := svc.Approve(context.Background(), entry.ID, userID, "finance")
-		assert.ErrorIs(t, err, time_entry.ErrForbidden)
-		assert.Nil(t, updated)
-	})
-
-	t.Run("customer cannot approve", func(t *testing.T) {
-		svc, repo, _ := setupService(t)
-		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
-			e.Status = time_entry.StatusSubmitted
-		})
-
-		updated, err := svc.Approve(context.Background(), entry.ID, userID, "customer")
-		assert.ErrorIs(t, err, time_entry.ErrForbidden)
+		updated, err := svc.Approve(context.Background(), entry.ID, employeeID, "employee")
+		assert.ErrorIs(t, err, time_entry.ErrEntryNotSubmitted)
 		assert.Nil(t, updated)
 	})
 
 	t.Run("cannot approve draft", func(t *testing.T) {
 		svc, repo, _ := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
+			e.UserID = creatorID
 			e.Status = time_entry.StatusDraft
 		})
 
-		updated, err := svc.Approve(context.Background(), entry.ID, userID, "wg_manager")
+		updated, err := svc.Approve(context.Background(), entry.ID, managerID, "manager")
 		assert.ErrorIs(t, err, time_entry.ErrEntryNotSubmitted)
 		assert.Nil(t, updated)
 	})
@@ -309,11 +365,11 @@ func TestService_Approve(t *testing.T) {
 	t.Run("cannot approve already approved", func(t *testing.T) {
 		svc, repo, _ := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
+			e.UserID = creatorID
 			e.Status = time_entry.StatusApproved
 		})
 
-		updated, err := svc.Approve(context.Background(), entry.ID, userID, "wg_manager")
+		updated, err := svc.Approve(context.Background(), entry.ID, managerID, "manager")
 		assert.ErrorIs(t, err, time_entry.ErrEntryNotSubmitted)
 		assert.Nil(t, updated)
 	})
@@ -324,54 +380,85 @@ func TestService_Approve(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestService_Reject(t *testing.T) {
-	userID := uuid.New()
+	managerID := uuid.New()
+	financeID := uuid.New()
+	employeeID := uuid.New()
+	creatorID := uuid.New()
 
-	t.Run("wg_manager rejects submitted entry", func(t *testing.T) {
-		svc, repo, _ := setupService(t)
+	t.Run("manager rejects submitted entry", func(t *testing.T) {
+		svc, repo, approvalRepo := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
+			e.UserID = creatorID
 			e.Status = time_entry.StatusSubmitted
 		})
 
-		updated, err := svc.Reject(context.Background(), entry.ID, userID, "wg_manager", "Incorrect hours")
+		updated, err := svc.Reject(context.Background(), entry.ID, managerID, "manager", "Incorrect hours")
 		require.NoError(t, err)
 		require.NotNil(t, updated)
-		assert.Equal(t, time_entry.StatusDraft, updated.Status, "reject should return entry to draft")
+		assert.Equal(t, time_entry.StatusRejected, updated.Status)
+
+		// Verify approval record with reason
+		require.Len(t, approvalRepo.Approvals, 1)
+		assert.Equal(t, "reject", approvalRepo.Approvals[0].Action)
+		assert.Equal(t, managerID, approvalRepo.Approvals[0].ActorUserID)
+		assert.Equal(t, "Incorrect hours", approvalRepo.Approvals[0].Comment)
 	})
 
-	t.Run("admin rejects submitted entry", func(t *testing.T) {
-		svc, repo, _ := setupService(t)
+	t.Run("finance rejects pending_finance entry", func(t *testing.T) {
+		svc, repo, approvalRepo := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
-			e.Status = time_entry.StatusSubmitted
+			e.UserID = creatorID
+			e.Status = time_entry.StatusPendingFinance
 		})
 
-		updated, err := svc.Reject(context.Background(), entry.ID, userID, "admin", "Not approved")
+		updated, err := svc.Reject(context.Background(), entry.ID, financeID, "finance", "Budget exceeded")
 		require.NoError(t, err)
 		require.NotNil(t, updated)
-		assert.Equal(t, time_entry.StatusDraft, updated.Status)
+		assert.Equal(t, time_entry.StatusRejected, updated.Status)
+
+		// Verify approval record
+		require.Len(t, approvalRepo.Approvals, 1)
+		assert.Equal(t, "reject", approvalRepo.Approvals[0].Action)
+		assert.Equal(t, financeID, approvalRepo.Approvals[0].ActorUserID)
+		assert.Equal(t, "Budget exceeded", approvalRepo.Approvals[0].Comment)
 	})
 
 	t.Run("employee cannot reject", func(t *testing.T) {
 		svc, repo, _ := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
+			e.UserID = creatorID
 			e.Status = time_entry.StatusSubmitted
 		})
 
-		updated, err := svc.Reject(context.Background(), entry.ID, userID, "employee", "")
+		updated, err := svc.Reject(context.Background(), entry.ID, employeeID, "employee", "")
 		assert.ErrorIs(t, err, time_entry.ErrForbidden)
 		assert.Nil(t, updated)
+	})
+
+	t.Run("reject without reason still works", func(t *testing.T) {
+		svc, repo, approvalRepo := setupService(t)
+		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
+			e.UserID = creatorID
+			e.Status = time_entry.StatusSubmitted
+		})
+
+		updated, err := svc.Reject(context.Background(), entry.ID, managerID, "manager", "")
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+		assert.Equal(t, time_entry.StatusRejected, updated.Status)
+
+		require.Len(t, approvalRepo.Approvals, 1)
+		assert.Empty(t, approvalRepo.Approvals[0].Comment)
 	})
 
 	t.Run("cannot reject draft", func(t *testing.T) {
 		svc, repo, _ := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
+			e.UserID = creatorID
 			e.Status = time_entry.StatusDraft
 		})
 
-		updated, err := svc.Reject(context.Background(), entry.ID, userID, "wg_manager", "")
+		updated, err := svc.Reject(context.Background(), entry.ID, managerID, "manager", "")
 		assert.ErrorIs(t, err, time_entry.ErrEntryNotSubmitted)
 		assert.Nil(t, updated)
 	})
@@ -379,11 +466,11 @@ func TestService_Reject(t *testing.T) {
 	t.Run("cannot reject approved entry", func(t *testing.T) {
 		svc, repo, _ := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
-			e.UserID = userID
+			e.UserID = creatorID
 			e.Status = time_entry.StatusApproved
 		})
 
-		updated, err := svc.Reject(context.Background(), entry.ID, userID, "wg_manager", "")
+		updated, err := svc.Reject(context.Background(), entry.ID, managerID, "manager", "")
 		assert.ErrorIs(t, err, time_entry.ErrEntryNotSubmitted)
 		assert.Nil(t, updated)
 	})
@@ -419,11 +506,47 @@ func TestService_Update(t *testing.T) {
 		assert.Equal(t, "Updated description", updated.Description)
 	})
 
-	t.Run("cannot update after submitted", func(t *testing.T) {
+	t.Run("owner updates submitted entry", func(t *testing.T) {
 		svc, repo, _ := setupService(t)
 		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
 			e.UserID = userID
 			e.Status = time_entry.StatusSubmitted
+			e.Hours = 8.0
+		})
+
+		req := &time_entry.UpdateTimeEntryRequest{
+			Hours: &newHours,
+		}
+
+		updated, err := svc.Update(context.Background(), entry.ID, userID, req)
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+		assert.Equal(t, 6.5, updated.Hours)
+	})
+
+	t.Run("owner updates rejected entry", func(t *testing.T) {
+		svc, repo, _ := setupService(t)
+		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
+			e.UserID = userID
+			e.Status = time_entry.StatusRejected
+			e.Description = "Original"
+		})
+
+		req := &time_entry.UpdateTimeEntryRequest{
+			Description: &newDesc,
+		}
+
+		updated, err := svc.Update(context.Background(), entry.ID, userID, req)
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+		assert.Equal(t, "Updated description", updated.Description)
+	})
+
+	t.Run("cannot update approved entry", func(t *testing.T) {
+		svc, repo, _ := setupService(t)
+		entry := seedEntry(repo, func(e *time_entry.TimeEntry) {
+			e.UserID = userID
+			e.Status = time_entry.StatusApproved
 		})
 
 		req := &time_entry.UpdateTimeEntryRequest{
