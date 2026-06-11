@@ -278,7 +278,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 6: Time Entries + Expenses
 
-**Status:** Planned — 5 plans, 3 waves
+**Status:** Wave 1 done — Plan 01 complete, 5 plans total, 3 waves
 
 **Goal:** Full CRUD + two-stage approval workflow for time entries and expenses. Flat model (one entry per project per date), client-side month computation, shared approval components.
 
@@ -315,7 +315,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 | Plan | Objective | Wave | Tasks | Files |
 |------|-----------|------|-------|-------|
-| [ ] 06-01 | Backend Foundation: domain models, port interfaces, mocks, factories, migrations | 1 | 2 | 9 |
+| [x] 06-01 | Backend Foundation: domain models, port interfaces, mocks, factories, migrations | 1 | 2 | 10 |
 | [ ] 06-02 | Backend Service Layer: two-stage approval in TimeEntryService, full ExpenseService, unit tests | 2 | 3 | 4 |
 | [ ] 06-03 | Backend Repos + Handlers + Route: PG repo extensions, ExpenseHandler, route wiring, tests | 2 | 3 | 7 |
 | [ ] 06-04 | Frontend Time Entry: flat model rewrite, client-side calendar, shared approval components | 3 | 3 | 10 |

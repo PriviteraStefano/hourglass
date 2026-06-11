@@ -18,9 +18,9 @@ progress:
 ## Session
 
 - **Last activity:** 2026-06-11
-- **Completed:** Plan 05-04 (Tests: service tests + handler tests + build verification)
-- **Source:** `.planning/phases/05-mvp-consolidation/05-04-PLAN.md`
-- **Previous:** Plan 05-03 (Frontend: types, API mutations/queries, EditProjectDialog, detail page wiring)
+- **Completed:** Plan 06-01 (Backend foundation: domain + ports + mocks + factories + migrations)
+- **Source:** `.planning/phases/06-time-entries-expenses/06-01-PLAN.md`
+- **Previous:** Plan 05-04 (Tests: service tests + handler tests + build verification)
 - **Intel:** `.planning/intel/`
 - **Completed:** Plan 03-01 (Backend: migration, search, internal customer), Plan 03-02 (Frontend: API, sidebar, detail page), Plan 03-03 (Frontend polish: badge, cards, form lock, tests)
 - **Completed:** Plan 04-01 (Backend: customer_id on create + HasProjects delete guard)
@@ -94,10 +94,12 @@ progress:
 
 ## Phase 6: time-entries-and-expenses
 
-- **Status:** Not started
+- **Status:** In progress
 - **Goal:** Full CRUD + approval workflow
 - **Depends on:** Phase 5
 - **Day:** Sat-Sun June 13-14
+- **Plans:**
+  - 06-01-PLAN.md — Backend foundation: domain models, port interfaces, mocks, factories, migrations [completed]
 
 ## Phase 7: exports
 
@@ -303,10 +305,10 @@ completed: 2026-06-09
 
 ## Current Position
 
-Phase: 05 — COMPLETE
-Plan: 1 of 4
-Status: Phase 05 complete
-Last activity: 2026-06-11 -- Phase 05 marked complete
+Phase: 06 — IN PROGRESS
+Plan: 1 of 5
+Status: Plan 01 completed
+Last activity: 2026-06-11 -- Phase 6 started with Plan 01
 
 ## Performance Metrics
 
@@ -327,3 +329,4 @@ Last activity: 2026-06-11 -- Phase 05 marked complete
 | Phase 05-projects P01 | - | 3 tasks | 5 files |
 | Phase 05-projects P03 | 5 min | 4 tasks | 5 files |
 | Phase 05-projects P04 | 3 min | 3 tasks | 2 files |
+| Phase 06-time-entries-expenses P01 | 10 min | 2 tasks | 10 files |
