@@ -16,4 +16,5 @@ type ContractRepository interface {
 	RecalculateMileage(ctx context.Context, orgID, contractID uuid.UUID, fromDate string, actorUserID uuid.UUID) (int, error)
 	Delete(ctx context.Context, orgID, contractID uuid.UUID) error
 	HasTimeEntries(ctx context.Context, contractID uuid.UUID) (int, error)
+	HasProjects(ctx context.Context, contractID uuid.UUID) (int, error)
 }
