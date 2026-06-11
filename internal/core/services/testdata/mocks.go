@@ -900,6 +900,7 @@ type MockExpenseRepo struct {
 	mu           sync.Mutex
 	Expenses     map[uuid.UUID]*domainexpense.Expense
 	PeriodLocked bool
+	Approvals    []*domainexpense.Approval
 }
 
 func (m *MockExpenseRepo) List(ctx context.Context, orgID uuid.UUID, filters ports.ExpenseListFilters) ([]domainexpense.Expense, error) {
@@ -971,5 +972,6 @@ func (m *MockExpenseRepo) ListPending(ctx context.Context, orgID uuid.UUID, role
 func (m *MockExpenseRepo) CreateApproval(ctx context.Context, a *domainexpense.Approval) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.Approvals = append(m.Approvals, a)
 	return nil
 }

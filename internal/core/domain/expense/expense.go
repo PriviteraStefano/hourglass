@@ -8,13 +8,14 @@ import (
 )
 
 var (
-	ErrExpenseNotFound    = errors.New("expense not found")
-	ErrEntryNotDraft      = errors.New("expense is not in draft status")
-	ErrEntryNotSubmitted  = errors.New("expense is not in submitted status")
+	ErrExpenseNotFound      = errors.New("expense not found")
+	ErrEntryNotDraft        = errors.New("expense is not in draft status")
+	ErrEntryNotSubmitted    = errors.New("expense is not in submitted status")
 	ErrEntryAlreadyApproved = errors.New("expense is already approved")
-	ErrPeriodLocked       = errors.New("cannot modify expense for locked period")
-	ErrNotOwner           = errors.New("can only modify own expenses")
-	ErrForbidden          = errors.New("forbidden")
+	ErrPeriodLocked         = errors.New("cannot modify expense for locked period")
+	ErrNotOwner             = errors.New("can only modify own expenses")
+	ErrForbidden            = errors.New("forbidden")
+	ErrInvalidCategory      = errors.New("invalid expense category")
 )
 
 const (

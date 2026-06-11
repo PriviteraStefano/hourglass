@@ -10,12 +10,12 @@ import (
 )
 
 type Service struct {
-	repo      ports.TimeEntryRepository
-	auditRepo ports.AuditLogRepository
+	repo         ports.TimeEntryRepository
+	approvalRepo ports.TimeEntryApprovalRepository
 }
 
-func NewService(repo ports.TimeEntryRepository, auditRepo ports.AuditLogRepository) *Service {
-	return &Service{repo: repo, auditRepo: auditRepo}
+func NewService(repo ports.TimeEntryRepository, approvalRepo ports.TimeEntryApprovalRepository) *Service {
+	return &Service{repo: repo, approvalRepo: approvalRepo}
 }
 
 func (s *Service) List(ctx context.Context, orgID uuid.UUID, filters ports.ListFilters) ([]time_entry.TimeEntry, error) {
@@ -110,7 +110,7 @@ func (s *Service) Delete(ctx context.Context, id, userID uuid.UUID) error {
 		return err
 	}
 
-	if !e.CanEdit() {
+	if e.Status != time_entry.StatusDraft {
 		return time_entry.ErrEntryNotDraft
 	}
 	if !e.IsOwner(userID) {
@@ -133,34 +133,58 @@ func (s *Service) Submit(ctx context.Context, id, userID uuid.UUID) (*time_entry
 		return nil, time_entry.ErrNotOwner
 	}
 
+	now := time.Now()
 	e.Status = time_entry.StatusSubmitted
-	e.UpdatedAt = time.Now()
+	e.CurrentApproverRole = strPtr("manager")
+	e.SubmittedAt = &now
+	e.UpdatedAt = now
 
 	return s.repo.Update(ctx, e)
 }
 
 func (s *Service) Approve(ctx context.Context, id, userID uuid.UUID, role string) (*time_entry.TimeEntry, error) {
-	if role != "wg_manager" && role != "admin" {
-		return nil, time_entry.ErrForbidden
-	}
-
 	e, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if e.Status != time_entry.StatusSubmitted {
+	if e.UserID == userID {
+		return nil, time_entry.ErrForbidden
+	}
+
+	switch {
+	case role == "manager" && e.Status == time_entry.StatusSubmitted:
+		e.Status = time_entry.StatusPendingFinance
+		e.CurrentApproverRole = strPtr("finance")
+	case role == "finance" && e.Status == time_entry.StatusPendingFinance:
+		e.Status = time_entry.StatusApproved
+		e.CurrentApproverRole = nil
+	default:
 		return nil, time_entry.ErrEntryNotSubmitted
 	}
 
-	e.Status = time_entry.StatusApproved
 	e.UpdatedAt = time.Now()
+	result, err := s.repo.Update(ctx, e)
+	if err != nil {
+		return nil, err
+	}
 
-	return s.repo.Update(ctx, e)
+	if err := s.approvalRepo.CreateApproval(ctx, &time_entry.Approval{
+		ID:          uuid.New(),
+		EntryID:     id,
+		Action:      "approve",
+		ActorUserID: userID,
+		ActorRole:   role,
+		CreatedAt:   time.Now(),
+	}); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func (s *Service) Reject(ctx context.Context, id, userID uuid.UUID, role, reason string) (*time_entry.TimeEntry, error) {
-	if role != "wg_manager" && role != "admin" {
+	if role != "manager" && role != "finance" {
 		return nil, time_entry.ErrForbidden
 	}
 
@@ -169,32 +193,38 @@ func (s *Service) Reject(ctx context.Context, id, userID uuid.UUID, role, reason
 		return nil, err
 	}
 
-	if e.Status != time_entry.StatusSubmitted {
+	if e.Status != time_entry.StatusSubmitted && e.Status != time_entry.StatusPendingFinance {
 		return nil, time_entry.ErrEntryNotSubmitted
 	}
 
-	e.Status = time_entry.StatusDraft
+	e.Status = time_entry.StatusRejected
+	e.CurrentApproverRole = nil
 	e.UpdatedAt = time.Now()
 
-	return s.repo.Update(ctx, e)
+	result, err := s.repo.Update(ctx, e)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.approvalRepo.CreateApproval(ctx, &time_entry.Approval{
+		ID:          uuid.New(),
+		EntryID:     id,
+		Action:      "reject",
+		ActorUserID: userID,
+		ActorRole:   role,
+		Comment:     reason,
+		CreatedAt:   time.Now(),
+	}); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func (s *Service) ListPending(ctx context.Context, orgID uuid.UUID, role, userID string) ([]time_entry.TimeEntry, error) {
 	return s.repo.ListPending(ctx, orgID, role, userID)
 }
 
-func (s *Service) CreateAuditLog(ctx context.Context, orgID uuid.UUID, entryID, entryType, action, actorRole, actorID, reason string, changes map[string]interface{}) {
-	auditLog := &time_entry.AuditLog{
-		ID:        uuid.New(),
-		OrgID:     orgID,
-		EntryID:   entryID,
-		EntryType: entryType,
-		Action:    action,
-		ActorRole: actorRole,
-		ActorID:   uuid.MustParse(actorID),
-		Reason:    reason,
-		Changes:   changes,
-		Timestamp: time.Now(),
-	}
-	go s.auditRepo.Create(ctx, auditLog)
-}
+func strPtr(s string) *string { return &s }
+
+func timePtr(t time.Time) *time.Time { return &t }
