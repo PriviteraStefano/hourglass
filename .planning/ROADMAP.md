@@ -180,7 +180,7 @@ Already exists (CustomerRepository, Customer handler)
 
 ## Phase 4: Contracts
 
-**Status:** Planned — 1 plan, 8 tasks, 3 waves
+**Status:** In progress — plan 01 completed, plan 02 pending
 
 **Goal:** Contract CRUD with customer dropdown, project display on detail page, delete protection.
 
@@ -195,24 +195,24 @@ Already exists (CustomerRepository, Customer handler)
 ### Key behaviors
 
 - Contract list page with filtering (status, org) — ✅ already built
-- Create contract — includes customer dropdown (from Phase 3) — ⏳ customer_id wiring (plan 01)
+- Create contract — includes customer dropdown (from Phase 3) — ✅ customer_id wiring (plan 01)
 - Edit contract — ✅ already built (customer Select on detail page)
-- Delete contract — blocked if has active projects — ⏳ HasProjects check (plan 01)
+- Delete contract — blocked if has active projects — ✅ HasProjects check (plan 01)
 - Projects list displayed on contract detail page (from Phase 5) — ✅ already built
 - "Internal customer" option in customer selector — ⏳ combobox UX (plan 01)
 - Zero-value contracts allowed — ✅ already working
 
 ### Scope of this phase
 
-Backend gaps: add `customer_id` to CreateContractRequest, add `HasProjects` to delete protection, add `ErrHasActiveProjects` error.
+Backend gaps: add `customer_id` to CreateContractRequest, add `HasProjects` to delete protection, add `ErrHasActiveProjects` error. ✅ Done in plan 01.
 Frontend gaps: add customer combobox to CreateContractDialog, add `customer_id` to frontend type.
-Tests: backend service unit tests + frontend API tests.
+Tests: backend service unit tests completed, frontend API tests pending.
 
 ### Plans
 
 | Plan | Objective | Wave | Tasks | Files |
 |------|-----------|------|-------|-------|
-| [ ] 04-01 | Contract create with customer + HasProjects delete guard | 1 | 8 | 13 |
+| [x] 04-01 | Contract create with customer + HasProjects delete guard | 1 | 5 | 7 |
 
 ### Edge cases
 

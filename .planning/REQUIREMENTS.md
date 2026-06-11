@@ -44,9 +44,9 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 ### Contracts
 
 - [ ] **CTRT-01**: Contract list page with filtering (status, org)
-- [ ] **CTRT-02**: Create contract with customer dropdown
+- [x] **CTRT-02**: Create contract with customer dropdown
 - [ ] **CTRT-03**: Edit contract
-- [ ] **CTRT-04**: Delete contract — blocked if has active projects
+- [x] **CTRT-04**: Delete contract — blocked if has active projects
 - [ ] **CTRT-05**: Projects list displayed on contract detail page
 - [ ] **CTRT-06**: "Internal customer" option in customer selector
 - [ ] **CTRT-07**: Zero-value contracts allowed
@@ -134,9 +134,9 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 | CUST-05 | Phase 3 | In progress (backend is_internal done) |
 | CUST-06 | Phase 3 | Pending |
 | CTRT-01 | Phase 4 | In progress (list page already built) |
-| CTRT-02 | Phase 4 | In progress (plan 01: customer_id on create) |
+| CTRT-02 | Phase 4 | Done (plan 01: customer_id on create) |
 | CTRT-03 | Phase 4 | In progress (edit already built, detail page exists) |
-| CTRT-04 | Phase 4 | In progress (plan 01: HasProjects check) |
+| CTRT-04 | Phase 4 | Done (plan 01: HasProjects check) |
 | CTRT-05 | Phase 4 | In progress (projects list on detail already built) |
 | CTRT-06 | Phase 4 | In progress (plan 01: combobox with Internal suffix) |
 | CTRT-07 | Phase 4 | In progress (already working — zero-value validation absence) |

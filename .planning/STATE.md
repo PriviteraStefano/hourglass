@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
-status: executing
-last_updated: "2026-06-11T09:03:51.233Z"
+status: completed
+last_updated: "2026-06-11T14:30:20.000Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 10
-  completed_phases: 6
-  total_plans: 35
-  completed_plans: 30
-  percent: 60
+  completed_phases: 7
+  total_plans: 36
+  completed_plans: 33
+  percent: 72
 ---
 
 # Phase State
@@ -18,13 +18,14 @@ progress:
 ## Session
 
 - **Last activity:** 2026-06-11
-- **Source:** `.planning/phases/03-customers/03-CONTEXT.md`
+- **Source:** `.planning/phases/04-contracts/04-01-PLAN.md`
 - **Intel:** `.planning/intel/`
 - **Completed:** Plan 03-01 (Backend: migration, search, internal customer), Plan 03-02 (Frontend: API, sidebar, detail page), Plan 03-03 (Frontend polish: badge, cards, form lock, tests)
+- **Completed:** Plan 04-01 (Backend: customer_id on create + HasProjects delete guard)
 
 ## Phase 0: testing-foundation
 
-- **Status:** Ready to execute
+- **Status:** Phase 05 complete
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -68,10 +69,12 @@ progress:
 
 ## Phase 4: contracts
 
-- **Status:** Not started
+- **Status:** In progress
 - **Goal:** Contract CRUD with customer dropdown
 - **Depends on:** Phase 3
 - **Day:** Fri June 12
+- **Plans:**
+  - 04-01-PLAN.md — Backend: customer_id on create + HasProjects delete guard [completed]
 
 ## Phase 5: projects
 
@@ -118,6 +121,10 @@ The following phases from the previous milestone structure are superseded:
 - **2026-06-09:** OrgSwitcher self-fetches memberships via useSuspenseQuery instead of receiving organizations prop — follows ProfileMenu self-contained component pattern
 - **2026-06-09:** Full cache clear (queryClient.clear() + invalidateQueries) on org switch ensures no stale data from previous org context
 - **2026-06-09:** Landing page uses Navigate redirect to /time-entries — minimal approach per D-07, no Dashboard page in v0.1
+
+- **2026-06-11:** CustomerID on CreateContractRequest uses *uuid.UUID (nullable pointer) for domain, *string for HTTP handler (JSON-native), parsed at handler boundary
+- **2026-06-11:** HasProjects counts ALL projects (not just active) — consistent with ON DELETE RESTRICT FK constraint
+- **2026-06-11:** HasProjects check runs after HasTimeEntries check in Delete service method
 
 phase: 01
 plan: Not started
@@ -287,10 +294,10 @@ completed: 2026-06-09
 
 ## Current Position
 
-Phase: 02 — COMPLETE
-Plan: 1 of 3
-Status: Ready to execute
-Last activity: 2026-06-10 -- Phase 02 marked complete
+Phase: 05 — COMPLETE
+Plan: 1 of 4
+Status: Phase 05 complete
+Last activity: 2026-06-11 -- Phase 05 marked complete
 
 ## Performance Metrics
 
@@ -306,3 +313,4 @@ Last activity: 2026-06-10 -- Phase 02 marked complete
 | Phase 01-authorization P02 | 2 min | 2 tasks | 4 files |
 | Phase 01-authorization P02 | 2 min | 2 tasks | 4 files |
 | Phase 03-customers P02 | 2 min | 2 tasks | 5 files |
+| Phase 04-contracts P01 | 2 min | 5 tasks | 7 files |
