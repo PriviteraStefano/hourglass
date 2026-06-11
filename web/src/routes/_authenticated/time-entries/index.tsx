@@ -12,7 +12,7 @@ export const Route = createFileRoute('/_authenticated/time-entries/')({
   loaderDeps: ({search}) => (search),
   loader: ({deps: {month, date}, context: {client}}) =>
     Promise.all([
-      client.ensureQueryData(TimeEntriesApis.timeEntriesMonthlySummaryQueryOpts(
+      client.ensureQueryData(TimeEntriesApis.timeEntriesForMonthQueryOpts(
         month.getMonth() + 1,
         month.getFullYear()
       )),
@@ -22,5 +22,3 @@ export const Route = createFileRoute('/_authenticated/time-entries/')({
   component: TimeEntriesPage,
   pendingMs: 50
 })
-
-
