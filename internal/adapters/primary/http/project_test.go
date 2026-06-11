@@ -11,7 +11,7 @@ import (
 )
 
 func TestProjectHandler_Create_InvalidBody(t *testing.T) {
-	h := NewProjectHandler(nil)
+	h := NewProjectHandler(nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/projects", strings.NewReader("{"))
 	rec := httptest.NewRecorder()
@@ -28,7 +28,7 @@ func TestProjectHandler_Create_InvalidBody(t *testing.T) {
 }
 
 func TestProjectHandler_Get_InvalidID(t *testing.T) {
-	h := NewProjectHandler(nil)
+	h := NewProjectHandler(nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/projects/invalid", nil)
 	req.SetPathValue("id", "not-a-uuid")
@@ -46,7 +46,7 @@ func TestProjectHandler_Get_InvalidID(t *testing.T) {
 }
 
 func TestProjectHandler_Adopt_InvalidID(t *testing.T) {
-	h := NewProjectHandler(nil)
+	h := NewProjectHandler(nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/projects/invalid/adopt", nil)
 	req.SetPathValue("id", "not-a-uuid")
@@ -64,7 +64,7 @@ func TestProjectHandler_Adopt_InvalidID(t *testing.T) {
 }
 
 func TestProjectHandler_ListManagers_InvalidID(t *testing.T) {
-	h := NewProjectHandler(nil)
+	h := NewProjectHandler(nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/projects/invalid/managers", nil)
 	req.SetPathValue("id", "not-a-uuid")
@@ -82,7 +82,7 @@ func TestProjectHandler_ListManagers_InvalidID(t *testing.T) {
 }
 
 func TestProjectHandler_AddManager_InvalidBody(t *testing.T) {
-	h := NewProjectHandler(nil)
+	h := NewProjectHandler(nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/projects/"+uuid.NewString()+"/managers", strings.NewReader("{"))
 	req.SetPathValue("id", uuid.NewString())
@@ -101,7 +101,7 @@ func TestProjectHandler_AddManager_InvalidBody(t *testing.T) {
 }
 
 func TestProjectHandler_AddManager_InvalidID(t *testing.T) {
-	h := NewProjectHandler(nil)
+	h := NewProjectHandler(nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/projects/invalid/managers", strings.NewReader(`{"user_id":"`+uuid.NewString()+`"}`))
 	req.SetPathValue("id", "not-a-uuid")
@@ -120,7 +120,7 @@ func TestProjectHandler_AddManager_InvalidID(t *testing.T) {
 }
 
 func TestProjectHandler_RemoveManager_InvalidID(t *testing.T) {
-	h := NewProjectHandler(nil)
+	h := NewProjectHandler(nil, nil)
 
 	req := httptest.NewRequest(http.MethodDelete, "/projects/invalid/managers/"+uuid.NewString(), nil)
 	req.SetPathValue("id", "not-a-uuid")
@@ -140,7 +140,7 @@ func TestProjectHandler_RemoveManager_InvalidID(t *testing.T) {
 }
 
 func TestProjectHandler_RemoveManager_InvalidUserID(t *testing.T) {
-	h := NewProjectHandler(nil)
+	h := NewProjectHandler(nil, nil)
 
 	req := httptest.NewRequest(http.MethodDelete, "/projects/"+uuid.NewString()+"/managers/invalid", nil)
 	req.SetPathValue("id", uuid.NewString())

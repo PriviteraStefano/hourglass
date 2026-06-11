@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	projectdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/project"
+	"github.com/stefanoprivitera/hourglass/internal/core/ports"
 	projectsvc "github.com/stefanoprivitera/hourglass/internal/core/services/project"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
 	"github.com/stefanoprivitera/hourglass/internal/models"
@@ -13,14 +14,23 @@ import (
 )
 
 type ProjectHandler struct {
-	service *projectsvc.Service
+	service        *projectsvc.Service
+	subprojectRepo ports.SubprojectRepository
 }
 
-func NewProjectHandler(service *projectsvc.Service) *ProjectHandler {
-	return &ProjectHandler{service: service}
+func NewProjectHandler(service *projectsvc.Service, subprojectRepo ports.SubprojectRepository) *ProjectHandler {
+	return &ProjectHandler{service: service, subprojectRepo: subprojectRepo}
 }
 
 type CreateProjectRequest struct {
+	Name            string                 `json:"name"`
+	Type            models.ProjectType     `json:"type"`
+	ContractID      string                 `json:"contract_id"`
+	GovernanceModel models.GovernanceModel `json:"governance_model"`
+	IsShared        bool                   `json:"is_shared"`
+}
+
+type UpdateProjectRequest struct {
 	Name            string                 `json:"name"`
 	Type            models.ProjectType     `json:"type"`
 	ContractID      string                 `json:"contract_id"`
@@ -165,4 +175,77 @@ func (h *ProjectHandler) RemoveManager(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrganizationID(r.Context())
+	projectID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+	var req UpdateProjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	updated, err := h.service.Update(r.Context(), middleware.GetRole(r.Context()), orgID, projectID, &projectdomain.UpdateProjectRequest{
+		Name:            req.Name,
+		Type:            req.Type,
+		ContractID:      req.ContractID,
+		GovernanceModel: req.GovernanceModel,
+		IsShared:        req.IsShared,
+	})
+	if err != nil {
+		switch err {
+		case projectdomain.ErrForbidden:
+			api.RespondWithError(w, http.StatusForbidden, "only finance users can update projects")
+		case projectdomain.ErrProjectNotFound:
+			api.RespondWithError(w, http.StatusNotFound, "project not found")
+		default:
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to update project")
+		}
+		return
+	}
+	api.RespondWithJSON(w, http.StatusOK, updated)
+}
+
+func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrganizationID(r.Context())
+	projectID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+	err = h.service.Delete(r.Context(), middleware.GetRole(r.Context()), orgID, projectID)
+	if err != nil {
+		switch err {
+		case projectdomain.ErrForbidden:
+			api.RespondWithError(w, http.StatusForbidden, "only finance users can delete projects")
+		case projectdomain.ErrProjectNotFound:
+			api.RespondWithError(w, http.StatusNotFound, "project not found")
+		case projectdomain.ErrHasActiveTimeEntries:
+			api.RespondWithError(w, http.StatusConflict, "project has active time entries and cannot be deleted")
+		case projectdomain.ErrHasActiveSubprojectEntries:
+			api.RespondWithError(w, http.StatusConflict, "a subproject has active time entries and cannot be deleted")
+		default:
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to delete project")
+		}
+		return
+	}
+	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{"message": "project deleted"})
+}
+
+func (h *ProjectHandler) ListSubprojects(w http.ResponseWriter, r *http.Request) {
+	projectID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+	subprojects, err := h.subprojectRepo.ListByProject(r.Context(), projectID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to fetch subprojects")
+		return
+	}
+	api.RespondWithJSON(w, http.StatusOK, subprojects)
 }
