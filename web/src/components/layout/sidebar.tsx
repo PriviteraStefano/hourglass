@@ -9,7 +9,8 @@ import {
   ReceiptIcon,
   SettingsIcon,
   SidebarCloseIcon,
-  SidebarOpenIcon
+  SidebarOpenIcon,
+  DownloadIcon
 } from 'lucide-react'
 import {Link, ToPathOption, useMatchRoute} from '@tanstack/react-router'
 import {
@@ -47,6 +48,7 @@ const projectItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon;
 ]
 
 const settingsItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon; disabled?: boolean }> = [
+  {label: 'Exports', href: '/exports', icon: DownloadIcon},
   {label: 'Settings', href: '/settings', icon: SettingsIcon, disabled: true},
 ]
 
