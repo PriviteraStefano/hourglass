@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {useNavigate} from '@tanstack/react-router'
-import {useMutation} from '@tanstack/react-query'
+import {useMutation, useSuspenseQuery} from '@tanstack/react-query'
 import {
   Dialog,
   DialogContent,
@@ -11,10 +11,19 @@ import {
 } from '@/components/ui/dialog.tsx'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from '@/components/ui/select'
 import {ContractsApis} from '@/api/contracts'
+import {CustomersApis} from '@/api/customers'
 import type {Contract} from '@/types/models'
 import {Button} from "@/components/ui/button.tsx";
 import {Input} from "@/components/ui/input.tsx";
 import {Checkbox} from "@/components/ui/checkbox.tsx";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxInput,
+  ComboboxList,
+  ComboboxItem,
+  useComboboxAnchor,
+} from '@/components/ui/combobox'
 
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD']
 
@@ -51,6 +60,9 @@ export function CreateContractDialog({open, onOpenChange, onSuccess}: CreateCont
   const [currency, setCurrency] = useState('EUR')
   const [governanceModel, setGovernanceModel] = useState<'creator_controlled' | 'unanimous' | 'majority'>('creator_controlled')
   const [isShared, setIsShared] = useState(false)
+  const [customerId, setCustomerId] = useState('')
+  const comboboxAnchor = useComboboxAnchor()
+  const {data: customers} = useSuspenseQuery(CustomersApis.customersQueryOpts())
 
   const handleSubmit = () => {
     if (!name.trim()) return
@@ -62,6 +74,7 @@ export function CreateContractDialog({open, onOpenChange, onSuccess}: CreateCont
         currency,
         governance_model: governanceModel,
         is_shared: isShared,
+        customer_id: customerId || undefined,
       },
       {
         onSuccess: (data) => {
@@ -83,6 +96,7 @@ export function CreateContractDialog({open, onOpenChange, onSuccess}: CreateCont
     setCurrency('EUR')
     setGovernanceModel('creator_controlled')
     setIsShared(false)
+    setCustomerId('')
   }
 
   return (
@@ -131,6 +145,35 @@ export function CreateContractDialog({open, onOpenChange, onSuccess}: CreateCont
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2" ref={comboboxAnchor}>
+            <label className="text-sm font-medium">Customer</label>
+            <Combobox
+              value={customerId}
+              onValueChange={(v) => setCustomerId(v ?? '')}
+            >
+              <ComboboxInput
+                placeholder="Search customers..."
+                showTrigger
+                showClear={!!customerId}
+              />
+              <ComboboxContent>
+                <ComboboxList>
+                  <ComboboxItem value="">No customer</ComboboxItem>
+                  {customers?.map((cust) => (
+                    <ComboboxItem key={cust.id} value={cust.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{cust.company_name}</span>
+                        {cust.is_internal && (
+                          <span className="text-xs text-muted-foreground">(Internal)</span>
+                        )}
+                      </div>
+                    </ComboboxItem>
+                  ))}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
           </div>
 
           <div className="space-y-2">
