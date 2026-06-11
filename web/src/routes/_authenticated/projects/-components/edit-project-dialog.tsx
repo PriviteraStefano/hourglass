@@ -108,12 +108,12 @@ export function EditProjectDialog({open, onOpenChange, onSuccess, project}: Edit
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Contract *</label>
-            <Select value={contractId} onValueChange={setContractId}>
+            <Select value={contractId} onValueChange={(v) => setContractId(v ?? '')}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a contract" />
               </SelectTrigger>
               <SelectContent>
-                {contracts?.data?.map((c) => (
+                {contracts?.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
