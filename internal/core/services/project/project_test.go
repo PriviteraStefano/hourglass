@@ -178,3 +178,95 @@ func TestService_RemoveManager(t *testing.T) {
 		assert.ErrorIs(t, err, projectdomain.ErrForbidden)
 	})
 }
+
+func TestService_Update(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		role    string
+		wantErr error
+	}{
+		{name: "finance role updates", role: string(models.RoleFinance), wantErr: nil},
+		{name: "non-finance role forbidden", role: string(models.RoleEmployee), wantErr: projectdomain.ErrForbidden},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, repo := setupService(t)
+			orgID := uuid.New()
+			seeded := seedProject(repo, func(p *projectdomain.ProjectResponse) { p.CreatedByOrgID = orgID })
+
+			result, err := svc.Update(context.Background(), tt.role, orgID, seeded.ID, &projectdomain.UpdateProjectRequest{
+				Name:            "Updated Project",
+				Type:            models.ProjectTypeInternal,
+				GovernanceModel: models.GovernanceCreatorControlled,
+				IsShared:        false,
+			})
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+				assert.Nil(t, result)
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+		})
+	}
+}
+
+func TestService_Delete(t *testing.T) {
+	t.Parallel()
+
+	t.Run("finance role deletes", func(t *testing.T) {
+		svc, repo := setupService(t)
+		orgID := uuid.New()
+		seeded := seedProject(repo, func(p *projectdomain.ProjectResponse) { p.CreatedByOrgID = orgID })
+		err := svc.Delete(context.Background(), string(models.RoleFinance), orgID, seeded.ID)
+		assert.NoError(t, err)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		svc, _ := setupService(t)
+		err := svc.Delete(context.Background(), string(models.RoleFinance), uuid.New(), uuid.New())
+		assert.Error(t, err)
+	})
+
+	t.Run("unauthorized role", func(t *testing.T) {
+		svc, repo := setupService(t)
+		orgID := uuid.New()
+		seeded := seedProject(repo, func(p *projectdomain.ProjectResponse) { p.CreatedByOrgID = orgID })
+		err := svc.Delete(context.Background(), string(models.RoleEmployee), orgID, seeded.ID)
+		assert.ErrorIs(t, err, projectdomain.ErrForbidden)
+	})
+
+	t.Run("not owner", func(t *testing.T) {
+		svc, repo := setupService(t)
+		orgID := uuid.New()
+		otherOrgID := uuid.New()
+		seeded := seedProject(repo, func(p *projectdomain.ProjectResponse) { p.CreatedByOrgID = otherOrgID })
+		err := svc.Delete(context.Background(), string(models.RoleFinance), orgID, seeded.ID)
+		assert.ErrorIs(t, err, projectdomain.ErrForbidden)
+	})
+
+	t.Run("blocked by time entries", func(t *testing.T) {
+		svc, repo := setupService(t)
+		orgID := uuid.New()
+		seeded := seedProject(repo, func(p *projectdomain.ProjectResponse) { p.CreatedByOrgID = orgID })
+		repo.HasActiveTimeEntriesFn = func(ctx context.Context, projectID uuid.UUID) (bool, bool, error) {
+			return true, false, nil
+		}
+		err := svc.Delete(context.Background(), string(models.RoleFinance), orgID, seeded.ID)
+		assert.ErrorIs(t, err, projectdomain.ErrHasActiveTimeEntries)
+	})
+
+	t.Run("blocked by subproject entries", func(t *testing.T) {
+		svc, repo := setupService(t)
+		orgID := uuid.New()
+		seeded := seedProject(repo, func(p *projectdomain.ProjectResponse) { p.CreatedByOrgID = orgID })
+		repo.HasActiveTimeEntriesFn = func(ctx context.Context, projectID uuid.UUID) (bool, bool, error) {
+			return false, true, nil
+		}
+		err := svc.Delete(context.Background(), string(models.RoleFinance), orgID, seeded.ID)
+		assert.ErrorIs(t, err, projectdomain.ErrHasActiveSubprojectEntries)
+	})
+}
