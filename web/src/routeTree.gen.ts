@@ -15,12 +15,14 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedTimeEntriesIndexRouteImport } from './routes/_authenticated/time-entries/index'
 import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects/index'
 import { Route as AuthenticatedOrgHierarchyIndexRouteImport } from './routes/_authenticated/org-hierarchy/index'
+import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers/index'
 import { Route as AuthenticatedContractsIndexRouteImport } from './routes/_authenticated/contracts/index'
 import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/index'
 import { Route as AuthLoginIndexRouteImport } from './routes/_auth/login/index'
 import { Route as AuthInviteIndexRouteImport } from './routes/_auth/invite/index'
 import { Route as AuthBootstrapIndexRouteImport } from './routes/_auth/bootstrap/index'
 import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects/$id'
+import { Route as AuthenticatedCustomersIdRouteImport } from './routes/_authenticated/customers/$id'
 import { Route as AuthenticatedContractsIdIndexRouteImport } from './routes/_authenticated/contracts/$id/index'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -54,6 +56,12 @@ const AuthenticatedOrgHierarchyIndexRoute =
     path: '/org-hierarchy/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCustomersIndexRoute =
+  AuthenticatedCustomersIndexRouteImport.update({
+    id: '/customers/',
+    path: '/customers/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedContractsIndexRoute =
   AuthenticatedContractsIndexRouteImport.update({
     id: '/contracts/',
@@ -85,6 +93,12 @@ const AuthenticatedProjectsIdRoute = AuthenticatedProjectsIdRouteImport.update({
   path: '/projects/$id',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedCustomersIdRoute =
+  AuthenticatedCustomersIdRouteImport.update({
+    id: '/customers/$id',
+    path: '/customers/$id',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedContractsIdIndexRoute =
   AuthenticatedContractsIdIndexRouteImport.update({
     id: '/contracts/$id/',
@@ -94,12 +108,14 @@ const AuthenticatedContractsIdIndexRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
+  '/customers/$id': typeof AuthenticatedCustomersIdRoute
   '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/bootstrap/': typeof AuthBootstrapIndexRoute
   '/invite/': typeof AuthInviteIndexRoute
   '/login/': typeof AuthLoginIndexRoute
   '/register/': typeof AuthRegisterIndexRoute
   '/contracts/': typeof AuthenticatedContractsIndexRoute
+  '/customers/': typeof AuthenticatedCustomersIndexRoute
   '/org-hierarchy/': typeof AuthenticatedOrgHierarchyIndexRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/time-entries/': typeof AuthenticatedTimeEntriesIndexRoute
@@ -107,12 +123,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
+  '/customers/$id': typeof AuthenticatedCustomersIdRoute
   '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/bootstrap': typeof AuthBootstrapIndexRoute
   '/invite': typeof AuthInviteIndexRoute
   '/login': typeof AuthLoginIndexRoute
   '/register': typeof AuthRegisterIndexRoute
   '/contracts': typeof AuthenticatedContractsIndexRoute
+  '/customers': typeof AuthenticatedCustomersIndexRoute
   '/org-hierarchy': typeof AuthenticatedOrgHierarchyIndexRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
   '/time-entries': typeof AuthenticatedTimeEntriesIndexRoute
@@ -123,12 +141,14 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/customers/$id': typeof AuthenticatedCustomersIdRoute
   '/_authenticated/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/_auth/bootstrap/': typeof AuthBootstrapIndexRoute
   '/_auth/invite/': typeof AuthInviteIndexRoute
   '/_auth/login/': typeof AuthLoginIndexRoute
   '/_auth/register/': typeof AuthRegisterIndexRoute
   '/_authenticated/contracts/': typeof AuthenticatedContractsIndexRoute
+  '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
   '/_authenticated/org-hierarchy/': typeof AuthenticatedOrgHierarchyIndexRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/_authenticated/time-entries/': typeof AuthenticatedTimeEntriesIndexRoute
@@ -138,12 +158,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/customers/$id'
     | '/projects/$id'
     | '/bootstrap/'
     | '/invite/'
     | '/login/'
     | '/register/'
     | '/contracts/'
+    | '/customers/'
     | '/org-hierarchy/'
     | '/projects/'
     | '/time-entries/'
@@ -151,12 +173,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/customers/$id'
     | '/projects/$id'
     | '/bootstrap'
     | '/invite'
     | '/login'
     | '/register'
     | '/contracts'
+    | '/customers'
     | '/org-hierarchy'
     | '/projects'
     | '/time-entries'
@@ -166,12 +190,14 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/_authenticated'
     | '/_authenticated/'
+    | '/_authenticated/customers/$id'
     | '/_authenticated/projects/$id'
     | '/_auth/bootstrap/'
     | '/_auth/invite/'
     | '/_auth/login/'
     | '/_auth/register/'
     | '/_authenticated/contracts/'
+    | '/_authenticated/customers/'
     | '/_authenticated/org-hierarchy/'
     | '/_authenticated/projects/'
     | '/_authenticated/time-entries/'
@@ -227,6 +253,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrgHierarchyIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/customers/': {
+      id: '/_authenticated/customers/'
+      path: '/customers'
+      fullPath: '/customers/'
+      preLoaderRoute: typeof AuthenticatedCustomersIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/contracts/': {
       id: '/_authenticated/contracts/'
       path: '/contracts'
@@ -269,6 +302,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjectsIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/customers/$id': {
+      id: '/_authenticated/customers/$id'
+      path: '/customers/$id'
+      fullPath: '/customers/$id'
+      preLoaderRoute: typeof AuthenticatedCustomersIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/contracts/$id/': {
       id: '/_authenticated/contracts/$id/'
       path: '/contracts/$id'
@@ -297,8 +337,10 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface AuthenticatedRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedCustomersIdRoute: typeof AuthenticatedCustomersIdRoute
   AuthenticatedProjectsIdRoute: typeof AuthenticatedProjectsIdRoute
   AuthenticatedContractsIndexRoute: typeof AuthenticatedContractsIndexRoute
+  AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
   AuthenticatedOrgHierarchyIndexRoute: typeof AuthenticatedOrgHierarchyIndexRoute
   AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
   AuthenticatedTimeEntriesIndexRoute: typeof AuthenticatedTimeEntriesIndexRoute
@@ -307,8 +349,10 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedCustomersIdRoute: AuthenticatedCustomersIdRoute,
   AuthenticatedProjectsIdRoute: AuthenticatedProjectsIdRoute,
   AuthenticatedContractsIndexRoute: AuthenticatedContractsIndexRoute,
+  AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
   AuthenticatedOrgHierarchyIndexRoute: AuthenticatedOrgHierarchyIndexRoute,
   AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
   AuthenticatedTimeEntriesIndexRoute: AuthenticatedTimeEntriesIndexRoute,
