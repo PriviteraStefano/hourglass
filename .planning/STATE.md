@@ -20,8 +20,10 @@ progress:
 - **Last activity:** 2026-06-11
 - **Completed:** Plan 06-01 (Backend foundation: domain + ports + mocks + factories + migrations)
 - **Completed:** Plan 06-02 (Backend service layer: two-stage approval + expense service)
-- **Source:** `.planning/phases/06-time-entries-expenses/06-02-PLAN.md`
-- **Previous:** Plan 06-01 (Backend foundation)
+- **Completed:** Plan 06-03 (PG repos + HTTP handlers + route wiring)
+- **Completed:** Plan 06-04 (Frontend time entry UI rewrite: flat model + approval components)
+- **Source:** `.planning/phases/06-time-entries-expenses/06-04-PLAN.md`
+- **Previous:** Plan 06-03 (PG repos + HTTP handlers + route wiring)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
@@ -99,6 +101,8 @@ progress:
 - **Plans:**
   - 06-01-PLAN.md — Backend foundation: domain models, port interfaces, mocks, factories, migrations [completed]
   - 06-02-PLAN.md — Backend service layer: TimeEntryService two-stage approval + ExpenseService CRUD/approval [completed]
+  - 06-03-PLAN.md — PG repositories extend + HTTP handlers + route wiring [completed]
+  - 06-04-PLAN.md — Frontend time entry rewrite: flat model, client-side calendar, approval components [completed]
 
 ## Phase 7: exports
 
@@ -305,9 +309,9 @@ completed: 2026-06-09
 ## Current Position
 
 Phase: 06 — IN PROGRESS
-Plan: 3 of 5
-Status: Plan 01 + Plan 02 + Plan 03 completed
-Last activity: 2026-06-11 -- Phase 6 Plan 03: PG repos + HTTP handlers + route wiring
+Plan: 4 of 5
+Status: Plan 01 + Plan 02 + Plan 03 + Plan 04 completed
+Last activity: 2026-06-11 -- Phase 6 Plan 04: Frontend time entry UI rewrite (flat model)
 
 ## Performance Metrics
 
@@ -331,3 +335,4 @@ Last activity: 2026-06-11 -- Phase 6 Plan 03: PG repos + HTTP handlers + route w
 | Phase 06-time-entries-expenses P01 | 10 min | 2 tasks | 10 files |
 | Phase 06-time-entries-expenses P02 | 45 min | 3 tasks | 6 files |
 | Phase 06-time-entries-expenses P03 | 25 min | 3 tasks | 12 files |
+| Phase 06-time-entries-expenses P04 | 15 min | 3 tasks | 10 files |

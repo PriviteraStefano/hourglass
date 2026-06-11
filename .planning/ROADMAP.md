@@ -316,9 +316,9 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 | Plan | Objective | Wave | Tasks | Files |
 |------|-----------|------|-------|-------|
 | [x] 06-01 | Backend Foundation: domain models, port interfaces, mocks, factories, migrations | 1 | 2 | 10 |
-| [ ] 06-02 | Backend Service Layer: two-stage approval in TimeEntryService, full ExpenseService, unit tests | 2 | 3 | 4 |
-| [ ] 06-03 | Backend Repos + Handlers + Route: PG repo extensions, ExpenseHandler, route wiring, tests | 2 | 3 | 7 |
-| [ ] 06-04 | Frontend Time Entry: flat model rewrite, client-side calendar, shared approval components | 3 | 3 | 10 |
+| [x] 06-02 | Backend Service Layer: two-stage approval in TimeEntryService, full ExpenseService, unit tests | 2 | 3 | 4 |
+| [x] 06-03 | Backend Repos + Handlers + Route: PG repo extensions, ExpenseHandler, route wiring, tests | 2 | 3 | 7 |
+| [x] 06-04 | Frontend Time Entry: flat model rewrite, client-side calendar, shared approval components | 3 | 3 | 10 |
 | [ ] 06-05 | Frontend Expenses: types, API, route, calendar, detail, row, sidebar link | 3 | 3 | 9 |
 
 ### Edge cases
