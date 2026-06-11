@@ -8,71 +8,87 @@ import (
 )
 
 var (
-	ErrTimeEntryNotFound = errors.New("time entry not found")
-	ErrEntryNotDraft     = errors.New("entry is not in draft status")
-	ErrEntryNotSubmitted = errors.New("entry is not in submitted status")
-	ErrPeriodLocked      = errors.New("cannot modify entry for locked period")
-	ErrNotOwner          = errors.New("can only modify own entries")
-	ErrForbidden         = errors.New("forbidden")
+	ErrTimeEntryNotFound    = errors.New("time entry not found")
+	ErrEntryNotDraft        = errors.New("entry is not in draft status")
+	ErrEntryNotSubmitted    = errors.New("entry is not in submitted status")
+	ErrEntryAlreadyApproved = errors.New("entry is already approved")
+	ErrPeriodLocked         = errors.New("cannot modify entry for locked period")
+	ErrNotOwner             = errors.New("can only modify own entries")
+	ErrForbidden            = errors.New("forbidden")
 )
 
 const (
-	StatusDraft     = "draft"
-	StatusSubmitted = "submitted"
-	StatusApproved  = "approved"
+	StatusDraft          = "draft"
+	StatusSubmitted      = "submitted"
+	StatusPendingManager = "pending_manager"
+	StatusPendingFinance = "pending_finance"
+	StatusApproved       = "approved"
+	StatusRejected       = "rejected"
 )
 
 type TimeEntry struct {
-	ID                 uuid.UUID
-	OrgID              uuid.UUID
-	UserID             uuid.UUID
-	ProjectID          uuid.UUID
-	SubprojectID       uuid.UUID
-	WGID               uuid.UUID
-	UnitID             uuid.UUID
-	Hours              float64
-	Description        string
-	EntryDate          time.Time
-	Status             string
-	IsDeleted          bool
-	CreatedFromEntryID *uuid.UUID
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                 uuid.UUID       `json:"id"`
+	OrgID              uuid.UUID       `json:"org_id"`
+	UserID             uuid.UUID       `json:"user_id"`
+	ProjectID          uuid.UUID       `json:"project_id"`
+	SubprojectID       uuid.UUID       `json:"subproject_id"`
+	WGID               uuid.UUID       `json:"wg_id"`
+	UnitID             uuid.UUID       `json:"unit_id"`
+	Hours              float64         `json:"hours"`
+	Description        string          `json:"description"`
+	EntryDate          time.Time       `json:"entry_date"`
+	Status             string          `json:"status"`
+	CurrentApproverRole *string         `json:"current_approver_role,omitempty"`
+	SubmittedAt         *time.Time      `json:"submitted_at,omitempty"`
+	IsDeleted          bool            `json:"is_deleted"`
+	CreatedFromEntryID *uuid.UUID      `json:"created_from_entry_id,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
 type CreateTimeEntryRequest struct {
-	OrgID        uuid.UUID
-	UserID       uuid.UUID
-	ProjectID    uuid.UUID
-	SubprojectID uuid.UUID
-	WGID         uuid.UUID
-	UnitID       uuid.UUID
-	Hours        float64
-	Description  string
-	Date         string
+	OrgID        uuid.UUID `json:"org_id"`
+	UserID       uuid.UUID `json:"user_id"`
+	ProjectID    uuid.UUID `json:"project_id"`
+	SubprojectID uuid.UUID `json:"subproject_id"`
+	WGID         uuid.UUID `json:"wg_id"`
+	UnitID       uuid.UUID `json:"unit_id"`
+	Hours        float64   `json:"hours"`
+	Description  string    `json:"description"`
+	Date         string    `json:"date"`
 }
 
 type UpdateTimeEntryRequest struct {
-	ProjectID    *uuid.UUID
-	SubprojectID *uuid.UUID
-	WGID         *uuid.UUID
-	UnitID       *uuid.UUID
-	Hours        *float64
-	Description  *string
-	Date         *string
+	ProjectID    *uuid.UUID `json:"project_id,omitempty"`
+	SubprojectID *uuid.UUID `json:"subproject_id,omitempty"`
+	WGID         *uuid.UUID `json:"wg_id,omitempty"`
+	UnitID       *uuid.UUID `json:"unit_id,omitempty"`
+	Hours        *float64  `json:"hours,omitempty"`
+	Description  *string    `json:"description,omitempty"`
+	Date         *string    `json:"date,omitempty"`
+}
+
+type Approval struct {
+	ID          uuid.UUID `json:"id"`
+	EntryID     uuid.UUID `json:"entry_id"`
+	Action      string    `json:"action"`
+	ActorUserID uuid.UUID `json:"actor_user_id"`
+	ActorRole   string    `json:"actor_role"`
+	Comment     string    `json:"comment,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type AuditLog struct {
-	ID        uuid.UUID
-	OrgID     uuid.UUID
-	EntryID   string
-	EntryType string
-	Action    string
-	ActorRole string
-	ActorID   uuid.UUID
-	Reason    string
-	Changes   map[string]interface{}
-	Timestamp time.Time
+	ID        uuid.UUID          `json:"id"`
+	OrgID     uuid.UUID          `json:"org_id"`
+	EntryID   string             `json:"entry_id"`
+	EntryType string             `json:"entry_type"`
+	Action    string             `json:"action"`
+	ActorRole string             `json:"actor_role"`
+	ActorID   uuid.UUID          `json:"actor_id"`
+	Reason    string             `json:"reason"`
+	Changes   map[string]any     `json:"changes"`
+	Timestamp time.Time          `json:"timestamp"`
 }
 
 func (e *TimeEntry) IsOwner(userID uuid.UUID) bool {
@@ -80,9 +96,9 @@ func (e *TimeEntry) IsOwner(userID uuid.UUID) bool {
 }
 
 func (e *TimeEntry) CanEdit() bool {
-	return e.Status == StatusDraft
+	return e.Status == StatusDraft || e.Status == StatusSubmitted || e.Status == StatusRejected
 }
 
 func (e *TimeEntry) CanSubmit() bool {
-	return e.Status == StatusDraft
+	return e.Status == StatusDraft || e.Status == StatusRejected
 }

@@ -180,9 +180,6 @@ func (r *ExpenseRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// Ensure ExpenseRepository implements ports.ExpenseRepository.
-var _ ports.ExpenseRepository = (*ExpenseRepository)(nil)
-
 // JSONB types for receipt_ocr_data scan (when needed).
 // receiptOCRSanner handles nullable json.RawMessage.
 type _ json.RawMessage

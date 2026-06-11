@@ -31,6 +31,10 @@ type ListFilters struct {
 	RequestUserID string
 }
 
+type TimeEntryApprovalRepository interface {
+	CreateApproval(ctx context.Context, a *time_entry.Approval) error
+}
+
 type AuditLogRepository interface {
 	Create(ctx context.Context, log *time_entry.AuditLog) error
 }
