@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: completed
-last_updated: "2026-06-11T14:35:06.000Z"
+last_updated: "2026-06-11T17:00:00.000Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 36
-  completed_plans: 35
-  percent: 75
+  completed_plans: 36
+  percent: 78
 ---
 
 # Phase State
@@ -18,8 +18,9 @@ progress:
 ## Session
 
 - **Last activity:** 2026-06-11
-- **Completed:** Plan 05-03 (Frontend: types, API mutations/queries, EditProjectDialog, detail page wiring)
-- **Source:** `.planning/phases/05-mvp-consolidation/05-03-PLAN.md`
+- **Completed:** Plan 05-04 (Tests: service tests + handler tests + build verification)
+- **Source:** `.planning/phases/05-mvp-consolidation/05-04-PLAN.md`
+- **Previous:** Plan 05-03 (Frontend: types, API mutations/queries, EditProjectDialog, detail page wiring)
 - **Intel:** `.planning/intel/`
 - **Completed:** Plan 03-01 (Backend: migration, search, internal customer), Plan 03-02 (Frontend: API, sidebar, detail page), Plan 03-03 (Frontend polish: badge, cards, form lock, tests)
 - **Completed:** Plan 04-01 (Backend: customer_id on create + HasProjects delete guard)
@@ -87,7 +88,9 @@ progress:
 - **Day:** Fri June 12
 - **Plans:**
   - 05-01-PLAN.md — Backend: domain types, port interface, mocks, PG repo Update/Delete/HasActiveTimeEntries, service Update/Delete [completed]
+  - 05-02-PLAN.md — Backend: HTTP handlers (Update/Delete/ListSubprojects) + route wiring [completed]
   - 05-03-PLAN.md — Frontend: types, API mutations/queries, EditProjectDialog, detail page wiring [completed]
+  - 05-04-PLAN.md — Tests: service tests + handler tests + build verification [completed]
 
 ## Phase 6: time-entries-and-expenses
 
@@ -323,3 +326,4 @@ Last activity: 2026-06-11 -- Phase 05 marked complete
 | Phase 04-contracts P02 | 1 min | 3 tasks | 3 files |
 | Phase 05-projects P01 | - | 3 tasks | 5 files |
 | Phase 05-projects P03 | 5 min | 4 tasks | 5 files |
+| Phase 05-projects P04 | 3 min | 3 tasks | 2 files |

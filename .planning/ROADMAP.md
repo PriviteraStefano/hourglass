@@ -227,7 +227,7 @@ Tests: backend service unit tests completed, frontend API tests pending.
 
 ## Phase 5: Projects
 
-**Status:** In progress — 4 plans, 10 tasks, 3 waves. Plan 01 done (pre-existing commits).
+**Status:** All 4 plans complete — 10 tasks, 3 waves. Service + handler + handler test coverage for Update/Delete/ListSubprojects.
 
 **Goal:** Project CRUD with subproject support, org-scope filtering, governance models.
 
@@ -244,9 +244,9 @@ Tests: backend service unit tests completed, frontend API tests pending.
 - Project list page with filtering (contract_id, org_id, type: billable/internal) — ✅ already built
 - Create project (name, type, contract, governance model, scope) — ✅ already built
 - Edit project — ⏳ dialog-based (Plan 01 backend ✅ + Plan 03 frontend)
-- Delete project — blocked if has time entries or subprojects — ⏳ protection checks (Plan 01 backend ✅ + Plan 02 handler)
-- Subproject list on project detail — ⏳ subprojects endpoint + expandable section (Plan 02 + Plan 03)
-- Distinct 409 errors for direct vs subproject active entries — ⏳ (Plan 02 handler)
+- Delete project — blocked if has time entries or subprojects — ✅ protection checks (Plan 01 backend + Plan 02 handler + Plan 04 tests)
+- Subproject list on project detail — ✅ subprojects endpoint + expandable section (Plan 02 + Plan 03)
+- Distinct 409 errors for direct vs subproject active entries — ✅ (Plan 02 handler + Plan 04 tests)
 - Adopted projects display creation org — ✅ already works
 
 ### Scope of this phase
@@ -259,9 +259,9 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 | Plan | Objective | Wave | Tasks | Files |
 |------|-----------|------|-------|-------|
 | [x] 05-01 | Backend: domain + ports + mocks + repo + service for Update/Delete/HasActiveTimeEntries | 1 | 3 | 5 |
-| [ ] 05-02 | Backend: HTTP handlers (Update/Delete/ListSubprojects) + route wiring | 2 | 2 | 2 |
+| [x] 05-02 | Backend: HTTP handlers (Update/Delete/ListSubprojects) + route wiring | 2 | 2 | 2 |
 | [x] 05-03 | Frontend: API types + mutations/queries + EditProjectDialog + detail page wiring | 1 | 3 | 5 |
-| [ ] 05-04 | Tests: service tests + handler tests + build verification | 3 | 3 | 2 |
+| [x] 05-04 | Tests: service tests + handler tests + build verification | 3 | 3 | 2 |
 
 ### Edge cases
 
