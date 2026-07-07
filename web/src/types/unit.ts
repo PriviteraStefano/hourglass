@@ -2,7 +2,7 @@ import {z} from 'zod'
 
 export const UnitSchema = z.object({
   id: z.string(),
-  org_id: z.string().uuid(),
+  org_id: z.uuid(),
   name: z.string(),
   description: z.string().nullable(),
   parent_unit_id: z.string().optional(),
@@ -28,10 +28,10 @@ export type UnitTreeNode = z.infer<typeof UnitTreeNodeSchema>
 
 export const UnitMemberSchema = z.object({
   id: z.string(),
-  org_id: z.string().uuid(),
-  user_id: z.string().uuid(),
+  org_id: z.uuid(),
+  user_id: z.uuid(),
   user_name: z.string(),
-  user_email: z.string().email(),
+  user_email: z.email(),
   unit_id: z.string(),
   is_primary: z.boolean(),
   role: z.string(),
@@ -61,7 +61,7 @@ export const UpdateUnitRequestSchema = z.object({
 export type UpdateUnitRequest = z.infer<typeof UpdateUnitRequestSchema>
 
 export const AddUnitMemberRequestSchema = z.object({
-  user_id: z.string().uuid(),
+  user_id: z.uuid(),
   role: z.string().min(1),
   is_primary: z.boolean(),
 })

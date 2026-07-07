@@ -8,24 +8,25 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
-import { Route as AuthRouteImport } from './routes/_auth'
-import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as AuthenticatedTimeEntriesIndexRouteImport } from './routes/_authenticated/time-entries/index'
-import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects/index'
-import { Route as AuthenticatedOrgHierarchyIndexRouteImport } from './routes/_authenticated/org-hierarchy/index'
-import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports/index'
-import { Route as AuthenticatedExpensesIndexRouteImport } from './routes/_authenticated/expenses/index'
-import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers/index'
-import { Route as AuthenticatedContractsIndexRouteImport } from './routes/_authenticated/contracts/index'
-import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/index'
-import { Route as AuthLoginIndexRouteImport } from './routes/_auth/login/index'
-import { Route as AuthInviteIndexRouteImport } from './routes/_auth/invite/index'
-import { Route as AuthBootstrapIndexRouteImport } from './routes/_auth/bootstrap/index'
-import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects/$id'
-import { Route as AuthenticatedCustomersIdRouteImport } from './routes/_authenticated/customers/$id'
-import { Route as AuthenticatedContractsIdIndexRouteImport } from './routes/_authenticated/contracts/$id/index'
+import {Route as rootRouteImport} from './routes/__root'
+import {Route as AuthenticatedRouteImport} from './routes/_authenticated'
+import {Route as AuthRouteImport} from './routes/_auth'
+import {Route as AuthenticatedIndexRouteImport} from './routes/_authenticated/index'
+import {Route as AuthenticatedTimeEntriesIndexRouteImport} from './routes/_authenticated/time-entries/index'
+import {Route as AuthenticatedProjectsIndexRouteImport} from './routes/_authenticated/projects/index'
+import {Route as AuthenticatedOrgHierarchyIndexRouteImport} from './routes/_authenticated/org-hierarchy/index'
+import {Route as AuthenticatedExportsIndexRouteImport} from './routes/_authenticated/exports/index'
+import {Route as AuthenticatedExpensesIndexRouteImport} from './routes/_authenticated/expenses/index'
+import {Route as AuthenticatedCustomersIndexRouteImport} from './routes/_authenticated/customers/index'
+import {Route as AuthenticatedContractsIndexRouteImport} from './routes/_authenticated/contracts/index'
+import {Route as AuthRegisterIndexRouteImport} from './routes/_auth/register/index'
+import {Route as AuthPasswordResetIndexRouteImport} from './routes/_auth/password-reset/index'
+import {Route as AuthLoginIndexRouteImport} from './routes/_auth/login/index'
+import {Route as AuthInviteIndexRouteImport} from './routes/_auth/invite/index'
+import {Route as AuthBootstrapIndexRouteImport} from './routes/_auth/bootstrap/index'
+import {Route as AuthenticatedProjectsIdRouteImport} from './routes/_authenticated/projects/$id'
+import {Route as AuthenticatedCustomersIdRouteImport} from './routes/_authenticated/customers/$id'
+import {Route as AuthenticatedContractsIdIndexRouteImport} from './routes/_authenticated/contracts/$id/index'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
@@ -87,6 +88,11 @@ const AuthRegisterIndexRoute = AuthRegisterIndexRouteImport.update({
   path: '/register/',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthPasswordResetIndexRoute = AuthPasswordResetIndexRouteImport.update({
+  id: '/password-reset/',
+  path: '/password-reset/',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthLoginIndexRoute = AuthLoginIndexRouteImport.update({
   id: '/login/',
   path: '/login/',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/bootstrap/': typeof AuthBootstrapIndexRoute
   '/invite/': typeof AuthInviteIndexRoute
   '/login/': typeof AuthLoginIndexRoute
+  '/password-reset/': typeof AuthPasswordResetIndexRoute
   '/register/': typeof AuthRegisterIndexRoute
   '/contracts/': typeof AuthenticatedContractsIndexRoute
   '/customers/': typeof AuthenticatedCustomersIndexRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/bootstrap': typeof AuthBootstrapIndexRoute
   '/invite': typeof AuthInviteIndexRoute
   '/login': typeof AuthLoginIndexRoute
+  '/password-reset': typeof AuthPasswordResetIndexRoute
   '/register': typeof AuthRegisterIndexRoute
   '/contracts': typeof AuthenticatedContractsIndexRoute
   '/customers': typeof AuthenticatedCustomersIndexRoute
@@ -164,6 +172,7 @@ export interface FileRoutesById {
   '/_auth/bootstrap/': typeof AuthBootstrapIndexRoute
   '/_auth/invite/': typeof AuthInviteIndexRoute
   '/_auth/login/': typeof AuthLoginIndexRoute
+  '/_auth/password-reset/': typeof AuthPasswordResetIndexRoute
   '/_auth/register/': typeof AuthRegisterIndexRoute
   '/_authenticated/contracts/': typeof AuthenticatedContractsIndexRoute
   '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/bootstrap/'
     | '/invite/'
     | '/login/'
+    | '/password-reset/'
     | '/register/'
     | '/contracts/'
     | '/customers/'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/bootstrap'
     | '/invite'
     | '/login'
+    | '/password-reset'
     | '/register'
     | '/contracts'
     | '/customers'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/_auth/bootstrap/'
     | '/_auth/invite/'
     | '/_auth/login/'
+    | '/_auth/password-reset/'
     | '/_auth/register/'
     | '/_authenticated/contracts/'
     | '/_authenticated/customers/'
@@ -314,6 +326,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRegisterIndexRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/password-reset/': {
+      id: '/_auth/password-reset/'
+      path: '/password-reset'
+      fullPath: '/password-reset/'
+      preLoaderRoute: typeof AuthPasswordResetIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/login/': {
       id: '/_auth/login/'
       path: '/login'
@@ -363,6 +382,7 @@ interface AuthRouteChildren {
   AuthBootstrapIndexRoute: typeof AuthBootstrapIndexRoute
   AuthInviteIndexRoute: typeof AuthInviteIndexRoute
   AuthLoginIndexRoute: typeof AuthLoginIndexRoute
+  AuthPasswordResetIndexRoute: typeof AuthPasswordResetIndexRoute
   AuthRegisterIndexRoute: typeof AuthRegisterIndexRoute
 }
 
@@ -370,6 +390,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthBootstrapIndexRoute: AuthBootstrapIndexRoute,
   AuthInviteIndexRoute: AuthInviteIndexRoute,
   AuthLoginIndexRoute: AuthLoginIndexRoute,
+  AuthPasswordResetIndexRoute: AuthPasswordResetIndexRoute,
   AuthRegisterIndexRoute: AuthRegisterIndexRoute,
 }
 
