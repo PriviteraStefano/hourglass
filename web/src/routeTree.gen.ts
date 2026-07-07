@@ -15,6 +15,8 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedTimeEntriesIndexRouteImport } from './routes/_authenticated/time-entries/index'
 import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects/index'
 import { Route as AuthenticatedOrgHierarchyIndexRouteImport } from './routes/_authenticated/org-hierarchy/index'
+import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports/index'
+import { Route as AuthenticatedExpensesIndexRouteImport } from './routes/_authenticated/expenses/index'
 import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers/index'
 import { Route as AuthenticatedContractsIndexRouteImport } from './routes/_authenticated/contracts/index'
 import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/index'
@@ -54,6 +56,18 @@ const AuthenticatedOrgHierarchyIndexRoute =
   AuthenticatedOrgHierarchyIndexRouteImport.update({
     id: '/org-hierarchy/',
     path: '/org-hierarchy/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedExportsIndexRoute =
+  AuthenticatedExportsIndexRouteImport.update({
+    id: '/exports/',
+    path: '/exports/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedExpensesIndexRoute =
+  AuthenticatedExpensesIndexRouteImport.update({
+    id: '/expenses/',
+    path: '/expenses/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedCustomersIndexRoute =
@@ -116,6 +130,8 @@ export interface FileRoutesByFullPath {
   '/register/': typeof AuthRegisterIndexRoute
   '/contracts/': typeof AuthenticatedContractsIndexRoute
   '/customers/': typeof AuthenticatedCustomersIndexRoute
+  '/expenses/': typeof AuthenticatedExpensesIndexRoute
+  '/exports/': typeof AuthenticatedExportsIndexRoute
   '/org-hierarchy/': typeof AuthenticatedOrgHierarchyIndexRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/time-entries/': typeof AuthenticatedTimeEntriesIndexRoute
@@ -131,6 +147,8 @@ export interface FileRoutesByTo {
   '/register': typeof AuthRegisterIndexRoute
   '/contracts': typeof AuthenticatedContractsIndexRoute
   '/customers': typeof AuthenticatedCustomersIndexRoute
+  '/expenses': typeof AuthenticatedExpensesIndexRoute
+  '/exports': typeof AuthenticatedExportsIndexRoute
   '/org-hierarchy': typeof AuthenticatedOrgHierarchyIndexRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
   '/time-entries': typeof AuthenticatedTimeEntriesIndexRoute
@@ -149,6 +167,8 @@ export interface FileRoutesById {
   '/_auth/register/': typeof AuthRegisterIndexRoute
   '/_authenticated/contracts/': typeof AuthenticatedContractsIndexRoute
   '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
+  '/_authenticated/expenses/': typeof AuthenticatedExpensesIndexRoute
+  '/_authenticated/exports/': typeof AuthenticatedExportsIndexRoute
   '/_authenticated/org-hierarchy/': typeof AuthenticatedOrgHierarchyIndexRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/_authenticated/time-entries/': typeof AuthenticatedTimeEntriesIndexRoute
@@ -166,6 +186,8 @@ export interface FileRouteTypes {
     | '/register/'
     | '/contracts/'
     | '/customers/'
+    | '/expenses/'
+    | '/exports/'
     | '/org-hierarchy/'
     | '/projects/'
     | '/time-entries/'
@@ -181,6 +203,8 @@ export interface FileRouteTypes {
     | '/register'
     | '/contracts'
     | '/customers'
+    | '/expenses'
+    | '/exports'
     | '/org-hierarchy'
     | '/projects'
     | '/time-entries'
@@ -198,6 +222,8 @@ export interface FileRouteTypes {
     | '/_auth/register/'
     | '/_authenticated/contracts/'
     | '/_authenticated/customers/'
+    | '/_authenticated/expenses/'
+    | '/_authenticated/exports/'
     | '/_authenticated/org-hierarchy/'
     | '/_authenticated/projects/'
     | '/_authenticated/time-entries/'
@@ -251,6 +277,20 @@ declare module '@tanstack/react-router' {
       path: '/org-hierarchy'
       fullPath: '/org-hierarchy/'
       preLoaderRoute: typeof AuthenticatedOrgHierarchyIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/exports/': {
+      id: '/_authenticated/exports/'
+      path: '/exports'
+      fullPath: '/exports/'
+      preLoaderRoute: typeof AuthenticatedExportsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/expenses/': {
+      id: '/_authenticated/expenses/'
+      path: '/expenses'
+      fullPath: '/expenses/'
+      preLoaderRoute: typeof AuthenticatedExpensesIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/customers/': {
@@ -341,6 +381,8 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProjectsIdRoute: typeof AuthenticatedProjectsIdRoute
   AuthenticatedContractsIndexRoute: typeof AuthenticatedContractsIndexRoute
   AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
+  AuthenticatedExpensesIndexRoute: typeof AuthenticatedExpensesIndexRoute
+  AuthenticatedExportsIndexRoute: typeof AuthenticatedExportsIndexRoute
   AuthenticatedOrgHierarchyIndexRoute: typeof AuthenticatedOrgHierarchyIndexRoute
   AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
   AuthenticatedTimeEntriesIndexRoute: typeof AuthenticatedTimeEntriesIndexRoute
@@ -353,6 +395,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProjectsIdRoute: AuthenticatedProjectsIdRoute,
   AuthenticatedContractsIndexRoute: AuthenticatedContractsIndexRoute,
   AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
+  AuthenticatedExpensesIndexRoute: AuthenticatedExpensesIndexRoute,
+  AuthenticatedExportsIndexRoute: AuthenticatedExportsIndexRoute,
   AuthenticatedOrgHierarchyIndexRoute: AuthenticatedOrgHierarchyIndexRoute,
   AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
   AuthenticatedTimeEntriesIndexRoute: AuthenticatedTimeEntriesIndexRoute,
