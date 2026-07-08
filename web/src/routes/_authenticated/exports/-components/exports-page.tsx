@@ -33,7 +33,7 @@ export function ExportsPage() {
 
   function handleDownload() {
     setDownloading(true)
-    const url = getExportUrl(exportType as 'timesheets' | 'expenses' | 'combined', from, to)
+    const url = getExportUrl(exportType as 'timesheets' | 'expenses' | 'combined', from, to, 'csv')
     const a = document.createElement('a')
     a.href = url
     a.download = ''
