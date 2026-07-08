@@ -336,7 +336,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 7: Exports
 
-**Status:** Planning — 3 plans in 2 waves
+**Status:** 1/3 plans completed — executing
 
 **Goal:** Downloadable CSV/XLSX exports for timesheets, expenses, and combined reports with date range filtering, format selection, role-scoped data, and auth requirement.
 
@@ -366,7 +366,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 | Plan | Objective | Wave | Tasks | Files |
 |------|-----------|------|-------|-------|
-| [ ] 07-01 | Backend: count endpoints, XLSX generation, format param, CSV streaming, project/user filters | 1 | 3 | 8 |
+| [x] 07-01 | Backend: count endpoints, XLSX generation, format param, CSV streaming, project/user filters | 1 | 3 | 10 |
 | [ ] 07-02 | Frontend: useDownload hook, API module, ExportForm component, combined page sidebar | 1 | 3 | 5 |
 | [ ] 07-03 | Frontend: Export tabs on time entries and expenses pages | 2 | 2 | 2 |
 

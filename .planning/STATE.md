@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
-status: completed
-last_updated: "2026-07-07T19:01:26.971Z"
-last_activity: 2026-07-07
+status: executing
+last_updated: "2026-07-08T21:44:23.895Z"
+last_activity: 2026-07-08
 progress:
   total_phases: 11
   completed_phases: 7
-  total_plans: 42
-  completed_plans: 38
+  total_plans: 45
+  completed_plans: 39
   percent: 64
 ---
 
@@ -17,7 +17,7 @@ progress:
 
 ## Session
 
-- **Last activity:** 2026-06-11
+- **Last activity:** 2026-07-08
 - **Completed:** Plan 06-01 (Backend foundation: domain + ports + mocks + factories + migrations)
 - **Completed:** Plan 06-02 (Backend service layer: two-stage approval + expense service)
 - **Completed:** Plan 06-03 (PG repos + HTTP handlers + route wiring)
@@ -29,7 +29,7 @@ progress:
 
 ## Phase 0: testing-foundation
 
-- **Status:** Phase 05 complete
+- **Status:** Executing Phase 07
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -107,12 +107,13 @@ progress:
 
 ## Phase 7: exports
 
-- **Status:** Complete
+- **Status:** In progress
 - **Goal:** Downloadable CSV/Excel exports
 - **Depends on:** Phase 6
 - **Day:** Sun June 14
 - **Plans:**
   - Frontend: Exports page with date range + type selector [completed]
+  - 07-01-PLAN.md — Backend export extensions (count endpoints, XLSX, format params, filter helpers) [completed]
 
 ## Superseded Phases
 
@@ -311,10 +312,10 @@ completed: 2026-06-09
 
 ## Current Position
 
-Phase: 06 — COMPLETE
-Plan: 5 of 5
-Status: All 5 plans completed — full time entry + expense frontend UI with approval workflow
-Last activity: 2026-06-11 -- Phase 6 Plan 05: Frontend expense UI (types, API, route, components)
+Phase: 07 (exports) — EXECUTING
+Plan: 1 of 3 [completed]
+Status: Executing Phase 07
+Last activity: 2026-07-08 -- Plan 07-01 completed
 
 ## Performance Metrics
 
@@ -340,3 +341,4 @@ Last activity: 2026-06-11 -- Phase 6 Plan 05: Frontend expense UI (types, API, r
 | Phase 06-time-entries-expenses P03 | 25 min | 3 tasks | 12 files |
 | Phase 06-time-entries-expenses P04 | 15 min | 3 tasks | 10 files |
 | Phase 06-time-entries-expenses P05 | 12 min | 3 tasks | 10 files |
+| Phase 07-exports P01 | 3 min | 3 tasks | 10 files |

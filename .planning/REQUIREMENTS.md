@@ -90,12 +90,12 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 
 ### Exports
 
-- [ ] **EXPT-01**: Timesheet export (CSV/Excel) with date range filter
-- [ ] **EXPT-02**: Expense export (CSV/Excel) with date range filter
-- [ ] **EXPT-03**: Combined export with both time + expense data
+- [x] **EXPT-01**: Timesheet export (CSV/Excel) with date range filter
+- [x] **EXPT-02**: Expense export (CSV/Excel) with date range filter
+- [x] **EXPT-03**: Combined export with both time + expense data
 - [ ] **EXPT-04**: Download as file
-- [ ] **EXPT-05**: Empty export shows friendly message
-- [ ] **EXPT-06**: Auth required — user-scoped data only
+- [x] **EXPT-05**: Empty export shows friendly message
+- [x] **EXPT-06**: Auth required — user-scoped data only
 
 ## Out of Scope
 
@@ -165,12 +165,12 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 | APPR-03 | Phase 6 | Pending |
 | APPR-04 | Phase 6 | Pending |
 | APPR-05 | Phase 6 | Pending |
-| EXPT-01 | Phase 7 | Pending |
-| EXPT-02 | Phase 7 | Pending |
-| EXPT-03 | Phase 7 | Pending |
-| EXPT-04 | Phase 7 | Pending |
-| EXPT-05 | Phase 7 | Pending |
-| EXPT-06 | Phase 7 | Pending |
+| EXPT-01 | Phase 7 / Plan 01 | Complete |
+| EXPT-02 | Phase 7 / Plan 01 | Complete |
+| EXPT-03 | Phase 7 / Plan 01 | Complete |
+| EXPT-04 | Phase 7 / Plan 02 | Pending |
+| EXPT-05 | Phase 7 / Plan 01 | Complete |
+| EXPT-06 | Phase 7 / Plan 01 | Complete |
 
 **Coverage:**
 
@@ -181,4 +181,4 @@ Requirements for the remaining v0.1 work. Previous phases (Pg-1/Pg-2/Pg-3 — Po
 ---
 
 *Requirements defined: 2026-06-08*
-*Last updated: 2026-06-08 after v0.1 milestone continuation*
+*Last updated: 2026-07-08 after Phase 7 Plan 01 completion*
