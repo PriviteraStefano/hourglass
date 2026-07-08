@@ -202,6 +202,9 @@ func main() {
 	mux.HandleFunc("GET /exports/timesheets", middleware.Auth(authService, exportHandler.Timesheets))
 	mux.HandleFunc("GET /exports/expenses", middleware.Auth(authService, exportHandler.Expenses))
 	mux.HandleFunc("GET /exports/combined", middleware.Auth(authService, exportHandler.Combined))
+	mux.HandleFunc("GET /exports/timesheets/count", middleware.Auth(authService, exportHandler.CountTimesheets))
+	mux.HandleFunc("GET /exports/expenses/count", middleware.Auth(authService, exportHandler.CountExpenses))
+	mux.HandleFunc("GET /exports/combined/count", middleware.Auth(authService, exportHandler.CountCombined))
 
 	mux.HandleFunc("GET /time-entries", middleware.Auth(authService, hexTEHandler.List))
 	mux.HandleFunc("POST /time-entries", middleware.Auth(authService, hexTEHandler.Create))

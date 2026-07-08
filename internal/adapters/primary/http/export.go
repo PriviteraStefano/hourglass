@@ -87,6 +87,48 @@ func (h *ExportHandler) Combined(w http.ResponseWriter, r *http.Request) {
 
 type csvRow []string
 
+func (h *ExportHandler) CountTimesheets(w http.ResponseWriter, r *http.Request) {
+	from, to := parseExportRange(r)
+	role := middleware.GetRole(r.Context())
+	userID := middleware.GetUserID(r.Context())
+	orgID := middleware.GetOrganizationID(r.Context())
+
+	count, err := h.service.CountTimesheets(r.Context(), orgID, from, to, role, userID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to count export data")
+		return
+	}
+	api.RespondWithJSON(w, http.StatusOK, map[string]int{"count": count})
+}
+
+func (h *ExportHandler) CountExpenses(w http.ResponseWriter, r *http.Request) {
+	from, to := parseExportRange(r)
+	role := middleware.GetRole(r.Context())
+	userID := middleware.GetUserID(r.Context())
+	orgID := middleware.GetOrganizationID(r.Context())
+
+	count, err := h.service.CountExpenses(r.Context(), orgID, from, to, role, userID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to count export data")
+		return
+	}
+	api.RespondWithJSON(w, http.StatusOK, map[string]int{"count": count})
+}
+
+func (h *ExportHandler) CountCombined(w http.ResponseWriter, r *http.Request) {
+	from, to := parseExportRange(r)
+	role := middleware.GetRole(r.Context())
+	userID := middleware.GetUserID(r.Context())
+	orgID := middleware.GetOrganizationID(r.Context())
+
+	count, err := h.service.CountCombined(r.Context(), orgID, from, to, role, userID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusInternalServerError, "failed to count export data")
+		return
+	}
+	api.RespondWithJSON(w, http.StatusOK, map[string]int{"count": count})
+}
+
 // writeXLSX generates an XLSX workbook with the given sheets and writes it to the response.
 // The first sheet renames the default "Sheet1"; subsequent sheets are added via f.NewSheet.
 // Headers are bold, columns auto-sized to width 18, Content-Type and Content-Disposition are set.
