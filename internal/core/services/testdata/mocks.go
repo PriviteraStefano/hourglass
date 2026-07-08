@@ -822,6 +822,14 @@ func (m *MockExportRepo) Expenses(ctx context.Context, orgID uuid.UUID, from, to
 	return nil, nil
 }
 
+func (m *MockExportRepo) CountTimesheets(ctx context.Context, orgID uuid.UUID, from, to time.Time, role string, userID uuid.UUID) (int, error) {
+	return 0, nil
+}
+
+func (m *MockExportRepo) CountExpenses(ctx context.Context, orgID uuid.UUID, from, to time.Time, role string, userID uuid.UUID) (int, error) {
+	return 0, nil
+}
+
 type MockRefreshTokenRepo struct {
 	mu     sync.Mutex
 	Tokens map[string]*ports.RefreshToken

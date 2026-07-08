@@ -103,6 +103,48 @@ func (r *ExportRepository) Expenses(ctx context.Context, orgID uuid.UUID, from, 
 	return scanExportRows(rows)
 }
 
+// CountTimesheets returns the count of time entries for the given org and date range.
+func (r *ExportRepository) CountTimesheets(ctx context.Context, orgID uuid.UUID, from, to time.Time, role string, userID uuid.UUID) (int, error) {
+	roleSQL, paramCount := roleFilter("te.user_id", role)
+
+	query := `SELECT COUNT(*)
+	FROM time_entries te
+	WHERE te.org_id = $1 AND te.entry_date >= $2 AND te.entry_date <= $3 AND te.is_deleted = false` + roleSQL
+
+	var count int
+	var err error
+	if paramCount == 4 {
+		err = r.pool.QueryRow(ctx, query, orgID, from, to, userID).Scan(&count)
+	} else {
+		err = r.pool.QueryRow(ctx, query, orgID, from, to).Scan(&count)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("count timesheets: %w", err)
+	}
+	return count, nil
+}
+
+// CountExpenses returns the count of expenses for the given org and date range.
+func (r *ExportRepository) CountExpenses(ctx context.Context, orgID uuid.UUID, from, to time.Time, role string, userID uuid.UUID) (int, error) {
+	roleSQL, paramCount := roleFilter("e.user_id", role)
+
+	query := `SELECT COUNT(*)
+	FROM expenses e
+	WHERE e.org_id = $1 AND e.expense_date >= $2 AND e.expense_date <= $3 AND e.is_deleted = false` + roleSQL
+
+	var count int
+	var err error
+	if paramCount == 4 {
+		err = r.pool.QueryRow(ctx, query, orgID, from, to, userID).Scan(&count)
+	} else {
+		err = r.pool.QueryRow(ctx, query, orgID, from, to).Scan(&count)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("count expenses: %w", err)
+	}
+	return count, nil
+}
+
 // -- scan helpers ------------------------------------------------------------
 
 // scanExportRows scans multiple export rows.

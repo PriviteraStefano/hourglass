@@ -40,3 +40,23 @@ func (s *Service) Combined(ctx context.Context, orgID uuid.UUID, from, to time.T
 	})
 	return rows, nil
 }
+
+func (s *Service) CountTimesheets(ctx context.Context, orgID uuid.UUID, from, to time.Time, role string, userID uuid.UUID) (int, error) {
+	return s.repo.CountTimesheets(ctx, orgID, from, to, role, userID)
+}
+
+func (s *Service) CountExpenses(ctx context.Context, orgID uuid.UUID, from, to time.Time, role string, userID uuid.UUID) (int, error) {
+	return s.repo.CountExpenses(ctx, orgID, from, to, role, userID)
+}
+
+func (s *Service) CountCombined(ctx context.Context, orgID uuid.UUID, from, to time.Time, role string, userID uuid.UUID) (int, error) {
+	teCount, err := s.repo.CountTimesheets(ctx, orgID, from, to, role, userID)
+	if err != nil {
+		return 0, err
+	}
+	expCount, err := s.repo.CountExpenses(ctx, orgID, from, to, role, userID)
+	if err != nil {
+		return 0, err
+	}
+	return teCount + expCount, nil
+}

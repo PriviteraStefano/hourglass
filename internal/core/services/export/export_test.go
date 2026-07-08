@@ -89,3 +89,42 @@ func TestService_DateRangeFiltering(t *testing.T) {
 		assert.Nil(t, rows)
 	})
 }
+
+func TestService_CountTimesheets(t *testing.T) {
+	svc, _ := setupService(t)
+	orgID := uuid.New()
+	from := time.Now().Add(-30 * 24 * time.Hour)
+	to := time.Now()
+
+	t.Run("count time entries", func(t *testing.T) {
+		count, err := svc.CountTimesheets(context.Background(), orgID, from, to, "finance", uuid.New())
+		assert.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+func TestService_CountExpenses(t *testing.T) {
+	svc, _ := setupService(t)
+	orgID := uuid.New()
+	from := time.Now().Add(-30 * 24 * time.Hour)
+	to := time.Now()
+
+	t.Run("count expenses", func(t *testing.T) {
+		count, err := svc.CountExpenses(context.Background(), orgID, from, to, "finance", uuid.New())
+		assert.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+func TestService_CountCombined(t *testing.T) {
+	svc, _ := setupService(t)
+	orgID := uuid.New()
+	from := time.Now().Add(-30 * 24 * time.Hour)
+	to := time.Now()
+
+	t.Run("combined count sums both", func(t *testing.T) {
+		count, err := svc.CountCombined(context.Background(), orgID, from, to, "finance", uuid.New())
+		assert.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
