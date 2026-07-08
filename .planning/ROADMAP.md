@@ -336,9 +336,9 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 7: Exports
 
-**Status:** Complete — frontend exports page with date range + type selector
+**Status:** Planning — 3 plans in 2 waves
 
-**Goal:** Downloadable CSV/Excel exports for timesheets, expenses, and combined reports.
+**Goal:** Downloadable CSV/XLSX exports for timesheets, expenses, and combined reports with date range filtering, format selection, role-scoped data, and auth requirement.
 
 **Depends on:** Phase 6
 
@@ -348,25 +348,35 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ### Key behaviors
 
-- Timesheet export (CSV/Excel) with date range filter
-- Expense export (CSV/Excel) with date range filter
-- Combined export with both time + expense data
-- Download as file
+- Timesheet export (CSV/Excel) with date range filter — EXPT-01
+- Expense export (CSV/Excel) with date range filter — EXPT-02
+- Combined export with both time + expense data — EXPT-03
+- Download as file via fetch+blob — EXPT-04
+- Empty export shows friendly toast message — EXPT-05
+- Auth required, user-scoped data — EXPT-06
 
-### Backend
+### Waves
 
-Already exists (ExportRepository, Export handler)
+| Wave | Plans | Description |
+|------|-------|-------------|
+| 1 | Plan 01 + Plan 02 (parallel) | Backend extensions (count endpoints, XLSX, format param, filters) + Frontend core (hook, API module, ExportForm component, sidebar) |
+| 2 | Plan 03 (depends on 02) | Export tabs on time-entries and expenses pages |
 
-### Frontend files to create
+### Plans
 
-- `web/src/routes/_authenticated/exports/index.tsx`
-- Components: export-form.tsx (date range, type selector, download button)
+| Plan | Objective | Wave | Tasks | Files |
+|------|-----------|------|-------|-------|
+| [ ] 07-01 | Backend: count endpoints, XLSX generation, format param, CSV streaming, project/user filters | 1 | 3 | 8 |
+| [ ] 07-02 | Frontend: useDownload hook, API module, ExportForm component, combined page sidebar | 1 | 3 | 5 |
+| [ ] 07-03 | Frontend: Export tabs on time entries and expenses pages | 2 | 2 | 2 |
 
 ### Edge cases
 
-- Empty export (no data in range) shows friendly message
-- Large export handled server-side
-- Auth required for exports (user-scoped data)
+- Empty export (no data in range) shows friendly toast
+- Large export handled server-side with CSV streaming + count pre-check
+- Auth required for exports (user-scoped data) — backend middleware.Auth() on all routes
+- 1-year max date range enforced both frontend and backend
+- XLSX combined export uses two sheets (Timesheets + Expenses)
 
 ---
 
