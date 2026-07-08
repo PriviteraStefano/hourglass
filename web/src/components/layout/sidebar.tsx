@@ -38,6 +38,7 @@ const navItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon; dis
   {label: 'Time', href: '/time-entries', icon: ClockIcon},
   {label: 'Expenses', href: '/expenses', icon: ReceiptIcon},
   {label: 'Approvals', href: '/approvals', icon: CheckCircleIcon, disabled: true},
+  {label: 'Exports', href: '/exports', icon: DownloadIcon},
 ]
 
 const projectItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon; disabled?: boolean }> = [
@@ -48,7 +49,6 @@ const projectItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon;
 ]
 
 const settingsItems: Array<{ label: string; href: ToPathOption; icon: LucideIcon; disabled?: boolean }> = [
-  {label: 'Exports', href: '/exports', icon: DownloadIcon},
   {label: 'Settings', href: '/settings', icon: SettingsIcon, disabled: true},
 ]
 
