@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-08T21:50:29.208Z"
+last_updated: "2026-07-08T21:54:00.000Z"
 last_activity: 2026-07-08
 progress:
   total_phases: 11
   completed_phases: 8
-  total_plans: 45
-  completed_plans: 40
-  percent: 73
+  total_plans: 46
+  completed_plans: 41
+  percent: 89
 ---
 
 # Phase State
@@ -18,13 +18,14 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-08
+- **Completed:** Plan 07-03 (Export tabs on time entries and expenses pages)
 - **Completed:** Plan 06-01 (Backend foundation: domain + ports + mocks + factories + migrations)
 - **Completed:** Plan 06-02 (Backend service layer: two-stage approval + expense service)
 - **Completed:** Plan 06-03 (PG repos + HTTP handlers + route wiring)
 - **Completed:** Plan 06-04 (Frontend time entry UI rewrite: flat model + approval components)
 - **Completed:** Plan 06-05 (Frontend expense UI: types, API, route, calendar, detail, row, form, sidebar)
-- **Source:** `.planning/phases/06-time-entries-expenses/06-05-PLAN.md`
-- **Previous:** Plan 06-04 (Frontend time entry UI rewrite: flat model + approval components)
+- **Source:** `.planning/phases/07-exports/07-03-PLAN.md`
+- **Previous:** Plan 07-02 (Frontend core: ExportForm, useDownload hook, API module, combined page, sidebar)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
@@ -107,7 +108,7 @@ progress:
 
 ## Phase 7: exports
 
-- **Status:** In progress
+- **Status:** Complete
 - **Goal:** Downloadable CSV/Excel exports
 - **Depends on:** Phase 6
 - **Day:** Sun June 14
@@ -115,6 +116,7 @@ progress:
   - Frontend: Exports page with date range + type selector [completed]
   - 07-01-PLAN.md — Backend export extensions (count endpoints, XLSX, format params, filter helpers) [completed]
   - 07-02-PLAN.md — Frontend core: useDownload hook, ExportApis, ExportForm, exports page rewrite, sidebar [completed]
+  - 07-03-PLAN.md — Frontend: Export tabs on time entries and expenses pages [completed]
 
 ## Superseded Phases
 
@@ -144,6 +146,8 @@ The following phases from the previous milestone structure are superseded:
 - **2026-06-11:** CustomerID on CreateContractRequest uses *uuid.UUID (nullable pointer) for domain, *string for HTTP handler (JSON-native), parsed at handler boundary
 - **2026-06-11:** HasProjects counts ALL projects (not just active) — consistent with ON DELETE RESTRICT FK constraint
 - **2026-06-11:** HasProjects check runs after HasTimeEntries check in Delete service method
+
+- **2026-07-08:** Export tabs follow PATTERNS.md exactly: Tabs defaultValue='list', List/Calendar/Export triggers, existing calendar content preserved under Calendar tab. List tab is empty placeholder — no list view component exists yet on either page.
 
 phase: 01
 plan: Not started
@@ -313,10 +317,10 @@ completed: 2026-06-09
 
 ## Current Position
 
-Phase: 07 (exports) — EXECUTING
-Plan: 2 of 3 [completed]
-Status: Executing Phase 07
-Last activity: 2026-07-08 -- Plan 07-02 completed
+Phase: 08 (next phase)
+Plan: Not started
+Status: Phase 07 complete
+Last activity: 2026-07-08 -- Plan 07-03 completed (final export plan)
 
 ## Performance Metrics
 
@@ -344,3 +348,5 @@ Last activity: 2026-07-08 -- Plan 07-02 completed
 | Phase 06-time-entries-expenses P05 | 12 min | 3 tasks | 10 files |
 | Phase 07-exports P01 | 3 min | 3 tasks | 10 files |
 | Phase 07-exports P02 | 3 min | 3 tasks | 5 files |
+| Phase 07-exports P03 | 1 min | 2 tasks | 2 files |
+| Phase 07-exports P03 | 1 min | 2 tasks | 2 files |
