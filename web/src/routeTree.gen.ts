@@ -8,25 +8,24 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import {Route as rootRouteImport} from './routes/__root'
-import {Route as AuthenticatedRouteImport} from './routes/_authenticated'
-import {Route as AuthRouteImport} from './routes/_auth'
-import {Route as AuthenticatedIndexRouteImport} from './routes/_authenticated/index'
-import {Route as AuthenticatedTimeEntriesIndexRouteImport} from './routes/_authenticated/time-entries/index'
-import {Route as AuthenticatedProjectsIndexRouteImport} from './routes/_authenticated/projects/index'
-import {Route as AuthenticatedOrgHierarchyIndexRouteImport} from './routes/_authenticated/org-hierarchy/index'
-import {Route as AuthenticatedExportsIndexRouteImport} from './routes/_authenticated/exports/index'
-import {Route as AuthenticatedExpensesIndexRouteImport} from './routes/_authenticated/expenses/index'
-import {Route as AuthenticatedCustomersIndexRouteImport} from './routes/_authenticated/customers/index'
-import {Route as AuthenticatedContractsIndexRouteImport} from './routes/_authenticated/contracts/index'
-import {Route as AuthRegisterIndexRouteImport} from './routes/_auth/register/index'
-import {Route as AuthPasswordResetIndexRouteImport} from './routes/_auth/password-reset/index'
-import {Route as AuthLoginIndexRouteImport} from './routes/_auth/login/index'
-import {Route as AuthInviteIndexRouteImport} from './routes/_auth/invite/index'
-import {Route as AuthBootstrapIndexRouteImport} from './routes/_auth/bootstrap/index'
-import {Route as AuthenticatedProjectsIdRouteImport} from './routes/_authenticated/projects/$id'
-import {Route as AuthenticatedCustomersIdRouteImport} from './routes/_authenticated/customers/$id'
-import {Route as AuthenticatedContractsIdIndexRouteImport} from './routes/_authenticated/contracts/$id/index'
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedTimeEntriesIndexRouteImport } from './routes/_authenticated/time-entries/index'
+import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects/index'
+import { Route as AuthenticatedOrgHierarchyIndexRouteImport } from './routes/_authenticated/org-hierarchy/index'
+import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports/index'
+import { Route as AuthenticatedExpensesIndexRouteImport } from './routes/_authenticated/expenses/index'
+import { Route as AuthenticatedContractsIndexRouteImport } from './routes/_authenticated/contracts/index'
+import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/index'
+import { Route as AuthPasswordResetIndexRouteImport } from './routes/_auth/password-reset/index'
+import { Route as AuthLoginIndexRouteImport } from './routes/_auth/login/index'
+import { Route as AuthInviteIndexRouteImport } from './routes/_auth/invite/index'
+import { Route as AuthBootstrapIndexRouteImport } from './routes/_auth/bootstrap/index'
+import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects/$id'
+import { Route as AuthenticatedCustomersIdRouteImport } from './routes/_authenticated/customers/$id'
+import { Route as AuthenticatedContractsIdIndexRouteImport } from './routes/_authenticated/contracts/$id/index'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
@@ -69,12 +68,6 @@ const AuthenticatedExpensesIndexRoute =
   AuthenticatedExpensesIndexRouteImport.update({
     id: '/expenses/',
     path: '/expenses/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedCustomersIndexRoute =
-  AuthenticatedCustomersIndexRouteImport.update({
-    id: '/customers/',
-    path: '/customers/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedContractsIndexRoute =
@@ -136,7 +129,6 @@ export interface FileRoutesByFullPath {
   '/password-reset/': typeof AuthPasswordResetIndexRoute
   '/register/': typeof AuthRegisterIndexRoute
   '/contracts/': typeof AuthenticatedContractsIndexRoute
-  '/customers/': typeof AuthenticatedCustomersIndexRoute
   '/expenses/': typeof AuthenticatedExpensesIndexRoute
   '/exports/': typeof AuthenticatedExportsIndexRoute
   '/org-hierarchy/': typeof AuthenticatedOrgHierarchyIndexRoute
@@ -154,7 +146,6 @@ export interface FileRoutesByTo {
   '/password-reset': typeof AuthPasswordResetIndexRoute
   '/register': typeof AuthRegisterIndexRoute
   '/contracts': typeof AuthenticatedContractsIndexRoute
-  '/customers': typeof AuthenticatedCustomersIndexRoute
   '/expenses': typeof AuthenticatedExpensesIndexRoute
   '/exports': typeof AuthenticatedExportsIndexRoute
   '/org-hierarchy': typeof AuthenticatedOrgHierarchyIndexRoute
@@ -175,7 +166,6 @@ export interface FileRoutesById {
   '/_auth/password-reset/': typeof AuthPasswordResetIndexRoute
   '/_auth/register/': typeof AuthRegisterIndexRoute
   '/_authenticated/contracts/': typeof AuthenticatedContractsIndexRoute
-  '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
   '/_authenticated/expenses/': typeof AuthenticatedExpensesIndexRoute
   '/_authenticated/exports/': typeof AuthenticatedExportsIndexRoute
   '/_authenticated/org-hierarchy/': typeof AuthenticatedOrgHierarchyIndexRoute
@@ -195,7 +185,6 @@ export interface FileRouteTypes {
     | '/password-reset/'
     | '/register/'
     | '/contracts/'
-    | '/customers/'
     | '/expenses/'
     | '/exports/'
     | '/org-hierarchy/'
@@ -213,7 +202,6 @@ export interface FileRouteTypes {
     | '/password-reset'
     | '/register'
     | '/contracts'
-    | '/customers'
     | '/expenses'
     | '/exports'
     | '/org-hierarchy'
@@ -233,7 +221,6 @@ export interface FileRouteTypes {
     | '/_auth/password-reset/'
     | '/_auth/register/'
     | '/_authenticated/contracts/'
-    | '/_authenticated/customers/'
     | '/_authenticated/expenses/'
     | '/_authenticated/exports/'
     | '/_authenticated/org-hierarchy/'
@@ -303,13 +290,6 @@ declare module '@tanstack/react-router' {
       path: '/expenses'
       fullPath: '/expenses/'
       preLoaderRoute: typeof AuthenticatedExpensesIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/customers/': {
-      id: '/_authenticated/customers/'
-      path: '/customers'
-      fullPath: '/customers/'
-      preLoaderRoute: typeof AuthenticatedCustomersIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/contracts/': {
@@ -401,7 +381,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCustomersIdRoute: typeof AuthenticatedCustomersIdRoute
   AuthenticatedProjectsIdRoute: typeof AuthenticatedProjectsIdRoute
   AuthenticatedContractsIndexRoute: typeof AuthenticatedContractsIndexRoute
-  AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
   AuthenticatedExpensesIndexRoute: typeof AuthenticatedExpensesIndexRoute
   AuthenticatedExportsIndexRoute: typeof AuthenticatedExportsIndexRoute
   AuthenticatedOrgHierarchyIndexRoute: typeof AuthenticatedOrgHierarchyIndexRoute
@@ -415,7 +394,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCustomersIdRoute: AuthenticatedCustomersIdRoute,
   AuthenticatedProjectsIdRoute: AuthenticatedProjectsIdRoute,
   AuthenticatedContractsIndexRoute: AuthenticatedContractsIndexRoute,
-  AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
   AuthenticatedExpensesIndexRoute: AuthenticatedExpensesIndexRoute,
   AuthenticatedExportsIndexRoute: AuthenticatedExportsIndexRoute,
   AuthenticatedOrgHierarchyIndexRoute: AuthenticatedOrgHierarchyIndexRoute,
