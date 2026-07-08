@@ -128,3 +128,12 @@ None.
 
 - Backend export extensions complete: count endpoints, XLSX generation, format param, filter param helpers
 - Ready for Plan 07-02: Frontend export UI (export form, download hook, export tabs, sidebar nav)
+
+## Self-Check: PASSED
+
+- All 8 modified files verified on disk: ✓
+- All 5 git commits exist: ✓
+- SUMMARY.md exists and is valid: ✓
+- `go build ./...` passes: ✓
+- `go test -count=1 -run 'Export' ./internal/...` — all export tests pass: ✓
+- `go mod verify` passes: ✓
