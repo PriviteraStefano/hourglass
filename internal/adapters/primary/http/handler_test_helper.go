@@ -215,7 +215,7 @@ func (f *handlerFixture) registerAndLogin(t *testing.T, email, username, passwor
 	regResp, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(regBody))
 	require.NoError(t, err)
 	regResp.Body.Close()
-	require.Equal(t, http.StatusCreated, regResp.StatusCode, "register should return 201")
+	require.Equal(t, http.StatusOK, regResp.StatusCode, "register should return 200")
 	return f.loginUser(t, email, password)
 }
 

@@ -26,7 +26,7 @@ func NewExpenseRepository(pool *pgxpool.Pool) *ExpenseRepository {
 
 var _ ports.ExpenseRepository = (*ExpenseRepository)(nil)
 
-const expenseSelectColumns = `id, org_id, user_id, project_id, category, amount, km_distance,
+const expenseSelectColumns = `id, org_id, user_id, project_id, unit_id, category, amount, km_distance,
 	description, expense_date, status, COALESCE(current_approver_role, ''),
 	submitted_at, COALESCE(receipt_url, ''), is_deleted, created_at, updated_at`
 
@@ -42,7 +42,7 @@ func scanExpense(s expenseRowScanner) (*expense.Expense, error) {
 	var submittedAt *time.Time
 	var receiptURL string
 	err := s.Scan(
-		&e.ID, &e.OrgID, &e.UserID, &e.ProjectID,
+		&e.ID, &e.OrgID, &e.UserID, &e.ProjectID, &e.UnitID,
 		&e.Category, &e.Amount, &e.KmDistance,
 		&e.Description, &e.EntryDate, &e.Status,
 		&currentApproverRole, &submittedAt, &receiptURL,
@@ -158,14 +158,14 @@ func (r *ExpenseRepository) Create(ctx context.Context, e *expense.Expense) (*ex
 	e.ID = uuid.New()
 	now := time.Now().UTC()
 
-	query := `INSERT INTO expenses (id, org_id, user_id, project_id,
+	query := `INSERT INTO expenses (id, org_id, user_id, project_id, unit_id,
 		category, amount, km_distance, description, expense_date,
 		status, current_approver_role, submitted_at, receipt_url, is_deleted, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		RETURNING ` + expenseSelectColumns
 
 	created, err := scanExpense(r.pool.QueryRow(ctx, query,
-		e.ID, e.OrgID, e.UserID, e.ProjectID,
+		e.ID, e.OrgID, e.UserID, e.ProjectID, e.UnitID,
 		e.Category, e.Amount, e.KmDistance, e.Description, e.EntryDate,
 		e.Status, e.CurrentApproverRole, e.SubmittedAt, e.ReceiptURL,
 		e.IsDeleted, now, now,
@@ -233,7 +233,7 @@ func (r *ExpenseRepository) ListPending(ctx context.Context, orgID uuid.UUID, ro
 	var args []interface{}
 
 	switch role {
-	case "manager":
+	case "manager", "wg_manager":
 		uID, err := uuid.Parse(userID)
 		if err != nil {
 			return nil, fmt.Errorf("parse user_id: %w", err)

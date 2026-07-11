@@ -10,25 +10,22 @@ afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
 describe('TimeEntriesApis', () => {
-  it('timeEntriesMonthlySummaryQueryOpts calls GET /time-entries/monthly-summary', async () => {
-    const mockSummary = {
-      days: [
-        { date: '2026-05-01', has_draft: true, has_submitted: false, has_approved: false, has_rejected: false, total_hours: 8 },
-      ],
-      totals: { total_hours: 8, draft_count: 1, submitted_count: 0, approved_count: 0, rejected_count: 0 },
-    }
+  it('timeEntriesForMonthQueryOpts calls GET /time-entries with month/year', async () => {
+    const mockEntries: Array<{ id: string; date: string; status: string }> = [
+      { id: 'te1', date: '2026-05-01', status: 'draft' },
+    ]
     server.use(
-      http.get('/api/time-entries/monthly-summary', ({ request }) => {
+      http.get('/api/time-entries', ({ request }) => {
         const url = new URL(request.url)
         expect(url.searchParams.get('month')).toBe('5')
         expect(url.searchParams.get('year')).toBe('2026')
-        return HttpResponse.json({ data: mockSummary })
+        return HttpResponse.json({ data: mockEntries })
       }),
     )
 
-    const opts = TimeEntriesApis.timeEntriesMonthlySummaryQueryOpts(5, 2026)
+    const opts = TimeEntriesApis.timeEntriesForMonthQueryOpts(5, 2026)
     const result = await opts.queryFn()
-    expect(result).toEqual(mockSummary)
+    expect(result).toEqual(mockEntries)
   })
 
   it('createTimeEntryMutationOpts sends POST /time-entries with entry data', async () => {
@@ -56,17 +53,16 @@ describe('TimeEntriesApis', () => {
     expect(result).toEqual(mockEntry)
   })
 
-  it('submitMonthMutationOpts sends POST /time-entries/submit-month', async () => {
+  it('submitTimeEntryMutationOpts sends POST /time-entries/{id}/submit', async () => {
     server.use(
-      http.post('/api/time-entries/submit-month', async ({ request }) => {
-        const body = await request.json()
-        expect(body).toEqual({ month: 5, year: 2026 })
-        return HttpResponse.json({ data: { message: 'submitted' } })
+      http.post('/api/time-entries/:id/submit', async ({ params }) => {
+        expect(params.id).toBe('te1')
+        return HttpResponse.json({ data: { id: 'te1', status: 'submitted' } })
       }),
     )
 
-    const result = await TimeEntriesApis.submitMonthMutationOpts.mutationFn({ month: 5, year: 2026 })
-    expect(result).toEqual({ message: 'submitted' })
+    const result = await TimeEntriesApis.submitTimeEntryMutationOpts.mutationFn('te1')
+    expect(result).toEqual({ id: 'te1', status: 'submitted' })
   })
 
   it('timeEntryQueryOpts calls GET /time-entries with date', async () => {

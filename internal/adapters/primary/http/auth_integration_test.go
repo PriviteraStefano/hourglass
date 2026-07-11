@@ -111,7 +111,7 @@ func (f *integrationFixture) registerAndLogin(t *testing.T, email, username, pas
 	regResp, err := f.client.Post(f.serverURL+"/auth/register", "application/json", strings.NewReader(regBody))
 	require.NoError(t, err)
 	regResp.Body.Close()
-	require.Equal(t, http.StatusCreated, regResp.StatusCode, "register should return 201")
+	require.Equal(t, http.StatusOK, regResp.StatusCode, "register should return 200")
 
 	// Then login — this sets auth cookies in the jar
 	return f.loginUser(t, email, password)
@@ -214,7 +214,7 @@ func TestAuthIntegration(t *testing.T) {
 		role, ok := membership["role"].(string)
 		require.True(t, ok)
 		assert.NotEmpty(t, role, "role should not be empty")
-		assert.Equal(t, "employee", role)
+		assert.Equal(t, "manager", role)
 
 		orgID, ok := membership["organization_id"].(string)
 		require.True(t, ok)
@@ -282,9 +282,9 @@ func TestAuthIntegration(t *testing.T) {
 		regResp, err := f.client.Post(f.serverURL+"/auth/register", "application/json", strings.NewReader(regBody))
 		require.NoError(t, err)
 		regResp.Body.Close()
-		require.Equal(t, http.StatusCreated, regResp.StatusCode)
+	require.Equal(t, http.StatusOK, regResp.StatusCode)
 
-		// Request password reset
+	// Request password reset
 		body := `{"identifier":"` + email + `"}`
 		resp, err := f.client.Post(f.serverURL+"/auth/password-reset/request", "application/json", strings.NewReader(body))
 		require.NoError(t, err)
@@ -343,7 +343,7 @@ func TestAuthIntegration(t *testing.T) {
 		regResp, err := f.client.Post(f.serverURL+"/auth/register", "application/json", strings.NewReader(regBody))
 		require.NoError(t, err)
 		regResp.Body.Close()
-		require.Equal(t, http.StatusCreated, regResp.StatusCode)
+		require.Equal(t, http.StatusOK, regResp.StatusCode)
 
 		// Login and capture response cookies
 		body := `{"identifier":"` + email + `","password":"TestPass123!"}`

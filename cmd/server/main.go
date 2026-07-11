@@ -44,7 +44,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize PostgreSQL pool: %v", err)
 	}
-	defer db.ClosePool()
+	defer db.ClosePool(pool)
 	log.Println("PostgreSQL pool initialized")
 
 	healthHandler := handlers.NewHealthHandler()

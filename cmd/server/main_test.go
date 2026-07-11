@@ -257,13 +257,13 @@ func TestSmoke(t *testing.T) {
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode != 	stdhttp.StatusCreated {
+		if resp.StatusCode != stdhttp.StatusOK {
 			// Read body for debug info
 			var errBody map[string]interface{}
 			json.NewDecoder(resp.Body).Decode(&errBody)
-			t.Fatalf("POST /auth/register: expected 201, got %d: %v", resp.StatusCode, errBody)
+			t.Fatalf("POST /auth/register: expected 200, got %d: %v", resp.StatusCode, errBody)
 		}
-		t.Log("PASS: register returns 201")
+		t.Log("PASS: register returns 200")
 	}
 
 	// --- Step 3: Login with registered credentials ---

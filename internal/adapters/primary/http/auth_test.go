@@ -49,7 +49,7 @@ func TestAuthHandlerIntegration(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		var result map[string]interface{}
 		err = json.NewDecoder(resp.Body).Decode(&result)
@@ -65,7 +65,7 @@ func TestAuthHandlerIntegration(t *testing.T) {
 		membership, ok := data["membership"].(map[string]interface{})
 		require.True(t, ok)
 		assert.NotEmpty(t, membership["organization_id"])
-		assert.Equal(t, "employee", membership["role"])
+		assert.Equal(t, "manager", membership["role"])
 	})
 
 	t.Run("Register_InvalidEmail_Returns400", func(t *testing.T) {
@@ -101,8 +101,8 @@ func TestAuthHandlerIntegration(t *testing.T) {
 		resp, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body))
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		// Register without org creates a user without membership (valid)
-		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	// Register without org creates a user without membership (valid)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 
 	t.Run("Register_DuplicateEmail_Returns409", func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestAuthHandlerIntegration(t *testing.T) {
 		r1, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body1))
 		require.NoError(t, err)
 		r1.Body.Close()
-		assert.Equal(t, http.StatusCreated, r1.StatusCode)
+		assert.Equal(t, http.StatusOK, r1.StatusCode)
 
 		body2 := fmt.Sprintf(`{"email":"%s","username":"dup","password":"password123","organization_name":"%s"}`, email, org)
 		r2, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body2))

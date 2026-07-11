@@ -235,7 +235,7 @@ func (r *TimeEntryRepository) ListPending(ctx context.Context, orgID uuid.UUID, 
 	var args []interface{}
 
 	switch role {
-	case "manager":
+	case "manager", "wg_manager":
 		uID, err := uuid.Parse(userID)
 		if err != nil {
 			return nil, fmt.Errorf("parse user_id: %w", err)

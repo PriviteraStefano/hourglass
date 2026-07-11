@@ -34,6 +34,7 @@ func TestExpenseRepository_Create_GetByID(t *testing.T) {
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 	projectID := seedExpenseProject(t, pool, orgID, now)
+	unitID := seedUnit(t, pool, orgID, now)
 
 	kmDist := 45.0
 
@@ -41,6 +42,7 @@ func TestExpenseRepository_Create_GetByID(t *testing.T) {
 		OrgID:       orgID,
 		UserID:      userID,
 		ProjectID:   projectID,
+		UnitID:      unitID,
 		Category:    "mileage",
 		Amount:      150.50,
 		KmDistance:  &kmDist,
@@ -95,6 +97,7 @@ func TestExpenseRepository_List(t *testing.T) {
 	orgID2 := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 	projectID := seedExpenseProject(t, pool, orgID, now)
+	unitID := seedUnit(t, pool, orgID, now)
 
 	// Create two expenses for org1
 	for i := 0; i < 2; i++ {
@@ -102,6 +105,7 @@ func TestExpenseRepository_List(t *testing.T) {
 			OrgID:       orgID,
 			UserID:      userID,
 			ProjectID:   projectID,
+			UnitID:      unitID,
 			Category:    "meal",
 			Amount:      100.0,
 			Description: "List test expense",
@@ -134,6 +138,7 @@ func TestExpenseRepository_Update(t *testing.T) {
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 	projectID := seedExpenseProject(t, pool, orgID, now)
+	unitID := seedUnit(t, pool, orgID, now)
 
 	kmDist := 0.0
 
@@ -141,6 +146,7 @@ func TestExpenseRepository_Update(t *testing.T) {
 		OrgID:       orgID,
 		UserID:      userID,
 		ProjectID:   projectID,
+		UnitID:      unitID,
 		Category:    "mileage",
 		Amount:      100.0,
 		KmDistance:  &kmDist,
@@ -179,11 +185,13 @@ func TestExpenseRepository_Delete(t *testing.T) {
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 	projectID := seedExpenseProject(t, pool, orgID, now)
+	unitID := seedUnit(t, pool, orgID, now)
 
 	expense := &domainexpense.Expense{
 		OrgID:       orgID,
 		UserID:      userID,
 		ProjectID:   projectID,
+		UnitID:      unitID,
 		Category:    "other",
 		Amount:      75.0,
 		Description: "To delete",
@@ -218,11 +226,13 @@ func TestExpenseRepository_CreateApproval(t *testing.T) {
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 	projectID := seedExpenseProject(t, pool, orgID, now)
+	unitID := seedUnit(t, pool, orgID, now)
 
 	expense := &domainexpense.Expense{
 		OrgID:       orgID,
 		UserID:      userID,
 		ProjectID:   projectID,
+		UnitID:      unitID,
 		Category:    "mileage",
 		Amount:      50.0,
 		Description: "Approval test",
@@ -292,12 +302,14 @@ func TestExpenseRepository_ListPending(t *testing.T) {
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 	projectID := seedExpenseProject(t, pool, orgID, now)
+	unitID := seedUnit(t, pool, orgID, now)
 
 	// Create a submitted expense
 	e1 := &domainexpense.Expense{
 		OrgID:       orgID,
 		UserID:      userID,
 		ProjectID:   projectID,
+		UnitID:      unitID,
 		Category:    "meal",
 		Amount:      25.0,
 		Description: "Pending expense",
@@ -312,6 +324,7 @@ func TestExpenseRepository_ListPending(t *testing.T) {
 		OrgID:       orgID,
 		UserID:      userID,
 		ProjectID:   projectID,
+		UnitID:      unitID,
 		Category:    "meal",
 		Amount:      30.0,
 		Description: "Draft expense",

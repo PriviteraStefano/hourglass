@@ -53,6 +53,7 @@ type Expense struct {
 	OrgID               uuid.UUID  `json:"org_id"`
 	UserID              uuid.UUID  `json:"user_id"`
 	ProjectID           uuid.UUID  `json:"project_id"`
+	UnitID              uuid.UUID  `json:"unit_id"`
 	Category            string     `json:"category"`
 	Amount              float64    `json:"amount"`
 	KmDistance          *float64   `json:"km_distance,omitempty"`
