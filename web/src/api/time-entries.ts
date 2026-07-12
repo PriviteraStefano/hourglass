@@ -35,6 +35,9 @@ const createTimeEntryMutationOpts = mutationOptions({
     client.invalidateQueries({queryKey: ['time-entries']})
     toast.success('Entry created')
   },
+  onError: () => {
+    toast.error('Failed to create entry')
+  },
 })
 const updateTimeEntryMutationOpts = mutationOptions({
   mutationFn: ({id, ...data}: UpdateTimeEntryRequest & { id: string }) =>

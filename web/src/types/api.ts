@@ -1,11 +1,13 @@
-import type {UserWithMembership} from "@/types/models.ts";
+import type {Organization, OrganizationMembership, User} from "@/types/models.ts";
 
 export interface ApiResponse<T> {
   data: T;
 }
 
 export interface AuthResponse {
-  user: UserWithMembership
+  user: User
+  membership: OrganizationMembership
+  organization: Organization
   token: string
   refresh_token: string
   expires_at: string

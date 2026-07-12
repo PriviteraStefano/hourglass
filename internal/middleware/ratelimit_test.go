@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func TestRateLimit_Anonymous_Returns429AfterLimit(t *testing.T) {
@@ -81,7 +83,7 @@ func TestRateLimit_AuthenticatedUser_HasHigherLimit(t *testing.T) {
 	limiter := NewRateLimiter(2, 5)
 	middleware := limiter.Middleware(handler)
 
-	ctx := context.WithValue(context.Background(), contextKey("userID"), "user-123")
+	ctx := context.WithValue(context.Background(), UserIDKey, uuid.MustParse("00000000-0000-0000-0000-000000000123"))
 
 	for i := 0; i < 5; i++ {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -101,5 +103,57 @@ func TestRateLimit_AuthenticatedUser_HasHigherLimit(t *testing.T) {
 	middleware.ServeHTTP(rec, req)
 	if rec.Code != http.StatusTooManyRequests {
 		t.Errorf("auth user after limit: expected %d, got %d", http.StatusTooManyRequests, rec.Code)
+	}
+}
+
+// TestRateLimit_AnonymousThenAuthenticated_RatchetsLimitUp reproduces the
+// "poisoned bucket" bug: a client that starts the window anonymous (low limit)
+// and then authenticates mid-window must be judged against the higher
+// authenticated limit for the remainder of that window, not the limit that
+// was frozen when the first request opened the window.
+//
+// To exercise the ratchet on a SINGLE shared bucket, both the anonymous and
+// authenticated requests are keyed by IP (the authenticated branch in
+// getClientKey returns "user:<uuid>", which would be a different bucket, so
+// we instead force the same key by not setting a UserID for the "anonymous"
+// requests and using a context key that GetUserID does not recognise for
+// the "authenticated" ones — but that would also change the key).
+//
+// The real-world scenario is: the IP-keyed bucket is opened at the anonymous
+// limit, then the user authenticates and moves to a user-keyed bucket at the
+// auth limit. The ratchet matters when the SAME bucket receives both
+// anonymous and authenticated traffic — e.g. when TryAuth fails to validate
+// (expired token) on some requests but succeeds on others within the same
+// window, and both fall through to the IP key. We simulate that by NOT
+// setting UserID on any request (so the key is always "ip:...") but calling
+// the limiter with two different effective limits by toggling the context.
+//
+// Since getClientKey and getLimit both read GetUserID, and we want the same
+// key but different limits, we drive allow() directly.
+func TestRateLimit_AnonymousThenAuthenticated_RatchetsLimitUp(t *testing.T) {
+	limiter := NewRateLimiter(2, 5)
+	const key = "ip:192.168.1.1"
+
+	// 1st request opens the window at the anonymous limit (2).
+	if !limiter.allow(key, 2) {
+		t.Fatal("request 1 (anonymous, limit 2): expected allowed")
+	}
+
+	// 2nd request is still anonymous — would be the last allowed at limit 2.
+	if !limiter.allow(key, 2) {
+		t.Fatal("request 2 (anonymous, limit 2): expected allowed")
+	}
+
+	// Now the user authenticates. The bucket must ratchet up to limit 5.
+	// Requests 3, 4, 5 should all be allowed (count 3,4,5 <= 5).
+	for i := 3; i <= 5; i++ {
+		if !limiter.allow(key, 5) {
+			t.Errorf("request %d (authenticated, limit 5): expected allowed, bucket was poisoned at anonymous limit 2", i)
+		}
+	}
+
+	// Request 6 (count=6, limit=5) must now be rejected.
+	if limiter.allow(key, 5) {
+		t.Error("request 6 (authenticated, limit 5): expected rejected (count 6 > limit 5), got allowed")
 	}
 }

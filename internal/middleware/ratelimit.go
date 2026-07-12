@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type RateLimiter struct {
@@ -48,16 +50,16 @@ func (rl *RateLimiter) getClientKey(r *http.Request) string {
 		ip = r.RemoteAddr
 	}
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if ok && userID != "" {
-		return "user:" + userID
+	userID := GetUserID(r.Context())
+	if userID != (uuid.UUID{}) {
+		return "user:" + userID.String()
 	}
 	return "ip:" + ip
 }
 
 func (rl *RateLimiter) getLimit(r *http.Request) int {
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if ok && userID != "" {
+	userID := GetUserID(r.Context())
+	if userID != (uuid.UUID{}) {
 		return rl.authLimit
 	}
 	return rl.anonymousLimit
@@ -80,5 +82,8 @@ func (rl *RateLimiter) allow(key string, limit int) bool {
 	}
 
 	info.count++
+	if limit > info.limit {
+		info.limit = limit
+	}
 	return info.count <= info.limit
 }

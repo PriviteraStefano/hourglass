@@ -1,6 +1,15 @@
 import {mutationOptions, queryOptions} from '@tanstack/react-query'
 import {api} from "@/lib/api.ts";
-import type {AuthResponse, BootstrapRequest, InvitationResponse, LoginRequest, PasswordResetRequest, PasswordResetVerify, RegisterRequest, UserWithMembership} from "@/types";
+import type {
+  AuthResponse,
+  BootstrapRequest,
+  InvitationResponse,
+  LoginRequest,
+  PasswordResetRequest,
+  PasswordResetVerify,
+  RegisterRequest,
+  UserWithMembership
+} from "@/types";
 
 const profileQueryOpts = queryOptions({
   queryKey: ['auth', 'me'],
@@ -17,7 +26,11 @@ const loginMutationOpts = mutationOptions({
     }),
   onSuccess: (data: AuthResponse, _, __, {client}) => {
     if (data?.user) {
-      client.setQueryData(['auth', 'me'], data.user)
+      client.setQueryData(['auth', 'me'], {
+        user: data.user,
+        membership: data.membership,
+        organization: data.organization,
+      })
     }
   },
 })
@@ -29,7 +42,11 @@ const registerMutationOpts = mutationOptions({
       body: JSON.stringify(data),
     }),
   onSuccess: (result: AuthResponse, _, __, {client}) =>
-    client.setQueryData(['auth', 'me'], result.user),
+    client.setQueryData(['auth', 'me'], {
+      user: result.user,
+      membership: result.membership,
+      organization: result.organization,
+    }),
 })
 
 const bootstrapMutationOpts = mutationOptions({
@@ -39,7 +56,11 @@ const bootstrapMutationOpts = mutationOptions({
       body: JSON.stringify(data),
     }),
   onSuccess: (result: AuthResponse, _, __, {client}) =>
-    client.setQueryData(['auth', 'me'], result.user),
+    client.setQueryData(['auth', 'me'], {
+      user: result.user,
+      membership: result.membership,
+      organization: result.organization,
+    }),
 })
 
 const logoutMutationOpts = mutationOptions({
@@ -56,12 +77,19 @@ const refreshMutationOpts = mutationOptions({
     api<AuthResponse>('/auth/refresh', {
       method: 'POST',
     }),
+  // Removed onError hard redirect to /login — navigation is delegated to
+  // route guards. Hard redirects here would race with TanStack Router
+  // and cause infinite loops in guarded contexts.
   onError: () => {
-    location.href = '/login'
+    // Intentionally empty — callers handle auth failures via UnauthorizedError
   },
   onSuccess: (data: AuthResponse, _, __, {client}) => {
     if (data) {
-      client.setQueryData(['auth', 'me'], data.user)
+      client.setQueryData(['auth', 'me'], {
+        user: data.user,
+        membership: data.membership,
+        organization: data.organization,
+      })
     }
   },
 })
@@ -123,7 +151,11 @@ const switchOrganizationMutationOpts = mutationOptions({
       body: JSON.stringify(data),
     }),
   onSuccess: (data: AuthResponse, _, __, {client}) =>
-    client.setQueryData(['auth', 'me'], data.user),
+    client.setQueryData(['auth', 'me'], {
+      user: data.user,
+      membership: data.membership,
+      organization: data.organization,
+    }),
 })
 
 const membershipsQueryOpts = queryOptions({

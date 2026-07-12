@@ -13,56 +13,56 @@ var (
 )
 
 type WorkingGroup struct {
-	ID               uuid.UUID
-	OrgID            uuid.UUID
-	SubprojectID     uuid.UUID
-	Name             string
-	Description      string
-	UnitIDs          []string
-	EnforceUnitTuple bool
-	ManagerID        uuid.UUID
-	DelegateIDs      []string
-	IsActive         bool
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID               uuid.UUID `json:"id"`
+	OrgID            uuid.UUID `json:"org_id"`
+	SubprojectID     uuid.UUID `json:"subproject_id"`
+	Name             string    `json:"name"`
+	Description      string    `json:"description"`
+	UnitIDs          []string  `json:"unit_ids"`
+	EnforceUnitTuple bool      `json:"enforce_unit_tuple"`
+	ManagerID        uuid.UUID `json:"manager_id"`
+	DelegateIDs      []string  `json:"delegate_ids"`
+	IsActive         bool      `json:"is_active"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type CreateWorkingGroupRequest struct {
-	OrgID            uuid.UUID
-	SubprojectID     uuid.UUID
-	Name             string
-	Description      string
-	UnitIDs          []string
-	EnforceUnitTuple bool
-	ManagerID        uuid.UUID
-	DelegateIDs      []string
+	OrgID            uuid.UUID `json:"org_id"`
+	SubprojectID     uuid.UUID `json:"subproject_id"`
+	Name             string    `json:"name"`
+	Description      string    `json:"description"`
+	UnitIDs          []string  `json:"unit_ids"`
+	EnforceUnitTuple bool      `json:"enforce_unit_tuple"`
+	ManagerID        uuid.UUID `json:"manager_id"`
+	DelegateIDs      []string  `json:"delegate_ids"`
 }
 
 type UpdateWorkingGroupRequest struct {
-	Name             string
-	Description      string
-	UnitIDs          []string
-	EnforceUnitTuple *bool
-	ManagerID        uuid.UUID
-	DelegateIDs      []string
+	Name             string    `json:"name"`
+	Description      string    `json:"description"`
+	UnitIDs          []string  `json:"unit_ids"`
+	EnforceUnitTuple *bool     `json:"enforce_unit_tuple"`
+	ManagerID        uuid.UUID `json:"manager_id"`
+	DelegateIDs      []string  `json:"delegate_ids"`
 }
 
 type WorkingGroupMember struct {
-	ID                  uuid.UUID
-	WGID                uuid.UUID
-	UserID              uuid.UUID
-	UnitID              uuid.UUID
-	Role                string
-	IsDefaultSubproject bool
-	StartDate           time.Time
-	EndDate             *time.Time
-	CreatedAt           time.Time
+	ID                  uuid.UUID  `json:"id"`
+	WGID                uuid.UUID  `json:"wg_id"`
+	UserID              uuid.UUID  `json:"user_id"`
+	UnitID              uuid.UUID  `json:"unit_id"`
+	Role                string     `json:"role"`
+	IsDefaultSubproject bool       `json:"is_default_subproject"`
+	StartDate           time.Time  `json:"start_date"`
+	EndDate             *time.Time `json:"end_date"`
+	CreatedAt           time.Time  `json:"created_at"`
 }
 
 type AddMemberRequest struct {
-	WGID                uuid.UUID
-	UserID              uuid.UUID
-	UnitID              uuid.UUID
-	Role                string
-	IsDefaultSubproject bool
+	WGID                uuid.UUID `json:"wg_id"`
+	UserID              uuid.UUID `json:"user_id"`
+	UnitID              uuid.UUID `json:"unit_id"`
+	Role                string    `json:"role"`
+	IsDefaultSubproject bool      `json:"is_default_subproject"`
 }

@@ -35,15 +35,15 @@ type Settings struct {
 }
 
 type Member struct {
-	ID          uuid.UUID
-	UserID      *uuid.UUID
-	Role        models.Role
-	IsActive    bool
-	InvitedBy   *uuid.UUID
-	InvitedAt   *time.Time
-	ActivatedAt *time.Time
-	UserName    string
-	UserEmail   string
+	ID          uuid.UUID    `json:"id"`
+	UserID      *uuid.UUID   `json:"user_id"`
+	Role        models.Role  `json:"role"`
+	IsActive    bool         `json:"is_active"`
+	InvitedBy   *uuid.UUID   `json:"invited_by,omitempty"`
+	InvitedAt   *time.Time   `json:"invited_at,omitempty"`
+	ActivatedAt *time.Time   `json:"activated_at,omitempty"`
+	UserName    string       `json:"user_name"`
+	UserEmail   string       `json:"user_email"`
 }
 
 type CreateOrganizationRequest struct {

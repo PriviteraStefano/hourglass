@@ -1,4 +1,4 @@
-import {createFileRoute, redirect, Outlet} from '@tanstack/react-router'
+import {createFileRoute, Outlet, redirect} from '@tanstack/react-router'
 import {AppShell} from "@/components/layout/app-shell.tsx";
 import {AuthApis} from "@/api/auth.ts";
 import {LoaderIcon} from "lucide-react";
@@ -10,7 +10,10 @@ export const Route = createFileRoute('/_authenticated')({
       const profile = await client.fetchQuery(AuthApis.profileQueryOpts)
       return { profile }
     } catch {
-      throw redirect({ to: '/login' })
+      // Clear stale/errored profile cache so /login's best-effort check
+      // doesn't pick up a cached error and loop
+      client.removeQueries({queryKey: ['auth', 'me']})
+      throw redirect({to: '/login', replace: true})
     }
   },
   component: () => (

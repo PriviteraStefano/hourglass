@@ -17,8 +17,9 @@ export function OrgSwitcher() {
   const {isMobile} = useSidebar()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const {data: {organization}} = useSuspenseQuery(AuthApis.profileQueryOpts)
+  const {data: profileData} = useSuspenseQuery(AuthApis.profileQueryOpts)
   const {data: membershipsData} = useSuspenseQuery(AuthApis.membershipsQueryOpts)
+  const organization = profileData?.organization
   const {mutateAsync: switchOrg} = useMutation(AuthApis.switchOrganizationMutationOpts)
 
   const handleSwitch = async (orgId: string) => {
