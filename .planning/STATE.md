@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
-status: executing
-last_updated: "2026-07-31T13:07:15.654Z"
+status: verifying
+last_updated: "2026-07-31T14:14:54.120Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 13
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 52
-  completed_plans: 45
-  percent: 77
+  completed_plans: 46
+  percent: 85
 ---
 
 # Phase State
@@ -18,14 +18,14 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plan 08-03 (Backend regression tests: reuse-detection suites, S3 length-cap tables, e2e auth rotation)
-- **Source:** `.planning/phases/08-pre-deployment-hardening-p0-audit-fixes/08-03-PLAN.md`
-- **Previous:** Plan 08-02 (Frontend completion: /customers route, list views, error boundaries)
+- **Completed:** Plan 08-04 (Frontend E2E & smoke verification — P0 gate closed: all six P0 rows Fixed in the audit)
+- **Source:** `.planning/phases/08-pre-deployment-hardening-p0-audit-fixes/08-04-PLAN.md`
+- **Previous:** Plan 08-03 (Backend regression tests: reuse-detection suites, S3 length-cap tables, e2e auth rotation)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
 
-- **Status:** Ready to execute
+- **Status:** Phase complete — ready for verification
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -152,14 +152,16 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 08-pre-deployment-hardening-p0-audit-fixes] (08-02): Customers e2e suite logs in once via API and injects cookies to stay under the backend 5/min anonymous login rate limit
 - [Phase 08-pre-deployment-hardening-p0-audit-fixes]: Race-loser semantics kept as locked in 08-01 (strict reuse model): the concurrent-refresh loser is indistinguishable from an attacker replay and revokes the family; tests assert exactly-one-success + ErrTokenReuse and document T9 as out of scope
 - [Phase 08-pre-deployment-hardening-p0-audit-fixes]: ANONYMOUS_RATE_LIMIT env knob added for the outer route rate limiter (default 20/min unchanged) so full e2e suites can run; e2e runs raise RATE_LIMIT + ANONYMOUS_RATE_LIMIT
+- [Phase 08]: Leaf-level errorComponent on the data routes (time-entries/expenses/customers index) with the layout boundary kept as fallback — layout matches persist across navigations and hold loader errors that navigation/invalidate intermittently fail to clear in TanStack Router v1.170 (stale panel / empty main after recovery)
+- [Phase 08]: E2E seeding convention: shared helpers module, underscore-free seed email domains (native input[type=email] validation silently blocks submit otherwise), '' for optional string columns (pgx rejects NULL for *string scans)
 
 ## Current Position
 
-Phase: 08 (pre-deployment-hardening-p0-audit-fixes) — EXECUTING
-Plan: 4 of 4 (08-03 complete)
-Status: Ready to execute
-Last activity: 2026-07-31 -- Phase 08 execution: 08-03 completed
-Next up: Plan 08-04, then Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
+Phase: 08 (pre-deployment-hardening-p0-audit-fixes) — COMPLETE (P0 gate closed)
+Plan: 4 of 4 (08-04 complete)
+Status: Ready for verification
+Last activity: 2026-07-31 -- Phase 08 execution: 08-04 completed; audit P0 table reads Fixed for all six rows
+Next up: Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
 
 ## Performance Metrics
 
@@ -193,3 +195,4 @@ Next up: Plan 08-04, then Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 w
 | Phase 08-pre-deployment-hardening-p0-audit-fixes P08-02 | 93 | 5 tasks | 24 files |
 | Phase 08-pre-deployment-hardening-p0-audit-fixes P08-03 | 29min | 3 tasks | 8 files |
 | Phase 08-pre-deployment-hardening-p0-audit-fixes P08-03 | 29min | 3 tasks | 8 files |
+| Phase 08 P08-04 | 176min | 4 tasks | 11 files |
