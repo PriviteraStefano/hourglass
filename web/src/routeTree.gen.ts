@@ -27,6 +27,7 @@ import { Route as AuthenticatedExpensesIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports/index'
 import { Route as AuthenticatedOrgHierarchyIndexRouteImport } from './routes/_authenticated/org-hierarchy/index'
 import { Route as AuthenticatedTimeEntriesIndexRouteImport } from './routes/_authenticated/time-entries/index'
+import { Route as AuthenticatedWorkingGroupsIndexRouteImport } from './routes/_authenticated/working-groups/index'
 import { Route as AuthenticatedContractsIdIndexRouteImport } from './routes/_authenticated/contracts/$id/index'
 
 const AuthRoute = AuthRouteImport.update({
@@ -127,6 +128,12 @@ const AuthenticatedTimeEntriesIndexRoute =
     path: '/time-entries/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedWorkingGroupsIndexRoute =
+  AuthenticatedWorkingGroupsIndexRouteImport.update({
+    id: '/working-groups/',
+    path: '/working-groups/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedContractsIdIndexRoute =
   AuthenticatedContractsIdIndexRouteImport.update({
     id: '/contracts/$id/',
@@ -151,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/exports/': typeof AuthenticatedExportsIndexRoute
   '/org-hierarchy/': typeof AuthenticatedOrgHierarchyIndexRoute
   '/time-entries/': typeof AuthenticatedTimeEntriesIndexRoute
+  '/working-groups/': typeof AuthenticatedWorkingGroupsIndexRoute
   '/contracts/$id/': typeof AuthenticatedContractsIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -170,6 +178,7 @@ export interface FileRoutesByTo {
   '/exports': typeof AuthenticatedExportsIndexRoute
   '/org-hierarchy': typeof AuthenticatedOrgHierarchyIndexRoute
   '/time-entries': typeof AuthenticatedTimeEntriesIndexRoute
+  '/working-groups': typeof AuthenticatedWorkingGroupsIndexRoute
   '/contracts/$id': typeof AuthenticatedContractsIdIndexRoute
 }
 export interface FileRoutesById {
@@ -192,6 +201,7 @@ export interface FileRoutesById {
   '/_authenticated/exports/': typeof AuthenticatedExportsIndexRoute
   '/_authenticated/org-hierarchy/': typeof AuthenticatedOrgHierarchyIndexRoute
   '/_authenticated/time-entries/': typeof AuthenticatedTimeEntriesIndexRoute
+  '/_authenticated/working-groups/': typeof AuthenticatedWorkingGroupsIndexRoute
   '/_authenticated/contracts/$id/': typeof AuthenticatedContractsIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/exports/'
     | '/org-hierarchy/'
     | '/time-entries/'
+    | '/working-groups/'
     | '/contracts/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '/exports'
     | '/org-hierarchy'
     | '/time-entries'
+    | '/working-groups'
     | '/contracts/$id'
   id:
     | '__root__'
@@ -253,6 +265,7 @@ export interface FileRouteTypes {
     | '/_authenticated/exports/'
     | '/_authenticated/org-hierarchy/'
     | '/_authenticated/time-entries/'
+    | '/_authenticated/working-groups/'
     | '/_authenticated/contracts/$id/'
   fileRoutesById: FileRoutesById
 }
@@ -389,6 +402,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTimeEntriesIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/working-groups/': {
+      id: '/_authenticated/working-groups/'
+      path: '/working-groups'
+      fullPath: '/working-groups/'
+      preLoaderRoute: typeof AuthenticatedWorkingGroupsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/contracts/$id/': {
       id: '/_authenticated/contracts/$id/'
       path: '/contracts/$id'
@@ -429,6 +449,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedExportsIndexRoute: typeof AuthenticatedExportsIndexRoute
   AuthenticatedOrgHierarchyIndexRoute: typeof AuthenticatedOrgHierarchyIndexRoute
   AuthenticatedTimeEntriesIndexRoute: typeof AuthenticatedTimeEntriesIndexRoute
+  AuthenticatedWorkingGroupsIndexRoute: typeof AuthenticatedWorkingGroupsIndexRoute
   AuthenticatedContractsIdIndexRoute: typeof AuthenticatedContractsIdIndexRoute
 }
 
@@ -444,6 +465,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedExportsIndexRoute: AuthenticatedExportsIndexRoute,
   AuthenticatedOrgHierarchyIndexRoute: AuthenticatedOrgHierarchyIndexRoute,
   AuthenticatedTimeEntriesIndexRoute: AuthenticatedTimeEntriesIndexRoute,
+  AuthenticatedWorkingGroupsIndexRoute: AuthenticatedWorkingGroupsIndexRoute,
   AuthenticatedContractsIdIndexRoute: AuthenticatedContractsIdIndexRoute,
 }
 
