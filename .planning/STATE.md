@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-31T21:58:46.859Z"
+last_updated: "2026-07-31T23:04:39.611Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 14
   completed_phases: 12
   total_plans: 61
-  completed_plans: 58
+  completed_plans: 59
   percent: 86
 ---
 
@@ -18,9 +18,9 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plan 10-04 (Today landing page — read-only composition, never blank; / renders Today with waiting-on-you + your-week sections and locked empty states; 42/42 e2e green)
-- **Source:** `.planning/phases/10-information-architecture-implementation/10-04-PLAN.md`
-- **Previous:** Plan 10-03 (page shell migration — Header+Body wrap on all carried-over pages; every authenticated page now renders through the locked shell; contracts typecheck rot 10 → 6)
+- **Completed:** Plan 10-05 (Approvals queue — /approvals with stage-filtered Manager/Finance tabs; merged pending TE+expense queue with approve/reject; ListPending handler gate relaxed to admit WG manager/delegate via Service.IsWGManager; 4/4 approvals e2e green)
+- **Source:** `.planning/phases/10-information-architecture-implementation/10-05-PLAN.md`
+- **Previous:** Plan 10-04 (Today landing page — read-only composition, never blank; / renders Today with waiting-on-you + your-week sections and locked empty states; 42/42 e2e green)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
@@ -188,11 +188,15 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 10]: Links to /approvals typed as ToPathOption (route lands in 10-05); typed Link to would not compile
 - [Phase 10]: Pending endpoints not called for employees/HR proven by msw request capture in unit tests (enabled gate), not just inspection
 - [Phase 10]: Expense preview values render amount.toFixed(2) in .font-text (no hours on expenses); time entries render hours
+- [Phase 10] (10-05): ListPending handler gate relaxed (T-10-05-3) — org-role manager/finance OR WG manager/delegate admitted via Service.IsWGManager + role wg_manager; the repo's existing wg_manager branch (WG-scoped on manager_id/delegate_ids) serves the queue; Approve/Reject service gates untouched (backend authoritative, T-10-05-1)
+- [Phase 10] (10-05): Stage tabs render only from deriveApprovalStages output; single-stage users skip the tab bar and see their queue directly; stage derived from row status (pending_finance → finance; submitted/pending_manager → manager) mirroring BE-014
+- [Phase 10] (10-05): 403 while tabs render → locked error state 'We couldn't load Approvals. {reason}. Try again.' with router.invalidate(); never 'Queue is clear' (T-10-05-2)
+- [Phase 10] (10-05): URL-shareable stage via validateSearch (ADR-FE-017): /approvals?stage=finance
 
 ## Current Position
 
 Phase: 10 (information-architecture-implementation) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-07-31 -- Plan 10-04 complete (Today landing at /, never blank; 42/42 e2e green; build blocked by 6 pre-existing typecheck errors — deferred-items.md)
 Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for verification)
@@ -239,3 +243,4 @@ Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for 
 | Phase 10 P02 | 9min | 3 tasks | 6 files |
 | Phase 10-information-architecture-implementation P03 | 9min | 3 tasks | 10 files |
 | Phase 10-information-architecture-implementation P04 | 17min | 3 tasks | 6 files |
+| Phase 10-information-architecture-implementation P05 | 48min | 4 tasks | 10 files |

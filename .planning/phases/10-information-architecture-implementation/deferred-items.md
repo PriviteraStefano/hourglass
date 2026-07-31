@@ -32,3 +32,27 @@ auto-fix issues not caused by the current task's changes).
   errors. The 6 remaining errors touch out-of-phase surfaces (`_auth` forms,
   __root theme provider, api test, org-hierarchy unit-detail-panel) — fixing
   them is out of scope for Phase 10's IA work.
+
+## 2. E2E seed date rollover (2026-08-01) — pre-existing, unrelated suites
+
+- **Discovered:** 2026-08-01, Plan 10-05 full e2e run
+- **Symptom:** 3 pre-existing suites fail after the calendar rolled to August:
+  - `time-entries.spec.ts` "list tab shows seeded rows for all six workflow
+    states" — seeds hard-code July dates (2026-07-15..20); the list view
+    defaults to the current month (August) → "No time entries in this period."
+  - `expenses.spec.ts` "list tab shows seeded rows with categories" — seeds
+    July dates (2026-07-10..14); same default-month gap.
+  - `error-boundary.spec.ts` "Try again re-runs the loader and recovers to
+    data" — asserts `seeded-draft-*` visible after recovery; the seed's July
+    date falls outside the default August month.
+- **Baseline:** these suites passed 42/42 in Plan 10-04 on 2026-07-31 — the
+  failure is the month rollover in the hard-coded seeds, NOT a Phase 10
+  regression. Plan 10-05's own `e2e/approvals.spec.ts` seeds **current-month**
+  (August) dates and passes 4/4; it does not depend on the July seeds.
+- **Impact:** The "full e2e suite exits 0" criterion is technically
+  unattainable at baseline on 2026-08-01 until the list-view seeds use
+  current-month dates. The approvals spec — this plan's deliverable — is
+  green. Fixing the July-hardcoded seeds in three unrelated suites is out of
+  scope for Phase 10's IA work; a future maintenance plan should make
+  `seedTimeEntries`/`seedExpenses` compute dates relative to the current
+  month.
