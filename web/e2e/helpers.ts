@@ -181,13 +181,19 @@ export function seedExpenses(
 
 /** Seed external + internal customers for the P0-3 list/search/detail coverage. */
 export function seedCustomers(orgId: string, prefix: string) {
+  // Optional text columns are inserted as '' (not NULL) — scanCustomer scans
+  // them into plain Go strings, and pgx rejects NULL for *string.
+  // The email DOMAIN must be underscore-free: the edit dialog's <input
+  // type="email"> enforces native HTML5 validation, which rejects an
+  // underscore in the domain part and silently blocks form submission.
+  const clean = prefix.replace(/_/g, "");
   psql(
-    `INSERT INTO customers (org_id, name, email, is_internal) VALUES ('${orgId}', 'Alpha Industries', 'alpha@${prefix}.com', false)`
+    `INSERT INTO customers (org_id, name, contact_name, email, phone, address, vat_number, is_internal) VALUES ('${orgId}', 'Alpha Industries', '', 'alpha@${clean}.com', '', '', '', false)`
   );
   psql(
-    `INSERT INTO customers (org_id, name, email, is_internal) VALUES ('${orgId}', 'Zeta Labs', 'zeta@${prefix}.com', false)`
+    `INSERT INTO customers (org_id, name, contact_name, email, phone, address, vat_number, is_internal) VALUES ('${orgId}', 'Zeta Labs', '', 'zeta@${clean}.com', '', '', '', false)`
   );
   psql(
-    `INSERT INTO customers (org_id, name, email, is_internal) VALUES ('${orgId}', 'Internal Ops', 'internal@${prefix}.com', true)`
+    `INSERT INTO customers (org_id, name, contact_name, email, phone, address, vat_number, is_internal) VALUES ('${orgId}', 'Internal Ops', '', 'internal@${clean}.com', '', '', '', true)`
   );
 }

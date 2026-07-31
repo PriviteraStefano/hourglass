@@ -1,5 +1,6 @@
 import { test, expect, type BrowserContext } from '@playwright/test';
 import { execSync } from 'node:child_process';
+import { fetchIds, seedCustomers } from './helpers';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -59,6 +60,8 @@ test.describe('Customers CRUD', () => {
       data: { email: EMAIL, username: `${PREFIX}_user`, password: PASSWORD, firstname: 'Test', lastname: 'User', organization_name: `${PREFIX}_org` },
     });
     promoteUserToFinance(EMAIL);
+    const { orgId } = fetchIds(EMAIL);
+    seedCustomers(orgId, PREFIX);
     sessionCookies = await loginOnce(request);
   });
 
@@ -122,6 +125,74 @@ test.describe('Customers CRUD', () => {
       await page.waitForURL(/\/customers\/[0-9a-f-]{36}/, { timeout: 10000 });
       await expect(page.getByRole('button', { name: 'Back to Customers' })).toBeVisible({ timeout: 5000 });
     }
+  });
+
+  test('search narrows the customer list', async ({ page }) => {
+    await useSession(page.context(), sessionCookies);
+    await page.goto('/customers');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByText('Alpha Industries')).toBeVisible();
+    await expect(page.getByText('Zeta Labs')).toBeVisible();
+
+    // Server-side search narrows the grid to the matching customer
+    await page.getByPlaceholder('Search customers...').fill('Alpha');
+    await expect(page.getByText('Alpha Industries')).toBeVisible();
+    await expect(page.getByText('Zeta Labs')).not.toBeVisible();
+
+    await page.getByPlaceholder('Search customers...').fill('');
+    await expect(page.getByText('Zeta Labs')).toBeVisible();
+  });
+
+  test('internal customer renders badge + locked fields on detail', async ({ page }) => {
+    await useSession(page.context(), sessionCookies);
+    await page.goto('/customers');
+    await page.waitForLoadState('networkidle');
+
+    // Card shows the Internal badge (Phase 3 behavior preserved)
+    const card = page.locator('[class*="cursor-pointer"]', { hasText: 'Internal Ops' });
+    await expect(card.getByText('Internal', { exact: true })).toBeVisible();
+
+    // Click into the detail page — the badge persists there
+    await card.click();
+    await page.waitForURL(/\/customers\/[0-9a-f-]{36}/, { timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Internal Ops' })).toBeVisible();
+    await expect(page.getByText('Internal', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Back to Customers' }).click();
+    await page.waitForURL(/\/customers$/, { timeout: 10000 });
+
+    // Locked edit fields: the list-card Edit dialog disables the company name
+    // (the detail page's own Edit button is a list-redirect stub, not the form)
+    const listCard = page.locator('[class*="cursor-pointer"]', { hasText: 'Internal Ops' });
+    await listCard.getByRole('button', { name: 'Edit' }).click();
+    await expect(page.getByText('Company name is locked for internal customers')).toBeVisible();
+    await expect(page.locator('#company_name')).toBeDisabled();
+  });
+
+  test('deep-link: fresh session on /customers redirects to login then renders', async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    // No session → the auth guard redirects to /login (redirect target verified);
+    // the route must never 404 or blank-screen.
+    await page.goto('/customers');
+    await page.waitForURL(/\/login/, { timeout: 10000 });
+    await expect(page.getByRole('button', { name: /log in/i })).toBeVisible();
+
+    // Authenticate through the UI → authenticated landing renders
+    await page.fill('input[name="identifier"]', EMAIL);
+    await page.fill('input[name="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await page.waitForURL(/\/time-entries/, { timeout: 10000 });
+    await expect(page.getByText('No time entries in this period.')).toBeVisible();
+
+    // The deep-linked route renders the seeded list once authenticated
+    await page.goto('/customers');
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText('Alpha Industries')).toBeVisible();
+    await expect(page.getByText('Zeta Labs')).toBeVisible();
+
+    await context.close();
   });
 
   test('edit customer', async ({ page }) => {
