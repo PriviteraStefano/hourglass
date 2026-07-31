@@ -4,18 +4,13 @@ import {
   Background,
   Controls,
   type Edge,
-  type EdgeMouseHandler,
   MiniMap,
   type Node,
   ReactFlow,
   ReactFlowProvider,
 } from "@xyflow/react";
 import { useQueries, useSuspenseQuery } from "@tanstack/react-query";
-import {
-  orgMembersQueryOpts,
-  unitMembersQueryOpts,
-  unitTreeQueryOpts,
-} from "@/api/units.ts";
+import { unitMembersQueryOpts, unitTreeQueryOpts } from "@/api/units.ts";
 import type { Unit, UnitMember, UnitTreeNode } from "@/types/unit.ts";
 import {
   findNode,
@@ -351,46 +346,11 @@ const OrgHierarchy = {
 };
 
 export function OrgHierarchyPage() {
-  const { data: tree } = useSuspenseQuery(unitTreeQueryOpts);
-  const { data: orgMembers } = useSuspenseQuery(orgMembersQueryOpts);
-
-  const allUnits = useMemo(() => flattenTree(tree), [tree]);
-  const allUnitUserIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const u of allUnits) {
-      ids.add(u.id);
-    }
-    return ids;
-  }, [allUnits]);
-
-  const memberQueries = useQueries({
-    queries: allUnits.map((u) => ({
-      ...unitMembersQueryOpts(u.id),
-      staleTime: 60_000,
-    })),
-  });
-
-  const nonMemberCount = useMemo(() => {
-    const unitUserIds = new Set<string>();
-    for (const q of memberQueries) {
-      if (q.data) {
-        for (const m of q.data) {
-          if (m.user_id) unitUserIds.add(m.user_id);
-        }
-      }
-    }
-    let count = 0;
-    for (const m of orgMembers ?? []) {
-      if (m.user_id && !unitUserIds.has(m.user_id)) count++;
-    }
-    return count;
-  }, [orgMembers, memberQueries]);
-
   return (
     <OrgHierarchy.Root>
       <ReactFlowProvider>
-        <Header className="border-">
-          <OrgHierarchy.Toolbar nonMemberCount={nonMemberCount} />
+        <Header>
+          <OrgHierarchy.Toolbar/>
         </Header>
         <Body>
           <div className="h-full flex flex-col relative w-full bg-background">
