@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/contract"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/customer"
@@ -11,7 +12,6 @@ import (
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/invitation"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/organization"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/password_reset"
-	"github.com/stefanoprivitera/hourglass/internal/core/domain/project"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/time_entry"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/unit"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/working_group"
@@ -121,18 +121,22 @@ func NewCustomer(overrides ...func(*customer.Customer)) customer.Customer {
 	return c
 }
 
-func NewProject(overrides ...func(*project.Project)) project.Project {
-	p := project.Project{
-		ID:        uuid.New(),
-		Name:      "Test Project",
-		Type:      models.ProjectTypeBillable,
-		IsActive:  true,
-		CreatedAt: time.Now(),
+func NewActivity(overrides ...func(*activitydomain.ActivityResponse)) activitydomain.ActivityResponse {
+	a := activitydomain.ActivityResponse{
+		Activity: activitydomain.Activity{
+			ID:              uuid.New(),
+			OrgID:           uuid.New(),
+			Name:            "Test Activity",
+			Kind:            "engagement",
+			GovernanceModel: models.GovernanceCreatorControlled,
+			CreatedByOrgID:  uuid.New(),
+			IsActive:        true,
+		},
 	}
 	for _, o := range overrides {
-		o(&p)
+		o(&a)
 	}
-	return p
+	return a
 }
 
 func NewUnit(overrides ...func(*unit.Unit)) unit.Unit {
@@ -212,16 +216,16 @@ func NewExpense(overrides ...func(*models.Expense)) models.Expense {
 func NewExpenseDomain(overrides ...func(*domainexpense.Expense)) domainexpense.Expense {
 	now := time.Now()
 	e := domainexpense.Expense{
-		ID:        uuid.New(),
-		OrgID:     uuid.New(),
-		UserID:    uuid.New(),
-		ProjectID: uuid.New(),
-		Category:  domainexpense.CategoryMileage,
-		Amount:    100.0,
-		Status:    domainexpense.StatusDraft,
-		EntryDate: now,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:         uuid.New(),
+		OrgID:      uuid.New(),
+		UserID:     uuid.New(),
+		ActivityID: uuid.New(),
+		Category:   domainexpense.CategoryMileage,
+		Amount:     100.0,
+		Status:     domainexpense.StatusDraft,
+		EntryDate:  now,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 	for _, o := range overrides {
 		o(&e)

@@ -30,6 +30,12 @@ type ActivityRepository interface {
 	// walk hits a contract-linked ancestor, defer to the contract default (D-7).
 	ResolveBillability(ctx context.Context, activityID uuid.UUID) (*bool, error)
 
+	// KindExists reports whether the kind label is in the org's activity_kinds
+	// catalog (ADR-P-007 D-2 — kind is a catalog label, not an enum). The
+	// service-layer Create validation depends on it so unknown kinds surface as
+	// clean sentinels instead of FK violations.
+	KindExists(ctx context.Context, orgID uuid.UUID, kind string) (bool, error)
+
 	ListManagers(ctx context.Context, activityID uuid.UUID) ([]activitydomain.ActivityManager, error)
 	AddManager(ctx context.Context, activityID, userID uuid.UUID) (*activitydomain.ActivityManager, error)
 	RemoveManager(ctx context.Context, activityID, userID uuid.UUID) error

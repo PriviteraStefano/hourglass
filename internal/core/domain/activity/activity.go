@@ -17,6 +17,12 @@ var (
 	ErrHasChildren          = errors.New("activity has children")
 	ErrHasActiveTimeEntries = errors.New("activity has active time entries")
 	ErrHasActiveExpenses    = errors.New("activity has active expenses")
+	// ErrActivityNotLoggable is returned at submission time when an entry's
+	// activity is commercial (has a contract via the derived chain, D-3) but
+	// anchors no working group. Per ADR-BE-014 R-2, commercial activities must
+	// anchor a WG before accepting entries; only personal activities (no
+	// contract, no WG — D-8) fall back to the unit-manager stage.
+	ErrActivityNotLoggable = errors.New("activity not loggable: commercial activities must anchor a working group before accepting entries")
 )
 
 // ActivityKind is a free label from the org-level activity_kinds catalog (D-2).
@@ -32,7 +38,7 @@ type Activity struct {
 	ParentID        *uuid.UUID             `json:"parent_id,omitempty"` // D-2: nullable, no level meaning
 	Name            string                 `json:"name"`
 	Description     string                 `json:"description"`
-	Kind            ActivityKind           `json:"kind"`          // catalog label, not an enum
+	Kind            ActivityKind           `json:"kind"`                  // catalog label, not an enum
 	ContractID      *uuid.UUID             `json:"contract_id,omitempty"` // D-3: nullable = internal work
 	GovernanceModel models.GovernanceModel `json:"governance_model"`
 	CreatedByOrgID  uuid.UUID              `json:"created_by_org_id"`
@@ -82,29 +88,29 @@ type CommercialContext struct {
 
 // CreateActivityRequest is the DTO for creating an activity.
 type CreateActivityRequest struct {
-	ParentID        *uuid.UUID              `json:"parent_id,omitempty"`
-	Name            string                  `json:"name"`
-	Description     string                  `json:"description"`
-	Kind            ActivityKind            `json:"kind"`
-	ContractID      *uuid.UUID              `json:"contract_id,omitempty"`
-	GovernanceModel models.GovernanceModel  `json:"governance_model"`
-	IsShared        bool                    `json:"is_shared"`
-	Billable        *bool                   `json:"billable,omitempty"`
-	BudgetAmount    *float64                `json:"budget_amount,omitempty"`
+	ParentID        *uuid.UUID             `json:"parent_id,omitempty"`
+	Name            string                 `json:"name"`
+	Description     string                 `json:"description"`
+	Kind            ActivityKind           `json:"kind"`
+	ContractID      *uuid.UUID             `json:"contract_id,omitempty"`
+	GovernanceModel models.GovernanceModel `json:"governance_model"`
+	IsShared        bool                   `json:"is_shared"`
+	Billable        *bool                  `json:"billable,omitempty"`
+	BudgetAmount    *float64               `json:"budget_amount,omitempty"`
 }
 
 // UpdateActivityRequest is the DTO for updating an activity.
 type UpdateActivityRequest struct {
-	ParentID        *uuid.UUID              `json:"parent_id,omitempty"`
-	Name            string                  `json:"name,omitempty"`
-	Description     string                  `json:"description,omitempty"`
-	Kind            ActivityKind            `json:"kind,omitempty"`
-	ContractID      *uuid.UUID              `json:"contract_id,omitempty"`
-	GovernanceModel models.GovernanceModel  `json:"governance_model,omitempty"`
-	IsShared        *bool                   `json:"is_shared,omitempty"`
-	Billable        *bool                   `json:"billable,omitempty"`
-	BudgetAmount    *float64                `json:"budget_amount,omitempty"`
-	IsActive        *bool                   `json:"is_active,omitempty"`
+	ParentID        *uuid.UUID             `json:"parent_id,omitempty"`
+	Name            string                 `json:"name,omitempty"`
+	Description     string                 `json:"description,omitempty"`
+	Kind            ActivityKind           `json:"kind,omitempty"`
+	ContractID      *uuid.UUID             `json:"contract_id,omitempty"`
+	GovernanceModel models.GovernanceModel `json:"governance_model,omitempty"`
+	IsShared        *bool                  `json:"is_shared,omitempty"`
+	Billable        *bool                  `json:"billable,omitempty"`
+	BudgetAmount    *float64               `json:"budget_amount,omitempty"`
+	IsActive        *bool                  `json:"is_active,omitempty"`
 }
 
 // ActivityFilter filters the List query.

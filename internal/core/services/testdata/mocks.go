@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
 	contractdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/contract"
 	customerdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/customer"
@@ -14,7 +15,6 @@ import (
 	invitationdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/invitation"
 	orgdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/organization"
 	pwdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/password_reset"
-	projectdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/project"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/time_entry"
 	unitdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/unit"
 	wgdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/working_group"
@@ -471,72 +471,203 @@ func (m *MockCustomerRepo) CountContractsByCustomer(ctx context.Context, custome
 	return 0, nil
 }
 
-type MockProjectRepo struct {
-	mu                   sync.Mutex
-	Projects             map[uuid.UUID]*projectdomain.ProjectResponse
-	HasActiveTimeEntriesFn func(ctx context.Context, projectID uuid.UUID) (bool, bool, error)
+// MockActivityRepo implements ports.ActivityRepository for service unit tests.
+// Kinds is keyed by orgID.String()+":"+kind — seed it to model the org's
+// activity_kinds catalog (ADR-P-007 D-2).
+type MockActivityRepo struct {
+	mu                         sync.Mutex
+	Activities                 map[uuid.UUID]*activitydomain.ActivityResponse
+	Kinds                      map[string]bool
+	HasChildrenFn              func(ctx context.Context, activityID uuid.UUID) (bool, error)
+	HasActiveTimeEntriesFn     func(ctx context.Context, activityID uuid.UUID) (bool, bool, error)
+	HasActiveExpensesFn        func(ctx context.Context, activityID uuid.UUID) (bool, error)
+	ResolveCommercialContextFn func(ctx context.Context, activityID uuid.UUID) (*activitydomain.CommercialContext, error)
 }
 
-func (m *MockProjectRepo) List(ctx context.Context, orgID uuid.UUID, scope, contractID string) ([]projectdomain.ProjectResponse, error) {
+func (m *MockActivityRepo) List(ctx context.Context, orgID uuid.UUID, filter *activitydomain.ActivityFilter) ([]activitydomain.ActivityResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	var result []projectdomain.ProjectResponse
-	for _, p := range m.Projects {
-		result = append(result, *p)
+	var result []activitydomain.ActivityResponse
+	for _, a := range m.Activities {
+		if a.OrgID == orgID {
+			result = append(result, *a)
+		}
 	}
 	return result, nil
 }
 
-func (m *MockProjectRepo) Create(ctx context.Context, orgID uuid.UUID, req *projectdomain.CreateProjectRequest) (*projectdomain.ProjectResponse, error) {
-	return &projectdomain.ProjectResponse{}, nil
-}
-
-func (m *MockProjectRepo) Get(ctx context.Context, orgID, projectID uuid.UUID) (*projectdomain.ProjectResponse, error) {
+func (m *MockActivityRepo) Get(ctx context.Context, orgID, activityID uuid.UUID) (*activitydomain.ActivityResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	p, ok := m.Projects[projectID]
+	a, ok := m.Activities[activityID]
 	if !ok {
-		return nil, projectdomain.ErrProjectNotFound
+		return nil, activitydomain.ErrActivityNotFound
 	}
-	return p, nil
+	return a, nil
 }
 
-func (m *MockProjectRepo) Adopt(ctx context.Context, orgID, projectID uuid.UUID) (*projectdomain.ProjectAdoption, error) {
-	return &projectdomain.ProjectAdoption{}, nil
+func (m *MockActivityRepo) Create(ctx context.Context, orgID uuid.UUID, req *activitydomain.CreateActivityRequest) (*activitydomain.ActivityResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Activities == nil {
+		m.Activities = make(map[uuid.UUID]*activitydomain.ActivityResponse)
+	}
+	a := &activitydomain.ActivityResponse{}
+	a.ID = uuid.New()
+	a.OrgID = orgID
+	a.ParentID = req.ParentID
+	a.Name = req.Name
+	a.Description = req.Description
+	a.Kind = req.Kind
+	a.ContractID = req.ContractID
+	a.GovernanceModel = req.GovernanceModel
+	a.CreatedByOrgID = orgID
+	a.IsShared = req.IsShared
+	a.Billable = req.Billable
+	a.BudgetAmount = req.BudgetAmount
+	a.IsActive = true
+	m.Activities[a.ID] = a
+	return a, nil
 }
 
-func (m *MockProjectRepo) ListManagers(ctx context.Context, projectID uuid.UUID) ([]projectdomain.ProjectManager, error) {
+func (m *MockActivityRepo) Update(ctx context.Context, orgID, activityID uuid.UUID, req *activitydomain.UpdateActivityRequest) (*activitydomain.ActivityResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	a, ok := m.Activities[activityID]
+	if !ok {
+		return nil, activitydomain.ErrActivityNotFound
+	}
+	if req.Name != "" {
+		a.Name = req.Name
+	}
+	if req.Kind != "" {
+		a.Kind = req.Kind
+	}
+	if req.IsActive != nil {
+		a.IsActive = *req.IsActive
+	}
+	return a, nil
+}
+
+func (m *MockActivityRepo) Delete(ctx context.Context, orgID, activityID uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.Activities[activityID]; !ok {
+		return activitydomain.ErrActivityNotFound
+	}
+	delete(m.Activities, activityID)
+	return nil
+}
+
+func (m *MockActivityRepo) Adopt(ctx context.Context, orgID, activityID uuid.UUID) (*activitydomain.ActivityAdoption, error) {
+	return &activitydomain.ActivityAdoption{ID: uuid.New(), ActivityID: activityID, OrganizationID: orgID}, nil
+}
+
+func (m *MockActivityRepo) ListChildren(ctx context.Context, parentID uuid.UUID) ([]activitydomain.ActivityResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []activitydomain.ActivityResponse
+	for _, a := range m.Activities {
+		if a.ParentID != nil && *a.ParentID == parentID {
+			result = append(result, *a)
+		}
+	}
+	return result, nil
+}
+
+func (m *MockActivityRepo) ListByContract(ctx context.Context, contractID uuid.UUID) ([]activitydomain.ActivityResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []activitydomain.ActivityResponse
+	for _, a := range m.Activities {
+		if a.ContractID != nil && *a.ContractID == contractID {
+			result = append(result, *a)
+		}
+	}
+	return result, nil
+}
+
+func (m *MockActivityRepo) GetAncestry(ctx context.Context, id uuid.UUID) ([]activitydomain.Activity, error) {
 	return nil, nil
 }
 
-func (m *MockProjectRepo) AddManager(ctx context.Context, projectID, userID uuid.UUID) (*projectdomain.ProjectManager, error) {
-	return &projectdomain.ProjectManager{}, nil
+// ResolveCommercialContext derives the nearest contract-bearing ancestor from
+// the stored activities (mirrors the adapter's recursive walk). Override with
+// ResolveCommercialContextFn when a test needs a non-derived answer.
+func (m *MockActivityRepo) ResolveCommercialContext(ctx context.Context, activityID uuid.UUID) (*activitydomain.CommercialContext, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.ResolveCommercialContextFn != nil {
+		return m.ResolveCommercialContextFn(ctx, activityID)
+	}
+	seen := map[uuid.UUID]bool{}
+	cur := activityID
+	for cur != uuid.Nil && !seen[cur] {
+		seen[cur] = true
+		a, ok := m.Activities[cur]
+		if !ok {
+			return nil, nil
+		}
+		if a.ContractID != nil {
+			return &activitydomain.CommercialContext{ContractID: a.ContractID}, nil
+		}
+		if a.ParentID == nil {
+			break
+		}
+		cur = *a.ParentID
+	}
+	return nil, nil
 }
 
-func (m *MockProjectRepo) RemoveManager(ctx context.Context, projectID, userID uuid.UUID) error {
+func (m *MockActivityRepo) ResolveBillability(ctx context.Context, activityID uuid.UUID) (*bool, error) {
+	f := false
+	return &f, nil
+}
+
+func (m *MockActivityRepo) ListManagers(ctx context.Context, activityID uuid.UUID) ([]activitydomain.ActivityManager, error) {
+	return nil, nil
+}
+
+func (m *MockActivityRepo) AddManager(ctx context.Context, activityID, userID uuid.UUID) (*activitydomain.ActivityManager, error) {
+	return &activitydomain.ActivityManager{ID: uuid.New(), ActivityID: activityID, UserID: userID}, nil
+}
+
+func (m *MockActivityRepo) RemoveManager(ctx context.Context, activityID, userID uuid.UUID) error {
 	return nil
 }
 
-func (m *MockProjectRepo) Update(ctx context.Context, orgID, projectID uuid.UUID, req *projectdomain.UpdateProjectRequest) (*projectdomain.ProjectResponse, error) {
-	return &projectdomain.ProjectResponse{}, nil
+func (m *MockActivityRepo) KindExists(ctx context.Context, orgID uuid.UUID, kind string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.Kinds[orgID.String()+":"+kind], nil
 }
 
-func (m *MockProjectRepo) Delete(ctx context.Context, orgID, projectID uuid.UUID) error {
-	return nil
+func (m *MockActivityRepo) HasChildren(ctx context.Context, activityID uuid.UUID) (bool, error) {
+	if m.HasChildrenFn != nil {
+		return m.HasChildrenFn(ctx, activityID)
+	}
+	return false, nil
 }
 
-func (m *MockProjectRepo) HasActiveTimeEntries(ctx context.Context, projectID uuid.UUID) (bool, bool, error) {
+func (m *MockActivityRepo) HasActiveTimeEntries(ctx context.Context, activityID uuid.UUID) (bool, bool, error) {
 	if m.HasActiveTimeEntriesFn != nil {
-		return m.HasActiveTimeEntriesFn(ctx, projectID)
+		return m.HasActiveTimeEntriesFn(ctx, activityID)
 	}
 	return false, false, nil
+}
+
+func (m *MockActivityRepo) HasActiveExpenses(ctx context.Context, activityID uuid.UUID) (bool, error) {
+	if m.HasActiveExpensesFn != nil {
+		return m.HasActiveExpensesFn(ctx, activityID)
+	}
+	return false, nil
 }
 
 type MockUnitRepo struct {
 	mu          sync.Mutex
 	Units       map[string]*unitdomain.Unit
-	Descendants map[string][]unitdomain.Unit          // key = unitID
-	UnitMembers map[string][]unitdomain.UnitMember    // key = unitID
+	Descendants map[string][]unitdomain.Unit       // key = unitID
+	UnitMembers map[string][]unitdomain.UnitMember // key = unitID
 }
 
 func (m *MockUnitRepo) ListByOrg(ctx context.Context, orgID uuid.UUID) ([]unitdomain.Unit, error) {
@@ -651,11 +782,21 @@ type MockWorkingGroupRepo struct {
 	WGMembers map[string][]wgdomain.WorkingGroupMember // key = wgID.String()
 }
 
-func (m *MockWorkingGroupRepo) ListByOrg(ctx context.Context, orgID uuid.UUID, subprojectID *uuid.UUID) ([]wgdomain.WorkingGroup, error) {
+// ListByOrg returns the org's working groups, optionally filtered by the
+// anchored activity (working_groups.activity_id — ADR-P-007 D-5). The filter
+// honors the WorkingGroup.SubprojectID field, which maps to activity_id
+// (legacy field name kept for compile safety).
+func (m *MockWorkingGroupRepo) ListByOrg(ctx context.Context, orgID uuid.UUID, activityID *uuid.UUID) ([]wgdomain.WorkingGroup, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var result []wgdomain.WorkingGroup
 	for _, g := range m.Groups {
+		if g.OrgID != orgID {
+			continue
+		}
+		if activityID != nil && g.SubprojectID != *activityID {
+			continue
+		}
 		result = append(result, *g)
 	}
 	return result, nil
@@ -774,8 +915,8 @@ func (m *MockInvitationRepo) Update(ctx context.Context, inv *invitationdomain.I
 }
 
 type MockPasswordResetRepo struct {
-	mu              sync.Mutex
-	Resets          map[uuid.UUID]*pwdomain.PasswordReset
+	mu               sync.Mutex
+	Resets           map[uuid.UUID]*pwdomain.PasswordReset
 	FindActiveResets map[string]*pwdomain.PasswordReset // key = userID string
 }
 
@@ -831,8 +972,8 @@ func (m *MockExportRepo) CountExpenses(ctx context.Context, orgID uuid.UUID, fro
 }
 
 type MockRefreshTokenRepo struct {
-	mu       sync.Mutex
-	Tokens   map[string]*ports.RefreshToken
+	mu        sync.Mutex
+	Tokens    map[string]*ports.RefreshToken
 	RotateErr error // when set, Rotate returns this error without mutating state
 }
 

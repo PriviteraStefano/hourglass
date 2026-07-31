@@ -307,6 +307,18 @@ func (r *ActivityRepository) ResolveBillability(ctx context.Context, activityID 
 	return &falseVal, nil
 }
 
+// KindExists reports whether the kind label exists in the org's activity_kinds
+// catalog (ADR-P-007 D-2).
+func (r *ActivityRepository) KindExists(ctx context.Context, orgID uuid.UUID, kind string) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM activity_kinds WHERE org_id = $1 AND name = $2)`
+	var exists bool
+	err := r.pool.QueryRow(ctx, query, orgID, kind).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check activity kind exists: %w", err)
+	}
+	return exists, nil
+}
+
 // ListManagers returns the governance managers for an activity.
 func (r *ActivityRepository) ListManagers(ctx context.Context, activityID uuid.UUID) ([]activitydomain.ActivityManager, error) {
 	query := `SELECT am.id, am.activity_id, am.user_id, u.firstname || ' ' || u.lastname AS user_name, u.email, am.created_at

@@ -11,7 +11,7 @@ func TestMocks_Instantiate(t *testing.T) {
 		&MockOrgRepo{},
 		&MockContractRepo{},
 		&MockCustomerRepo{},
-		&MockProjectRepo{},
+		&MockActivityRepo{},
 		&MockUnitRepo{},
 		&MockWorkingGroupRepo{},
 		&MockInvitationRepo{},
