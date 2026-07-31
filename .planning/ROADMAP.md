@@ -429,7 +429,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 9: Activity Ontology (Big-Bang Migration + Routing Rewrite)
 
-**Status:** In Progress — 3/5 plans executed
+**Status:** Complete — 5/5 plans executed
 
 **Goal:** Replace `projects`+`subprojects` with the recursive `activities` entity, rewrite all FKs and approval routing onto the new ontology, land the additive staffing schema (ADR-P-008), and leave the backend API fully activity-shaped. Backend + database only — frontend rename and new surfaces are Phase 10.
 
@@ -465,7 +465,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 | [x] 09-02 | Staffing schema: availability_windows + membership validity + hr role (012 up/down, completed 2026-07-31) | 1 | 2 | 4 |
 | [x] 09-03 | Domain + repository collapse: Activity entity, ports, PG adapters, CTE queries (completed 2026-07-31) | 2 | 3 | 23 |
 | [x] 09-04 | Service layer: routing rewrite (R-1/R-2/R-3) + ActivityService (completed 2026-07-31) | 2 | 3 | 16 |
-| [ ] 09-05 | HTTP handlers + router: /api/activities, entry DTO updates, route wiring | 2 | 3 | ~7 |
+| [x] 09-05 | HTTP handlers + router: /api/activities, entry DTO updates, route wiring (completed 2026-07-31) | 2 | 3 | 18 |
 
 ### Edge cases
 

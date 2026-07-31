@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
-status: executing
-last_updated: "2026-07-31T16:49:53.031Z"
+status: verifying
+last_updated: "2026-07-31T17:14:20.418Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 13
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 52
-  completed_plans: 50
-  percent: 85
+  completed_plans: 51
+  percent: 92
 ---
 
 # Phase State
@@ -18,14 +18,14 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plan 09-04 (Service Layer: ActivityService replaces project service; time-entry + expense approval routing on the activity chain — WG manager/delegate, unit-manager fallback, ErrActivityNotLoggable, D-11 skip incl. delegates, Approve-set verification)
-- **Source:** `.planning/phases/09-activity-ontology/09-04-PLAN.md`
-- **Previous:** Plan 09-03 (Domain + Repository Collapse: Activity type/port/PG adapter with ancestry-commercial-billability CTEs, entry repos on activity_id, wg/cutoff re-anchored, contract/export commercial-chain CTEs)
+- **Completed:** Plan 09-05 (HTTP Handlers + Route Wiring: ActivityHandler with /activities + /activity-kinds endpoints replaces project/subproject handlers; entry handlers + repos on activity_id with subtree filters and joined activity_name/kind; router rewired, full backend suite green)
+- **Source:** `.planning/phases/09-activity-ontology/09-05-PLAN.md`
+- **Previous:** Plan 09-04 (Service Layer: ActivityService replaces project service; time-entry + expense approval routing on the activity chain — WG manager/delegate, unit-manager fallback, ErrActivityNotLoggable, D-11 skip incl. delegates, Approve-set verification)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
 
-- **Status:** Ready to execute
+- **Status:** Phase complete — ready for verification
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -165,14 +165,19 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 09-activity-ontology]: Manager-stage approver set = WG row ManagerID + DelegateIDs; Approve re-resolves it and verifies membership — R-1 defines the manager stage as WG manager+delegates; Approve-side membership check makes routing enforceable (Rule 2)
 - [Phase 09-activity-ontology]: Terminal unit-tree case (org root without manager) stays role-gated per ADR-BE-014 consequences — Service cannot pin an org-role manager user; handler role resolution governs that terminal state
 - [Phase 09-activity-ontology]: KindExists port method added for D-2 kind-catalog validation on Create — Plan requires Create to validate kind against the org catalog; Plan-03 port had no way to express it (Rule 2)
+- [Phase 09-activity-ontology]: Backend routes registered as /activities (no /api prefix) matching the Vite-proxy-strips-/api convention — the plan's /api/activities wording is the frontend-facing path
+- [Phase 09-activity-ontology]: ListKinds added to ActivityRepository port/service/adapter/mock for GET /api/activity-kinds (D-2 catalog)
+- [Phase 09-activity-ontology]: Detail composition (GetAncestry/ResolveCommercialContext/ResolveBillability) lives in the handler via the repo port per 09-04 heads-up
+- [Phase 09-activity-ontology]: activity_name + activity_kind joined display fields on entry domain types: LEFT JOIN for reads, scalar-subquery RETURNING for Create/Update (data-modifying CTE rows invisible to base-table reads)
+- [Phase 09-activity-ontology]: Adopt + manager-management endpoints intentionally not exposed on the activity HTTP surface (plan endpoint list omits them); service methods remain
 
 ## Current Position
 
 Phase: 09 (activity-ontology) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
-Last activity: 2026-07-31 -- Plan 09-04 (Service Layer: routing rewrite + activity service) completed; ready for 09-05 (HTTP Handlers + Route Wiring)
-Next up: Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
+Status: Phase complete — ready for verification
+Last activity: 2026-07-31 -- Plan 09-05 (HTTP Handlers + Route Wiring) completed; backend API fully activity-shaped, ready for Phase 10 frontend rename
+Next up: Phase 09 (activity-ontology) — COMPLETE, 5 plans, 2 waves (ready for verification)
 
 ## Performance Metrics
 
@@ -211,3 +216,4 @@ Next up: Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
 | Phase 09-activity-ontology P02 | 10min | 2 tasks | 4 files |
 | Phase 09-activity-ontology PP09-03 | 20min | 3 tasks | 23 files |
 | Phase 09-activity-ontology P09-04 | 7min | 3 tasks | 16 files |
+| Phase 09-activity-ontology PP09-05 | 17min | 3 tasks | 18 files |
