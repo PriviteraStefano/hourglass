@@ -3,21 +3,7 @@ import { TimeEntriesPage } from "@/routes/_authenticated/time-entries/-component
 import { z } from "zod";
 import { TimeEntriesApis } from "@/api/time-entries.ts";
 import { ProjectsApis } from "@/api/projects.ts";
-
-export const entryStatusSchema = z.enum([
-  "draft",
-  "submitted",
-  "pending_manager",
-  "pending_finance",
-  "approved",
-  "rejected",
-]);
-
-// Accept ?listStatuses=draft (single) or ?listStatuses=a&listStatuses=b (repeated)
-export const listStatusesSchema = z
-  .union([z.array(entryStatusSchema), entryStatusSchema])
-  .optional()
-  .transform((v) => (Array.isArray(v) ? v : v ? [v] : undefined));
+import { entryStatusSchema, listStatusesSchema } from "@/lib/list-filters";
 
 export const Route = createFileRoute("/_authenticated/time-entries/")({
   validateSearch: z.object({

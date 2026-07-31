@@ -86,7 +86,7 @@ export function TimeEntriesList({
     (listStatuses && listStatuses.length > 0) || !!listFrom || !!listTo;
 
   const setFilters = (patch: {
-    listStatuses?: string[];
+    listStatuses?: EntryStatus[];
     listFrom?: string;
     listTo?: string;
   }) => {
@@ -176,7 +176,7 @@ export function TimeEntriesList({
         <StatusFilterSelect
           options={STATUS_OPTIONS}
           selected={listStatuses ?? []}
-          onChange={(v) => setFilters({ listStatuses: v })}
+          onChange={(v) => setFilters({ listStatuses: v as EntryStatus[] })}
         />
         <DateRangeFilter
           from={listFrom}

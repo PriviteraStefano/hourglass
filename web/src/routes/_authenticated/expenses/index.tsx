@@ -3,11 +3,17 @@ import { ExpensesPage } from "@/routes/_authenticated/expenses/-components/expen
 import { z } from "zod";
 import { ExpensesApis } from "@/api/expenses.ts";
 import { ProjectsApis } from "@/api/projects.ts";
+import { listStatusesSchema } from "@/lib/list-filters";
 
 export const Route = createFileRoute("/_authenticated/expenses/")({
   validateSearch: z.object({
     date: z.coerce.date().default(new Date()),
     month: z.coerce.date().default(new Date()),
+    // List-view filters (P0-2): URL-shareable per ADR-FE-017.
+    listStatuses: listStatusesSchema,
+    listCategory: z.string().optional(),
+    listFrom: z.string().optional(),
+    listTo: z.string().optional(),
   }),
   loaderDeps: ({ search }) => search,
   loader: ({ deps: { month, date }, context: { client } }) =>
