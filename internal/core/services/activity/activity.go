@@ -75,12 +75,8 @@ func (s *Service) Create(ctx context.Context, orgID uuid.UUID, req *activitydoma
 	}
 
 	if req.ParentID != nil {
-		parent, err := s.activityRepo.Get(ctx, orgID, *req.ParentID)
-		if err != nil {
+		if err := s.validateParent(ctx, orgID, uuid.Nil, req.ParentID); err != nil {
 			return nil, err
-		}
-		if parent.OrgID != orgID {
-			return nil, activitydomain.ErrInvalidRequest
 		}
 	}
 
@@ -106,7 +102,46 @@ func (s *Service) Update(ctx context.Context, role string, orgID, activityID uui
 	if existing.CreatedByOrgID != orgID {
 		return nil, activitydomain.ErrForbidden
 	}
+	if req.ParentID != nil {
+		if err := s.validateParent(ctx, orgID, activityID, req.ParentID); err != nil {
+			return nil, err
+		}
+	}
 	return s.activityRepo.Update(ctx, orgID, activityID, req)
+}
+
+// validateParent is the single parent-validation point shared by Create and
+// Update (ADR-P-007 D-2 + SPEC in-scope item "Cycle prevention on
+// activities.parent_id (path check on insert/update)"). Contract: a nil
+// parent is always valid; otherwise the parent must (1) exist (repo returns
+// ErrActivityNotFound when missing), (2) belong to the same org
+// (ErrInvalidRequest otherwise — the same-org rule Create already had, now
+// also enforced on Update), and (3) not sit inside the activity's own
+// subtree: walking GetAncestry of the proposed parent and rejecting with
+// ErrActivityCycle when the chain contains ownActivityID. A fresh uuid.Nil
+// (Create) can never appear in an existing ancestry, so the insert path
+// check is structurally satisfied while running uniformly per the SPEC.
+func (s *Service) validateParent(ctx context.Context, orgID, ownActivityID uuid.UUID, parentID *uuid.UUID) error {
+	if parentID == nil {
+		return nil
+	}
+	parent, err := s.activityRepo.Get(ctx, orgID, *parentID)
+	if err != nil {
+		return err
+	}
+	if parent.OrgID != orgID {
+		return activitydomain.ErrInvalidRequest
+	}
+	ancestry, err := s.activityRepo.GetAncestry(ctx, *parentID)
+	if err != nil {
+		return err
+	}
+	for _, a := range ancestry {
+		if a.ID == ownActivityID {
+			return activitydomain.ErrActivityCycle
+		}
+	}
+	return nil
 }
 
 // Delete is finance-role gated with an owner check, then guards the activity

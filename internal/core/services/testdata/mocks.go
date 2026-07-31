@@ -482,6 +482,7 @@ type MockActivityRepo struct {
 	HasActiveTimeEntriesFn     func(ctx context.Context, activityID uuid.UUID) (bool, bool, error)
 	HasActiveExpensesFn        func(ctx context.Context, activityID uuid.UUID) (bool, error)
 	ResolveCommercialContextFn func(ctx context.Context, activityID uuid.UUID) (*activitydomain.CommercialContext, error)
+	GetAncestryFn              func(ctx context.Context, id uuid.UUID) ([]activitydomain.Activity, error)
 }
 
 func (m *MockActivityRepo) List(ctx context.Context, orgID uuid.UUID, filter *activitydomain.ActivityFilter) ([]activitydomain.ActivityResponse, error) {
@@ -587,8 +588,33 @@ func (m *MockActivityRepo) ListByContract(ctx context.Context, contractID uuid.U
 	return result, nil
 }
 
+// GetAncestry walks parent_id upward from the given node to the root,
+// mirroring the adapter's recursive CTE (the chain includes the starting node
+// itself — required for self-parent cycle detection in the service's
+// validateParent). Override with GetAncestryFn when a test needs a
+// non-derived answer.
 func (m *MockActivityRepo) GetAncestry(ctx context.Context, id uuid.UUID) ([]activitydomain.Activity, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.GetAncestryFn != nil {
+		return m.GetAncestryFn(ctx, id)
+	}
+	seen := map[uuid.UUID]bool{}
+	var chain []activitydomain.Activity
+	cur := id
+	for cur != uuid.Nil && !seen[cur] {
+		seen[cur] = true
+		a, ok := m.Activities[cur]
+		if !ok {
+			break
+		}
+		chain = append(chain, a.Activity)
+		if a.ParentID == nil {
+			break
+		}
+		cur = *a.ParentID
+	}
+	return chain, nil
 }
 
 // ResolveCommercialContext derives the nearest contract-bearing ancestor from

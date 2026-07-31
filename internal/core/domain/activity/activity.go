@@ -23,6 +23,12 @@ var (
 	// anchor a WG before accepting entries; only personal activities (no
 	// contract, no WG — D-8) fall back to the unit-manager stage.
 	ErrActivityNotLoggable = errors.New("activity not loggable: commercial activities must anchor a working group before accepting entries")
+	// ErrActivityCycle rejects a parent assignment that would make the activity
+	// its own ancestor — the SPEC in-scope item "Cycle prevention on
+	// activities.parent_id (path check on insert/update)". The service walks
+	// the repository's GetAncestry of the proposed parent and rejects when the
+	// chain contains the activity's own id (ADR-BE-001 sentinel pattern).
+	ErrActivityCycle = errors.New("activity parent would create a cycle")
 )
 
 // ActivityKind is a free label from the org-level activity_kinds catalog (D-2).
