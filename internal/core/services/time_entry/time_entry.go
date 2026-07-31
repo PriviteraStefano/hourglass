@@ -360,8 +360,42 @@ func (s *Service) Reject(ctx context.Context, id, userID uuid.UUID, role, reason
 // ListPending passes through to the repository — the unit-subtree gating
 // (R-4) lives repo-side and is resolved from role + userID there. The service
 // deliberately does not add a second filter.
+//
+// Gate semantics (T-10-05-3): the handler admits org-role manager/finance OR
+// any working-group manager/delegate in the org, resolving WG membership via
+// IsWGManager and passing role "wg_manager" so the repository WG-scopes the
+// queue. This method must never be called with an unresolved org role — the
+// caller decides admission.
 func (s *Service) ListPending(ctx context.Context, orgID uuid.UUID, role, userID string) ([]time_entry.TimeEntry, error) {
 	return s.repo.ListPending(ctx, orgID, role, userID)
+}
+
+// IsWGManager reports whether the user is the manager or a delegate of any
+// working group in the org — the manager-stage approver set, resolved
+// server-side from the WG repo (mirrors resolveManagerStage's wgRepo path).
+// Used by the ListPending handler gate to admit WG-stage approvers whose org
+// role is employee (T-10-05-3). The handler passes role "wg_manager" when
+// true, and the repository then WG-scopes the pending queue.
+func (s *Service) IsWGManager(ctx context.Context, orgID uuid.UUID, userID string) (bool, error) {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return false, err
+	}
+	wgs, err := s.wgRepo.ListByOrg(ctx, orgID, nil)
+	if err != nil {
+		return false, err
+	}
+	for _, wg := range wgs {
+		if wg.ManagerID == uid {
+			return true, nil
+		}
+		for _, d := range wg.DelegateIDs {
+			if did, err := uuid.Parse(d); err == nil && did == uid {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func contains(ids []uuid.UUID, id uuid.UUID) bool {

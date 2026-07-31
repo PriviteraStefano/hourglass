@@ -423,6 +423,18 @@ func (h *TimeEntryHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	api.RespondWithJSON(w, http.StatusOK, e)
 }
 
+// ListPending returns the org's pending time entries for the caller's
+// approval stage(s).
+//
+// Gate semantics (T-10-05-3): the queue is served to org-role manager/finance
+// AND to any user who is a working-group manager/delegate in the org (the
+// manager-stage approver set — WG ManagerID + DelegateIDs, resolved
+// server-side via IsWGManager, mirroring Service.Approve's resolveManagerStage
+// path). WG-stage approvers with org-role employee are admitted by passing
+// role "wg_manager" to the service, which the repository resolves as a
+// WG-scoped pending queue. Everyone else — including plain employees and HR —
+// receives 403. The 403 is NOT "queue is clear": the client derives stage
+// visibility from the WG list + org role (not by swallowing 403s).
 func (h *TimeEntryHandler) ListPending(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	orgID := middleware.GetOrganizationID(ctx)
@@ -430,8 +442,16 @@ func (h *TimeEntryHandler) ListPending(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(ctx)
 
 	if role != "manager" && role != "finance" {
-		api.RespondWithError(w, http.StatusForbidden, "only managers and finance can view pending entries")
-		return
+		isApprover, err := h.service.IsWGManager(ctx, orgID, userID.String())
+		if err != nil {
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to resolve approval scope")
+			return
+		}
+		if !isApprover {
+			api.RespondWithError(w, http.StatusForbidden, "only managers, finance, and working-group managers can view pending entries")
+			return
+		}
+		role = "wg_manager"
 	}
 
 	entries, err := h.service.ListPending(ctx, orgID, role, userID.String())
