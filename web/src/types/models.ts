@@ -136,6 +136,51 @@ export interface WorkingGroup {
   updated_at: string;
 }
 
+// Mirrors the backend WorkingGroupMember payload (working_group.go). The API
+// does NOT join user display fields — the client resolves names against
+// `orgMembersQueryOpts` (GET /organizations/members) for pickers and badges.
+export interface WorkingGroupMember {
+  id: string;
+  wg_id: string;
+  user_id: string;
+  unit_id: string;
+  role: string;
+  is_default_subproject: boolean;
+  start_date: string;
+  end_date?: string | null;
+  created_at: string;
+}
+
+// HTTP request DTOs mirroring the handler payloads (working_group.go). The WG
+// API keeps the legacy `subproject_id` field name that anchors the group to an
+// activity (D-5) — the client sends the activity id in that field.
+export interface CreateWorkingGroupRequest {
+  org_id: string;
+  subproject_id: string;
+  name: string;
+  description: string;
+  unit_ids: string[];
+  enforce_unit_tuple: boolean;
+  manager_id: string;
+  delegate_ids: string[];
+}
+
+export interface UpdateWorkingGroupRequest {
+  name?: string;
+  description?: string;
+  unit_ids?: string[];
+  enforce_unit_tuple?: boolean;
+  manager_id?: string;
+  delegate_ids?: string[];
+}
+
+export interface AddWorkingGroupMemberRequest {
+  user_id: string;
+  unit_id: string;
+  role: string;
+  is_default_subproject: boolean;
+}
+
 export interface TimeEntry {
   id: string;
   user_id: string;
