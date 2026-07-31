@@ -27,21 +27,23 @@ const (
 )
 
 type TimeEntry struct {
-	ID                 uuid.UUID       `json:"id"`
-	OrgID              uuid.UUID       `json:"org_id"`
-	UserID             uuid.UUID       `json:"user_id"`
-	ActivityID         uuid.UUID       `json:"activity_id"`
-	UnitID             uuid.UUID       `json:"unit_id"`
-	Hours              float64         `json:"hours"`
-	Description        string          `json:"description"`
-	EntryDate          time.Time       `json:"entry_date"`
-	Status             string          `json:"status"`
+	ID                  uuid.UUID       `json:"id"`
+	OrgID               uuid.UUID       `json:"org_id"`
+	UserID              uuid.UUID       `json:"user_id"`
+	ActivityID          uuid.UUID       `json:"activity_id"`
+	ActivityName        string          `json:"activity_name,omitempty"` // joined display field (09-05)
+	ActivityKind        string          `json:"activity_kind,omitempty"` // joined display field (09-05)
+	UnitID              uuid.UUID       `json:"unit_id"`
+	Hours               float64         `json:"hours"`
+	Description         string          `json:"description"`
+	EntryDate           time.Time       `json:"entry_date"`
+	Status              string          `json:"status"`
 	CurrentApproverRole *string         `json:"current_approver_role,omitempty"`
 	SubmittedAt         *time.Time      `json:"submitted_at,omitempty"`
-	IsDeleted          bool            `json:"is_deleted"`
-	CreatedFromEntryID *uuid.UUID      `json:"created_from_entry_id,omitempty"`
-	CreatedAt          time.Time       `json:"created_at"`
-	UpdatedAt          time.Time       `json:"updated_at"`
+	IsDeleted           bool            `json:"is_deleted"`
+	CreatedFromEntryID  *uuid.UUID      `json:"created_from_entry_id,omitempty"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
 }
 
 type CreateTimeEntryRequest struct {

@@ -30,18 +30,31 @@ const expenseSelectColumns = `e.id, e.org_id, e.user_id, e.activity_id, e.unit_i
 	e.description, e.expense_date, e.status, COALESCE(e.current_approver_role, ''),
 	e.submitted_at, COALESCE(e.receipt_url, ''), e.is_deleted, e.created_at, e.updated_at`
 
+// expenseJoinedColumns adds the activity display fields (09-05: response
+// DTOs carry activity_name + activity_kind). Requires `FROM expenses e
+// LEFT JOIN activities a ON a.id = e.activity_id`.
+const expenseJoinedColumns = expenseSelectColumns + `, COALESCE(a.name, '') AS activity_name, COALESCE(a.kind, '') AS activity_kind`
+
 // expenseReturningColumns is the unaliased variant used in INSERT/UPDATE
 // RETURNING clauses (PostgreSQL does not allow table aliases there).
 const expenseReturningColumns = `id, org_id, user_id, activity_id, unit_id, category, amount, km_distance,
 	description, expense_date, status, COALESCE(current_approver_role, ''),
 	submitted_at, COALESCE(receipt_url, ''), is_deleted, created_at, updated_at`
 
+// expenseJoinedReturningColumns adds the activity display fields via scalar
+// subqueries. A bare RETURNING cannot join, and a data-modifying CTE's rows
+// are not visible to the main query's base-table reads (statement snapshot),
+// so the joined display values come from per-row subqueries instead.
+const expenseJoinedReturningColumns = expenseReturningColumns + `,
+	(SELECT a.name FROM activities a WHERE a.id = expenses.activity_id) AS activity_name,
+	(SELECT a.kind FROM activities a WHERE a.id = expenses.activity_id) AS activity_kind`
+
 // expenseRowScanner is satisfied by pgx.Row and pgx.Rows.
 type expenseRowScanner interface {
 	Scan(dest ...any) error
 }
 
-// scanExpense scans a single expense row.
+// scanExpense scans a single expense row (joined columns expected).
 func scanExpense(s expenseRowScanner) (*expense.Expense, error) {
 	var e expense.Expense
 	var currentApproverRole string
@@ -53,6 +66,7 @@ func scanExpense(s expenseRowScanner) (*expense.Expense, error) {
 		&e.Description, &e.EntryDate, &e.Status,
 		&currentApproverRole, &submittedAt, &receiptURL,
 		&e.IsDeleted, &e.CreatedAt, &e.UpdatedAt,
+		&e.ActivityName, &e.ActivityKind,
 	)
 	if err != nil {
 		return nil, err
@@ -119,7 +133,17 @@ func buildExpenseListQuery(orgID uuid.UUID, filters ports.ExpenseListFilters) (s
 		aID, err := uuid.Parse(filters.ActivityID)
 		if err == nil {
 			args = append(args, aID)
-			conditions = append(conditions, fmt.Sprintf("e.activity_id = $%d", len(args)))
+			// Subtree filter (09-05): matches the activity and all descendants
+			// — the repository resolves the subtree.
+			conditions = append(conditions, fmt.Sprintf(`e.activity_id IN (
+				WITH RECURSIVE activity_subtree AS (
+					SELECT id FROM activities WHERE id = $%d
+					UNION ALL
+					SELECT a.id FROM activities a
+					JOIN activity_subtree s ON a.parent_id = s.id
+				)
+				SELECT id FROM activity_subtree
+			)`, len(args)))
 		}
 	}
 	if filters.UserID != "" {
@@ -130,7 +154,9 @@ func buildExpenseListQuery(orgID uuid.UUID, filters ports.ExpenseListFilters) (s
 		}
 	}
 
-	query := `SELECT ` + expenseSelectColumns + ` FROM expenses e WHERE ` + strings.Join(conditions, " AND ")
+	query := `SELECT ` + expenseJoinedColumns + ` FROM expenses e
+		LEFT JOIN activities a ON a.id = e.activity_id
+		WHERE ` + strings.Join(conditions, " AND ")
 	query += ` ORDER BY e.expense_date DESC`
 	return query, args
 }
@@ -148,7 +174,9 @@ func (r *ExpenseRepository) List(ctx context.Context, orgID uuid.UUID, filters p
 
 // GetByID returns a single expense by ID, or expense.ErrExpenseNotFound.
 func (r *ExpenseRepository) GetByID(ctx context.Context, id uuid.UUID) (*expense.Expense, error) {
-	query := `SELECT ` + expenseSelectColumns + ` FROM expenses e WHERE e.id = $1`
+	query := `SELECT ` + expenseJoinedColumns + ` FROM expenses e
+		LEFT JOIN activities a ON a.id = e.activity_id
+		WHERE e.id = $1`
 	e, err := scanExpense(r.pool.QueryRow(ctx, query, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -159,7 +187,9 @@ func (r *ExpenseRepository) GetByID(ctx context.Context, id uuid.UUID) (*expense
 	return e, nil
 }
 
-// Create inserts a new expense and returns the created record.
+// Create inserts a new expense and returns the created record with the joined
+// activity display fields (scalar-subquery RETURNING — see
+// expenseJoinedReturningColumns).
 func (r *ExpenseRepository) Create(ctx context.Context, e *expense.Expense) (*expense.Expense, error) {
 	e.ID = uuid.New()
 	now := time.Now().UTC()
@@ -168,7 +198,7 @@ func (r *ExpenseRepository) Create(ctx context.Context, e *expense.Expense) (*ex
 		category, amount, km_distance, description, expense_date,
 		status, current_approver_role, submitted_at, receipt_url, is_deleted, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-		RETURNING ` + expenseReturningColumns
+		RETURNING ` + expenseJoinedReturningColumns
 
 	created, err := scanExpense(r.pool.QueryRow(ctx, query,
 		e.ID, e.OrgID, e.UserID, e.ActivityID, e.UnitID,
@@ -182,7 +212,8 @@ func (r *ExpenseRepository) Create(ctx context.Context, e *expense.Expense) (*ex
 	return created, nil
 }
 
-// Update performs a full-field update on an expense and returns the updated record.
+// Update performs a full-field update on an expense and returns the updated
+// record with the joined activity display fields (scalar-subquery RETURNING).
 func (r *ExpenseRepository) Update(ctx context.Context, e *expense.Expense) (*expense.Expense, error) {
 	query := `UPDATE expenses SET
 		activity_id = $2, category = $3, amount = $4, km_distance = $5,
@@ -190,7 +221,7 @@ func (r *ExpenseRepository) Update(ctx context.Context, e *expense.Expense) (*ex
 		current_approver_role = $9, submitted_at = $10, receipt_url = $11,
 		updated_at = NOW()
 		WHERE id = $1
-		RETURNING ` + expenseReturningColumns
+		RETURNING ` + expenseJoinedReturningColumns
 
 	updated, err := scanExpense(r.pool.QueryRow(ctx, query,
 		e.ID, e.ActivityID, e.Category, e.Amount, e.KmDistance,
@@ -247,7 +278,8 @@ func (r *ExpenseRepository) ListPending(ctx context.Context, orgID uuid.UUID, ro
 		if err != nil {
 			return nil, fmt.Errorf("parse user_id: %w", err)
 		}
-		query = `SELECT ` + expenseSelectColumns + ` FROM expenses e
+		query = `SELECT ` + expenseJoinedColumns + ` FROM expenses e
+			LEFT JOIN activities a ON a.id = e.activity_id
 			WHERE e.org_id = $1 AND e.status IN ('submitted', 'pending_manager') AND e.is_deleted = false
 			AND e.activity_id IN (
 				SELECT wg.activity_id FROM working_groups wg
@@ -255,11 +287,13 @@ func (r *ExpenseRepository) ListPending(ctx context.Context, orgID uuid.UUID, ro
 			)`
 		args = []interface{}{orgID, uID}
 	case "finance":
-		query = `SELECT ` + expenseSelectColumns + ` FROM expenses e
+		query = `SELECT ` + expenseJoinedColumns + ` FROM expenses e
+			LEFT JOIN activities a ON a.id = e.activity_id
 			WHERE e.org_id = $1 AND e.status = 'pending_finance' AND e.is_deleted = false`
 		args = []interface{}{orgID}
 	default:
-		query = `SELECT ` + expenseSelectColumns + ` FROM expenses e
+		query = `SELECT ` + expenseJoinedColumns + ` FROM expenses e
+			LEFT JOIN activities a ON a.id = e.activity_id
 			WHERE e.org_id = $1 AND e.status = 'submitted' AND e.is_deleted = false`
 		args = []interface{}{orgID}
 	}

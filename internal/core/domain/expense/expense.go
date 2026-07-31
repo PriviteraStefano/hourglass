@@ -53,6 +53,8 @@ type Expense struct {
 	OrgID               uuid.UUID  `json:"org_id"`
 	UserID              uuid.UUID  `json:"user_id"`
 	ActivityID          uuid.UUID  `json:"activity_id"`
+	ActivityName        string     `json:"activity_name,omitempty"` // joined display field (09-05)
+	ActivityKind        string     `json:"activity_kind,omitempty"` // joined display field (09-05)
 	UnitID              uuid.UUID  `json:"unit_id"`
 	Category            string     `json:"category"`
 	Amount              float64    `json:"amount"`

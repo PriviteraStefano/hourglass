@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/expense"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
 	expsvc "github.com/stefanoprivitera/hourglass/internal/core/services/expense"
@@ -29,7 +31,7 @@ func NewExpenseHandler(service *expsvc.Service) *ExpenseHandler {
 // --- Request types ---
 
 type CreateExpenseRequest struct {
-	ProjectID   string   `json:"project_id"`
+	ActivityID  string   `json:"activity_id"`
 	Category    string   `json:"category"`
 	Amount      float64  `json:"amount"`
 	KmDistance  *float64 `json:"km_distance,omitempty"`
@@ -38,7 +40,7 @@ type CreateExpenseRequest struct {
 }
 
 type UpdateExpenseRequest struct {
-	ProjectID   *string  `json:"project_id,omitempty"`
+	ActivityID  *string  `json:"activity_id,omitempty"`
 	Category    *string  `json:"category,omitempty"`
 	Amount      *float64 `json:"amount,omitempty"`
 	KmDistance  *float64 `json:"km_distance,omitempty"`
@@ -77,8 +79,8 @@ func (h *ExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
 	if status := r.URL.Query().Get("status"); status != "" {
 		filters.Status = status
 	}
-	if projectID := r.URL.Query().Get("project_id"); projectID != "" {
-		filters.ProjectID = projectID
+	if activityID := r.URL.Query().Get("activity_id"); activityID != "" {
+		filters.ActivityID = activityID
 	}
 	if filterUserID := r.URL.Query().Get("user_id"); filterUserID != "" {
 		filters.UserID = filterUserID
@@ -149,8 +151,8 @@ func (h *ExpenseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.ProjectID == "" {
-		api.RespondWithError(w, http.StatusBadRequest, "project_id is required")
+	if req.ActivityID == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "activity_id is required")
 		return
 	}
 	if req.Category == "" {
@@ -170,16 +172,16 @@ func (h *ExpenseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projectID, err := uuid.Parse(req.ProjectID)
+	activityID, err := uuid.Parse(req.ActivityID)
 	if err != nil {
-		api.RespondWithError(w, http.StatusBadRequest, "invalid project_id")
+		api.RespondWithError(w, http.StatusBadRequest, "invalid activity_id")
 		return
 	}
 
 	svcReq := &expense.CreateExpenseRequest{
 		OrgID:       orgID,
 		UserID:      userID,
-		ProjectID:   projectID,
+		ActivityID:  activityID,
 		Category:    req.Category,
 		Amount:      req.Amount,
 		KmDistance:  req.KmDistance,
@@ -233,13 +235,13 @@ func (h *ExpenseHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	svcReq := &expense.UpdateExpenseRequest{}
-	if req.ProjectID != nil {
-		pid, err := uuid.Parse(*req.ProjectID)
+	if req.ActivityID != nil {
+		aid, err := uuid.Parse(*req.ActivityID)
 		if err != nil {
-			api.RespondWithError(w, http.StatusBadRequest, "invalid project_id")
+			api.RespondWithError(w, http.StatusBadRequest, "invalid activity_id")
 			return
 		}
-		svcReq.ProjectID = &pid
+		svcReq.ActivityID = &aid
 	}
 	if req.Category != nil {
 		svcReq.Category = req.Category
@@ -335,6 +337,10 @@ func (h *ExpenseHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		}
 		if err == expense.ErrNotOwner {
 			api.RespondWithError(w, http.StatusForbidden, "can only submit own expenses")
+			return
+		}
+		if errors.Is(err, activitydomain.ErrActivityNotLoggable) {
+			api.RespondWithError(w, http.StatusConflict, "this activity requires a working group before entries can be logged")
 			return
 		}
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to submit expense")

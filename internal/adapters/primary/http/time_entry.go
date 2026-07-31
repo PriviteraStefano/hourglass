@@ -2,9 +2,11 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
+	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/time_entry"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
@@ -21,23 +23,19 @@ func NewTimeEntryHandler(service *tesvc.Service) *TimeEntryHandler {
 }
 
 type CreateTimeEntryRequest struct {
-	ProjectID    string  `json:"project_id"`
-	SubprojectID string  `json:"subproject_id"`
-	WGID         string  `json:"wg_id"`
-	UnitID       string  `json:"unit_id"`
-	Hours        float64 `json:"hours"`
-	Description  string  `json:"description"`
-	Date         string  `json:"date"`
+	ActivityID  string  `json:"activity_id"`
+	UnitID      string  `json:"unit_id"`
+	Hours       float64 `json:"hours"`
+	Description string  `json:"description"`
+	Date        string  `json:"date"`
 }
 
 type UpdateTimeEntryRequest struct {
-	ProjectID    *string  `json:"project_id,omitempty"`
-	SubprojectID *string  `json:"subproject_id,omitempty"`
-	WGID         *string  `json:"wg_id,omitempty"`
-	UnitID       *string  `json:"unit_id,omitempty"`
-	Hours        *float64 `json:"hours,omitempty"`
-	Description  *string  `json:"description,omitempty"`
-	Date         *string  `json:"date,omitempty"`
+	ActivityID  *string  `json:"activity_id,omitempty"`
+	UnitID      *string  `json:"unit_id,omitempty"`
+	Hours       *float64 `json:"hours,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Date        *string  `json:"date,omitempty"`
 }
 
 type RejectRequest struct {
@@ -71,11 +69,8 @@ func (h *TimeEntryHandler) List(w http.ResponseWriter, r *http.Request) {
 	if status := r.URL.Query().Get("status"); status != "" {
 		filters.Status = status
 	}
-	if wgID := r.URL.Query().Get("wg_id"); wgID != "" {
-		filters.WGID = wgID
-	}
-	if projectID := r.URL.Query().Get("project_id"); projectID != "" {
-		filters.ProjectID = projectID
+	if activityID := r.URL.Query().Get("activity_id"); activityID != "" {
+		filters.ActivityID = activityID
 	}
 
 	entries, err := h.service.List(ctx, orgID, filters)
@@ -141,16 +136,8 @@ func (h *TimeEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.ProjectID == "" {
-		api.RespondWithError(w, http.StatusBadRequest, "project_id is required")
-		return
-	}
-	if req.SubprojectID == "" {
-		api.RespondWithError(w, http.StatusBadRequest, "subproject_id is required")
-		return
-	}
-	if req.WGID == "" {
-		api.RespondWithError(w, http.StatusBadRequest, "wg_id is required")
+	if req.ActivityID == "" {
+		api.RespondWithError(w, http.StatusBadRequest, "activity_id is required")
 		return
 	}
 	if req.UnitID == "" {
@@ -166,19 +153,9 @@ func (h *TimeEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projectID, err := uuid.Parse(req.ProjectID)
+	activityID, err := uuid.Parse(req.ActivityID)
 	if err != nil {
-		api.RespondWithError(w, http.StatusBadRequest, "invalid project_id")
-		return
-	}
-	subprojectID, err := uuid.Parse(req.SubprojectID)
-	if err != nil {
-		api.RespondWithError(w, http.StatusBadRequest, "invalid subproject_id")
-		return
-	}
-	wgID, err := uuid.Parse(req.WGID)
-	if err != nil {
-		api.RespondWithError(w, http.StatusBadRequest, "invalid wg_id")
+		api.RespondWithError(w, http.StatusBadRequest, "invalid activity_id")
 		return
 	}
 	unitID, err := uuid.Parse(req.UnitID)
@@ -188,15 +165,13 @@ func (h *TimeEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	svcReq := &time_entry.CreateTimeEntryRequest{
-		OrgID:        orgID,
-		UserID:       userID,
-		ProjectID:    projectID,
-		SubprojectID: subprojectID,
-		WGID:         wgID,
-		UnitID:       unitID,
-		Hours:        req.Hours,
-		Description:  req.Description,
-		Date:         req.Date,
+		OrgID:       orgID,
+		UserID:      userID,
+		ActivityID:  activityID,
+		UnitID:      unitID,
+		Hours:       req.Hours,
+		Description: req.Description,
+		Date:        req.Date,
 	}
 
 	e, err := h.service.Create(ctx, svcReq)
@@ -244,29 +219,13 @@ func (h *TimeEntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	svcReq := &time_entry.UpdateTimeEntryRequest{}
-	if req.ProjectID != nil {
-		pid, err := uuid.Parse(*req.ProjectID)
+	if req.ActivityID != nil {
+		aid, err := uuid.Parse(*req.ActivityID)
 		if err != nil {
-			api.RespondWithError(w, http.StatusBadRequest, "invalid project_id")
+			api.RespondWithError(w, http.StatusBadRequest, "invalid activity_id")
 			return
 		}
-		svcReq.ProjectID = &pid
-	}
-	if req.SubprojectID != nil {
-		sid, err := uuid.Parse(*req.SubprojectID)
-		if err != nil {
-			api.RespondWithError(w, http.StatusBadRequest, "invalid subproject_id")
-			return
-		}
-		svcReq.SubprojectID = &sid
-	}
-	if req.WGID != nil {
-		wgid, err := uuid.Parse(*req.WGID)
-		if err != nil {
-			api.RespondWithError(w, http.StatusBadRequest, "invalid wg_id")
-			return
-		}
-		svcReq.WGID = &wgid
+		svcReq.ActivityID = &aid
 	}
 	if req.UnitID != nil {
 		uid, err := uuid.Parse(*req.UnitID)
@@ -366,6 +325,10 @@ func (h *TimeEntryHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		}
 		if err == time_entry.ErrNotOwner {
 			api.RespondWithError(w, http.StatusForbidden, "can only submit own entries")
+			return
+		}
+		if errors.Is(err, activitydomain.ErrActivityNotLoggable) {
+			api.RespondWithError(w, http.StatusConflict, "this activity requires a working group before entries can be logged")
 			return
 		}
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to submit time entry")

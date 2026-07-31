@@ -27,16 +27,29 @@ func NewTimeEntryRepository(pool *pgxpool.Pool) *TimeEntryRepository {
 
 const timeEntrySelectColumns = `te.id, te.org_id, te.user_id, te.activity_id, te.unit_id, te.hours, te.description, te.entry_date, te.status, COALESCE(te.current_approver_role, ''), te.submitted_at, te.is_deleted, te.created_from_entry_id, te.created_at, te.updated_at`
 
+// timeEntryJoinedColumns adds the activity display fields (09-05: response
+// DTOs carry activity_name + activity_kind). Requires `FROM time_entries te
+// LEFT JOIN activities a ON a.id = te.activity_id`.
+const timeEntryJoinedColumns = timeEntrySelectColumns + `, COALESCE(a.name, '') AS activity_name, COALESCE(a.kind, '') AS activity_kind`
+
 // timeEntryReturningColumns is the unaliased variant used in INSERT/UPDATE
 // RETURNING clauses (PostgreSQL does not allow table aliases there).
 const timeEntryReturningColumns = `id, org_id, user_id, activity_id, unit_id, hours, description, entry_date, status, COALESCE(current_approver_role, ''), submitted_at, is_deleted, created_from_entry_id, created_at, updated_at`
+
+// timeEntryJoinedReturningColumns adds the activity display fields via scalar
+// subqueries. A bare RETURNING cannot join, and a data-modifying CTE's rows
+// are not visible to the main query's base-table reads (statement snapshot),
+// so the joined display values come from per-row subqueries instead.
+const timeEntryJoinedReturningColumns = timeEntryReturningColumns + `,
+	(SELECT a.name FROM activities a WHERE a.id = time_entries.activity_id) AS activity_name,
+	(SELECT a.kind FROM activities a WHERE a.id = time_entries.activity_id) AS activity_kind`
 
 // timeEntryRowScanner is satisfied by pgx.Row and pgx.Rows.
 type timeEntryRowScanner interface {
 	Scan(dest ...any) error
 }
 
-// scanTimeEntry scans a single time entry row.
+// scanTimeEntry scans a single time entry row (joined columns expected).
 func scanTimeEntry(s timeEntryRowScanner) (*time_entry.TimeEntry, error) {
 	var e time_entry.TimeEntry
 	var currentApproverRole string
@@ -46,6 +59,7 @@ func scanTimeEntry(s timeEntryRowScanner) (*time_entry.TimeEntry, error) {
 		&e.UnitID, &e.Hours, &e.Description, &e.EntryDate,
 		&e.Status, &currentApproverRole, &submittedAt,
 		&e.IsDeleted, &e.CreatedFromEntryID, &e.CreatedAt, &e.UpdatedAt,
+		&e.ActivityName, &e.ActivityKind,
 	)
 	if err != nil {
 		return nil, err
@@ -112,7 +126,17 @@ func buildTimeEntryListQuery(orgID uuid.UUID, filters ports.ListFilters) (string
 		aID, err := uuid.Parse(filters.ActivityID)
 		if err == nil {
 			args = append(args, aID)
-			conditions = append(conditions, fmt.Sprintf("te.activity_id = $%d", len(args)))
+			// Subtree filter (09-05): matches the activity and all descendants
+			// — the repository resolves the subtree.
+			conditions = append(conditions, fmt.Sprintf(`te.activity_id IN (
+				WITH RECURSIVE activity_subtree AS (
+					SELECT id FROM activities WHERE id = $%d
+					UNION ALL
+					SELECT a.id FROM activities a
+					JOIN activity_subtree s ON a.parent_id = s.id
+				)
+				SELECT id FROM activity_subtree
+			)`, len(args)))
 		}
 	}
 	if filters.UserID != "" {
@@ -123,7 +147,9 @@ func buildTimeEntryListQuery(orgID uuid.UUID, filters ports.ListFilters) (string
 		}
 	}
 
-	query := `SELECT ` + timeEntrySelectColumns + ` FROM time_entries te WHERE ` + strings.Join(conditions, " AND ")
+	query := `SELECT ` + timeEntryJoinedColumns + ` FROM time_entries te
+		LEFT JOIN activities a ON a.id = te.activity_id
+		WHERE ` + strings.Join(conditions, " AND ")
 	query += ` ORDER BY te.entry_date DESC`
 	return query, args
 }
@@ -141,7 +167,9 @@ func (r *TimeEntryRepository) List(ctx context.Context, orgID uuid.UUID, filters
 
 // GetByID returns a single time entry by ID, or ErrTimeEntryNotFound.
 func (r *TimeEntryRepository) GetByID(ctx context.Context, id uuid.UUID) (*time_entry.TimeEntry, error) {
-	query := `SELECT ` + timeEntrySelectColumns + ` FROM time_entries te WHERE te.id = $1`
+	query := `SELECT ` + timeEntryJoinedColumns + ` FROM time_entries te
+		LEFT JOIN activities a ON a.id = te.activity_id
+		WHERE te.id = $1`
 	e, err := scanTimeEntry(r.pool.QueryRow(ctx, query, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -152,7 +180,9 @@ func (r *TimeEntryRepository) GetByID(ctx context.Context, id uuid.UUID) (*time_
 	return e, nil
 }
 
-// Create inserts a new time entry and returns the created record.
+// Create inserts a new time entry and returns the created record with the
+// joined activity display fields (scalar-subquery RETURNING — see
+// timeEntryJoinedReturningColumns).
 func (r *TimeEntryRepository) Create(ctx context.Context, e *time_entry.TimeEntry) (*time_entry.TimeEntry, error) {
 	e.ID = uuid.New()
 	now := time.Now().UTC()
@@ -161,7 +191,7 @@ func (r *TimeEntryRepository) Create(ctx context.Context, e *time_entry.TimeEntr
 		hours, description, entry_date, status, current_approver_role, submitted_at,
 		is_deleted, created_from_entry_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-		RETURNING ` + timeEntryReturningColumns
+		RETURNING ` + timeEntryJoinedReturningColumns
 
 	created, err := scanTimeEntry(r.pool.QueryRow(ctx, query,
 		e.ID, e.OrgID, e.UserID, e.ActivityID,
@@ -175,7 +205,8 @@ func (r *TimeEntryRepository) Create(ctx context.Context, e *time_entry.TimeEntr
 	return created, nil
 }
 
-// Update performs a full-field update on a time entry and returns the updated record.
+// Update performs a full-field update on a time entry and returns the updated
+// record with the joined activity display fields (scalar-subquery RETURNING).
 func (r *TimeEntryRepository) Update(ctx context.Context, e *time_entry.TimeEntry) (*time_entry.TimeEntry, error) {
 	query := `UPDATE time_entries SET
 		activity_id = $2, unit_id = $3,
@@ -183,7 +214,7 @@ func (r *TimeEntryRepository) Update(ctx context.Context, e *time_entry.TimeEntr
 		current_approver_role = $8, submitted_at = $9,
 		created_from_entry_id = $10, updated_at = NOW()
 		WHERE id = $1
-		RETURNING ` + timeEntryReturningColumns
+		RETURNING ` + timeEntryJoinedReturningColumns
 
 	updated, err := scanTimeEntry(r.pool.QueryRow(ctx, query,
 		e.ID, e.ActivityID, e.UnitID,
@@ -241,7 +272,8 @@ func (r *TimeEntryRepository) ListPending(ctx context.Context, orgID uuid.UUID, 
 		if err != nil {
 			return nil, fmt.Errorf("parse user_id: %w", err)
 		}
-		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries te
+		query = `SELECT ` + timeEntryJoinedColumns + ` FROM time_entries te
+			LEFT JOIN activities a ON a.id = te.activity_id
 			WHERE te.org_id = $1 AND te.status IN ('submitted', 'pending_manager') AND te.is_deleted = false
 			AND te.activity_id IN (
 				SELECT wg.activity_id FROM working_groups wg
@@ -249,11 +281,13 @@ func (r *TimeEntryRepository) ListPending(ctx context.Context, orgID uuid.UUID, 
 			)`
 		args = []interface{}{orgID, uID}
 	case "finance":
-		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries te
+		query = `SELECT ` + timeEntryJoinedColumns + ` FROM time_entries te
+			LEFT JOIN activities a ON a.id = te.activity_id
 			WHERE te.org_id = $1 AND te.status = 'pending_finance' AND te.is_deleted = false`
 		args = []interface{}{orgID}
 	default:
-		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries te
+		query = `SELECT ` + timeEntryJoinedColumns + ` FROM time_entries te
+			LEFT JOIN activities a ON a.id = te.activity_id
 			WHERE te.org_id = $1 AND te.status = 'submitted' AND te.is_deleted = false`
 		args = []interface{}{orgID}
 	}
