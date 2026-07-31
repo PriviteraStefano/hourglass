@@ -179,12 +179,13 @@ test.describe('Customers CRUD', () => {
     await page.waitForURL(/\/login/, { timeout: 10000 });
     await expect(page.getByRole('button', { name: /log in/i })).toBeVisible();
 
-    // Authenticate through the UI → authenticated landing renders
+    // Authenticate through the UI → authenticated landing renders (the /
+    // landing is the Today page since Plan 10-04, not a /time-entries redirect)
     await page.fill('input[name="identifier"]', EMAIL);
     await page.fill('input[name="password"]', PASSWORD);
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/time-entries/, { timeout: 10000 });
-    await expect(page.getByText('No time entries in this period.')).toBeVisible();
+    await page.waitForURL(/\/$/, { timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
 
     // The deep-linked route renders the seeded list once authenticated
     await page.goto('/customers');

@@ -27,6 +27,16 @@ async function useSession(context: BrowserContext, cookies: Array<{ name: string
   await context.addCookies(cookies.map((c) => ({ name: c.name, value: c.value, url: 'http://localhost:3000' })));
 }
 
+// Today landing contract (Plan 10-04): after login/register the app lands on
+// `/` rendering the Today heading — never a redirect, never blank. The body
+// must show the week section or a locked empty state.
+async function expectTodayLanding(page: import('@playwright/test').Page) {
+  await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('body')).toContainText(
+    /Your week|You're all caught up|Welcome to Hourglass/
+  );
+}
+
 const PREFIX = `auth_${Date.now()}`;
 const EMAIL = `${PREFIX}@example.com`;
 const PASSWORD = 'password123';
@@ -59,9 +69,11 @@ test.describe('Auth Flow', () => {
     await page.fill('input[name="password"]', 'password123');
     await page.fill('input[name="organization_name"]', `Org_${Date.now()}`);
     await page.click('button[type="submit"]');
-    // After registration, frontend caches auth data and lands on the
-    // authenticated home (the / landing route redirects to /time-entries).
-    await expect(page).toHaveURL(/\/time-entries/, { timeout: 10000 });
+    // After registration, the frontend caches auth data and lands on the
+    // authenticated home — the Today landing page (Plan 10-04), not a
+    // redirect to /time-entries.
+    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await expectTodayLanding(page);
   });
 
   test('register validation - show errors for empty form', async ({ page }) => {
@@ -78,7 +90,18 @@ test.describe('Auth Flow', () => {
     await page.fill('input[name="identifier"]', EMAIL);
     await page.fill('input[name="password"]', PASSWORD);
     await page.click('button[type="submit"]');
+    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+    await expectTodayLanding(page);
+  });
+
+  test('time-entries remains directly reachable (Track group surface intact)', async ({
+    page,
+    context,
+  }) => {
+    await useSession(context, sharedCookies);
+    await page.goto('/time-entries');
     await expect(page).toHaveURL(/\/time-entries/, { timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Time' })).toBeVisible();
   });
 
   test('login with invalid credentials returns API error', async ({ request }) => {

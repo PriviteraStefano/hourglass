@@ -85,13 +85,19 @@ test.describe('Error Boundary (P0-4)', () => {
     await page.goto('/time-entries');
     await expect(page.getByRole('alert')).toBeVisible({ timeout: 15000 });
 
-    // Let the API recover, then follow the home link to the landing route
+    // Let the API recover, then follow the home link to the landing route —
+    // since Plan 10-04 the landing is the Today page at / (never a redirect).
     await page.unroute(TIME_ENTRIES_API);
     await page.getByRole('link', { name: /go to today/i }).click();
 
-    await expect(page).toHaveURL(/\/time-entries/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/$/, { timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
     await expect(page.getByRole('alert')).not.toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(SEEDED_DRAFT)).toBeVisible({ timeout: 15000 });
+    // Today is never blank: the seeded user holds a WG stage, so the page
+    // shows the waiting section or a locked empty state.
+    await expect(page.locator('body')).toContainText(
+      /Waiting on you|Your week|You're all caught up|Welcome to Hourglass/
+    );
   });
 
   test('auth pages never blank-screen when the auth API fails (slim variant)', async ({ browser }) => {
