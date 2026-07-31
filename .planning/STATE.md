@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
-status: verifying
-last_updated: "2026-07-31T14:14:54.120Z"
+status: executing
+last_updated: "2026-07-31T15:42:25.136Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 13
   completed_phases: 11
   total_plans: 52
-  completed_plans: 46
+  completed_plans: 47
   percent: 85
 ---
 
@@ -25,7 +25,7 @@ progress:
 
 ## Phase 0: testing-foundation
 
-- **Status:** Phase complete — ready for verification
+- **Status:** Ready to execute
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -154,13 +154,17 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 08-pre-deployment-hardening-p0-audit-fixes]: ANONYMOUS_RATE_LIMIT env knob added for the outer route rate limiter (default 20/min unchanged) so full e2e suites can run; e2e runs raise RATE_LIMIT + ANONYMOUS_RATE_LIMIT
 - [Phase 08]: Leaf-level errorComponent on the data routes (time-entries/expenses/customers index) with the layout boundary kept as fallback — layout matches persist across navigations and hold loader errors that navigation/invalidate intermittently fail to clear in TanStack Router v1.170 (stale panel / empty main after recovery)
 - [Phase 08]: E2E seeding convention: shared helpers module, underscore-free seed email domains (native input[type=email] validation silently blocks submit otherwise), '' for optional string columns (pgx rejects NULL for *string scans)
+- [Phase 09-activity-ontology]: Migration numbered 011 not 010 — 010_refresh_token_reuse_detection already exists; per ADR-BE-004 new files continue from the max — Migration numbered 011 not 010 — 010_refresh_token_reuse_detection already exists; per ADR-BE-004 new files continue from the max
+- [Phase 09-activity-ontology]: budget_caps.project_id rewritten to activity_id — plan omitted it but its FK blocked DROP TABLE projects — budget_caps.project_id rewritten to activity_id — plan omitted it but its FK blocked DROP TABLE projects
+- [Phase 09-activity-ontology]: Same-id migration strategy — activity rows keep old project/subproject UUIDs so down restores 1:1 — Same-id migration strategy — activity rows keep old project/subproject UUIDs so down restores 1:1
+- [Phase 09-activity-ontology]: NULL-project expenses get per-org internal General & Admin fallback activity so activity_id is NOT NULL (D-4) — NULL-project expenses get per-org internal General & Admin fallback activity so activity_id is NOT NULL (D-4)
 
 ## Current Position
 
-Phase: 08 (pre-deployment-hardening-p0-audit-fixes) — COMPLETE (P0 gate closed)
-Plan: 4 of 4 (08-04 complete)
-Status: Ready for verification
-Last activity: 2026-07-31 -- Phase 08 execution: 08-04 completed; audit P0 table reads Fixed for all six rows
+Phase: 09 (activity-ontology) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-07-31 -- Phase 09 execution started
 Next up: Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
 
 ## Performance Metrics
@@ -196,3 +200,4 @@ Next up: Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
 | Phase 08-pre-deployment-hardening-p0-audit-fixes P08-03 | 29min | 3 tasks | 8 files |
 | Phase 08-pre-deployment-hardening-p0-audit-fixes P08-03 | 29min | 3 tasks | 8 files |
 | Phase 08 P08-04 | 176min | 4 tasks | 11 files |
+| Phase 09-activity-ontology P09-01 | 7min | 2 tasks | 4 files |
