@@ -380,41 +380,41 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 8: Pre-Deployment Hardening (P0 audit fixes)
 
-**Status:** Planned — 4 plans, 2 waves
+**Status:** In Progress — 1/4 plans complete (08-01 done)
 
-**Goal:** Close the six P0 findings from the 2026-07-28 Pre-Deployment Audit (status CHECK constraint, list views, /customers route, error boundaries, refresh rotation, reset-code exposure) plus folded-in S3 input length caps. Phase gates first deployment of v0.1.
+**Goal:** Close the remaining P0 findings from the 2026-07-28 Pre-Deployment Audit after code verification (2026-07-31): P0-2 list views, P0-3 `/customers` route, P0-4 error boundaries, P0-5-lite refresh-token reuse detection — plus folded-in S3 input length caps. P0-1 (status CHECK) and P0-6 (reset-code exposure) verified already-fixed pre-audit. Phase gates first deployment of v0.1.
 
 **Depends on:** Phase 7
 
-**Source:** `hourglass-vault/research/2026-07-28 — Pre-Deployment Audit — Hourglass v0.1.md` (§6 P0 matrix)
+**Source:** `hourglass-vault/research/2026-07-28 — Pre-Deployment Audit — Hourglass v0.1.md` (§6 P0 matrix + 2026-07-31 Corrections)
 
 **Context:** `08-CONTEXT.md` — audit-ingest express path (discuss-phase bypassed: audit is the spec, all decisions locked)
 
 ### Key behaviors
 
-- P0-1: widen time-entry status CHECK constraint (`pending_manager`, `pending_finance`, `rejected`) — mirrors `005_expenses_status_check`
+- ~~P0-1: widen time-entry status CHECK constraint~~ — ✅ already fixed by `004_time_entries_status_check` (verified 2026-07-31)
 - P0-2: real filterable list views on the time-entries and expenses List tabs (shared table shell, URL-driven filters)
 - P0-3: `/customers` index route (list page exists but is unreachable)
 - P0-4: route error boundaries per ADR-FE-014 (layout default + auth slim variant)
-- P0-5: refresh-token rotation with family reuse detection (ADR-FE-013 mechanism unchanged)
-- P0-6: reset code out of response body, 8-digit entropy, enumeration-safe generic response
+- P0-5: refresh-token **reuse detection** on top of existing rotation — `family_id` + `rotated_at`, replay → `ErrTokenReuse` + family revocation, atomic rotate tx (ADR-FE-013 mechanism unchanged)
+- ~~P0-6: reset code out of response body~~ — ✅ already fixed + regression-tested per D-16 (verified 2026-07-31)
 - S3: request string length caps at the handler boundary (400 on violation)
 
 ### Waves
 
 | Wave | Plans | Description |
 |------|-------|-------------|
-| 1 | 08-01 + 08-02 (parallel) | Backend security & schema fixes ∥ Frontend completion |
+| 1 | 08-01 + 08-02 (parallel) | Backend security hardening ∥ Frontend completion |
 | 2 | 08-03 + 08-04 (parallel) | Backend regression tests ∥ Frontend E2E + audit closeout |
 
 ### Plans
 
 | Plan | Objective | Wave | Tasks | Files |
 |------|-----------|------|-------|-------|
-| [ ] 08-01 | Backend: status-constraint migration, refresh rotation, reset-code exposure, length caps | 1 | 4 | ~12 |
+| [x] 08-01 | Backend: refresh-token reuse detection (family model, atomic rotate) + input length caps | 1 | 2 | 21 |
 | [ ] 08-02 | Frontend: /customers route, time/expense list views + shared table, error boundaries | 1 | 5 | ~9 |
-| [ ] 08-03 | Backend regression tests: lifecycle, rotation (incl. race), reset contract, E2E auth updates | 2 | 4 | ~8 |
-| [ ] 08-04 | Frontend E2E: list views, customers, error recovery; audit P0 table → Fixed; 00-Index closeout | 2 | 4 | ~7 |
+| [ ] 08-03 | Backend regression tests: reuse detection (incl. race), S3 caps, E2E auth cookie-rotation | 2 | 3 | ~5 |
+| [ ] 08-04 | Frontend E2E: list views, customers, error recovery; audit P0 table closeout; 00-Index | 2 | 4 | ~7 |
 
 ### Edge cases
 
