@@ -319,6 +319,32 @@ func (r *ActivityRepository) KindExists(ctx context.Context, orgID uuid.UUID, ki
 	return exists, nil
 }
 
+// ListKinds returns the org's activity_kinds catalog ordered by name
+// (ADR-P-007 D-2 — the catalog is org-scoped and extensible).
+func (r *ActivityRepository) ListKinds(ctx context.Context, orgID uuid.UUID) ([]activitydomain.ActivityKind, error) {
+	rows, err := r.pool.Query(ctx, `SELECT name FROM activity_kinds WHERE org_id = $1 ORDER BY name`, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list activity kinds: %w", err)
+	}
+	defer rows.Close()
+
+	var kinds []activitydomain.ActivityKind
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("scan activity kind: %w", err)
+		}
+		kinds = append(kinds, activitydomain.ActivityKind(name))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list activity kinds: %w", err)
+	}
+	if kinds == nil {
+		kinds = []activitydomain.ActivityKind{}
+	}
+	return kinds, nil
+}
+
 // ListManagers returns the governance managers for an activity.
 func (r *ActivityRepository) ListManagers(ctx context.Context, activityID uuid.UUID) ([]activitydomain.ActivityManager, error) {
 	query := `SELECT am.id, am.activity_id, am.user_id, u.firstname || ' ' || u.lastname AS user_name, u.email, am.created_at

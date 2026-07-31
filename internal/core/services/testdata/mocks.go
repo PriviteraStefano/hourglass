@@ -642,6 +642,24 @@ func (m *MockActivityRepo) KindExists(ctx context.Context, orgID uuid.UUID, kind
 	return m.Kinds[orgID.String()+":"+kind], nil
 }
 
+// ListKinds returns the org's catalog from the Kinds map (keyed
+// orgID.String()+":"+kind).
+func (m *MockActivityRepo) ListKinds(ctx context.Context, orgID uuid.UUID) ([]activitydomain.ActivityKind, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	prefix := orgID.String() + ":"
+	var kinds []activitydomain.ActivityKind
+	for k := range m.Kinds {
+		if strings.HasPrefix(k, prefix) {
+			kinds = append(kinds, activitydomain.ActivityKind(strings.TrimPrefix(k, prefix)))
+		}
+	}
+	if kinds == nil {
+		kinds = []activitydomain.ActivityKind{}
+	}
+	return kinds, nil
+}
+
 func (m *MockActivityRepo) HasChildren(ctx context.Context, activityID uuid.UUID) (bool, error) {
 	if m.HasChildrenFn != nil {
 		return m.HasChildrenFn(ctx, activityID)

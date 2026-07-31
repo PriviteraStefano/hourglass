@@ -43,6 +43,12 @@ func (s *Service) ListChildren(ctx context.Context, parentID uuid.UUID) ([]activ
 	return s.activityRepo.ListChildren(ctx, parentID)
 }
 
+// ListKinds returns the org's activity_kinds catalog (ADR-P-007 D-2) — the
+// labels Create validates against. Backs GET /api/activity-kinds.
+func (s *Service) ListKinds(ctx context.Context, orgID uuid.UUID) ([]activitydomain.ActivityKind, error) {
+	return s.activityRepo.ListKinds(ctx, orgID)
+}
+
 // GetByID returns a single activity scoped to the org.
 func (s *Service) GetByID(ctx context.Context, orgID, activityID uuid.UUID) (*activitydomain.ActivityResponse, error) {
 	return s.activityRepo.Get(ctx, orgID, activityID)

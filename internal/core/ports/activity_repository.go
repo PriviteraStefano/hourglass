@@ -35,6 +35,9 @@ type ActivityRepository interface {
 	// service-layer Create validation depends on it so unknown kinds surface as
 	// clean sentinels instead of FK violations.
 	KindExists(ctx context.Context, orgID uuid.UUID, kind string) (bool, error)
+	// ListKinds returns the org's activity_kinds catalog (ADR-P-007 D-2),
+	// ordered by name. Backs the GET /api/activity-kinds endpoint.
+	ListKinds(ctx context.Context, orgID uuid.UUID) ([]activitydomain.ActivityKind, error)
 
 	ListManagers(ctx context.Context, activityID uuid.UUID) ([]activitydomain.ActivityManager, error)
 	AddManager(ctx context.Context, activityID, userID uuid.UUID) (*activitydomain.ActivityManager, error)
