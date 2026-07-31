@@ -462,7 +462,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 | Plan | Objective | Wave | Tasks | Files |
 |------|-----------|------|-------|-------|
 | [x] 09-01 | Ontology migration: activities schema + data migration (011 up/down, completed 2026-07-31) | 1 | 2 | 4 |
-| [ ] 09-02 | Staffing schema: availability_windows + membership validity + hr role (011 up/down) | 1 | 2 | 2 |
+| [x] 09-02 | Staffing schema: availability_windows + membership validity + hr role (012 up/down, completed 2026-07-31) | 1 | 2 | 4 |
 | [ ] 09-03 | Domain + repository collapse: Activity entity, ports, PG adapters, CTE queries | 2 | 3 | ~18 |
 | [ ] 09-04 | Service layer: routing rewrite (R-1/R-2/R-3) + ActivityService | 2 | 3 | ~5 |
 | [ ] 09-05 | HTTP handlers + router: /api/activities, entry DTO updates, route wiring | 2 | 3 | ~7 |

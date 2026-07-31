@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-31T15:42:25.136Z"
+last_updated: "2026-07-31T15:54:48.864Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 13
   completed_phases: 11
   total_plans: 52
-  completed_plans: 47
+  completed_plans: 48
   percent: 85
 ---
 
@@ -18,9 +18,9 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plan 08-04 (Frontend E2E & smoke verification — P0 gate closed: all six P0 rows Fixed in the audit)
-- **Source:** `.planning/phases/08-pre-deployment-hardening-p0-audit-fixes/08-04-PLAN.md`
-- **Previous:** Plan 08-03 (Backend regression tests: reuse-detection suites, S3 length-cap tables, e2e auth rotation)
+- **Completed:** Plan 09-02 (Staffing schema: availability_windows + membership validity dates + hr role — 012 migration pair, testcontainers cycle test)
+- **Source:** `.planning/phases/09-activity-ontology/09-02-PLAN.md`
+- **Previous:** Plan 09-01 (Ontology migration: activities schema + data migration)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
@@ -158,11 +158,13 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 09-activity-ontology]: budget_caps.project_id rewritten to activity_id — plan omitted it but its FK blocked DROP TABLE projects — budget_caps.project_id rewritten to activity_id — plan omitted it but its FK blocked DROP TABLE projects
 - [Phase 09-activity-ontology]: Same-id migration strategy — activity rows keep old project/subproject UUIDs so down restores 1:1 — Same-id migration strategy — activity rows keep old project/subproject UUIDs so down restores 1:1
 - [Phase 09-activity-ontology]: NULL-project expenses get per-org internal General & Admin fallback activity so activity_id is NOT NULL (D-4) — NULL-project expenses get per-org internal General & Admin fallback activity so activity_id is NOT NULL (D-4)
+- [Phase 09-activity-ontology]: Migration numbered 012 not 011 (011 taken by activity ontology; ADR-BE-004 max+1) — Migration numbered 012 not 011 (011 taken by activity ontology; ADR-BE-004 max+1)
+- [Phase 09-activity-ontology]: Down migration downgrades existing hr rows to employee before restoring role CHECK (rollback must not fail on violating rows) — Down migration downgrades existing hr rows to employee before restoring role CHECK (rollback must not fail on violating rows)
 
 ## Current Position
 
 Phase: 09 (activity-ontology) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-07-31 -- Phase 09 execution started
 Next up: Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
@@ -201,3 +203,4 @@ Next up: Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
 | Phase 08-pre-deployment-hardening-p0-audit-fixes P08-03 | 29min | 3 tasks | 8 files |
 | Phase 08 P08-04 | 176min | 4 tasks | 11 files |
 | Phase 09-activity-ontology P09-01 | 7min | 2 tasks | 4 files |
+| Phase 09-activity-ontology P02 | 10min | 2 tasks | 4 files |
