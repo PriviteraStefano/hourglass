@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-31T10:51:28.804Z"
+last_updated: "2026-07-31T12:31:03.784Z"
 last_activity: 2026-07-31
 progress:
-  total_phases: 12
+  total_phases: 13
   completed_phases: 10
-  total_plans: 47
-  completed_plans: 43
-  percent: 83
+  total_plans: 52
+  completed_plans: 44
+  percent: 77
 ---
 
 # Phase State
@@ -18,9 +18,9 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plan 08-01 (Backend security hardening: refresh-token reuse detection + input caps)
-- **Source:** `.planning/phases/08-pre-deployment-hardening-p0-audit-fixes/08-01-PLAN.md`
-- **Previous:** Plan 07-03 (Export tabs on time entries and expenses pages)
+- **Completed:** Plan 08-02 (Frontend completion: /customers route, list views, error boundaries)
+- **Source:** `.planning/phases/08-pre-deployment-hardening-p0-audit-fixes/08-02-PLAN.md`
+- **Previous:** Plan 08-01 (Backend security hardening: refresh-token reuse detection + input caps)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
@@ -127,10 +127,9 @@ The following phases from the previous milestone structure are superseded:
 - Phase Pg-2 (postgres-adapters) — Complete, archived
 - Phase Pg-3 (wiring) — Complete, archived
 
-## ## Decisions
+## Decisions
 
 - **2026-06-08:** testcontainers-go v0.42.0 selected as integration test infrastructure, replacing DATABASE_URL-dependent TestPool with SetupPackageContainer using sync.Once container lifecycle. Migration paths resolve relative to Go module root.
-- [Phase 00-testing-foundation]: ---
 - **2026-06-09:** Token generation guarded behind orgID != uuid.Nil to avoid FK violation on refresh_tokens when registering without an organization
 - **2026-06-09:** Added crypto/rand.Int with math/big for unbiased password reset code distribution (replacing modulo-biased rand.Read)
 - **2026-06-09:** Register returns 200 instead of 201 to match Login/Bootstrap convention (response now includes tokens)
@@ -143,23 +142,22 @@ The following phases from the previous milestone structure are superseded:
 - **2026-06-11:** HasProjects check runs after HasTimeEntries check in Delete service method
 
 - **2026-07-08:** Export tabs follow PATTERNS.md exactly: Tabs defaultValue='list', List/Calendar/Export triggers, existing calendar content preserved under Calendar tab. List tab is empty placeholder — no list view component exists yet on either page.
-- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: Refresh-token replay of any rotated OR revoked token revokes the entire token family (strict reuse model, per audit P0-5) — Refresh-token replay of any rotated OR revoked token revokes the entire token family (strict reuse model, per audit P0-5)
-- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: Concurrent-refresh race: second simultaneous refresh of the same token is treated as replay and revokes the family — documented in repo/test comments; client fingerprinting out of scope (audit T9) — Concurrent-refresh race: second simultaneous refresh of the same token is treated as replay and revokes the family — documented in repo/test comments; client fingerprinting out of scope (audit T9)
-- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: Rotation is one repo-level transaction (pgx BeginTx + FOR UPDATE): mark rotated_at + insert successor atomically; no crash window — Rotation is one repo-level transaction (pgx BeginTx + FOR UPDATE): mark rotated_at + insert successor atomically; no crash window
-- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: FindByHash now returns only non-rotated AND non-revoked tokens (tombstone-model semantic) — FindByHash now returns only non-rotated AND non-revoked tokens (tombstone-model semantic)
-- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: Input length caps live at the HTTP adapter boundary as rune counts; domain value objects keep format validation only — Input length caps live at the HTTP adapter boundary as rune counts; domain value objects keep format validation only
-- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: Refresh-token replay of any rotated OR revoked token revokes the entire token family (strict reuse model, per audit P0-5) — Refresh-token replay of any rotated OR revoked token revokes the entire token family (strict reuse model, per audit P0-5)
-- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: Concurrent-refresh race: second simultaneous refresh of the same token is treated as replay and revokes the family - documented in repo/test comments; client fingerprinting out of scope (audit T9) — Concurrent-refresh race: second simultaneous refresh of the same token is treated as replay and revokes the family - documented in repo/test comments; client fingerprinting out of scope (audit T9)
-- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: Rotation is one repo-level transaction (pgx BeginTx + FOR UPDATE): mark rotated_at + insert successor atomically; no crash window — Rotation is one repo-level transaction (pgx BeginTx + FOR UPDATE): mark rotated_at + insert successor atomically; no crash window
-- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: FindByHash now returns only non-rotated AND non-revoked tokens (tombstone-model semantic) — FindByHash now returns only non-rotated AND non-revoked tokens (tombstone-model semantic)
-- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: Input length caps live at the HTTP adapter boundary as rune counts; domain value objects keep format validation only — Input length caps live at the HTTP adapter boundary as rune counts; domain value objects keep format validation only
+- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: Refresh-token replay of any rotated OR revoked token revokes the entire token family (strict reuse model, per audit P0-5)
+
+- [Phase 08-pre-deployment-hardening-p0-audit-fixes] (08-02): Expense amounts render currency resolved from the existing project→contract relationship; the expense payload carries no currency field (no new endpoint invented)
+- [Phase 08-pre-deployment-hardening-p0-audit-fixes] (08-02): approved status badge recolored emerald so all six workflow states are visually distinct (was blue, colliding with submitted)
+- [Phase 08-pre-deployment-hardening-p0-audit-fixes] (08-02): List filter state is URL-shareable via validateSearch (ADR-FE-017); arrays accept single, repeated, and JSON-serialized forms
+- [Phase 08-pre-deployment-hardening-p0-audit-fixes] (08-02): Row click / New-entry affordance switch to the calendar tab and set the date search param, reusing the existing EntryDetail/ExpenseDetail surfaces
+- [Phase 08-pre-deployment-hardening-p0-audit-fixes] (08-02): Error recovery uses errorComponent with router.invalidate() (not reset) so loaders re-run — TanStack Router v1 semantics
+- [Phase 08-pre-deployment-hardening-p0-audit-fixes] (08-02): Customers e2e suite logs in once via API and injects cookies to stay under the backend 5/min anonymous login rate limit
 
 ## Current Position
 
 Phase: 08 (pre-deployment-hardening-p0-audit-fixes) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4 (08-02 complete)
 Status: Ready to execute
-Last activity: 2026-07-31 -- Phase 08 execution started
+Last activity: 2026-07-31 -- Phase 08 execution: 08-02 completed
+Next up: Plan 08-03, then Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
 
 ## Performance Metrics
 
@@ -190,3 +188,4 @@ Last activity: 2026-07-31 -- Phase 08 execution started
 | Phase 07-exports P03 | 1 min | 2 tasks | 2 files |
 | Phase 07-exports P03 | 1 min | 2 tasks | 2 files |
 | Phase 08-pre-deployment-hardening-p0-audit-fixes P08-01 | 40min | 2 tasks | 21 files |
+| Phase 08-pre-deployment-hardening-p0-audit-fixes P08-02 | 93 | 5 tasks | 24 files |

@@ -380,7 +380,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 8: Pre-Deployment Hardening (P0 audit fixes)
 
-**Status:** In Progress — 1/4 plans complete (08-01 done)
+**Status:** In Progress — 2/4 plans complete (08-01 backend hardening, 08-02 frontend completion done)
 
 **Goal:** Close the remaining P0 findings from the 2026-07-28 Pre-Deployment Audit after code verification (2026-07-31): P0-2 list views, P0-3 `/customers` route, P0-4 error boundaries, P0-5-lite refresh-token reuse detection — plus folded-in S3 input length caps. P0-1 (status CHECK) and P0-6 (reset-code exposure) verified already-fixed pre-audit. Phase gates first deployment of v0.1.
 
@@ -427,6 +427,69 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ---
 
+## Phase 9: Activity Ontology (Big-Bang Migration + Routing Rewrite)
+
+**Status:** Planned — 5 plans, 2 waves
+
+**Goal:** Replace `projects`+`subprojects` with the recursive `activities` entity, rewrite all FKs and approval routing onto the new ontology, land the additive staffing schema (ADR-P-008), and leave the backend API fully activity-shaped. Backend + database only — frontend rename and new surfaces are Phase 10.
+
+**Depends on:** Phase 8 (green tests = migration safety net)
+
+**Source:** `hourglass-vault/decisions/project/ADR-P-007 — Activity Ontology.md` (Accepted) + `hourglass-vault/decisions/backend/ADR-BE-014 — Approval-Routing Precedence & Activity-Chain Resolution.md` (Accepted) + `hourglass-vault/decisions/project/ADR-P-008 — Availability & Employment Validity.md` (schema only)
+
+**Context:** `09-CONTEXT.md` — ADR-ingest express path (discuss-phase bypassed: ADRs are the spec, all decisions locked)
+
+### Key behaviors
+
+- Recursive `activities` table replaces `projects`+`subprojects`; `activity_kinds` org-extensible catalog (P-007 D-1/D-2)
+- Commercial context optional + inherited upward via CTE; `billable` nullable (D-3/D-7)
+- Entries link through one `activity_id NOT NULL`; `wg_id`/`project_id`/`subproject_id`/`customer_id` dropped from entries (D-4, R-5)
+- `working_groups.activity_id` replaces `subproject_id`; `enforce_unit_tuple` dropped (D-5, R-5)
+- Approval routing: activity → anchored WG → manager/delegate; unit-manager fallback for personal activities; D-11 skip incl. delegates; `ErrActivityNotLoggable` enforcement (R-1…R-3)
+- `project_repository`+`subproject_repository` → one `activity_repository`; one `/api/activities` endpoint set (R-6)
+- Staffing schema (P-008): `availability_windows`, membership validity dates, `hr` role — additive, zero-coupled
+- Frontend left compiling-but-stale; quarantined for Phase 10
+
+### Waves
+
+| Wave | Plans | Description |
+|------|-------|-------------|
+| 1 | 09-01 + 09-02 (parallel) | Ontology migration ∥ Staffing schema |
+| 2 | 09-03 + 09-04 + 09-05 (sequential within wave) | Domain/repo collapse → service rewrite → handler/router wiring |
+
+### Plans
+
+| Plan | Objective | Wave | Tasks | Files |
+|------|-----------|------|-------|-------|
+| [ ] 09-01 | Ontology migration: activities schema + data migration (010 up/down) | 1 | 2 | 2 |
+| [ ] 09-02 | Staffing schema: availability_windows + membership validity + hr role (011 up/down) | 1 | 2 | 2 |
+| [ ] 09-03 | Domain + repository collapse: Activity entity, ports, PG adapters, CTE queries | 2 | 3 | ~18 |
+| [ ] 09-04 | Service layer: routing rewrite (R-1/R-2/R-3) + ActivityService | 2 | 3 | ~5 |
+| [ ] 09-05 | HTTP handlers + router: /api/activities, entry DTO updates, route wiring | 2 | 3 | ~7 |
+
+### Edge cases
+
+- Migration up→down→up cycle must be clean (testcontainers test)
+- Seed data: zero orphaned entries post-migration (every entry has a valid `activity_id`)
+- `ErrActivityNotLoggable` on commercial activity without anchored WG → 409
+- D-11 skip fires for delegates, not for plain WG members
+- Frontend will not compile after this phase (types reference old FKs) — expected, Phase 10 fixes it
+- `activity_kinds` seed must include the MVP org; org-extensible per D-2
+
+---
+
+## Phase 10: Information Architecture Implementation
+
+**Status:** Not yet planned
+
+**Goal:** Implement ADR-P-011: sidebar regrouping, `/projects` → `/activities` rename, Today landing (ticketless), Approvals queue, Working Groups surface, role-scoped visibility. Requires Phase 9 backend live.
+
+**Depends on:** Phase 9
+
+**Source:** `hourglass-vault/decisions/project/ADR-P-011 — Information Architecture & Role-Scoped Surfaces.md` (Proposed)
+
+---
+
 ## Superseded Phases
 
 The following phases from the previous roadmap are superseded by the new structure:
@@ -450,9 +513,17 @@ Phase 1 (Auth) ─┬─ Phase 2 (Org Hierarchy)
                                     Phase 6 (Time Entries + Expenses)
                                              │
                                         Phase 7 (Exports)
+                                             │
+                                    Phase 8 (P0 Hardening)
+                                             │
+                                    Phase 9 (Activity Ontology)
+                                             │
+                                    Phase 10 (IA Implementation)
 ```
 
 **Parallel execution:**
 
 - Phase 2 + Phase 3 (parallel, both depend on Phase 1)
 - Phase 4 + Phase 5 (parallel, Phase 4 depends on Phase 3, Phase 5 depends on Phase 4)
+- Phase 9 Wave 1: Plans 09-01 + 09-02 (parallel, different tables)
+- Phase 9 Wave 2: Plans 09-03 → 09-04 → 09-05 (sequential — each layer builds on the previous)
