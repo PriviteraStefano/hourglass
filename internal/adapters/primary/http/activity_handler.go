@@ -288,6 +288,8 @@ func (h *ActivityHandler) Update(w http.ResponseWriter, r *http.Request) {
 			api.RespondWithError(w, http.StatusNotFound, "activity not found")
 		case errors.Is(err, activitydomain.ErrInvalidRequest):
 			api.RespondWithError(w, http.StatusBadRequest, "invalid activity payload")
+		case errors.Is(err, activitydomain.ErrActivityCycle):
+			api.RespondWithError(w, http.StatusBadRequest, "activity parent would create a cycle")
 		default:
 			api.RespondWithError(w, http.StatusInternalServerError, "failed to update activity")
 		}

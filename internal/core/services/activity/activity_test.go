@@ -114,6 +114,19 @@ func TestService_Create(t *testing.T) {
 		assert.Nil(t, created)
 	})
 
+	t.Run("create with valid same-org parent succeeds (path check on insert)", func(t *testing.T) {
+		svc, repo, _, _ := setupService(t)
+		repo.Kinds = map[string]bool{orgID.String() + ":engagement": true}
+		parent := seedActivity(repo, func(a *activitydomain.ActivityResponse) { a.OrgID = orgID })
+
+		req := validCreateReq()
+		req.ParentID = &parent.ID
+		created, err := svc.Create(context.Background(), orgID, req)
+		require.NoError(t, err)
+		require.NotNil(t, created)
+		assert.Equal(t, parent.ID, *created.ParentID)
+	})
+
 	t.Run("missing contract rejected (D-3)", func(t *testing.T) {
 		svc, repo, _, _ := setupService(t)
 		repo.Kinds = map[string]bool{orgID.String() + ":engagement": true}
@@ -213,6 +226,71 @@ func TestService_Update(t *testing.T) {
 
 		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, a.ID, &activitydomain.UpdateActivityRequest{Name: "X"})
 		assert.ErrorIs(t, err, activitydomain.ErrForbidden)
+		assert.Nil(t, updated)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestService_UpdateParentValidation
+// ---------------------------------------------------------------------------
+
+// TestService_UpdateParentValidation covers the SPEC in-scope cycle-prevention
+// path check on update (parent must exist, belong to the same org, and not
+// sit inside the activity's own subtree) via the shared validateParent walk.
+func TestService_UpdateParentValidation(t *testing.T) {
+	orgID := uuid.New()
+	svc, repo, _, _ := setupService(t)
+	repo.Kinds = map[string]bool{orgID.String() + ":engagement": true}
+
+	// 3-level tree: root → child → grandchild
+	root := seedActivity(repo, func(a *activitydomain.ActivityResponse) { a.OrgID = orgID; a.CreatedByOrgID = orgID })
+	child := seedActivity(repo, func(a *activitydomain.ActivityResponse) {
+		a.OrgID = orgID
+		a.CreatedByOrgID = orgID
+		a.ParentID = &root.ID
+	})
+	grandchild := seedActivity(repo, func(a *activitydomain.ActivityResponse) {
+		a.OrgID = orgID
+		a.CreatedByOrgID = orgID
+		a.ParentID = &child.ID
+	})
+
+	t.Run("reparent root under its grandchild rejected", func(t *testing.T) {
+		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, root.ID, &activitydomain.UpdateActivityRequest{ParentID: &grandchild.ID})
+		assert.ErrorIs(t, err, activitydomain.ErrActivityCycle)
+		assert.Nil(t, updated)
+	})
+
+	t.Run("reparent child under its own descendant rejected", func(t *testing.T) {
+		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, child.ID, &activitydomain.UpdateActivityRequest{ParentID: &grandchild.ID})
+		assert.ErrorIs(t, err, activitydomain.ErrActivityCycle)
+		assert.Nil(t, updated)
+	})
+
+	t.Run("self-parent rejected", func(t *testing.T) {
+		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, root.ID, &activitydomain.UpdateActivityRequest{ParentID: &root.ID})
+		assert.ErrorIs(t, err, activitydomain.ErrActivityCycle)
+		assert.Nil(t, updated)
+	})
+
+	t.Run("valid reparent within same org succeeds", func(t *testing.T) {
+		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, grandchild.ID, &activitydomain.UpdateActivityRequest{ParentID: &root.ID})
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+	})
+
+	t.Run("parent from another org rejected", func(t *testing.T) {
+		otherOrgID := uuid.New()
+		otherOrgActivity := seedActivity(repo, func(a *activitydomain.ActivityResponse) { a.OrgID = otherOrgID; a.CreatedByOrgID = otherOrgID })
+
+		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, root.ID, &activitydomain.UpdateActivityRequest{ParentID: &otherOrgActivity.ID})
+		assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)
+		assert.Nil(t, updated)
+	})
+
+	t.Run("missing parent rejected", func(t *testing.T) {
+		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, root.ID, &activitydomain.UpdateActivityRequest{ParentID: ptr(uuid.New())})
+		assert.ErrorIs(t, err, activitydomain.ErrActivityNotFound)
 		assert.Nil(t, updated)
 	})
 }
