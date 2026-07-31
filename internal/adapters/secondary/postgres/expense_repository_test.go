@@ -12,15 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func seedExpenseProject(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, now time.Time) uuid.UUID {
+// seedExpenseActivity creates a contract-linked engagement activity for
+// expense tests (commercial chain resolves via the activity, D-3).
+func seedExpenseActivity(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, now time.Time) uuid.UUID {
 	t.Helper()
-	id := uuid.New()
-	_, err := pool.Exec(context.Background(),
-		`INSERT INTO projects (id, org_id, name, project_type, type, governance_model, created_by_org_id, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
-		id, orgID, "Expense Test Project", "billable", "billable", "creator_controlled", orgID, now)
-	require.NoError(t, err)
-	return id
+	return seedEntryActivity(t, pool, orgID, now)
 }
 
 func TestExpenseRepository_Create_GetByID(t *testing.T) {
@@ -33,7 +29,7 @@ func TestExpenseRepository_Create_GetByID(t *testing.T) {
 
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
-	projectID := seedExpenseProject(t, pool, orgID, now)
+	activityID := seedExpenseActivity(t, pool, orgID, now)
 	unitID := seedUnit(t, pool, orgID, now)
 
 	kmDist := 45.0
@@ -41,7 +37,7 @@ func TestExpenseRepository_Create_GetByID(t *testing.T) {
 	expense := &domainexpense.Expense{
 		OrgID:       orgID,
 		UserID:      userID,
-		ProjectID:   projectID,
+		ActivityID:  activityID,
 		UnitID:      unitID,
 		Category:    "mileage",
 		Amount:      150.50,
@@ -57,7 +53,7 @@ func TestExpenseRepository_Create_GetByID(t *testing.T) {
 	require.NotEqual(t, uuid.Nil, created.ID)
 	require.Equal(t, orgID, created.OrgID)
 	require.Equal(t, userID, created.UserID)
-	require.Equal(t, projectID, created.ProjectID)
+	require.Equal(t, activityID, created.ActivityID)
 	require.Equal(t, "mileage", created.Category)
 	require.Equal(t, 150.50, created.Amount)
 	require.NotNil(t, created.KmDistance)
@@ -72,6 +68,7 @@ func TestExpenseRepository_Create_GetByID(t *testing.T) {
 	require.NotNil(t, got)
 	require.Equal(t, created.ID, got.ID)
 	require.Equal(t, created.Amount, got.Amount)
+	require.Equal(t, created.ActivityID, got.ActivityID)
 }
 
 func TestExpenseRepository_GetByID_NotFound(t *testing.T) {
@@ -96,7 +93,7 @@ func TestExpenseRepository_List(t *testing.T) {
 	orgID := seedOrg(t, pool, now)
 	orgID2 := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
-	projectID := seedExpenseProject(t, pool, orgID, now)
+	activityID := seedExpenseActivity(t, pool, orgID, now)
 	unitID := seedUnit(t, pool, orgID, now)
 
 	// Create two expenses for org1
@@ -104,7 +101,7 @@ func TestExpenseRepository_List(t *testing.T) {
 		e := &domainexpense.Expense{
 			OrgID:       orgID,
 			UserID:      userID,
-			ProjectID:   projectID,
+			ActivityID:  activityID,
 			UnitID:      unitID,
 			Category:    "meal",
 			Amount:      100.0,
@@ -125,6 +122,14 @@ func TestExpenseRepository_List(t *testing.T) {
 	empty, err := repo.List(context.Background(), orgID2, ports.ExpenseListFilters{IsDeleted: false})
 	require.NoError(t, err)
 	require.Empty(t, empty)
+
+	// Filter by activity
+	byActivity, err := repo.List(context.Background(), orgID, ports.ExpenseListFilters{
+		ActivityID: activityID.String(),
+		IsDeleted:  false,
+	})
+	require.NoError(t, err)
+	require.Len(t, byActivity, 2)
 }
 
 func TestExpenseRepository_Update(t *testing.T) {
@@ -137,7 +142,7 @@ func TestExpenseRepository_Update(t *testing.T) {
 
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
-	projectID := seedExpenseProject(t, pool, orgID, now)
+	activityID := seedExpenseActivity(t, pool, orgID, now)
 	unitID := seedUnit(t, pool, orgID, now)
 
 	kmDist := 0.0
@@ -145,7 +150,7 @@ func TestExpenseRepository_Update(t *testing.T) {
 	expense := &domainexpense.Expense{
 		OrgID:       orgID,
 		UserID:      userID,
-		ProjectID:   projectID,
+		ActivityID:  activityID,
 		UnitID:      unitID,
 		Category:    "mileage",
 		Amount:      100.0,
@@ -184,13 +189,13 @@ func TestExpenseRepository_Delete(t *testing.T) {
 
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
-	projectID := seedExpenseProject(t, pool, orgID, now)
+	activityID := seedExpenseActivity(t, pool, orgID, now)
 	unitID := seedUnit(t, pool, orgID, now)
 
 	expense := &domainexpense.Expense{
 		OrgID:       orgID,
 		UserID:      userID,
-		ProjectID:   projectID,
+		ActivityID:  activityID,
 		UnitID:      unitID,
 		Category:    "other",
 		Amount:      75.0,
@@ -225,13 +230,13 @@ func TestExpenseRepository_CreateApproval(t *testing.T) {
 
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
-	projectID := seedExpenseProject(t, pool, orgID, now)
+	activityID := seedExpenseActivity(t, pool, orgID, now)
 	unitID := seedUnit(t, pool, orgID, now)
 
 	expense := &domainexpense.Expense{
 		OrgID:       orgID,
 		UserID:      userID,
-		ProjectID:   projectID,
+		ActivityID:  activityID,
 		UnitID:      unitID,
 		Category:    "mileage",
 		Amount:      50.0,
@@ -272,21 +277,21 @@ func TestExpenseRepository_IsPeriodLocked(t *testing.T) {
 	now := time.Now().UTC()
 
 	orgID := seedOrg(t, pool, now)
-	projectID := seedExpenseProject(t, pool, orgID, now)
+	activityID := seedExpenseActivity(t, pool, orgID, now)
 
-	// Create a locked cutoff period
+	// Create a locked cutoff period for the activity (R-5)
 	start := now.Add(-72 * time.Hour)
 	end := now.Add(72 * time.Hour)
-	seedFinancialCutoffPeriod(t, pool, orgID, projectID, start, end, true)
+	seedFinancialCutoffPeriod(t, pool, orgID, activityID, start, end, true)
 
 	// Check a date within the locked period
-	locked, err := repo.IsPeriodLocked(context.Background(), orgID, projectID, now.Format(time.RFC3339))
+	locked, err := repo.IsPeriodLocked(context.Background(), orgID, activityID, now.Format(time.RFC3339))
 	require.NoError(t, err)
 	require.True(t, locked)
 
 	// Check a date outside the locked period
 	outsideDate := now.Add(168 * time.Hour)
-	locked, err = repo.IsPeriodLocked(context.Background(), orgID, projectID, outsideDate.Format(time.RFC3339))
+	locked, err = repo.IsPeriodLocked(context.Background(), orgID, activityID, outsideDate.Format(time.RFC3339))
 	require.NoError(t, err)
 	require.False(t, locked)
 }
@@ -301,14 +306,16 @@ func TestExpenseRepository_ListPending(t *testing.T) {
 
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
-	projectID := seedExpenseProject(t, pool, orgID, now)
+	managerID := seedUser(t, pool, now)
+	activityID := seedExpenseActivity(t, pool, orgID, now)
+	seedWorkingGroup(t, pool, orgID, activityID, managerID, now)
 	unitID := seedUnit(t, pool, orgID, now)
 
-	// Create a submitted expense
+	// Create a submitted expense on the manager's WG activity
 	e1 := &domainexpense.Expense{
 		OrgID:       orgID,
 		UserID:      userID,
-		ProjectID:   projectID,
+		ActivityID:  activityID,
 		UnitID:      unitID,
 		Category:    "meal",
 		Amount:      25.0,
@@ -323,7 +330,7 @@ func TestExpenseRepository_ListPending(t *testing.T) {
 	e2 := &domainexpense.Expense{
 		OrgID:       orgID,
 		UserID:      userID,
-		ProjectID:   projectID,
+		ActivityID:  activityID,
 		UnitID:      unitID,
 		Category:    "meal",
 		Amount:      30.0,
@@ -338,4 +345,11 @@ func TestExpenseRepository_ListPending(t *testing.T) {
 	allPending, err := repo.ListPending(context.Background(), orgID, "", "")
 	require.NoError(t, err)
 	require.Len(t, allPending, 1)
+
+	// wg_manager sees expenses on activities whose WG they manage (R-1, same
+	// chain as time entries per ADR-P-001 Q1)
+	wgPending, err := repo.ListPending(context.Background(), orgID, "wg_manager", managerID.String())
+	require.NoError(t, err)
+	require.Len(t, wgPending, 1)
+	require.Equal(t, "Pending expense", wgPending[0].Description)
 }

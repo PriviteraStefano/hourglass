@@ -26,7 +26,13 @@ func NewExpenseRepository(pool *pgxpool.Pool) *ExpenseRepository {
 
 var _ ports.ExpenseRepository = (*ExpenseRepository)(nil)
 
-const expenseSelectColumns = `id, org_id, user_id, project_id, unit_id, category, amount, km_distance,
+const expenseSelectColumns = `e.id, e.org_id, e.user_id, e.activity_id, e.unit_id, e.category, e.amount, e.km_distance,
+	e.description, e.expense_date, e.status, COALESCE(e.current_approver_role, ''),
+	e.submitted_at, COALESCE(e.receipt_url, ''), e.is_deleted, e.created_at, e.updated_at`
+
+// expenseReturningColumns is the unaliased variant used in INSERT/UPDATE
+// RETURNING clauses (PostgreSQL does not allow table aliases there).
+const expenseReturningColumns = `id, org_id, user_id, activity_id, unit_id, category, amount, km_distance,
 	description, expense_date, status, COALESCE(current_approver_role, ''),
 	submitted_at, COALESCE(receipt_url, ''), is_deleted, created_at, updated_at`
 
@@ -42,7 +48,7 @@ func scanExpense(s expenseRowScanner) (*expense.Expense, error) {
 	var submittedAt *time.Time
 	var receiptURL string
 	err := s.Scan(
-		&e.ID, &e.OrgID, &e.UserID, &e.ProjectID, &e.UnitID,
+		&e.ID, &e.OrgID, &e.UserID, &e.ActivityID, &e.UnitID,
 		&e.Category, &e.Amount, &e.KmDistance,
 		&e.Description, &e.EntryDate, &e.Status,
 		&currentApproverRole, &submittedAt, &receiptURL,
@@ -88,44 +94,44 @@ func buildExpenseListQuery(orgID uuid.UUID, filters ports.ExpenseListFilters) (s
 	var args []interface{}
 
 	args = append(args, orgID)
-	conditions = append(conditions, "org_id = $1")
+	conditions = append(conditions, "e.org_id = $1")
 
 	args = append(args, filters.IsDeleted)
-	conditions = append(conditions, fmt.Sprintf("is_deleted = $%d", len(args)))
+	conditions = append(conditions, fmt.Sprintf("e.is_deleted = $%d", len(args)))
 
 	if filters.Date != "" {
 		args = append(args, filters.Date)
-		conditions = append(conditions, fmt.Sprintf("expense_date::date = $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("e.expense_date::date = $%d", len(args)))
 	}
 	if filters.Month != "" {
 		args = append(args, filters.Month)
-		conditions = append(conditions, fmt.Sprintf("EXTRACT(MONTH FROM expense_date) = $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("EXTRACT(MONTH FROM e.expense_date) = $%d", len(args)))
 	}
 	if filters.Year != "" {
 		args = append(args, filters.Year)
-		conditions = append(conditions, fmt.Sprintf("EXTRACT(YEAR FROM expense_date) = $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("EXTRACT(YEAR FROM e.expense_date) = $%d", len(args)))
 	}
 	if filters.Status != "" {
 		args = append(args, filters.Status)
-		conditions = append(conditions, fmt.Sprintf("status = $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("e.status = $%d", len(args)))
 	}
-	if filters.ProjectID != "" {
-		pID, err := uuid.Parse(filters.ProjectID)
+	if filters.ActivityID != "" {
+		aID, err := uuid.Parse(filters.ActivityID)
 		if err == nil {
-			args = append(args, pID)
-			conditions = append(conditions, fmt.Sprintf("project_id = $%d", len(args)))
+			args = append(args, aID)
+			conditions = append(conditions, fmt.Sprintf("e.activity_id = $%d", len(args)))
 		}
 	}
 	if filters.UserID != "" {
 		uID, err := uuid.Parse(filters.UserID)
 		if err == nil {
 			args = append(args, uID)
-			conditions = append(conditions, fmt.Sprintf("user_id = $%d", len(args)))
+			conditions = append(conditions, fmt.Sprintf("e.user_id = $%d", len(args)))
 		}
 	}
 
-	query := `SELECT ` + expenseSelectColumns + ` FROM expenses WHERE ` + strings.Join(conditions, " AND ")
-	query += ` ORDER BY expense_date DESC`
+	query := `SELECT ` + expenseSelectColumns + ` FROM expenses e WHERE ` + strings.Join(conditions, " AND ")
+	query += ` ORDER BY e.expense_date DESC`
 	return query, args
 }
 
@@ -142,7 +148,7 @@ func (r *ExpenseRepository) List(ctx context.Context, orgID uuid.UUID, filters p
 
 // GetByID returns a single expense by ID, or expense.ErrExpenseNotFound.
 func (r *ExpenseRepository) GetByID(ctx context.Context, id uuid.UUID) (*expense.Expense, error) {
-	query := `SELECT ` + expenseSelectColumns + ` FROM expenses WHERE id = $1`
+	query := `SELECT ` + expenseSelectColumns + ` FROM expenses e WHERE e.id = $1`
 	e, err := scanExpense(r.pool.QueryRow(ctx, query, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -158,14 +164,14 @@ func (r *ExpenseRepository) Create(ctx context.Context, e *expense.Expense) (*ex
 	e.ID = uuid.New()
 	now := time.Now().UTC()
 
-	query := `INSERT INTO expenses (id, org_id, user_id, project_id, unit_id,
+	query := `INSERT INTO expenses (id, org_id, user_id, activity_id, unit_id,
 		category, amount, km_distance, description, expense_date,
 		status, current_approver_role, submitted_at, receipt_url, is_deleted, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-		RETURNING ` + expenseSelectColumns
+		RETURNING ` + expenseReturningColumns
 
 	created, err := scanExpense(r.pool.QueryRow(ctx, query,
-		e.ID, e.OrgID, e.UserID, e.ProjectID, e.UnitID,
+		e.ID, e.OrgID, e.UserID, e.ActivityID, e.UnitID,
 		e.Category, e.Amount, e.KmDistance, e.Description, e.EntryDate,
 		e.Status, e.CurrentApproverRole, e.SubmittedAt, e.ReceiptURL,
 		e.IsDeleted, now, now,
@@ -179,15 +185,15 @@ func (r *ExpenseRepository) Create(ctx context.Context, e *expense.Expense) (*ex
 // Update performs a full-field update on an expense and returns the updated record.
 func (r *ExpenseRepository) Update(ctx context.Context, e *expense.Expense) (*expense.Expense, error) {
 	query := `UPDATE expenses SET
-		project_id = $2, category = $3, amount = $4, km_distance = $5,
+		activity_id = $2, category = $3, amount = $4, km_distance = $5,
 		description = $6, expense_date = $7, status = $8,
 		current_approver_role = $9, submitted_at = $10, receipt_url = $11,
 		updated_at = NOW()
 		WHERE id = $1
-		RETURNING ` + expenseSelectColumns
+		RETURNING ` + expenseReturningColumns
 
 	updated, err := scanExpense(r.pool.QueryRow(ctx, query,
-		e.ID, e.ProjectID, e.Category, e.Amount, e.KmDistance,
+		e.ID, e.ActivityID, e.Category, e.Amount, e.KmDistance,
 		e.Description, e.EntryDate, e.Status,
 		e.CurrentApproverRole, e.SubmittedAt, e.ReceiptURL,
 	))
@@ -213,14 +219,15 @@ func (r *ExpenseRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// IsPeriodLocked checks if a period is locked for the given org, project, and entry date.
-func (r *ExpenseRepository) IsPeriodLocked(ctx context.Context, orgID, projectID uuid.UUID, entryDate string) (bool, error) {
+// IsPeriodLocked checks if a period is locked for the given org, activity,
+// and entry date (ADR-BE-014 R-5: key is org + activity + date range).
+func (r *ExpenseRepository) IsPeriodLocked(ctx context.Context, orgID, activityID uuid.UUID, entryDate string) (bool, error) {
 	query := `SELECT EXISTS(
 		SELECT 1 FROM financial_cutoff_periods
-		WHERE org_id = $1 AND project_id = $2 AND $3::timestamptz BETWEEN period_start AND period_end AND is_locked = true
+		WHERE org_id = $1 AND activity_id = $2 AND $3::timestamptz BETWEEN period_start AND period_end AND is_locked = true
 	)`
 	var locked bool
-	err := r.pool.QueryRow(ctx, query, orgID, projectID, entryDate).Scan(&locked)
+	err := r.pool.QueryRow(ctx, query, orgID, activityID, entryDate).Scan(&locked)
 	if err != nil {
 		return false, fmt.Errorf("check expense period locked: %w", err)
 	}
@@ -228,6 +235,8 @@ func (r *ExpenseRepository) IsPeriodLocked(ctx context.Context, orgID, projectID
 }
 
 // ListPending returns pending expenses for an org, role-differentiated.
+// Manager stage resolves through the activity → working-group chain
+// (ADR-BE-014 R-1) — identical to time entries, per ADR-P-001 Q1.
 func (r *ExpenseRepository) ListPending(ctx context.Context, orgID uuid.UUID, role, userID string) ([]expense.Expense, error) {
 	var query string
 	var args []interface{}
@@ -238,21 +247,20 @@ func (r *ExpenseRepository) ListPending(ctx context.Context, orgID uuid.UUID, ro
 		if err != nil {
 			return nil, fmt.Errorf("parse user_id: %w", err)
 		}
-		query = `SELECT ` + expenseSelectColumns + ` FROM expenses
-			WHERE org_id = $1 AND status IN ('submitted', 'pending_manager') AND is_deleted = false
-			AND project_id IN (
-				SELECT p.id FROM projects p
-				JOIN project_managers pm ON pm.project_id = p.id
-				WHERE pm.user_id = $2
+		query = `SELECT ` + expenseSelectColumns + ` FROM expenses e
+			WHERE e.org_id = $1 AND e.status IN ('submitted', 'pending_manager') AND e.is_deleted = false
+			AND e.activity_id IN (
+				SELECT wg.activity_id FROM working_groups wg
+				WHERE wg.manager_id = $2 OR $2 = ANY(wg.delegate_ids)
 			)`
 		args = []interface{}{orgID, uID}
 	case "finance":
-		query = `SELECT ` + expenseSelectColumns + ` FROM expenses
-			WHERE org_id = $1 AND status = 'pending_finance' AND is_deleted = false`
+		query = `SELECT ` + expenseSelectColumns + ` FROM expenses e
+			WHERE e.org_id = $1 AND e.status = 'pending_finance' AND e.is_deleted = false`
 		args = []interface{}{orgID}
 	default:
-		query = `SELECT ` + expenseSelectColumns + ` FROM expenses
-			WHERE org_id = $1 AND status = 'submitted' AND is_deleted = false`
+		query = `SELECT ` + expenseSelectColumns + ` FROM expenses e
+			WHERE e.org_id = $1 AND e.status = 'submitted' AND e.is_deleted = false`
 		args = []interface{}{orgID}
 	}
 

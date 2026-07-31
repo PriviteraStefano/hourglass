@@ -36,27 +36,40 @@ func seedCustomer(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, now time.Ti
 	return id
 }
 
-// seedWorkingGroup creates a test working group linked to a subproject.
-func seedWorkingGroup(t *testing.T, pool *pgxpool.Pool, orgID, subprojectID, managerID uuid.UUID, now time.Time) uuid.UUID {
+// seedWorkingGroup creates a test working group anchored to an activity.
+func seedWorkingGroup(t *testing.T, pool *pgxpool.Pool, orgID, activityID, managerID uuid.UUID, now time.Time) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
 	_, err := pool.Exec(context.Background(),
-		`INSERT INTO working_groups (id, org_id, subproject_id, name, description, unit_ids, enforce_unit_tuple, manager_id, delegate_ids, is_active, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $10)`,
-		id, orgID, subprojectID, "Test WG", "Test working group", []interface{}{}, true, managerID, []interface{}{}, now)
+		`INSERT INTO working_groups (id, org_id, activity_id, name, description, unit_ids, manager_id, delegate_ids, is_active, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, $9)`,
+		id, orgID, activityID, "Test WG", "Test working group", []interface{}{}, managerID, []interface{}{}, now)
 	require.NoError(t, err)
 	return id
 }
 
-// seedFinancialCutoffPeriod creates a test financial cutoff period.
-func seedFinancialCutoffPeriod(t *testing.T, pool *pgxpool.Pool, orgID, projectID uuid.UUID, start, end time.Time, locked bool) {
+// seedFinancialCutoffPeriod creates a test financial cutoff period for an activity.
+func seedFinancialCutoffPeriod(t *testing.T, pool *pgxpool.Pool, orgID, activityID uuid.UUID, start, end time.Time, locked bool) {
 	t.Helper()
 	id := uuid.New()
 	_, err := pool.Exec(context.Background(),
-		`INSERT INTO financial_cutoff_periods (id, org_id, project_id, period_start, period_end, cutoff_date, is_locked, created_at)
+		`INSERT INTO financial_cutoff_periods (id, org_id, activity_id, period_start, period_end, cutoff_date, is_locked, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-		id, orgID, projectID, start, end, end, locked)
+		id, orgID, activityID, start, end, end, locked)
 	require.NoError(t, err)
+}
+
+// seedEntryActivity creates an engagement + task child activity and links the
+// engagement to a contract, mirroring the migrated MVP topology.
+func seedEntryActivity(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, now time.Time) (activityID uuid.UUID) {
+	t.Helper()
+	activityID = seedActivity(t, pool, orgID, "engagement", nil, now)
+	contractID := seedContract(t, pool, orgID, now)
+	_, err := pool.Exec(context.Background(),
+		`UPDATE activities SET contract_id = $1 WHERE id = $2`,
+		contractID, activityID)
+	require.NoError(t, err)
+	return activityID
 }
 
 func TestTimeEntryRepository_Create_GetByID(t *testing.T) {
@@ -70,30 +83,20 @@ func TestTimeEntryRepository_Create_GetByID(t *testing.T) {
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 	unitID := seedUnit(t, pool, orgID, now)
-	customerID := seedCustomer(t, pool, orgID, now)
-	contractID := seedContract(t, pool, orgID, now)
-	projectID := seedProject(t, pool, orgID, now)
-	// Override project FK contract
-	_, err := pool.Exec(context.Background(),
-		`UPDATE projects SET contract_id = $1, customer_id = $2 WHERE id = $3`,
-		contractID, customerID, projectID)
-	require.NoError(t, err)
-	subprojectID := seedSubproject(t, pool, projectID, now)
-	wgID := seedWorkingGroup(t, pool, orgID, subprojectID, userID, now)
+	activityID := seedEntryActivity(t, pool, orgID, now)
+	wgID := seedWorkingGroup(t, pool, orgID, activityID, userID, now)
 
 	// Create a time entry with created_from_entry_id = nil
 	entry := &time_entry.TimeEntry{
-		OrgID:        orgID,
-		UserID:       userID,
-		ProjectID:    projectID,
-		SubprojectID: subprojectID,
-		WGID:         wgID,
-		UnitID:       unitID,
-		Hours:        7.5,
-		Description:  "Test time entry",
-		EntryDate:    now,
-		Status:       time_entry.StatusDraft,
-		IsDeleted:    false,
+		OrgID:       orgID,
+		UserID:      userID,
+		ActivityID:  activityID,
+		UnitID:      unitID,
+		Hours:       7.5,
+		Description: "Test time entry",
+		EntryDate:   now,
+		Status:      time_entry.StatusDraft,
+		IsDeleted:   false,
 	}
 
 	created, err := repo.Create(context.Background(), entry)
@@ -102,9 +105,7 @@ func TestTimeEntryRepository_Create_GetByID(t *testing.T) {
 	require.NotEqual(t, uuid.Nil, created.ID)
 	require.Equal(t, orgID, created.OrgID)
 	require.Equal(t, userID, created.UserID)
-	require.Equal(t, projectID, created.ProjectID)
-	require.Equal(t, subprojectID, created.SubprojectID)
-	require.Equal(t, wgID, created.WGID)
+	require.Equal(t, activityID, created.ActivityID)
 	require.Equal(t, unitID, created.UnitID)
 	require.Equal(t, 7.5, created.Hours)
 	require.Equal(t, "Test time entry", created.Description)
@@ -120,14 +121,13 @@ func TestTimeEntryRepository_Create_GetByID(t *testing.T) {
 	require.NotNil(t, got)
 	require.Equal(t, created.ID, got.ID)
 	require.Equal(t, created.Hours, got.Hours)
+	require.Equal(t, created.ActivityID, got.ActivityID)
 
 	// Create with created_from_entry_id
 	entry2 := &time_entry.TimeEntry{
 		OrgID:              orgID,
 		UserID:             userID,
-		ProjectID:          projectID,
-		SubprojectID:       subprojectID,
-		WGID:               wgID,
+		ActivityID:         activityID,
 		UnitID:             unitID,
 		Hours:              5.0,
 		Description:        "Copied entry",
@@ -141,6 +141,10 @@ func TestTimeEntryRepository_Create_GetByID(t *testing.T) {
 	require.NotNil(t, created2)
 	require.NotNil(t, created2.CreatedFromEntryID)
 	require.Equal(t, created.ID, *created2.CreatedFromEntryID)
+
+	// WG seed stays unused by the repo itself — but its FK validity proves
+	// the activity anchor works end-to-end
+	_ = wgID
 }
 
 func TestTimeEntryRepository_GetByID_NotFound(t *testing.T) {
@@ -165,21 +169,13 @@ func TestTimeEntryRepository_List_NoFilters(t *testing.T) {
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 	unitID := seedUnit(t, pool, orgID, now)
-	customerID := seedCustomer(t, pool, orgID, now)
-	contractID := seedContract(t, pool, orgID, now)
-	projectID := seedProject(t, pool, orgID, now)
-	_, err := pool.Exec(context.Background(),
-		`UPDATE projects SET contract_id = $1, customer_id = $2 WHERE id = $3`,
-		contractID, customerID, projectID)
-	require.NoError(t, err)
-	subprojectID := seedSubproject(t, pool, projectID, now)
-	wgID := seedWorkingGroup(t, pool, orgID, subprojectID, userID, now)
+	activityID := seedEntryActivity(t, pool, orgID, now)
+	seedWorkingGroup(t, pool, orgID, activityID, userID, now)
 
 	// Create two entries
 	for _, hours := range []float64{4.0, 6.0} {
 		entry := &time_entry.TimeEntry{
-			OrgID: orgID, UserID: userID, ProjectID: projectID,
-			SubprojectID: subprojectID, WGID: wgID, UnitID: unitID,
+			OrgID: orgID, UserID: userID, ActivityID: activityID, UnitID: unitID,
 			Hours: hours, Description: "List test", EntryDate: now,
 			Status: time_entry.StatusDraft, IsDeleted: false,
 		}
@@ -204,20 +200,12 @@ func TestTimeEntryRepository_List_WithFilters(t *testing.T) {
 	userID := seedUser(t, pool, now)
 	userID2 := seedUser(t, pool, now)
 	unitID := seedUnit(t, pool, orgID, now)
-	customerID := seedCustomer(t, pool, orgID, now)
-	contractID := seedContract(t, pool, orgID, now)
-	projectID := seedProject(t, pool, orgID, now)
-	_, err := pool.Exec(context.Background(),
-		`UPDATE projects SET contract_id = $1, customer_id = $2 WHERE id = $3`,
-		contractID, customerID, projectID)
-	require.NoError(t, err)
-	subprojectID := seedSubproject(t, pool, projectID, now)
-	wgID := seedWorkingGroup(t, pool, orgID, subprojectID, userID, now)
+	activityID := seedEntryActivity(t, pool, orgID, now)
+	seedWorkingGroup(t, pool, orgID, activityID, userID, now)
 
 	// Entry for user 1 (submitted)
 	entry1 := &time_entry.TimeEntry{
-		OrgID: orgID, UserID: userID, ProjectID: projectID,
-		SubprojectID: subprojectID, WGID: wgID, UnitID: unitID,
+		OrgID: orgID, UserID: userID, ActivityID: activityID, UnitID: unitID,
 		Hours: 4.0, Description: "User1 entry", EntryDate: now,
 		Status: time_entry.StatusSubmitted, IsDeleted: false,
 	}
@@ -226,8 +214,7 @@ func TestTimeEntryRepository_List_WithFilters(t *testing.T) {
 
 	// Entry for user 2 (draft)
 	entry2 := &time_entry.TimeEntry{
-		OrgID: orgID, UserID: userID2, ProjectID: projectID,
-		SubprojectID: subprojectID, WGID: wgID, UnitID: unitID,
+		OrgID: orgID, UserID: userID2, ActivityID: activityID, UnitID: unitID,
 		Hours: 5.0, Description: "User2 entry", EntryDate: now,
 		Status: time_entry.StatusDraft, IsDeleted: false,
 	}
@@ -251,6 +238,14 @@ func TestTimeEntryRepository_List_WithFilters(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, statusFiltered, 1)
 	require.Equal(t, time_entry.StatusDraft, statusFiltered[0].Status)
+
+	// Filter by activity
+	activityFiltered, err := repo.List(context.Background(), orgID, ports.ListFilters{
+		ActivityID: activityID.String(),
+		IsDeleted:  false,
+	})
+	require.NoError(t, err)
+	require.Len(t, activityFiltered, 2)
 }
 
 func TestTimeEntryRepository_Update(t *testing.T) {
@@ -264,19 +259,11 @@ func TestTimeEntryRepository_Update(t *testing.T) {
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 	unitID := seedUnit(t, pool, orgID, now)
-	customerID := seedCustomer(t, pool, orgID, now)
-	contractID := seedContract(t, pool, orgID, now)
-	projectID := seedProject(t, pool, orgID, now)
-	_, err := pool.Exec(context.Background(),
-		`UPDATE projects SET contract_id = $1, customer_id = $2 WHERE id = $3`,
-		contractID, customerID, projectID)
-	require.NoError(t, err)
-	subprojectID := seedSubproject(t, pool, projectID, now)
-	wgID := seedWorkingGroup(t, pool, orgID, subprojectID, userID, now)
+	activityID := seedEntryActivity(t, pool, orgID, now)
+	seedWorkingGroup(t, pool, orgID, activityID, userID, now)
 
 	entry := &time_entry.TimeEntry{
-		OrgID: orgID, UserID: userID, ProjectID: projectID,
-		SubprojectID: subprojectID, WGID: wgID, UnitID: unitID,
+		OrgID: orgID, UserID: userID, ActivityID: activityID, UnitID: unitID,
 		Hours: 4.0, Description: "Original", EntryDate: now,
 		Status: time_entry.StatusDraft, IsDeleted: false,
 	}
@@ -294,6 +281,7 @@ func TestTimeEntryRepository_Update(t *testing.T) {
 	require.Equal(t, updatedHours, updated.Hours)
 	require.Equal(t, "Updated description", updated.Description)
 	require.Equal(t, time_entry.StatusSubmitted, updated.Status)
+	require.Equal(t, activityID, updated.ActivityID)
 }
 
 func TestTimeEntryRepository_Delete(t *testing.T) {
@@ -307,19 +295,11 @@ func TestTimeEntryRepository_Delete(t *testing.T) {
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 	unitID := seedUnit(t, pool, orgID, now)
-	customerID := seedCustomer(t, pool, orgID, now)
-	contractID := seedContract(t, pool, orgID, now)
-	projectID := seedProject(t, pool, orgID, now)
-	_, err := pool.Exec(context.Background(),
-		`UPDATE projects SET contract_id = $1, customer_id = $2 WHERE id = $3`,
-		contractID, customerID, projectID)
-	require.NoError(t, err)
-	subprojectID := seedSubproject(t, pool, projectID, now)
-	wgID := seedWorkingGroup(t, pool, orgID, subprojectID, userID, now)
+	activityID := seedEntryActivity(t, pool, orgID, now)
+	seedWorkingGroup(t, pool, orgID, activityID, userID, now)
 
 	entry := &time_entry.TimeEntry{
-		OrgID: orgID, UserID: userID, ProjectID: projectID,
-		SubprojectID: subprojectID, WGID: wgID, UnitID: unitID,
+		OrgID: orgID, UserID: userID, ActivityID: activityID, UnitID: unitID,
 		Hours: 4.0, Description: "To delete", EntryDate: now,
 		Status: time_entry.StatusDraft, IsDeleted: false,
 	}
@@ -349,21 +329,21 @@ func TestTimeEntryRepository_IsPeriodLocked(t *testing.T) {
 	now := time.Now().UTC()
 
 	orgID := seedOrg(t, pool, now)
-	projectID := seedProject(t, pool, orgID, now)
+	activityID := seedEntryActivity(t, pool, orgID, now)
 
-	// Create a locked cutoff period
+	// Create a locked cutoff period for the activity (R-5: org + activity + date range)
 	start := now.Add(-72 * time.Hour)
 	end := now.Add(72 * time.Hour)
-	seedFinancialCutoffPeriod(t, pool, orgID, projectID, start, end, true)
+	seedFinancialCutoffPeriod(t, pool, orgID, activityID, start, end, true)
 
 	// Check a date within the locked period
-	locked, err := repo.IsPeriodLocked(context.Background(), orgID, projectID, now.Format(time.RFC3339))
+	locked, err := repo.IsPeriodLocked(context.Background(), orgID, activityID, now.Format(time.RFC3339))
 	require.NoError(t, err)
 	require.True(t, locked)
 
 	// Check a date outside the locked period
 	outsideDate := now.Add(168 * time.Hour) // 1 week later
-	locked, err = repo.IsPeriodLocked(context.Background(), orgID, projectID, outsideDate.Format(time.RFC3339))
+	locked, err = repo.IsPeriodLocked(context.Background(), orgID, activityID, outsideDate.Format(time.RFC3339))
 	require.NoError(t, err)
 	require.False(t, locked)
 }
@@ -380,20 +360,12 @@ func TestTimeEntryRepository_ListPending(t *testing.T) {
 	managerID := seedUser(t, pool, now)
 	employeeID := seedUser(t, pool, now)
 	unitID := seedUnit(t, pool, orgID, now)
-	customerID := seedCustomer(t, pool, orgID, now)
-	contractID := seedContract(t, pool, orgID, now)
-	projectID := seedProject(t, pool, orgID, now)
-	_, err := pool.Exec(context.Background(),
-		`UPDATE projects SET contract_id = $1, customer_id = $2 WHERE id = $3`,
-		contractID, customerID, projectID)
-	require.NoError(t, err)
-	subprojectID := seedSubproject(t, pool, projectID, now)
-	wgID := seedWorkingGroup(t, pool, orgID, subprojectID, managerID, now)
+	activityID := seedEntryActivity(t, pool, orgID, now)
+	wgID := seedWorkingGroup(t, pool, orgID, activityID, managerID, now)
 
-	// Submitted entry in manager's WG
+	// Submitted entry on the manager's WG activity (R-1 chain)
 	submittedEntry := &time_entry.TimeEntry{
-		OrgID: orgID, UserID: employeeID, ProjectID: projectID,
-		SubprojectID: subprojectID, WGID: wgID, UnitID: unitID,
+		OrgID: orgID, UserID: employeeID, ActivityID: activityID, UnitID: unitID,
 		Hours: 4.0, Description: "Pending entry", EntryDate: now,
 		Status: time_entry.StatusSubmitted, IsDeleted: false,
 	}
@@ -402,8 +374,7 @@ func TestTimeEntryRepository_ListPending(t *testing.T) {
 
 	// Draft entry (should not appear in pending)
 	draftEntry := &time_entry.TimeEntry{
-		OrgID: orgID, UserID: employeeID, ProjectID: projectID,
-		SubprojectID: subprojectID, WGID: wgID, UnitID: unitID,
+		OrgID: orgID, UserID: employeeID, ActivityID: activityID, UnitID: unitID,
 		Hours: 3.0, Description: "Draft entry", EntryDate: now,
 		Status: time_entry.StatusDraft, IsDeleted: false,
 	}
@@ -416,11 +387,14 @@ func TestTimeEntryRepository_ListPending(t *testing.T) {
 	require.Len(t, allPending, 1)
 	require.Equal(t, created.ID, allPending[0].ID)
 
-	// List pending with wg_manager role filter
+	// List pending with wg_manager role filter — manager of the WG anchored
+	// to the entry's activity
 	wgPending, err := repo.ListPending(context.Background(), orgID, "wg_manager", managerID.String())
 	require.NoError(t, err)
 	require.Len(t, wgPending, 1)
 	require.Equal(t, created.ID, wgPending[0].ID)
+
+	_ = wgID
 }
 
 func TestTimeEntryRepository_ListPending_WGRoleFilter(t *testing.T) {
@@ -436,45 +410,31 @@ func TestTimeEntryRepository_ListPending_WGRoleFilter(t *testing.T) {
 	otherManagerID := seedUser(t, pool, now)
 	employeeID := seedUser(t, pool, now)
 	unitID := seedUnit(t, pool, orgID, now)
-	customerID := seedCustomer(t, pool, orgID, now)
-	contractID := seedContract(t, pool, orgID, now)
-	projectID := seedProject(t, pool, orgID, now)
-	_, err := pool.Exec(context.Background(),
-		`UPDATE projects SET contract_id = $1, customer_id = $2 WHERE id = $3`,
-		contractID, customerID, projectID)
-	require.NoError(t, err)
-	subprojectID := seedSubproject(t, pool, projectID, now)
-	projectID2 := seedProject(t, pool, orgID, now)
-	_, err = pool.Exec(context.Background(),
-		`UPDATE projects SET contract_id = $1, customer_id = $2 WHERE id = $3`,
-		contractID, customerID, projectID2)
-	require.NoError(t, err)
-	subprojectID2 := seedSubproject(t, pool, projectID2, now)
+	activityID := seedEntryActivity(t, pool, orgID, now)
+	activityID2 := seedEntryActivity(t, pool, orgID, now)
 
-	wgID1 := seedWorkingGroup(t, pool, orgID, subprojectID, managerID, now)
-	wgID2 := seedWorkingGroup(t, pool, orgID, subprojectID2, otherManagerID, now)
+	seedWorkingGroup(t, pool, orgID, activityID, managerID, now)
+	seedWorkingGroup(t, pool, orgID, activityID2, otherManagerID, now)
 
-	// Entry in manager's WG
+	// Entry in manager's WG activity
 	entry1 := &time_entry.TimeEntry{
-		OrgID: orgID, UserID: employeeID, ProjectID: projectID,
-		SubprojectID: subprojectID, WGID: wgID1, UnitID: unitID,
+		OrgID: orgID, UserID: employeeID, ActivityID: activityID, UnitID: unitID,
 		Hours: 4.0, Description: "In my WG", EntryDate: now,
 		Status: time_entry.StatusSubmitted, IsDeleted: false,
 	}
-	_, err = repo.Create(context.Background(), entry1)
+	_, err := repo.Create(context.Background(), entry1)
 	require.NoError(t, err)
 
-	// Entry in other manager's WG
+	// Entry in other manager's WG activity
 	entry2 := &time_entry.TimeEntry{
-		OrgID: orgID, UserID: employeeID, ProjectID: projectID2,
-		SubprojectID: subprojectID2, WGID: wgID2, UnitID: unitID,
+		OrgID: orgID, UserID: employeeID, ActivityID: activityID2, UnitID: unitID,
 		Hours: 5.0, Description: "Not my WG", EntryDate: now,
 		Status: time_entry.StatusSubmitted, IsDeleted: false,
 	}
 	_, err = repo.Create(context.Background(), entry2)
 	require.NoError(t, err)
 
-	// Manager should only see their own WG's entries
+	// Manager should only see entries on activities whose WG they manage
 	wgPending, err := repo.ListPending(context.Background(), orgID, "wg_manager", managerID.String())
 	require.NoError(t, err)
 	require.Len(t, wgPending, 1)
@@ -494,20 +454,12 @@ func TestAuditLogRepository_Create(t *testing.T) {
 	userID := seedUser(t, pool, now)
 	actorID := seedUser(t, pool, now)
 	unitID := seedUnit(t, pool, orgID, now)
-	customerID := seedCustomer(t, pool, orgID, now)
-	contractID := seedContract(t, pool, orgID, now)
-	projectID := seedProject(t, pool, orgID, now)
-	_, err := pool.Exec(context.Background(),
-		`UPDATE projects SET contract_id = $1, customer_id = $2 WHERE id = $3`,
-		contractID, customerID, projectID)
-	require.NoError(t, err)
-	subprojectID := seedSubproject(t, pool, projectID, now)
-	wgID := seedWorkingGroup(t, pool, orgID, subprojectID, userID, now)
+	activityID := seedEntryActivity(t, pool, orgID, now)
+	seedWorkingGroup(t, pool, orgID, activityID, userID, now)
 
 	// Create a time entry to reference
 	entry := &time_entry.TimeEntry{
-		OrgID: orgID, UserID: userID, ProjectID: projectID,
-		SubprojectID: subprojectID, WGID: wgID, UnitID: unitID,
+		OrgID: orgID, UserID: userID, ActivityID: activityID, UnitID: unitID,
 		Hours: 4.0, Description: "Audit test entry", EntryDate: now,
 		Status: time_entry.StatusDraft, IsDeleted: false,
 	}

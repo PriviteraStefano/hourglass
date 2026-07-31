@@ -25,7 +25,11 @@ func NewTimeEntryRepository(pool *pgxpool.Pool) *TimeEntryRepository {
 	return &TimeEntryRepository{pool: pool}
 }
 
-const timeEntrySelectColumns = `id, org_id, user_id, project_id, subproject_id, wg_id, unit_id, hours, description, entry_date, status, COALESCE(current_approver_role, ''), submitted_at, is_deleted, created_from_entry_id, created_at, updated_at`
+const timeEntrySelectColumns = `te.id, te.org_id, te.user_id, te.activity_id, te.unit_id, te.hours, te.description, te.entry_date, te.status, COALESCE(te.current_approver_role, ''), te.submitted_at, te.is_deleted, te.created_from_entry_id, te.created_at, te.updated_at`
+
+// timeEntryReturningColumns is the unaliased variant used in INSERT/UPDATE
+// RETURNING clauses (PostgreSQL does not allow table aliases there).
+const timeEntryReturningColumns = `id, org_id, user_id, activity_id, unit_id, hours, description, entry_date, status, COALESCE(current_approver_role, ''), submitted_at, is_deleted, created_from_entry_id, created_at, updated_at`
 
 // timeEntryRowScanner is satisfied by pgx.Row and pgx.Rows.
 type timeEntryRowScanner interface {
@@ -38,8 +42,8 @@ func scanTimeEntry(s timeEntryRowScanner) (*time_entry.TimeEntry, error) {
 	var currentApproverRole string
 	var submittedAt *time.Time
 	err := s.Scan(
-		&e.ID, &e.OrgID, &e.UserID, &e.ProjectID, &e.SubprojectID,
-		&e.WGID, &e.UnitID, &e.Hours, &e.Description, &e.EntryDate,
+		&e.ID, &e.OrgID, &e.UserID, &e.ActivityID,
+		&e.UnitID, &e.Hours, &e.Description, &e.EntryDate,
 		&e.Status, &currentApproverRole, &submittedAt,
 		&e.IsDeleted, &e.CreatedFromEntryID, &e.CreatedAt, &e.UpdatedAt,
 	)
@@ -82,52 +86,45 @@ func buildTimeEntryListQuery(orgID uuid.UUID, filters ports.ListFilters) (string
 
 	// $1 = org_id
 	args = append(args, orgID)
-	conditions = append(conditions, "org_id = $1")
+	conditions = append(conditions, "te.org_id = $1")
 
 	// $2 = is_deleted
 	args = append(args, filters.IsDeleted)
-	conditions = append(conditions, fmt.Sprintf("is_deleted = $%d", len(args)))
+	conditions = append(conditions, fmt.Sprintf("te.is_deleted = $%d", len(args)))
 
 	if filters.Date != "" {
 		args = append(args, filters.Date)
-		conditions = append(conditions, fmt.Sprintf("entry_date::date = $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("te.entry_date::date = $%d", len(args)))
 	}
 	if filters.Month != "" {
 		args = append(args, filters.Month)
-		conditions = append(conditions, fmt.Sprintf("EXTRACT(MONTH FROM entry_date) = $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("EXTRACT(MONTH FROM te.entry_date) = $%d", len(args)))
 	}
 	if filters.Year != "" {
 		args = append(args, filters.Year)
-		conditions = append(conditions, fmt.Sprintf("EXTRACT(YEAR FROM entry_date) = $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("EXTRACT(YEAR FROM te.entry_date) = $%d", len(args)))
 	}
 	if filters.Status != "" {
 		args = append(args, filters.Status)
-		conditions = append(conditions, fmt.Sprintf("status = $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("te.status = $%d", len(args)))
 	}
-	if filters.WGID != "" {
-		wgID, err := uuid.Parse(filters.WGID)
+	if filters.ActivityID != "" {
+		aID, err := uuid.Parse(filters.ActivityID)
 		if err == nil {
-			args = append(args, wgID)
-			conditions = append(conditions, fmt.Sprintf("wg_id = $%d", len(args)))
-		}
-	}
-	if filters.ProjectID != "" {
-		pID, err := uuid.Parse(filters.ProjectID)
-		if err == nil {
-			args = append(args, pID)
-			conditions = append(conditions, fmt.Sprintf("project_id = $%d", len(args)))
+			args = append(args, aID)
+			conditions = append(conditions, fmt.Sprintf("te.activity_id = $%d", len(args)))
 		}
 	}
 	if filters.UserID != "" {
 		uID, err := uuid.Parse(filters.UserID)
 		if err == nil {
 			args = append(args, uID)
-			conditions = append(conditions, fmt.Sprintf("user_id = $%d", len(args)))
+			conditions = append(conditions, fmt.Sprintf("te.user_id = $%d", len(args)))
 		}
 	}
 
-	query := `SELECT ` + timeEntrySelectColumns + ` FROM time_entries WHERE ` + strings.Join(conditions, " AND ")
-	query += ` ORDER BY entry_date DESC`
+	query := `SELECT ` + timeEntrySelectColumns + ` FROM time_entries te WHERE ` + strings.Join(conditions, " AND ")
+	query += ` ORDER BY te.entry_date DESC`
 	return query, args
 }
 
@@ -144,7 +141,7 @@ func (r *TimeEntryRepository) List(ctx context.Context, orgID uuid.UUID, filters
 
 // GetByID returns a single time entry by ID, or ErrTimeEntryNotFound.
 func (r *TimeEntryRepository) GetByID(ctx context.Context, id uuid.UUID) (*time_entry.TimeEntry, error) {
-	query := `SELECT ` + timeEntrySelectColumns + ` FROM time_entries WHERE id = $1`
+	query := `SELECT ` + timeEntrySelectColumns + ` FROM time_entries te WHERE te.id = $1`
 	e, err := scanTimeEntry(r.pool.QueryRow(ctx, query, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -160,15 +157,15 @@ func (r *TimeEntryRepository) Create(ctx context.Context, e *time_entry.TimeEntr
 	e.ID = uuid.New()
 	now := time.Now().UTC()
 
-	query := `INSERT INTO time_entries (id, org_id, user_id, project_id, subproject_id, wg_id, unit_id,
+	query := `INSERT INTO time_entries (id, org_id, user_id, activity_id, unit_id,
 		hours, description, entry_date, status, current_approver_role, submitted_at,
 		is_deleted, created_from_entry_id, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-		RETURNING ` + timeEntrySelectColumns
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		RETURNING ` + timeEntryReturningColumns
 
 	created, err := scanTimeEntry(r.pool.QueryRow(ctx, query,
-		e.ID, e.OrgID, e.UserID, e.ProjectID, e.SubprojectID,
-		e.WGID, e.UnitID, e.Hours, e.Description, e.EntryDate,
+		e.ID, e.OrgID, e.UserID, e.ActivityID,
+		e.UnitID, e.Hours, e.Description, e.EntryDate,
 		e.Status, e.CurrentApproverRole, e.SubmittedAt,
 		e.IsDeleted, e.CreatedFromEntryID, now, now,
 	))
@@ -181,15 +178,15 @@ func (r *TimeEntryRepository) Create(ctx context.Context, e *time_entry.TimeEntr
 // Update performs a full-field update on a time entry and returns the updated record.
 func (r *TimeEntryRepository) Update(ctx context.Context, e *time_entry.TimeEntry) (*time_entry.TimeEntry, error) {
 	query := `UPDATE time_entries SET
-		project_id = $2, subproject_id = $3, wg_id = $4, unit_id = $5,
-		hours = $6, description = $7, entry_date = $8, status = $9,
-		current_approver_role = $10, submitted_at = $11,
-		created_from_entry_id = $12, updated_at = NOW()
+		activity_id = $2, unit_id = $3,
+		hours = $4, description = $5, entry_date = $6, status = $7,
+		current_approver_role = $8, submitted_at = $9,
+		created_from_entry_id = $10, updated_at = NOW()
 		WHERE id = $1
-		RETURNING ` + timeEntrySelectColumns
+		RETURNING ` + timeEntryReturningColumns
 
 	updated, err := scanTimeEntry(r.pool.QueryRow(ctx, query,
-		e.ID, e.ProjectID, e.SubprojectID, e.WGID, e.UnitID,
+		e.ID, e.ActivityID, e.UnitID,
 		e.Hours, e.Description, e.EntryDate, e.Status,
 		e.CurrentApproverRole, e.SubmittedAt, e.CreatedFromEntryID,
 	))
@@ -215,14 +212,15 @@ func (r *TimeEntryRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// IsPeriodLocked checks if a period is locked for the given org, project, and entry date.
-func (r *TimeEntryRepository) IsPeriodLocked(ctx context.Context, orgID, projectID uuid.UUID, entryDate string) (bool, error) {
+// IsPeriodLocked checks if a period is locked for the given org, activity,
+// and entry date (ADR-BE-014 R-5: key is org + activity + date range).
+func (r *TimeEntryRepository) IsPeriodLocked(ctx context.Context, orgID, activityID uuid.UUID, entryDate string) (bool, error) {
 	query := `SELECT EXISTS(
 		SELECT 1 FROM financial_cutoff_periods
-		WHERE org_id = $1 AND project_id = $2 AND $3::timestamptz BETWEEN period_start AND period_end AND is_locked = true
+		WHERE org_id = $1 AND activity_id = $2 AND $3::timestamptz BETWEEN period_start AND period_end AND is_locked = true
 	)`
 	var locked bool
-	err := r.pool.QueryRow(ctx, query, orgID, projectID, entryDate).Scan(&locked)
+	err := r.pool.QueryRow(ctx, query, orgID, activityID, entryDate).Scan(&locked)
 	if err != nil {
 		return false, fmt.Errorf("check period locked: %w", err)
 	}
@@ -230,6 +228,9 @@ func (r *TimeEntryRepository) IsPeriodLocked(ctx context.Context, orgID, project
 }
 
 // ListPending returns pending time entries for an org, role-differentiated.
+// Manager stage resolves through the activity → working-group chain
+// (ADR-BE-014 R-1): the WG anchored to the entry's activity, whose
+// manager or delegate is the requesting user.
 func (r *TimeEntryRepository) ListPending(ctx context.Context, orgID uuid.UUID, role, userID string) ([]time_entry.TimeEntry, error) {
 	var query string
 	var args []interface{}
@@ -240,17 +241,20 @@ func (r *TimeEntryRepository) ListPending(ctx context.Context, orgID uuid.UUID, 
 		if err != nil {
 			return nil, fmt.Errorf("parse user_id: %w", err)
 		}
-		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries
-			WHERE org_id = $1 AND status IN ('submitted', 'pending_manager') AND is_deleted = false
-			AND wg_id IN (SELECT id FROM working_groups WHERE manager_id = $2 OR $2 = ANY(delegate_ids))`
+		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries te
+			WHERE te.org_id = $1 AND te.status IN ('submitted', 'pending_manager') AND te.is_deleted = false
+			AND te.activity_id IN (
+				SELECT wg.activity_id FROM working_groups wg
+				WHERE wg.manager_id = $2 OR $2 = ANY(wg.delegate_ids)
+			)`
 		args = []interface{}{orgID, uID}
 	case "finance":
-		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries
-			WHERE org_id = $1 AND status = 'pending_finance' AND is_deleted = false`
+		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries te
+			WHERE te.org_id = $1 AND te.status = 'pending_finance' AND te.is_deleted = false`
 		args = []interface{}{orgID}
 	default:
-		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries
-			WHERE org_id = $1 AND status = 'submitted' AND is_deleted = false`
+		query = `SELECT ` + timeEntrySelectColumns + ` FROM time_entries te
+			WHERE te.org_id = $1 AND te.status = 'submitted' AND te.is_deleted = false`
 		args = []interface{}{orgID}
 	}
 
