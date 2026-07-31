@@ -1,29 +1,45 @@
-import {useSuspenseQuery} from '@tanstack/react-query'
-import {useNavigate} from '@tanstack/react-router'
-import {SearchIcon, PlusIcon, Building2, Mail, Phone, MapPin} from 'lucide-react'
-import {Button} from '@/components/ui/button'
-import {Badge} from '@/components/ui/badge'
-import {InputGroup, InputGroupAddon, InputGroupInput} from '@/components/ui/input-group'
-import {CustomersApis, type Customer} from '@/api/customers'
-import {useCustomersStore, CustomersProvider} from '../-context/customers-context'
-import {CustomerFormDialog} from './dialogs/customer-form-dialog'
-import {DeleteConfirmDialog} from './dialogs/delete-confirm-dialog'
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import {
+  SearchIcon,
+  PlusIcon,
+  Building2,
+  Mail,
+  Phone,
+  MapPin,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import { CustomersApis, type Customer } from "@/api/customers";
+import {
+  useCustomersStore,
+  CustomersProvider,
+} from "../-context/customers-context";
+import { CustomerFormDialog } from "./dialogs/customer-form-dialog";
+import { DeleteConfirmDialog } from "./dialogs/delete-confirm-dialog";
 
 export function CustomersPage() {
   return (
     <CustomersProvider>
       <CustomersContent />
     </CustomersProvider>
-  )
+  );
 }
 
 function CustomersContent() {
-  const searchQuery = useCustomersStore(s => s.searchQuery)
-  const setSearchQuery = useCustomersStore(s => s.setSearchQuery)
-  const openCreate = useCustomersStore(s => s.openCreate)
-  const openEdit = useCustomersStore(s => s.openEdit)
+  const searchQuery = useCustomersStore((s) => s.searchQuery);
+  const setSearchQuery = useCustomersStore((s) => s.setSearchQuery);
+  const openCreate = useCustomersStore((s) => s.openCreate);
+  const openEdit = useCustomersStore((s) => s.openEdit);
 
-  const {data: customers} = useSuspenseQuery(CustomersApis.customersQueryOpts(searchQuery))
+  const { data: customers } = useSuspenseQuery(
+    CustomersApis.customersQueryOpts(searchQuery)
+  );
 
   return (
     <div className="space-y-4">
@@ -49,7 +65,7 @@ function CustomersContent() {
 
       {customers.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
-          {searchQuery ? 'No customers match your search' : 'No customers yet'}
+          {searchQuery ? "No customers match your search" : "No customers yet"}
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -66,23 +82,25 @@ function CustomersContent() {
       <CustomerFormDialog />
       <DeleteConfirmDialog />
     </div>
-  )
+  );
 }
 
 function CustomerCard({
   customer,
   onEdit,
 }: {
-  customer: Customer
-  onEdit: () => void
+  customer: Customer;
+  onEdit: () => void;
 }) {
-  const navigate = useNavigate()
-  const openDelete = useCustomersStore(s => s.openDelete)
+  const navigate = useNavigate();
+  const openDelete = useCustomersStore((s) => s.openDelete);
 
   return (
     <div
       className="border rounded-lg p-4 space-y-3 hover:bg-muted/50 transition-colors cursor-pointer"
-      onClick={() => navigate({to: '/customers/$id', params: {id: customer.id}})}
+      onClick={() =>
+        navigate({ to: "/customers/$id", params: { id: customer.id } })
+      }
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
@@ -93,16 +111,23 @@ function CustomerCard({
             <h3 className="font-medium">
               {customer.company_name}
               {customer.is_internal && (
-                <Badge variant="secondary" className="ml-2">Internal</Badge>
+                <Badge variant="secondary" className="ml-2">
+                  Internal
+                </Badge>
               )}
             </h3>
             {customer.contact_name && (
-              <p className="text-sm text-muted-foreground">{customer.contact_name}</p>
+              <p className="text-sm text-muted-foreground">
+                {customer.contact_name}
+              </p>
             )}
           </div>
         </div>
-        <Badge variant={customer.is_active ? 'default' : 'outline'} className={customer.is_active ? 'bg-green-500' : ''}>
-          {customer.is_active ? 'Active' : 'Inactive'}
+        <Badge
+          variant={customer.is_active ? "default" : "outline"}
+          className={customer.is_active ? "bg-green-500" : ""}
+        >
+          {customer.is_active ? "Active" : "Inactive"}
         </Badge>
       </div>
 
@@ -128,18 +153,28 @@ function CustomerCard({
       </div>
 
       <div className="flex gap-2 pt-2">
-        <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+        >
           Edit
         </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={(e) => { e.stopPropagation(); openDelete(customer); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            openDelete(customer);
+          }}
           className="text-destructive hover:text-destructive"
         >
           Delete
         </Button>
       </div>
     </div>
-  )
+  );
 }

@@ -1,69 +1,85 @@
-import {useForm} from 'react-hook-form'
-import {zodResolver} from '@hookform/resolvers/zod'
-import {z} from 'zod'
-import {Button} from '@/components/ui/button'
-import {Input} from '@/components/ui/input'
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card'
-import {useSearchParams, useNavigate} from '@tanstack/react-router'
-import {useQuery, useMutation} from "@tanstack/react-query";
-import {useEffect} from "react";
-import {AuthApis} from "@/api/auth.ts";
-import {toast} from "sonner";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useSearchParams, useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { AuthApis } from "@/api/auth.ts";
+import { toast } from "sonner";
 
 const acceptInviteSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  username: z.string().min(3, 'Username must be at least 3 characters').regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-})
+  email: z.string().email("Invalid email address"),
+  username: z
+    .string()
+    .min(3, "Username must be at least 3 characters")
+    .regex(
+      /^[a-zA-Z0-9_]+$/,
+      "Username can only contain letters, numbers, and underscores"
+    ),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
 
-type AcceptInviteFormData = z.infer<typeof acceptInviteSchema>
+type AcceptInviteFormData = z.infer<typeof acceptInviteSchema>;
 
 export function InvitationAcceptForm() {
-  const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
-  const token = searchParams.get('token')
-  const code = searchParams.get('code')
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const token = searchParams.get("token");
+  const code = searchParams.get("code");
 
-  const {data: invitation, isLoading: loadingInvitation} = useQuery({
-    ...(token ? AuthApis.validateInvitationTokenQueryOpts(token) : AuthApis.validateInvitationCodeQueryOpts(code || '')),
+  const { data: invitation, isLoading: loadingInvitation } = useQuery({
+    ...(token
+      ? AuthApis.validateInvitationTokenQueryOpts(token)
+      : AuthApis.validateInvitationCodeQueryOpts(code || "")),
     enabled: !!token || !!code,
-  })
+  });
 
-  const {mutateAsync: acceptAsync, isError, error, isPending} = useMutation(AuthApis.acceptInvitationMutationOpts)
+  const {
+    mutateAsync: acceptAsync,
+    isError,
+    error,
+    isPending,
+  } = useMutation(AuthApis.acceptInvitationMutationOpts);
 
   const form = useForm<AcceptInviteFormData>({
     resolver: zodResolver(acceptInviteSchema),
     defaultValues: {
-      email: '',
-      username: '',
-      password: '',
+      email: "",
+      username: "",
+      password: "",
     },
-  })
+  });
 
   useEffect(() => {
     if (invitation?.email) {
-      form.reset({ ...form.getValues(), email: invitation.email || '' })
+      form.reset({ ...form.getValues(), email: invitation.email || "" });
     }
-  }, [invitation?.email])
+  }, [invitation?.email]);
 
   const onSubmit = (data: AcceptInviteFormData) => {
     if (!token && !code) {
-      toast.error('Invalid invitation')
-      return
+      toast.error("Invalid invitation");
+      return;
     }
 
-    toast.promise(
-      acceptAsync({token: token || code || '', ...data}),
-      {
-        loading: 'Accepting invitation...',
-        success: () => {
-          navigate({to: '/login', replace: true})
-          return 'Invitation accepted! You can now log in.'
-        },
-        error: (err) => err?.message ?? 'Failed to accept invitation',
-      }
-    )
-  }
+    toast.promise(acceptAsync({ token: token || code || "", ...data }), {
+      loading: "Accepting invitation...",
+      success: () => {
+        navigate({ to: "/login", replace: true });
+        return "Invitation accepted! You can now log in.";
+      },
+      error: (err) => err?.message ?? "Failed to accept invitation",
+    });
+  };
 
   if (loadingInvitation) {
     return (
@@ -72,7 +88,7 @@ export function InvitationAcceptForm() {
           <p className="text-center">Loading invitation...</p>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   if (!invitation) {
@@ -85,7 +101,7 @@ export function InvitationAcceptForm() {
           </CardDescription>
         </CardHeader>
       </Card>
-    )
+    );
   }
 
   return (
@@ -93,7 +109,8 @@ export function InvitationAcceptForm() {
       <CardHeader>
         <CardTitle>Accept Invitation</CardTitle>
         <CardDescription>
-          You've been invited to join an organization. Create your account to get started.
+          You've been invited to join an organization. Create your account to
+          get started.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -107,7 +124,7 @@ export function InvitationAcceptForm() {
               type="email"
               placeholder="you@example.com"
               autoComplete="email"
-              {...form.register('email')}
+              {...form.register("email")}
             />
             {form.formState.errors.email && (
               <p className="text-sm text-destructive">
@@ -125,7 +142,7 @@ export function InvitationAcceptForm() {
               type="text"
               placeholder="johndoe"
               autoComplete="username"
-              {...form.register('username')}
+              {...form.register("username")}
             />
             {form.formState.errors.username && (
               <p className="text-sm text-destructive">
@@ -143,7 +160,7 @@ export function InvitationAcceptForm() {
               type="password"
               placeholder="••••••••"
               autoComplete="new-password"
-              {...form.register('password')}
+              {...form.register("password")}
             />
             {form.formState.errors.password && (
               <p className="text-sm text-destructive">
@@ -154,19 +171,15 @@ export function InvitationAcceptForm() {
 
           {isError && (
             <p className="text-sm text-destructive">
-              {error?.message || 'Failed to accept invitation'}
+              {error?.message || "Failed to accept invitation"}
             </p>
           )}
 
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isPending}
-          >
-            {isPending ? 'Accepting...' : 'Accept Invitation'}
+          <Button type="submit" className="w-full" disabled={isPending}>
+            {isPending ? "Accepting..." : "Accept Invitation"}
           </Button>
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }

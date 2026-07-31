@@ -1,10 +1,10 @@
-import {useState} from 'react'
-import {useNavigate, useSearch} from '@tanstack/react-router'
-import {useMutation, useSuspenseQuery} from '@tanstack/react-query'
-import {GlobeIcon, LockIcon, PlusIcon, SearchIcon} from 'lucide-react'
-import {Button} from '@/components/ui/button'
-import {Badge} from '@/components/ui/badge'
-import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs'
+import { useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
+import { GlobeIcon, LockIcon, PlusIcon, SearchIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -12,70 +12,104 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import {ContractsApis} from '@/api/contracts'
-import {CreateContractDialog} from './create-contract-dialog'
-import type {Contract} from '@/types/models'
-import {z} from "zod";
-import {InputGroup, InputGroupAddon, InputGroupInput,} from "@/components/ui/input-group.tsx"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@/components/ui/select"
+} from "@/components/ui/dialog";
+import { ContractsApis } from "@/api/contracts";
+import { CreateContractDialog } from "./create-contract-dialog";
+import type { Contract } from "@/types/models";
+import { z } from "zod";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-export const tabsSchema = z.enum(['owned', 'adopted', 'all'])
-export const statusSchema = z.enum(['all', 'active', 'inactive'])
-export type TabType = z.infer<typeof tabsSchema>
-export type StatusType = z.infer<typeof statusSchema>
+export const tabsSchema = z.enum(["owned", "adopted", "all"]);
+export const statusSchema = z.enum(["all", "active", "inactive"]);
+export type TabType = z.infer<typeof tabsSchema>;
+export type StatusType = z.infer<typeof statusSchema>;
 
 export function ContractList() {
-  const navigate = useNavigate()
-  const {tab, searchQuery, status} = useSearch({from: "/_authenticated/contracts/"})
-  const currentStatus = statusSchema.safeParse(status).data ?? 'all'
+  const navigate = useNavigate();
+  const { tab, searchQuery, status } = useSearch({
+    from: "/_authenticated/contracts/",
+  });
+  const currentStatus = statusSchema.safeParse(status).data ?? "all";
 
-  const isActiveFilter = currentStatus === 'active' ? true : currentStatus === 'inactive' ? false : undefined
+  const isActiveFilter =
+    currentStatus === "active"
+      ? true
+      : currentStatus === "inactive"
+        ? false
+        : undefined;
 
-  const [adoptDialogOpen, setAdoptDialogOpen] = useState(false)
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
+  const [adoptDialogOpen, setAdoptDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [selectedContract, setSelectedContract] = useState<Contract | null>(
+    null
+  );
 
-  const {data: contracts, isLoading} = useSuspenseQuery(ContractsApis.contractsQueryOpts(tab, isActiveFilter))
-  const adoptContract = useMutation(ContractsApis.adoptContractMutationOpts)
+  const { data: contracts, isLoading } = useSuspenseQuery(
+    ContractsApis.contractsQueryOpts(tab, isActiveFilter)
+  );
+  const adoptContract = useMutation(ContractsApis.adoptContractMutationOpts);
 
   const filteredContracts = contracts.filter((c: Contract) =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  );
 
   const handleTabChange = (newTab: string) => {
-    const parsedTab = tabsSchema.safeParse(newTab)
+    const parsedTab = tabsSchema.safeParse(newTab);
     if (parsedTab.error) {
-      navigate({to: "/contracts", search: {tab: 'owned', status: currentStatus}})
-      return
+      navigate({
+        to: "/contracts",
+        search: { tab: "owned", status: currentStatus },
+      });
+      return;
     }
-    navigate({to: "/contracts", search: {tab: parsedTab.data, status: currentStatus}})
-  }
+    navigate({
+      to: "/contracts",
+      search: { tab: parsedTab.data, status: currentStatus },
+    });
+  };
 
   const handleStatusChange = (value: string | null) => {
-    const parsed = statusSchema.safeParse(value ?? 'all')
-    navigate({to: "/contracts", search: {tab, status: parsed.data ?? 'all'}})
-  }
+    const parsed = statusSchema.safeParse(value ?? "all");
+    navigate({
+      to: "/contracts",
+      search: { tab, status: parsed.data ?? "all" },
+    });
+  };
 
   const handleAdoptClick = (contract: Contract) => {
-    setSelectedContract(contract)
-    setAdoptDialogOpen(true)
-  }
+    setSelectedContract(contract);
+    setAdoptDialogOpen(true);
+  };
 
   const handleAdoptConfirm = () => {
     if (selectedContract) {
       adoptContract.mutate(selectedContract.id, {
         onSuccess: () => {
-          setAdoptDialogOpen(false)
-          setSelectedContract(null)
+          setAdoptDialogOpen(false);
+          setSelectedContract(null);
         },
-      })
+      });
     }
-  }
+  };
 
   const handleRowClick = (contract: Contract) => {
-    navigate({to: '/contracts/$id', params: {id: contract.id}, search: {from: tab}})
-  }
+    navigate({
+      to: "/contracts/$id",
+      params: { id: contract.id },
+      search: { from: tab },
+    });
+  };
 
   return (
     <>
@@ -86,18 +120,20 @@ export function ContractList() {
             <InputGroupInput
               placeholder="Search contracts..."
               value={searchQuery}
-              onChange={(e) => navigate({
-                to: '/contracts',
-                search: {tab, searchQuery: e.target.value}
-              })}
+              onChange={(e) =>
+                navigate({
+                  to: "/contracts",
+                  search: { tab, searchQuery: e.target.value },
+                })
+              }
             />
             <InputGroupAddon>
-              <SearchIcon/>
+              <SearchIcon />
             </InputGroupAddon>
           </InputGroup>
-          {tab === 'owned' && (
+          {tab === "owned" && (
             <Button onClick={() => setCreateDialogOpen(true)}>
-              <PlusIcon className="w-4 h-4 mr-1"/>
+              <PlusIcon className="w-4 h-4 mr-1" />
               Create
             </Button>
           )}
@@ -113,7 +149,7 @@ export function ContractList() {
         <div className="ml-auto">
           <Select value={currentStatus} onValueChange={handleStatusChange}>
             <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Status"/>
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
@@ -125,10 +161,14 @@ export function ContractList() {
 
         <TabsContent value={tab} className="mt-4">
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            <div className="text-center py-8 text-muted-foreground">
+              Loading...
+            </div>
           ) : filteredContracts?.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {searchQuery ? 'No contracts match your search' : `No ${tab} contracts`}
+              {searchQuery
+                ? "No contracts match your search"
+                : `No ${tab} contracts`}
             </div>
           ) : (
             <div className="border rounded-lg divide-y">
@@ -140,41 +180,47 @@ export function ContractList() {
                 >
                   <div className="flex items-center gap-3">
                     {contract.is_shared ? (
-                      <GlobeIcon className="w-4 h-4 text-muted-foreground"/>
+                      <GlobeIcon className="w-4 h-4 text-muted-foreground" />
                     ) : (
-                      <LockIcon className="w-4 h-4 text-muted-foreground"/>
+                      <LockIcon className="w-4 h-4 text-muted-foreground" />
                     )}
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{contract.name}</span>
                         {contract.is_shared && (
-                          <Badge variant="secondary" className="text-xs">Shared</Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            Shared
+                          </Badge>
                         )}
-                        <Badge variant={contract.is_active ? 'default' : 'outline'}
-                               className={contract.is_active ? 'bg-green-500' : ''}>
-                          {contract.is_active ? 'Active' : 'Inactive'}
+                        <Badge
+                          variant={contract.is_active ? "default" : "outline"}
+                          className={contract.is_active ? "bg-green-500" : ""}
+                        >
+                          {contract.is_active ? "Active" : "Inactive"}
                         </Badge>
-                        {tab === 'adopted' && contract.created_by_org_name && (
+                        {tab === "adopted" && contract.created_by_org_name && (
                           <span className="text-xs text-muted-foreground">
                             from {contract.created_by_org_name}
                           </span>
                         )}
-                        {tab === 'all' && contract.is_adopted && (
-                          <Badge variant="outline" className="text-xs">Already adopted</Badge>
+                        {tab === "all" && contract.is_adopted && (
+                          <Badge variant="outline" className="text-xs">
+                            Already adopted
+                          </Badge>
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground capitalize">
-                        {contract.governance_model.replace('_', ' ')}
+                        {contract.governance_model.replace("_", " ")}
                       </div>
                     </div>
                   </div>
-                  {tab === 'all' && !contract.is_adopted && (
+                  {tab === "all" && !contract.is_adopted && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={(e) => {
-                        e.stopPropagation()
-                        handleAdoptClick(contract)
+                        e.stopPropagation();
+                        handleAdoptClick(contract);
                       }}
                     >
                       Adopt
@@ -192,15 +238,19 @@ export function ContractList() {
           <DialogHeader>
             <DialogTitle>Adopt {selectedContract?.name}?</DialogTitle>
             <DialogDescription>
-              This will make it available for your organization's time entries and expenses.
+              This will make it available for your organization's time entries
+              and expenses.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAdoptDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAdoptConfirm} disabled={adoptContract.isPending}>
-              {adoptContract.isPending ? 'Adopting...' : 'Adopt'}
+            <Button
+              onClick={handleAdoptConfirm}
+              disabled={adoptContract.isPending}
+            >
+              {adoptContract.isPending ? "Adopting..." : "Adopt"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -211,5 +261,5 @@ export function ContractList() {
         onOpenChange={setCreateDialogOpen}
       />
     </>
-  )
+  );
 }

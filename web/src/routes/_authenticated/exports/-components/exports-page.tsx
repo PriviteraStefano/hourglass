@@ -1,5 +1,5 @@
-import { FileDown } from 'lucide-react'
-import { ExportForm } from '@/components/exports/export-form'
+import { FileDown } from "lucide-react";
+import { ExportForm } from "@/components/exports/export-form";
 
 export function ExportsPage() {
   return (
@@ -9,7 +9,8 @@ export function ExportsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Exports</h1>
           <p className="text-sm text-muted-foreground">
-            Download CSV or Excel reports for timesheets, expenses, or combined data
+            Download CSV or Excel reports for timesheets, expenses, or combined
+            data
           </p>
         </div>
       </div>
@@ -19,5 +20,5 @@ export function ExportsPage() {
         showProjectFilter={true}
       />
     </div>
-  )
+  );
 }

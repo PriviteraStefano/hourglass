@@ -1,57 +1,68 @@
-import {useForm} from 'react-hook-form'
-import {zodResolver} from '@hookform/resolvers/zod'
-import {z} from 'zod'
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card'
-import {Link, useNavigate} from '@tanstack/react-router'
-import {Button} from "@/components/ui/button.tsx";
-import {Input} from "@/components/ui/input.tsx";
-import {useMutation} from "@tanstack/react-query";
-import {AuthApis} from "@/api/auth.ts";
-import {toast} from "sonner";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { useMutation } from "@tanstack/react-query";
+import { AuthApis } from "@/api/auth.ts";
+import { toast } from "sonner";
 
-const loginSchema = z.object({
-  identifier: z.string().min(1, 'Username or email is required'),
-  password: z.string().min(1, 'Password is required'),
-}).refine(
-  (data) => {
-    if (data.identifier.includes('@')) {
-      return z.string().email().safeParse(data.identifier).success
+const loginSchema = z
+  .object({
+    identifier: z.string().min(1, "Username or email is required"),
+    password: z.string().min(1, "Password is required"),
+  })
+  .refine(
+    (data) => {
+      if (data.identifier.includes("@")) {
+        return z.string().email().safeParse(data.identifier).success;
+      }
+      return /^[a-zA-Z0-9_]+$/.test(data.identifier);
+    },
+    {
+      message:
+        "Invalid username format. Username can only contain letters, numbers, and underscores.",
+      path: ["identifier"],
     }
-    return /^[a-zA-Z0-9_]+$/.test(data.identifier)
-  },
-  {
-    message: 'Invalid username format. Username can only contain letters, numbers, and underscores.',
-    path: ['identifier'],
-  }
-)
+  );
 
-type LoginFormData = z.infer<typeof loginSchema>
+type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
-  const {mutateAsync: loginAsync, isError, error, isPending} = useMutation(AuthApis.loginMutationOpts)
-  const navigate = useNavigate()
+  const {
+    mutateAsync: loginAsync,
+    isError,
+    error,
+    isPending,
+  } = useMutation(AuthApis.loginMutationOpts);
+  const navigate = useNavigate();
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      identifier: '',
-      password: '',
+      identifier: "",
+      password: "",
     },
-  })
+  });
 
   const onSubmit = (data: LoginFormData) => {
-    toast.promise(
-      loginAsync(data),
-      {
-        loading: 'Logging in...',
-        success: () => {
-          navigate({to: '/', replace: true})
-          return 'Authentication successful! Redirecting to dashboard...'
-        },
-        error: (err) => err?.message ?? 'Authentication failed',
-      }
-    )
-  }
+    toast.promise(loginAsync(data), {
+      loading: "Logging in...",
+      success: () => {
+        navigate({ to: "/", replace: true });
+        return "Authentication successful! Redirecting to dashboard...";
+      },
+      error: (err) => err?.message ?? "Authentication failed",
+    });
+  };
 
   return (
     <Card className="w-full max-w-md">
@@ -72,7 +83,7 @@ export function LoginForm() {
               type="text"
               placeholder="you@example.com or username"
               autoComplete="username"
-              {...form.register('identifier')}
+              {...form.register("identifier")}
             />
             {form.formState.errors.identifier && (
               <p className="text-sm text-destructive">
@@ -89,7 +100,7 @@ export function LoginForm() {
               id="password"
               type="password"
               placeholder="••••••••"
-              {...form.register('password')}
+              {...form.register("password")}
             />
             {form.formState.errors.password && (
               <p className="text-sm text-destructive">
@@ -100,16 +111,12 @@ export function LoginForm() {
 
           {isError && (
             <p className="text-sm text-destructive">
-              {error?.message || 'Invalid credentials'}
+              {error?.message || "Invalid credentials"}
             </p>
           )}
 
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isPending}
-          >
-            {isPending ? 'Logging in...' : 'Log in'}
+          <Button type="submit" className="w-full" disabled={isPending}>
+            {isPending ? "Logging in..." : "Log in"}
           </Button>
 
           <p className="text-sm text-center text-muted-foreground">
@@ -119,7 +126,7 @@ export function LoginForm() {
           </p>
 
           <p className="text-sm text-center text-muted-foreground">
-            Don't have an account?{' '}
+            Don't have an account?{" "}
             <Link to="/register" className="text-primary underline">
               Register
             </Link>
@@ -127,5 +134,5 @@ export function LoginForm() {
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }

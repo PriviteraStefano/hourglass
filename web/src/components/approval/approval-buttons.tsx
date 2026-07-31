@@ -1,43 +1,52 @@
-import {useState} from 'react'
-import {Button} from '@/components/ui/button'
-import {Textarea} from '@/components/ui/textarea'
-import {Label} from '@/components/ui/label'
-import {CheckIcon, XIcon} from 'lucide-react'
-import type {EntryStatus, Role} from '@/types'
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { CheckIcon, XIcon } from "lucide-react";
+import type { EntryStatus, Role } from "@/types";
 
 interface ApprovalButtonsProps {
-  status: EntryStatus
-  currentApproverRole?: 'manager' | 'finance' | null
-  userRole: Role
-  onApprove: () => void
-  onReject: (reason: string) => void
-  isPending?: boolean
+  status: EntryStatus;
+  currentApproverRole?: "manager" | "finance" | null;
+  userRole: Role;
+  onApprove: () => void;
+  onReject: (reason: string) => void;
+  isPending?: boolean;
 }
 
-export function ApprovalButtons({ status, currentApproverRole, userRole, onApprove, onReject, isPending }: ApprovalButtonsProps) {
-  const [showRejectReason, setShowRejectReason] = useState(false)
-  const [rejectReason, setRejectReason] = useState('')
+export function ApprovalButtons({
+  status,
+  currentApproverRole,
+  userRole,
+  onApprove,
+  onReject,
+  isPending,
+}: ApprovalButtonsProps) {
+  const [showRejectReason, setShowRejectReason] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   // Visibility matrix per UI-SPEC:
   // employee -> none
   // manager -> approve/reject at pending_manager, submitted
   // finance -> approve/reject at pending_finance
   const canApprove =
-    (userRole === 'manager' && (status === 'pending_manager' || status === 'submitted')) ||
-    (userRole === 'finance' && status === 'pending_finance')
+    (userRole === "manager" &&
+      (status === "pending_manager" || status === "submitted")) ||
+    (userRole === "finance" && status === "pending_finance");
 
   const canReject =
-    (userRole === 'manager' && (status === 'pending_manager' || status === 'submitted')) ||
-    (userRole === 'finance' && status === 'pending_finance')
+    (userRole === "manager" &&
+      (status === "pending_manager" || status === "submitted")) ||
+    (userRole === "finance" && status === "pending_finance");
 
-  if (!canApprove && !canReject) return null
+  if (!canApprove && !canReject) return null;
 
   const handleRejectConfirm = () => {
-    if (rejectReason.trim().length < 10) return
-    onReject(rejectReason.trim())
-    setShowRejectReason(false)
-    setRejectReason('')
-  }
+    if (rejectReason.trim().length < 10) return;
+    onReject(rejectReason.trim());
+    setShowRejectReason(false);
+    setRejectReason("");
+  };
 
   return (
     <div className="flex gap-2">
@@ -50,7 +59,7 @@ export function ApprovalButtons({ status, currentApproverRole, userRole, onAppro
           aria-label="Approve"
         >
           <CheckIcon className="w-4 h-4 mr-1" />
-          {isPending ? 'Approving...' : 'Approve'}
+          {isPending ? "Approving..." : "Approve"}
         </Button>
       )}
       {canReject && !showRejectReason && (
@@ -63,7 +72,7 @@ export function ApprovalButtons({ status, currentApproverRole, userRole, onAppro
           aria-label="Reject"
         >
           <XIcon className="w-4 h-4 mr-1" />
-          {isPending ? 'Rejecting...' : 'Reject'}
+          {isPending ? "Rejecting..." : "Reject"}
         </Button>
       )}
       {canReject && showRejectReason && (
@@ -85,14 +94,14 @@ export function ApprovalButtons({ status, currentApproverRole, userRole, onAppro
               onClick={handleRejectConfirm}
               disabled={rejectReason.trim().length < 10 || isPending}
             >
-              {isPending ? 'Rejecting...' : 'Reject'}
+              {isPending ? "Rejecting..." : "Reject"}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
-                setShowRejectReason(false)
-                setRejectReason('')
+                setShowRejectReason(false);
+                setRejectReason("");
               }}
             >
               Cancel
@@ -101,5 +110,5 @@ export function ApprovalButtons({ status, currentApproverRole, userRole, onAppro
         </div>
       )}
     </div>
-  )
+  );
 }

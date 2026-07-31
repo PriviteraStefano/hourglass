@@ -9,30 +9,30 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as AuthenticatedTimeEntriesIndexRouteImport } from './routes/_authenticated/time-entries/index'
-import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects/index'
-import { Route as AuthenticatedOrgHierarchyIndexRouteImport } from './routes/_authenticated/org-hierarchy/index'
-import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports/index'
-import { Route as AuthenticatedExpensesIndexRouteImport } from './routes/_authenticated/expenses/index'
-import { Route as AuthenticatedContractsIndexRouteImport } from './routes/_authenticated/contracts/index'
-import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/index'
-import { Route as AuthPasswordResetIndexRouteImport } from './routes/_auth/password-reset/index'
-import { Route as AuthLoginIndexRouteImport } from './routes/_auth/login/index'
-import { Route as AuthInviteIndexRouteImport } from './routes/_auth/invite/index'
 import { Route as AuthBootstrapIndexRouteImport } from './routes/_auth/bootstrap/index'
-import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects/$id'
+import { Route as AuthInviteIndexRouteImport } from './routes/_auth/invite/index'
+import { Route as AuthLoginIndexRouteImport } from './routes/_auth/login/index'
+import { Route as AuthPasswordResetIndexRouteImport } from './routes/_auth/password-reset/index'
+import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/index'
+import { Route as AuthenticatedContractsIndexRouteImport } from './routes/_authenticated/contracts/index'
 import { Route as AuthenticatedCustomersIdRouteImport } from './routes/_authenticated/customers/$id'
+import { Route as AuthenticatedExpensesIndexRouteImport } from './routes/_authenticated/expenses/index'
+import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports/index'
+import { Route as AuthenticatedOrgHierarchyIndexRouteImport } from './routes/_authenticated/org-hierarchy/index'
+import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects/index'
+import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects/$id'
+import { Route as AuthenticatedTimeEntriesIndexRouteImport } from './routes/_authenticated/time-entries/index'
 import { Route as AuthenticatedContractsIdIndexRouteImport } from './routes/_authenticated/contracts/$id/index'
 
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
@@ -40,28 +40,41 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedTimeEntriesIndexRoute =
-  AuthenticatedTimeEntriesIndexRouteImport.update({
-    id: '/time-entries/',
-    path: '/time-entries/',
+const AuthBootstrapIndexRoute = AuthBootstrapIndexRouteImport.update({
+  id: '/bootstrap/',
+  path: '/bootstrap/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthInviteIndexRoute = AuthInviteIndexRouteImport.update({
+  id: '/invite/',
+  path: '/invite/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthLoginIndexRoute = AuthLoginIndexRouteImport.update({
+  id: '/login/',
+  path: '/login/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthPasswordResetIndexRoute = AuthPasswordResetIndexRouteImport.update({
+  id: '/password-reset/',
+  path: '/password-reset/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthRegisterIndexRoute = AuthRegisterIndexRouteImport.update({
+  id: '/register/',
+  path: '/register/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthenticatedContractsIndexRoute =
+  AuthenticatedContractsIndexRouteImport.update({
+    id: '/contracts/',
+    path: '/contracts/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedProjectsIndexRoute =
-  AuthenticatedProjectsIndexRouteImport.update({
-    id: '/projects/',
-    path: '/projects/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedOrgHierarchyIndexRoute =
-  AuthenticatedOrgHierarchyIndexRouteImport.update({
-    id: '/org-hierarchy/',
-    path: '/org-hierarchy/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedExportsIndexRoute =
-  AuthenticatedExportsIndexRouteImport.update({
-    id: '/exports/',
-    path: '/exports/',
+const AuthenticatedCustomersIdRoute =
+  AuthenticatedCustomersIdRouteImport.update({
+    id: '/customers/$id',
+    path: '/customers/$id',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedExpensesIndexRoute =
@@ -70,46 +83,33 @@ const AuthenticatedExpensesIndexRoute =
     path: '/expenses/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedContractsIndexRoute =
-  AuthenticatedContractsIndexRouteImport.update({
-    id: '/contracts/',
-    path: '/contracts/',
+const AuthenticatedExportsIndexRoute =
+  AuthenticatedExportsIndexRouteImport.update({
+    id: '/exports/',
+    path: '/exports/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthRegisterIndexRoute = AuthRegisterIndexRouteImport.update({
-  id: '/register/',
-  path: '/register/',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthPasswordResetIndexRoute = AuthPasswordResetIndexRouteImport.update({
-  id: '/password-reset/',
-  path: '/password-reset/',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthLoginIndexRoute = AuthLoginIndexRouteImport.update({
-  id: '/login/',
-  path: '/login/',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthInviteIndexRoute = AuthInviteIndexRouteImport.update({
-  id: '/invite/',
-  path: '/invite/',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthBootstrapIndexRoute = AuthBootstrapIndexRouteImport.update({
-  id: '/bootstrap/',
-  path: '/bootstrap/',
-  getParentRoute: () => AuthRoute,
-} as any)
+const AuthenticatedOrgHierarchyIndexRoute =
+  AuthenticatedOrgHierarchyIndexRouteImport.update({
+    id: '/org-hierarchy/',
+    path: '/org-hierarchy/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedProjectsIndexRoute =
+  AuthenticatedProjectsIndexRouteImport.update({
+    id: '/projects/',
+    path: '/projects/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedProjectsIdRoute = AuthenticatedProjectsIdRouteImport.update({
   id: '/projects/$id',
   path: '/projects/$id',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedCustomersIdRoute =
-  AuthenticatedCustomersIdRouteImport.update({
-    id: '/customers/$id',
-    path: '/customers/$id',
+const AuthenticatedTimeEntriesIndexRoute =
+  AuthenticatedTimeEntriesIndexRouteImport.update({
+    id: '/time-entries/',
+    path: '/time-entries/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedContractsIdIndexRoute =
@@ -236,18 +236,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_auth': {
       id: '/_auth'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -257,67 +257,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/time-entries/': {
-      id: '/_authenticated/time-entries/'
-      path: '/time-entries'
-      fullPath: '/time-entries/'
-      preLoaderRoute: typeof AuthenticatedTimeEntriesIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/projects/': {
-      id: '/_authenticated/projects/'
-      path: '/projects'
-      fullPath: '/projects/'
-      preLoaderRoute: typeof AuthenticatedProjectsIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/org-hierarchy/': {
-      id: '/_authenticated/org-hierarchy/'
-      path: '/org-hierarchy'
-      fullPath: '/org-hierarchy/'
-      preLoaderRoute: typeof AuthenticatedOrgHierarchyIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/exports/': {
-      id: '/_authenticated/exports/'
-      path: '/exports'
-      fullPath: '/exports/'
-      preLoaderRoute: typeof AuthenticatedExportsIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/expenses/': {
-      id: '/_authenticated/expenses/'
-      path: '/expenses'
-      fullPath: '/expenses/'
-      preLoaderRoute: typeof AuthenticatedExpensesIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/contracts/': {
-      id: '/_authenticated/contracts/'
-      path: '/contracts'
-      fullPath: '/contracts/'
-      preLoaderRoute: typeof AuthenticatedContractsIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_auth/register/': {
-      id: '/_auth/register/'
-      path: '/register'
-      fullPath: '/register/'
-      preLoaderRoute: typeof AuthRegisterIndexRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/password-reset/': {
-      id: '/_auth/password-reset/'
-      path: '/password-reset'
-      fullPath: '/password-reset/'
-      preLoaderRoute: typeof AuthPasswordResetIndexRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/login/': {
-      id: '/_auth/login/'
-      path: '/login'
-      fullPath: '/login/'
-      preLoaderRoute: typeof AuthLoginIndexRouteImport
+    '/_auth/bootstrap/': {
+      id: '/_auth/bootstrap/'
+      path: '/bootstrap'
+      fullPath: '/bootstrap/'
+      preLoaderRoute: typeof AuthBootstrapIndexRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/invite/': {
@@ -327,12 +271,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthInviteIndexRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/bootstrap/': {
-      id: '/_auth/bootstrap/'
-      path: '/bootstrap'
-      fullPath: '/bootstrap/'
-      preLoaderRoute: typeof AuthBootstrapIndexRouteImport
+    '/_auth/login/': {
+      id: '/_auth/login/'
+      path: '/login'
+      fullPath: '/login/'
+      preLoaderRoute: typeof AuthLoginIndexRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/_auth/password-reset/': {
+      id: '/_auth/password-reset/'
+      path: '/password-reset'
+      fullPath: '/password-reset/'
+      preLoaderRoute: typeof AuthPasswordResetIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/register/': {
+      id: '/_auth/register/'
+      path: '/register'
+      fullPath: '/register/'
+      preLoaderRoute: typeof AuthRegisterIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_authenticated/contracts/': {
+      id: '/_authenticated/contracts/'
+      path: '/contracts'
+      fullPath: '/contracts/'
+      preLoaderRoute: typeof AuthenticatedContractsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/customers/$id': {
+      id: '/_authenticated/customers/$id'
+      path: '/customers/$id'
+      fullPath: '/customers/$id'
+      preLoaderRoute: typeof AuthenticatedCustomersIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/expenses/': {
+      id: '/_authenticated/expenses/'
+      path: '/expenses'
+      fullPath: '/expenses/'
+      preLoaderRoute: typeof AuthenticatedExpensesIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/exports/': {
+      id: '/_authenticated/exports/'
+      path: '/exports'
+      fullPath: '/exports/'
+      preLoaderRoute: typeof AuthenticatedExportsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/org-hierarchy/': {
+      id: '/_authenticated/org-hierarchy/'
+      path: '/org-hierarchy'
+      fullPath: '/org-hierarchy/'
+      preLoaderRoute: typeof AuthenticatedOrgHierarchyIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/projects/': {
+      id: '/_authenticated/projects/'
+      path: '/projects'
+      fullPath: '/projects/'
+      preLoaderRoute: typeof AuthenticatedProjectsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/projects/$id': {
       id: '/_authenticated/projects/$id'
@@ -341,11 +341,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjectsIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/customers/$id': {
-      id: '/_authenticated/customers/$id'
-      path: '/customers/$id'
-      fullPath: '/customers/$id'
-      preLoaderRoute: typeof AuthenticatedCustomersIdRouteImport
+    '/_authenticated/time-entries/': {
+      id: '/_authenticated/time-entries/'
+      path: '/time-entries'
+      fullPath: '/time-entries/'
+      preLoaderRoute: typeof AuthenticatedTimeEntriesIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/contracts/$id/': {

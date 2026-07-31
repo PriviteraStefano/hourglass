@@ -1,7 +1,7 @@
-import {MiniCalendar} from "@/routes/_authenticated/time-entries/-components/mini-calendar.tsx";
-import {EntryDetail} from "@/routes/_authenticated/time-entries/-components/entry-detail.tsx";
-import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
-import {ExportForm} from "@/components/exports/export-form";
+import { MiniCalendar } from "@/routes/_authenticated/time-entries/-components/mini-calendar.tsx";
+import { EntryDetail } from "@/routes/_authenticated/time-entries/-components/entry-detail.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ExportForm } from "@/components/exports/export-form";
 
 export function TimeEntriesPage() {
   return (
@@ -16,13 +16,13 @@ export function TimeEntriesPage() {
       </TabsContent>
       <TabsContent value="calendar">
         <div className="flex">
-          <MiniCalendar/>
-          <EntryDetail/>
+          <MiniCalendar />
+          <EntryDetail />
         </div>
       </TabsContent>
       <TabsContent value="export">
-        <ExportForm type="timesheets"/>
+        <ExportForm type="timesheets" />
       </TabsContent>
     </Tabs>
-  )
+  );
 }

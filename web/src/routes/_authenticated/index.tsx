@@ -1,5 +1,5 @@
-import {createFileRoute, Navigate} from '@tanstack/react-router'
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 
-export const Route = createFileRoute('/_authenticated/')({
+export const Route = createFileRoute("/_authenticated/")({
   component: () => <Navigate to="/time-entries" replace />,
-})
+});

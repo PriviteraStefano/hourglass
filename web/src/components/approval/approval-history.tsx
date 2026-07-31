@@ -1,24 +1,25 @@
-import {format} from 'date-fns'
-import {CheckIcon, XIcon, SendIcon} from 'lucide-react'
-import {Separator} from '@/components/ui/separator'
-import type {ApprovalRecord} from '@/types'
+import { format } from "date-fns";
+import { CheckIcon, XIcon, SendIcon } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import type { ApprovalRecord } from "@/types";
 
 interface ApprovalHistoryProps {
-  approvals: ApprovalRecord[]
+  approvals: ApprovalRecord[];
 }
 
 const actionIcons: Record<string, React.ReactNode> = {
   approve: <CheckIcon className="w-3 h-3 text-green-600" />,
   reject: <XIcon className="w-3 h-3 text-red-600" />,
   submit: <SendIcon className="w-3 h-3 text-blue-600" />,
-}
+};
 
 export function ApprovalHistory({ approvals }: ApprovalHistoryProps) {
-  if (!approvals?.length) return null
+  if (!approvals?.length) return null;
 
   const sorted = [...approvals].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  )
+    (a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
 
   return (
     <div className="space-y-2">
@@ -33,10 +34,10 @@ export function ApprovalHistory({ approvals }: ApprovalHistoryProps) {
               </div>
               <div className="flex-1">
                 <span className="font-medium capitalize">{a.action}</span>
-                {' by '}
+                {" by "}
                 <span className="capitalize">{a.actor_role}</span>
                 <span className="ml-2">
-                  {format(new Date(a.created_at), 'MMM d, HH:mm')}
+                  {format(new Date(a.created_at), "MMM d, HH:mm")}
                 </span>
                 {a.comment && (
                   <p className="mt-0.5 italic text-muted-foreground/80">
@@ -49,5 +50,5 @@ export function ApprovalHistory({ approvals }: ApprovalHistoryProps) {
         ))}
       </div>
     </div>
-  )
+  );
 }

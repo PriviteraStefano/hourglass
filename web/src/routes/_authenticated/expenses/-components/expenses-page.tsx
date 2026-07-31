@@ -1,7 +1,7 @@
-import {ExpenseCalendar} from "@/routes/_authenticated/expenses/-components/expense-calendar.tsx";
-import {ExpenseDetail} from "@/routes/_authenticated/expenses/-components/expense-detail.tsx";
-import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
-import {ExportForm} from "@/components/exports/export-form";
+import { ExpenseCalendar } from "@/routes/_authenticated/expenses/-components/expense-calendar.tsx";
+import { ExpenseDetail } from "@/routes/_authenticated/expenses/-components/expense-detail.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ExportForm } from "@/components/exports/export-form";
 
 export function ExpensesPage() {
   return (
@@ -16,13 +16,13 @@ export function ExpensesPage() {
       </TabsContent>
       <TabsContent value="calendar">
         <div className="flex">
-          <ExpenseCalendar/>
-          <ExpenseDetail/>
+          <ExpenseCalendar />
+          <ExpenseDetail />
         </div>
       </TabsContent>
       <TabsContent value="export">
-        <ExportForm type="expenses"/>
+        <ExportForm type="expenses" />
       </TabsContent>
     </Tabs>
-  )
+  );
 }
