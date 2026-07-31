@@ -98,7 +98,11 @@ export function CreateContractDialog({
           if (onSuccess) {
             onSuccess(data);
           } else {
-            navigate({ to: "/contracts/$id", params: { id: data.id } });
+            navigate({
+              to: "/contracts/$id",
+              params: { id: data.id },
+              search: { from: "owned" },
+            });
           }
         },
       }
@@ -148,7 +152,10 @@ export function CreateContractDialog({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Currency</label>
-              <Select value={currency} onValueChange={setCurrency}>
+              <Select
+                value={currency}
+                onValueChange={(v) => setCurrency(v ?? "EUR")}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

@@ -16,6 +16,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { CustomersApis, type Customer } from "@/api/customers";
+import { Header, Body } from "@/components/layout";
 import {
   useCustomersStore,
   CustomersProvider,
@@ -42,10 +43,10 @@ function CustomersContent() {
   );
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Customers</h1>
-        <div className="flex items-center gap-4">
+    <>
+      <Header>
+        <h1 className="text-xl font-semibold">Customers</h1>
+        <div className="ml-auto flex items-center gap-4">
           <InputGroup>
             <InputGroupInput
               placeholder="Search customers..."
@@ -61,27 +62,33 @@ function CustomersContent() {
             Add Customer
           </Button>
         </div>
-      </div>
+      </Header>
 
-      {customers.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          {searchQuery ? "No customers match your search" : "No customers yet"}
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {customers.map((customer) => (
-            <CustomerCard
-              key={customer.id}
-              customer={customer}
-              onEdit={() => openEdit(customer)}
-            />
-          ))}
-        </div>
-      )}
+      <Body>
+        <div className="h-full overflow-y-auto p-6">
+          {customers.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {searchQuery
+                ? "No customers match your search"
+                : "No customers yet"}
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {customers.map((customer) => (
+                <CustomerCard
+                  key={customer.id}
+                  customer={customer}
+                  onEdit={() => openEdit(customer)}
+                />
+              ))}
+            </div>
+          )}
 
-      <CustomerFormDialog />
-      <DeleteConfirmDialog />
-    </div>
+          <CustomerFormDialog />
+          <DeleteConfirmDialog />
+        </div>
+      </Body>
+    </>
   );
 }
 
