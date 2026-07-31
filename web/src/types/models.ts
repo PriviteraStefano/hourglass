@@ -117,6 +117,25 @@ export interface UpdateActivityRequest {
   is_active?: boolean;
 }
 
+// Mirrors the backend WorkingGroup payload (working_group.go). The frontend
+// uses manager_id/delegate_ids to derive approval-stage visibility client-side
+// (ADR-P-011 D-5, Plan 10-02); subproject_id is the legacy field name that
+// anchors the group to an activity (D-5), kept as-is to match the API.
+export interface WorkingGroup {
+  id: string;
+  org_id: string;
+  subproject_id: string;
+  name: string;
+  description: string;
+  unit_ids: string[];
+  enforce_unit_tuple: boolean;
+  manager_id: string;
+  delegate_ids: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TimeEntry {
   id: string;
   user_id: string;
