@@ -24,8 +24,9 @@ func realRepoFixture(t *testing.T, pool *pgxpool.Pool) *Service {
 	return NewService(repo)
 }
 
-// seedWGData creates org, manager user, project, and subproject.
-// Returns (orgID, managerID, subprojectID).
+// seedWGData creates org, manager user, and one root activity (kind 'engagement') —
+// working_groups anchor to it via activity_id (ADR-P-007 D-5).
+// Returns (orgID, managerID, activityID).
 func seedWGData(t *testing.T, pool *pgxpool.Pool, suffix string) (uuid.UUID, uuid.UUID, uuid.UUID) {
 	now := time.Now()
 
@@ -43,20 +44,22 @@ func seedWGData(t *testing.T, pool *pgxpool.Pool, suffix string) (uuid.UUID, uui
 		"Manager", suffix, "hash", now)
 	require.NoError(t, err)
 
-	projectID := uuid.New()
+	// activities.kind is an FK on (org_id, name) to the activity_kinds catalog (D-2),
+	// so the new org needs an 'engagement' kind row before any activity insert.
 	_, err = pool.Exec(context.Background(),
-		`INSERT INTO projects (id, org_id, name, project_type, type, governance_model, created_by_org_id, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $4, $5, $2, $6, $6)`,
-		projectID, orgID, "Project "+suffix, "billable", "creator_controlled", now)
+		`INSERT INTO activity_kinds (org_id, name, is_seed) VALUES ($1, 'engagement', TRUE)
+		 ON CONFLICT (org_id, name) DO NOTHING`,
+		orgID)
 	require.NoError(t, err)
 
-	subprojectID := uuid.New()
+	activityID := uuid.New()
 	_, err = pool.Exec(context.Background(),
-		`INSERT INTO subprojects (id, project_id, name, created_at, updated_at) VALUES ($1, $2, $3, $4, $4)`,
-		subprojectID, projectID, "Subproject "+suffix, now)
+		`INSERT INTO activities (id, org_id, parent_id, name, kind, created_by_org_id)
+		 VALUES ($1, $2, NULL, $3, 'engagement', $2)`,
+		activityID, orgID, "Activity "+suffix)
 	require.NoError(t, err)
 
-	return orgID, managerID, subprojectID
+	return orgID, managerID, activityID
 }
 
 func TestWorkingGroupIntegration(t *testing.T) {
@@ -64,11 +67,11 @@ func TestWorkingGroupIntegration(t *testing.T) {
 
 	t.Run("CreateAndGetByID", func(t *testing.T) {
 		svc := realRepoFixture(t, pool)
-		orgID, managerID, subprojectID := seedWGData(t, pool, "create")
+		orgID, managerID, activityID := seedWGData(t, pool, "create")
 
 		wg, err := svc.Create(context.Background(), &working_group.CreateWorkingGroupRequest{
 			OrgID:        orgID,
-			SubprojectID: subprojectID,
+			SubprojectID: activityID,
 			Name:         "Alpha Team",
 			Description:  "The alpha team",
 			ManagerID:    managerID,
@@ -78,7 +81,7 @@ func TestWorkingGroupIntegration(t *testing.T) {
 		assert.NotEmpty(t, wg.ID)
 		assert.Equal(t, "Alpha Team", wg.Name)
 		assert.True(t, wg.IsActive)
-		assert.Equal(t, subprojectID, wg.SubprojectID)
+		assert.Equal(t, activityID, wg.SubprojectID)
 
 		got, err := svc.Get(context.Background(), wg.ID)
 		require.NoError(t, err)
@@ -88,15 +91,15 @@ func TestWorkingGroupIntegration(t *testing.T) {
 
 	t.Run("ListByOrg", func(t *testing.T) {
 		svc := realRepoFixture(t, pool)
-		orgID, managerID, subprojectID := seedWGData(t, pool, "list")
+		orgID, managerID, activityID := seedWGData(t, pool, "list")
 
 		// Create two WGs
 		_, err := svc.Create(context.Background(), &working_group.CreateWorkingGroupRequest{
-			OrgID: orgID, SubprojectID: subprojectID, ManagerID: managerID, Name: "WG1",
+			OrgID: orgID, SubprojectID: activityID, ManagerID: managerID, Name: "WG1",
 		})
 		require.NoError(t, err)
 		_, err = svc.Create(context.Background(), &working_group.CreateWorkingGroupRequest{
-			OrgID: orgID, SubprojectID: subprojectID, ManagerID: managerID, Name: "WG2",
+			OrgID: orgID, SubprojectID: activityID, ManagerID: managerID, Name: "WG2",
 		})
 		require.NoError(t, err)
 
@@ -114,10 +117,10 @@ func TestWorkingGroupIntegration(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		svc := realRepoFixture(t, pool)
-		orgID, managerID, subprojectID := seedWGData(t, pool, "delete")
+		orgID, managerID, activityID := seedWGData(t, pool, "delete")
 
 		wg, err := svc.Create(context.Background(), &working_group.CreateWorkingGroupRequest{
-			OrgID: orgID, SubprojectID: subprojectID, ManagerID: managerID, Name: "To Delete",
+			OrgID: orgID, SubprojectID: activityID, ManagerID: managerID, Name: "To Delete",
 		})
 		require.NoError(t, err)
 
