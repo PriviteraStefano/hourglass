@@ -2,20 +2,31 @@ package expense
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/expense"
+	"github.com/stefanoprivitera/hourglass/internal/core/domain/unit"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
 )
 
 type Service struct {
-	repo ports.ExpenseRepository
+	repo         ports.ExpenseRepository
+	wgRepo       ports.WorkingGroupRepository
+	activityRepo ports.ActivityRepository
+	unitRepo     ports.UnitRepository
 }
 
-func NewService(repo ports.ExpenseRepository) *Service {
-	return &Service{repo: repo}
+func NewService(repo ports.ExpenseRepository, wgRepo ports.WorkingGroupRepository, activityRepo ports.ActivityRepository, unitRepo ports.UnitRepository) *Service {
+	return &Service{
+		repo:         repo,
+		wgRepo:       wgRepo,
+		activityRepo: activityRepo,
+		unitRepo:     unitRepo,
+	}
 }
 
 func (s *Service) List(ctx context.Context, orgID uuid.UUID, filters ports.ExpenseListFilters) ([]expense.Expense, error) {
@@ -31,7 +42,7 @@ func (s *Service) Create(ctx context.Context, req *expense.CreateExpenseRequest)
 		return nil, expense.ErrInvalidCategory
 	}
 
-	locked, err := s.repo.IsPeriodLocked(ctx, req.OrgID, req.ProjectID, req.Date)
+	locked, err := s.repo.IsPeriodLocked(ctx, req.OrgID, req.ActivityID, req.Date)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +60,7 @@ func (s *Service) Create(ctx context.Context, req *expense.CreateExpenseRequest)
 		ID:          uuid.New(),
 		OrgID:       req.OrgID,
 		UserID:      req.UserID,
-		ProjectID:   req.ProjectID,
+		ActivityID:  req.ActivityID,
 		Category:    req.Category,
 		Amount:      req.Amount,
 		KmDistance:  req.KmDistance,
@@ -77,8 +88,8 @@ func (s *Service) Update(ctx context.Context, id, userID uuid.UUID, req *expense
 		return nil, expense.ErrEntryNotDraft
 	}
 
-	if req.ProjectID != nil {
-		e.ProjectID = *req.ProjectID
+	if req.ActivityID != nil {
+		e.ActivityID = *req.ActivityID
 	}
 	if req.Category != nil {
 		if !expense.IsValidCategory(*req.Category) {
@@ -123,6 +134,102 @@ func (s *Service) Delete(ctx context.Context, id, userID uuid.UUID) error {
 	return s.repo.Delete(ctx, id)
 }
 
+// managerResolution is the resolved manager stage for an entry (ADR-BE-014
+// R-1/R-2). Identical to the time-entry service: the approver set is the
+// anchored WG's manager + delegates (R-1) or the submitter's unit manager
+// (R-2 fallback for personal activities). roleGated marks the terminal
+// unit-tree case, which routes to the org-role manager.
+type managerResolution struct {
+	approverIDs   []uuid.UUID
+	roleGated     bool
+	skipToFinance bool // D-11: the entry owner IS in the approver set
+}
+
+// resolveManagerStage resolves who approves the manager stage for an expense —
+// the exact chain as time entries (ADR-P-001 Q1, now implementable via the
+// shared activity_id FK):
+//
+//   - R-1 chain: activity → anchored WG → WG manager + delegates; the D-11
+//     skip (R-3) is role-based (owner in the approver set → pending_finance).
+//   - R-2 enforcement: commercial activity (contract via the derived chain)
+//     with no anchored WG → ErrActivityNotLoggable.
+//   - R-2 fallback: personal activity (no contract, no WG — D-8) → the
+//     submitter's unit manager, walking the unit tree upward.
+func (s *Service) resolveManagerStage(ctx context.Context, orgID, activityID, unitID, ownerID uuid.UUID) (*managerResolution, error) {
+	wgs, err := s.wgRepo.ListByOrg(ctx, orgID, &activityID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(wgs) > 0 {
+		wg := wgs[0]
+		set := map[uuid.UUID]struct{}{wg.ManagerID: {}}
+		for _, d := range wg.DelegateIDs {
+			uid, err := uuid.Parse(d)
+			if err == nil {
+				set[uid] = struct{}{}
+			}
+		}
+		approverIDs := make([]uuid.UUID, 0, len(set))
+		for uid := range set {
+			approverIDs = append(approverIDs, uid)
+		}
+		_, ownerIsApprover := set[ownerID]
+		return &managerResolution{approverIDs: approverIDs, skipToFinance: ownerIsApprover}, nil
+	}
+
+	commercial, err := s.activityRepo.ResolveCommercialContext(ctx, activityID)
+	if err != nil {
+		return nil, err
+	}
+	if commercial != nil && commercial.ContractID != nil {
+		return nil, activity.ErrActivityNotLoggable
+	}
+
+	// R-2 fallback: submitter's unit manager (upward walk). Self-approval is
+	// impossible here by construction; the D-11 check is applied uniformly.
+	managerID, found, err := s.resolveUnitManager(ctx, unitID)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return &managerResolution{approverIDs: []uuid.UUID{managerID}, skipToFinance: managerID == ownerID}, nil
+	}
+
+	// Terminal state: org root without a manager → role-gated manager stage.
+	return &managerResolution{roleGated: true}, nil
+}
+
+// resolveUnitManager walks the unit tree upward from unitID and returns the
+// nearest unit membership with role = 'manager' (ADR-P-001 Q2 / ADR-BE-014
+// R-2). found=false means no manager exists anywhere up to the org root.
+func (s *Service) resolveUnitManager(ctx context.Context, unitID uuid.UUID) (uuid.UUID, bool, error) {
+	cur := unitID.String()
+	for cur != "" {
+		members, err := s.unitRepo.ListMembers(ctx, cur)
+		if err != nil {
+			if errors.Is(err, unit.ErrUnitNotFound) {
+				return uuid.Nil, false, nil
+			}
+			return uuid.Nil, false, err
+		}
+		for _, m := range members {
+			if m.Role == "manager" {
+				return m.UserID, true, nil
+			}
+		}
+		u, err := s.unitRepo.GetByID(ctx, cur)
+		if err != nil {
+			if errors.Is(err, unit.ErrUnitNotFound) {
+				return uuid.Nil, false, nil
+			}
+			return uuid.Nil, false, err
+		}
+		cur = u.ParentUnitID
+	}
+	return uuid.Nil, false, nil
+}
+
 func (s *Service) Submit(ctx context.Context, id, userID uuid.UUID) (*expense.Expense, error) {
 	e, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -136,11 +243,25 @@ func (s *Service) Submit(ctx context.Context, id, userID uuid.UUID) (*expense.Ex
 		return nil, expense.ErrNotOwner
 	}
 
+	// R-1/R-2: resolve the manager stage from the activity chain (or reject
+	// commercial activities with no anchored WG — ErrActivityNotLoggable).
+	res, err := s.resolveManagerStage(ctx, e.OrgID, e.ActivityID, e.UnitID, e.UserID)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now()
-	e.Status = expense.StatusSubmitted
-	e.CurrentApproverRole = strPtr("manager")
 	e.SubmittedAt = &now
 	e.UpdatedAt = now
+	if res.skipToFinance {
+		// D-11 (R-3): the approver role coincides with the owner — skip the
+		// manager stage, never self-approval.
+		e.Status = expense.StatusPendingFinance
+		e.CurrentApproverRole = strPtr("finance")
+	} else {
+		e.Status = expense.StatusSubmitted
+		e.CurrentApproverRole = strPtr("manager")
+	}
 
 	return s.repo.Update(ctx, e)
 }
@@ -151,12 +272,25 @@ func (s *Service) Approve(ctx context.Context, id, userID uuid.UUID, role string
 		return nil, err
 	}
 
+	// Structural self-approval barrier (same as time entries): the owner can
+	// never approve their own expense in any role.
 	if e.UserID == userID {
 		return nil, expense.ErrForbidden
 	}
 
 	switch {
 	case role == "manager" && e.Status == expense.StatusSubmitted:
+		// R-1/R-2 routing: the actor must be in the resolved approver set.
+		res, err := s.resolveManagerStage(ctx, e.OrgID, e.ActivityID, e.UnitID, e.UserID)
+		if err != nil {
+			if errors.Is(err, activity.ErrActivityNotLoggable) {
+				return nil, expense.ErrForbidden
+			}
+			return nil, err
+		}
+		if !res.roleGated && !contains(res.approverIDs, userID) {
+			return nil, expense.ErrForbidden
+		}
 		e.Status = expense.StatusPendingFinance
 		e.CurrentApproverRole = strPtr("finance")
 	case role == "finance" && e.Status == expense.StatusPendingFinance:
@@ -224,6 +358,10 @@ func (s *Service) Reject(ctx context.Context, id, userID uuid.UUID, role, reason
 	return result, nil
 }
 
+// ListPending passes through to the repository — the unit-subtree gating
+// (R-4) lives repo-side; the service deliberately does not add a second
+// filter. Expenses route identically to time entries (ADR-P-001 Q1); there is
+// no project-manager approval queue anywhere in this path (ADR-BE-014 R-2).
 func (s *Service) ListPending(ctx context.Context, orgID uuid.UUID, role, userID string) ([]expense.Expense, error) {
 	return s.repo.ListPending(ctx, orgID, role, userID)
 }
@@ -239,6 +377,15 @@ func (s *Service) SetReceiptURL(ctx context.Context, id uuid.UUID, receiptURL st
 	e.UpdatedAt = time.Now()
 
 	return s.repo.Update(ctx, e)
+}
+
+func contains(ids []uuid.UUID, id uuid.UUID) bool {
+	for _, v := range ids {
+		if v == id {
+			return true
+		}
+	}
+	return false
 }
 
 func strPtr(s string) *string { return &s }

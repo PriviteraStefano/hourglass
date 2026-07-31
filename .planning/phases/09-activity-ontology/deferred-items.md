@@ -22,3 +22,22 @@ auto-fix issues not caused by the current task's changes).
   to `000_full_schema.down.sql` before `DROP TABLE IF EXISTS organizations;`
   (also drop `trg_auto_create_org_settings` / `auto_create_org_settings`).
 - **Not fixed here:** scope boundary (pre-existing, not caused by 09-02 changes).
+
+## 2. working_group_integration_test.go still seeds dropped projects/subprojects tables
+
+- **Discovered:** 2026-07-31, plan 09-04 verification (`go test ./internal/core/services/...`)
+- **Symptom:** `TestWorkingGroupIntegration` fails with `relation "projects" does not exist`
+  (SQLSTATE 42P01) — `seedWGData` inserts into `projects`/`subprojects`, both dropped
+  by migration 011.
+- **Root cause:** migration 011 (09-01) replaced projects/subprojects with `activities`;
+  the working_group service integration test was never re-seeded. Pre-existing since
+  09-01, documented in 09-03 summary ("working_group_integration_test.go's
+  project-seeding test remains runtime-red").
+- **Impact:** `go test ./internal/core/services/...` shows exactly one red package
+  (working_group). All unit tests are green; contract integration tests pass.
+- **Suggested fix (future plan):** re-seed with `activity_kinds` + `activities`
+  (the WG's legacy `SubprojectID` field maps to `activities.activity_id`, so the
+  service-side call is unchanged) — belongs with the working_group renovation /
+  phase 10 field rename, not plan 09-04.
+- **Not fixed here:** scope boundary (pre-existing, not caused by 09-04 changes;
+  working_group service is absent from plans 04/05 file lists).
