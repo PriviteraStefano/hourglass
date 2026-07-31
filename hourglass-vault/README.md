@@ -1,138 +1,41 @@
 # Hourglass Documentation Vault
 
-This is the official documentation vault for Hourglass - a time entry and expense tracking system with approval workflows.
+This vault documents **why Hourglass exists, what we're building, and how it's built** — in that order.
 
-## 📖 Structure
-
-The documentation is organized into three main sections:
-
-### 01-Features (User-Facing)
-- User stories and workflows
-- Acceptance criteria
-- Mermaid diagrams showing user flows
-- Written for: Product managers, developers, testers
-
-### 02-Technical (Implementation)
-- Code examples and patterns
-- Architecture decisions
-- Testing strategies
-- Written for: Developers
-
-### 03-Schema (Design & Contracts)
-- Database schema and ERD diagrams
-- Domain models and value objects
-- API specifications
-- State machines
-- Written for: Architects, developers
-
-## 🚀 Quick Start
-
-### For New Developers
-1. Start at [[00-Index]] - central navigation hub
-2. Read [[LEGACY/01-System-Overview]] - understand the business logic
-3. Read [[LEGACY/15-Development-Setup]] - set up your environment
-4. Read [[T01-Hexagonal-Architecture]] - understand the architecture pattern
-
-### For Adding Features
-1. Follow the three-step documentation process:
-   - **Step 1:** Feature doc in `01-Features/` (user perspective)
-   - **Step 2:** Technical doc in `02-Technical/` (implementation)
-   - **Step 3:** Schema doc in `03-Schema/` (design contracts)
-2. Use templates: `_TEMPLATE.md` in each folder
-3. Include Mermaid diagrams for all workflows
-4. Run `./scripts/docs-check.sh` to verify completeness
-
-### For Understanding Existing Code
-1. Check `01-Features/` for what the feature does
-2. Check `02-Technical/` for how it's implemented
-3. Check `03-Schema/` for data models and API contracts
-4. Check `graphify-out/GRAPH_REPORT.md` for architecture context
-
-## 🛠️ Automation
-
-### Generate Documentation Draft from PR
-```bash
-./scripts/generate-docs-draft.sh <pr-number>
-```
-
-### Check Documentation Completeness
-```bash
-./scripts/docs-check.sh
-```
-
-### Validate Mermaid Diagrams
-```bash
-./scripts/validate-mermaid.sh
-```
-
-## 📊 Standards
-
-### Mermaid Diagrams
-All workflows and state machines MUST use Mermaid syntax:
-
-```mermaid
-flowchart TD
-    A[Start] --> B{Decision?}
-    B -->|Yes| C[Action]
-    B -->|No| D[Alternative]
-```
-
-Supported diagram types:
-- `flowchart` - User workflows, decision trees
-- `sequenceDiagram` - API interactions
-- `stateDiagram-v2` - Status transitions
-- `erDiagram` - Database relationships
-
-### Documentation Checklist
-For every new feature:
-- [ ] User stories with acceptance criteria
-- [ ] At least one Mermaid workflow diagram
-- [ ] Technical implementation details
-- [ ] API endpoint specifications
-- [ ] Database schema changes (if any)
-- [ ] State machine (if applicable)
-
-## 🔗 Related Resources
-
-- **Code Repository:** Root of the project
-- **Knowledge Graph:** `graphify-out/GRAPH_REPORT.md`
-- **Implementation Plans:** `plans/` folder
-- **AGENTS Guide:** `AGENTS.md` in root
-
-## 📝 Obsidian Integration
-
-This vault is optimized for Obsidian:
-- Wiki-style links: `[[Document-Name]]`
-- Backlinks automatically generated
-- Graph view shows document connections
-- Mermaid diagrams render natively
-
-To use in Obsidian:
-1. Open Obsidian
-2. "Open vault" → select `hourglass-vault/`
-3. Enable Mermaid plugin (Settings → Core plugins)
-4. Enjoy linked knowledge base!
-
-## 🎯 Current Status
-
-### Completed Documentation
-- ✅ Authentication system (F04, T02, S01-S05)
-- ✅ Organization bootstrap (F05)
-- ✅ Invitation system (F06)
-- ✅ Hexagonal architecture pattern (T01)
-
-### In Progress
-- ⏳ Time Entries feature
-- ⏳ Expenses feature
-- ⏳ Remaining handler migrations
-
-### Next Priority
-1. Document time entry approval workflow
-2. Document expense management
-3. Migrate legacy architecture docs
+**Start here:** [[VISION]] → [[00-Index]]
 
 ---
 
-**Questions?** Check `00-Index.md` for navigation or reach out to the team.
+## The Order Matters
 
-**Want to contribute?** Follow the templates and checklists in each section.
+```
+VISION  →  decisions/project/  →  01-Features/  →  03-Schema/
+(why)      (what & why ADRs)      (user docs)      (contracts)
+                  ↓
+         decisions/backend/  →  02-Technical/
+         (how-we-build ADRs)    (guides)
+```
+
+1. **[[VISION]]** — mission, the three questions, the four pillars, the steering test. Read first; cite often.
+2. **`decisions/project/`** — idea-layer ADRs: what we build and *why*, pillar by pillar.
+3. **`decisions/backend/`** — technical ADRs **specific to this repo**, recorded only where they differ from or extend the global knowledge vault (`knowledge/adr/`). The global vault is the main source — never duplicate it, link it.
+4. **`01-Features/`** — user-facing docs; every feature declares its pillar and purpose.
+5. **`02-Technical/`**, **`03-Schema/`** — implementation guides and design contracts.
+6. **`legacy/`** — the previous vault, frozen. Reference only; do not extend.
+
+## Rules
+
+* A feature idea enters the roadmap only after passing the **steering test** in [[VISION]] §7.
+* Feature docs follow `01-Features/_TEMPLATE.md` and declare a **pillar** and **purpose**.
+* ADRs are append-only. Supersede via status + links, never rewrite silently.
+* `legacy/` is read-only history. New work never goes there.
+* Mermaid for all workflows/state machines.
+
+## Automation
+
+From the repo root:
+
+```bash
+./scripts/docs-check.sh           # completeness check
+./scripts/validate-mermaid.sh     # diagram syntax
+```
