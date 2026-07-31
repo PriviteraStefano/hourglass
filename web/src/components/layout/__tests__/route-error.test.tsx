@@ -1,0 +1,125 @@
+import { describe, it, expect, beforeAll, afterEach, afterAll } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
+import { routeTree } from "@/routeTree.gen";
+
+const handlers = [
+  http.get("/api/auth/me", () =>
+    HttpResponse.json({
+      data: {
+        user: { id: "u1", email: "t@example.com", username: "t", name: "Test User", is_active: true, created_at: "2026-01-01T00:00:00Z" },
+        membership: { id: "m1", user_id: "u1", organization_id: "o1", role: "employee", is_active: true },
+        organization: { id: "o1", name: "Test Org", slug: "test-org", created_at: "2026-01-01T00:00:00Z" },
+      },
+    })
+  ),
+  http.get("/api/auth/memberships", () =>
+    HttpResponse.json({ data: { memberships: [] } })
+  ),
+  http.get("/api/projects", () =>
+    HttpResponse.json({ data: [{ id: "p1", name: "Acme Website", type: "billable" }] })
+  ),
+];
+
+// The time-entries loader is forced to fail initially, then succeeds once
+// "Try again" re-runs it (simulates a transient API outage).
+let failTimeEntries = true;
+const timeEntriesHandler = http.get("/api/time-entries", () => {
+  if (failTimeEntries) {
+    return HttpResponse.json({ error: "boom" }, { status: 500 });
+  }
+  return HttpResponse.json({
+    data: [
+      {
+        id: "te-1",
+        user_id: "u1",
+        org_id: "o1",
+        project_id: "p1",
+        subproject_id: "",
+        wg_id: "",
+        unit_id: "",
+        hours: 7.5,
+        description: "Recovered entry",
+        entry_date: "2026-05-18",
+        status: "draft",
+        created_at: "",
+        updated_at: "",
+      },
+    ],
+  });
+});
+
+const server = setupServer(...handlers, timeEntriesHandler);
+beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
+afterEach(() => {
+  server.resetHandlers();
+  failTimeEntries = true;
+});
+afterAll(() => server.close());
+
+function renderAt(initialEntries: string[]) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 0 } },
+  });
+  const router = createRouter({
+    routeTree,
+    context: { client: queryClient },
+    history: createMemoryHistory({ initialEntries }),
+  });
+  return {
+    queryClient,
+    router,
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    ),
+  };
+}
+
+describe("RouteError boundary (P0-4)", () => {
+  it("renders the error panel instead of a blank screen when a loader fails", async () => {
+    renderAt(["/time-entries?date=2026-05-18&month=2026-05-01"]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    // Error message from the failed loader surfaced, recovery affordances present
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+    expect(screen.getByText("boom")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /try again/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /go to today/i })
+    ).toBeInTheDocument();
+  });
+
+  it("re-runs the loader on Try again and recovers to content", async () => {
+    const { router } = renderAt([
+      "/time-entries?date=2026-05-18&month=2026-05-01",
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByText("boom")).toBeInTheDocument();
+    });
+
+    // Simulate the API recovering, then click Try again
+    failTimeEntries = false;
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Recovered entry")).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // Navigation state intact after retry
+    expect(router.state.location.pathname).toBe("/time-entries");
+  });
+});

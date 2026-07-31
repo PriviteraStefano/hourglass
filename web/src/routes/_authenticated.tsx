@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/app-shell.tsx";
 import { AuthApis } from "@/api/auth.ts";
 import { LoaderIcon } from "lucide-react";
+import { RouteError } from "@/components/layout/route-error";
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async ({ context: { client } }) => {
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/_authenticated")({
       <Outlet />
     </AppShell>
   ),
+  errorComponent: RouteError,
   pendingComponent: () => (
     <AppShell>
       <LoaderIcon className="animate-spin m-auto" />

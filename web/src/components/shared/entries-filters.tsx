@@ -7,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -61,32 +62,34 @@ export function StatusFilterSelect({
         }
       />
       <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel className="flex items-center justify-between">
-          <span>Status</span>
-          <button
-            type="button"
-            className="text-xs text-primary hover:underline"
-            onClick={() =>
-              onChange(allSelected ? [] : options.map((o) => o.value))
-            }
-          >
-            {allSelected ? "Clear" : "Select all"}
-          </button>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {options.map((option) => {
-          const checked = selected.includes(option.value);
-          return (
-            <DropdownMenuCheckboxItem
-              key={option.value}
-              checked={checked}
-              onCheckedChange={() => toggle(option.value)}
-              className={cn(!checked && "pl-7")}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex items-center justify-between">
+            <span>Status</span>
+            <button
+              type="button"
+              className="text-xs text-primary hover:underline"
+              onClick={() =>
+                onChange(allSelected ? [] : options.map((o) => o.value))
+              }
             >
-              {option.label}
-            </DropdownMenuCheckboxItem>
-          );
-        })}
+              {allSelected ? "Clear" : "Select all"}
+            </button>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {options.map((option) => {
+            const checked = selected.includes(option.value);
+            return (
+              <DropdownMenuCheckboxItem
+                key={option.value}
+                checked={checked}
+                onCheckedChange={() => toggle(option.value)}
+                className={cn(!checked && "pl-7")}
+              >
+                {option.label}
+              </DropdownMenuCheckboxItem>
+            );
+          })}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

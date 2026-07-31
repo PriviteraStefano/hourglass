@@ -5,6 +5,7 @@ import {
   redirect,
 } from "@tanstack/react-router";
 import { AuthApis } from "@/api/auth.ts";
+import { AuthRouteError } from "@/components/layout/route-error";
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: async ({ context: { client } }) => {
@@ -25,4 +26,5 @@ export const Route = createFileRoute("/_auth")({
     }
   },
   component: () => <Outlet />,
+  errorComponent: AuthRouteError,
 });
