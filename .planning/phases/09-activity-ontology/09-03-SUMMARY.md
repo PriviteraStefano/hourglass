@@ -91,8 +91,9 @@ Each task was committed atomically:
 1. **Task 1: Domain + ports collapse** - `53dfc94` (refactor)
 2. **Task 2: Activity repository + WG/cutoff/commercial-chain rewrites** - `e7a6d88` (feat)
 3. **Task 3: Entry repositories onto activity FKs** - `c101494` (feat)
+4. **Scope fix: revert working_group domain rename** (keeps wg service/handler compiling — plan's file list omits the domain, and services/working_group + http/working_group.go are not in plans 04/05 file lists) - `05cbe4c` (refactor)
 
-**Plan metadata:** pending docs commit
+**Plan metadata:** `62c7809` (docs: complete plan)
 
 ## Self-Check: PASSED
 
