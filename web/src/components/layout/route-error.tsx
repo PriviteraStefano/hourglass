@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
+import { useQueryErrorResetBoundary } from "@tanstack/react-query";
 import { AlertTriangleIcon, HomeIcon, RotateCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -15,10 +17,18 @@ interface RouteErrorProps {
  *
  * Recovery: "Try again" re-runs the loader via router.invalidate() — per
  * TanStack Router docs, reset() alone clears the boundary but leaves the
- * stale loader error, so invalidate() is the correct retry path.
+ * stale loader error, so invalidate() is the correct retry path. The query
+ * error boundary is also reset on mount (canonical React Query pattern) so a
+ * previously-errored suspense query can't keep the router boundary tripped
+ * after a retry.
  */
-export function RouteError({ error }: RouteErrorProps) {
+export function RouteError({ error, reset }: RouteErrorProps) {
   const router = useRouter();
+  const queryErrorReset = useQueryErrorResetBoundary();
+
+  useEffect(() => {
+    queryErrorReset.reset();
+  }, [queryErrorReset]);
 
   if (import.meta.env.DEV) {
     console.error("[route-error] loader/query failed:", error);
@@ -38,6 +48,9 @@ export function RouteError({ error }: RouteErrorProps) {
         <div className="flex justify-center gap-2">
           <Button
             onClick={() => {
+              // invalidate() re-runs the loaders and resets the error boundary.
+              // With leaf-level errorComponents the match is rebuilt, so a
+              // plain invalidate is sufficient and reliable here.
               void router.invalidate();
             }}
           >
@@ -46,6 +59,13 @@ export function RouteError({ error }: RouteErrorProps) {
           </Button>
           <Button
             variant="outline"
+            onClick={() => {
+              // The error lives on the _authenticated layout match, which
+              // persists across navigations — navigation alone won't clear it.
+              // Reset the boundary before following the link so the landing
+              // route re-renders its content instead of the stale panel.
+              reset?.();
+            }}
             render={<Link to="/">Go to Today</Link>}
           >
             <HomeIcon className="h-4 w-4 mr-1.5" />
@@ -63,6 +83,11 @@ export function RouteError({ error }: RouteErrorProps) {
  */
 export function AuthRouteError({ error }: RouteErrorProps) {
   const router = useRouter();
+  const queryErrorReset = useQueryErrorResetBoundary();
+
+  useEffect(() => {
+    queryErrorReset.reset();
+  }, [queryErrorReset]);
 
   if (import.meta.env.DEV) {
     console.error("[auth-route-error] loader/query failed:", error);

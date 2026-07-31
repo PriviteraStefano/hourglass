@@ -4,6 +4,7 @@ import { z } from "zod";
 import { TimeEntriesApis } from "@/api/time-entries.ts";
 import { ProjectsApis } from "@/api/projects.ts";
 import { entryStatusSchema, listStatusesSchema } from "@/lib/list-filters";
+import { RouteError } from "@/components/layout/route-error";
 
 export const Route = createFileRoute("/_authenticated/time-entries/")({
   validateSearch: z.object({
@@ -26,6 +27,10 @@ export const Route = createFileRoute("/_authenticated/time-entries/")({
       client.ensureQueryData(TimeEntriesApis.timeEntryQueryOpts(date)),
       client.ensureQueryData(ProjectsApis.projectsQueryOpts("all")),
     ]),
+  // Leaf-level boundary (P0-4): the error attaches to THIS match, which is
+  // rebuilt on navigation — unlike the layout-level fallback, whose match
+  // persists and can keep the panel tripped after recovery.
+  errorComponent: RouteError,
   component: TimeEntriesPage,
   pendingMs: 50,
 });

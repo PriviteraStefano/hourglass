@@ -5,10 +5,13 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
+  createRootRoute,
+  createRoute,
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
 import { routeTree } from "@/routeTree.gen";
+import { AuthRouteError } from "../route-error";
 
 const handlers = [
   http.get("/api/auth/me", () =>
@@ -121,5 +124,41 @@ describe("RouteError boundary (P0-4)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     // Navigation state intact after retry
     expect(router.state.location.pathname).toBe("/time-entries");
+  });
+});
+
+describe("AuthRouteError slim variant (P0-4)", () => {
+  it("renders the slim panel with retry and no home link", async () => {
+    // Mount AuthRouteError through a minimal router whose component throws —
+    // the same boundary mechanism the _auth layout registers (login/register/
+    // password-reset pages) uses for any error escaping its layout.
+    const rootRoute = createRootRoute();
+    const boomRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: "/boom",
+      errorComponent: AuthRouteError,
+      component: () => {
+        throw new Error("auth boom");
+      },
+    });
+    const router = createRouter({
+      routeTree: rootRoute.addChildren([boomRoute]),
+      history: createMemoryHistory({ initialEntries: ["/boom"] }),
+    });
+
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+    expect(screen.getByText("auth boom")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /try again/i })
+    ).toBeInTheDocument();
+    // Slim variant: no home link (auth pages have no app shell)
+    expect(
+      screen.queryByRole("link", { name: /go to today/i })
+    ).not.toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ExpensesApis } from "@/api/expenses.ts";
 import { ProjectsApis } from "@/api/projects.ts";
 import { listStatusesSchema } from "@/lib/list-filters";
+import { RouteError } from "@/components/layout/route-error";
 
 export const Route = createFileRoute("/_authenticated/expenses/")({
   validateSearch: z.object({
@@ -27,6 +28,10 @@ export const Route = createFileRoute("/_authenticated/expenses/")({
       client.ensureQueryData(ExpensesApis.expenseQueryOpts(date)),
       client.ensureQueryData(ProjectsApis.projectsQueryOpts("all")),
     ]),
+  // Leaf-level boundary (P0-4): the error attaches to THIS match, which is
+  // rebuilt on navigation — unlike the layout-level fallback, whose match
+  // persists and can keep the panel tripped after recovery.
+  errorComponent: RouteError,
   component: ExpensesPage,
   pendingMs: 50,
 });
