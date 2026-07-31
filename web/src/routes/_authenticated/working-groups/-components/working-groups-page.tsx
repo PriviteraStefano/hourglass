@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import type { WorkingGroup } from "@/types";
 import { WorkingGroupFormDialog } from "./working-group-form-dialog";
 import { DeleteWorkingGroupDialog } from "./delete-working-group-dialog";
+import { WorkingGroupMembersDialog } from "./working-group-members-dialog";
 
 /**
  * Working Groups surface (ADR-P-011 D-4 / UI-SPEC §Working Groups).
@@ -24,6 +25,7 @@ export function WorkingGroupsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editWg, setEditWg] = useState<WorkingGroup | null>(null);
   const [deleteWg, setDeleteWg] = useState<WorkingGroup | null>(null);
+  const [membersWg, setMembersWg] = useState<WorkingGroup | null>(null);
 
   const { data: workingGroups } = useSuspenseQuery(
     WorkingGroupsApis.workingGroupsQueryOpts
@@ -70,6 +72,7 @@ export function WorkingGroupsPage() {
                   wg={wg}
                   onEdit={() => setEditWg(wg)}
                   onDelete={() => setDeleteWg(wg)}
+                  onMembers={() => setMembersWg(wg)}
                 />
               ))}
             </div>
@@ -92,6 +95,15 @@ export function WorkingGroupsPage() {
             wg={deleteWg}
             onClose={() => setDeleteWg(null)}
           />
+          {membersWg && (
+            <WorkingGroupMembersDialog
+              open={!!membersWg}
+              onOpenChange={(open) => {
+                if (!open) setMembersWg(null);
+              }}
+              wg={membersWg}
+            />
+          )}
         </div>
       </Body>
     </>
@@ -122,10 +134,12 @@ function WorkingGroupCard({
   wg,
   onEdit,
   onDelete,
+  onMembers,
 }: {
   wg: WorkingGroup;
   onEdit: () => void;
   onDelete: () => void;
+  onMembers: () => void;
 }) {
   const { data: activities } = useQuery(ActivitiesApis.activitiesQueryOpts("owned"));
   const { data: orgMembers } = useQuery(orgMembersQueryOpts);
@@ -163,6 +177,10 @@ function WorkingGroupCard({
       </div>
 
       <div className="flex gap-2 pt-1">
+        <Button variant="outline" size="sm" onClick={onMembers}>
+          <UsersIcon className="w-4 h-4 mr-1" />
+          Members
+        </Button>
         <Button variant="outline" size="sm" onClick={onEdit}>
           Edit
         </Button>
