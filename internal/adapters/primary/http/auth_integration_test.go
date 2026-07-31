@@ -270,6 +270,62 @@ func TestAuthIntegration(t *testing.T) {
 		t.Logf("PASS: Refresh token rotation works")
 	})
 
+	t.Run("RefreshTokenReuse_RevokesFamily", func(t *testing.T) {
+		postgres.SetupTestSchema(t, pool)
+		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
+
+		f := newFixture(t, pool)
+		email := fmt.Sprintf("reuse-%s@test.com", t.Name())
+		loginResp := f.registerAndLogin(t, email, "reuseuser", "TestPass123!", "Reuse Org")
+
+		require.NotEmpty(t, loginResp.RefreshToken, "login should return a refresh token")
+		initialRefreshToken := loginResp.RefreshToken
+
+		// First rotation: token A -> token B (cookie jar now holds B).
+		resp, err := f.client.Post(f.serverURL+"/auth/refresh", "application/json", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, "first refresh should succeed")
+
+		var refreshWrapped struct {
+			Data *authsvc.RefreshResponse `json:"data"`
+		}
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&refreshWrapped))
+		require.NotNil(t, refreshWrapped.Data)
+		successorToken := refreshWrapped.Data.RefreshToken
+		require.NotEqual(t, initialRefreshToken, successorToken, "refresh should rotate the token")
+
+		// Replay the ORIGINAL token A (raw client bypasses the jar).
+		raw := &http.Client{}
+		replayReq, err := http.NewRequest(http.MethodPost, f.serverURL+"/auth/refresh", nil)
+		require.NoError(t, err)
+		replayReq.AddCookie(&http.Cookie{Name: "refresh_token", Value: initialRefreshToken})
+
+		replayResp, err := raw.Do(replayReq)
+		require.NoError(t, err)
+		defer replayResp.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, replayResp.StatusCode,
+			"replayed rotated token should be rejected with 401")
+
+		// The 401 must clear both auth cookies so the stolen session cannot be reused.
+		setCookies := replayResp.Header.Values("Set-Cookie")
+		assert.True(t, cookieCleared(setCookies, "auth_token"),
+			"replay response should clear auth_token cookie, got: %v", setCookies)
+		assert.True(t, cookieCleared(setCookies, "refresh_token"),
+			"replay response should clear refresh_token cookie, got: %v", setCookies)
+
+		// Family revocation: the successor B must ALSO fail.
+		succReq, err := http.NewRequest(http.MethodPost, f.serverURL+"/auth/refresh", nil)
+		require.NoError(t, err)
+		succReq.AddCookie(&http.Cookie{Name: "refresh_token", Value: successorToken})
+
+		succResp, err := raw.Do(succReq)
+		require.NoError(t, err)
+		defer succResp.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, succResp.StatusCode,
+			"successor token should be revoked with its family after replay")
+	})
+
 	t.Run("PasswordReset_CodeNotInResponse", func(t *testing.T) {
 		postgres.SetupTestSchema(t, pool)
 		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
@@ -375,4 +431,15 @@ func TestAuthIntegration(t *testing.T) {
 
 		t.Log("PASS: Login sets both auth_token and refresh_token cookies")
 	})
+}
+
+// cookieCleared reports whether a Set-Cookie header list contains a deletion
+// cookie (empty value, past Max-Age) for the named cookie.
+func cookieCleared(setCookies []string, name string) bool {
+	for _, sc := range setCookies {
+		if strings.HasPrefix(sc, name+"=") {
+			return strings.Contains(sc, "Max-Age=0") || strings.Contains(sc, "Max-Age=-1")
+		}
+	}
+	return false
 }

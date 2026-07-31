@@ -142,6 +142,13 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := h.authService.Refresh(ctx, cookie.Value)
 	if err != nil {
+		if err == auth.ErrTokenReuse {
+			// Replayed rotated token: the entire token family was revoked.
+			// Clear both cookies so the client cannot keep reusing them.
+			cookies.ClearAuthCookies(w)
+			api.RespondWithError(w, http.StatusUnauthorized, "refresh token reuse detected; session revoked")
+			return
+		}
 		api.RespondWithError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}

@@ -293,6 +293,46 @@ func TestService_Refresh(t *testing.T) {
 			},
 			wantErr: ErrUserNotFound,
 		},
+		{
+			name:  "replay of already-rotated token",
+			token: "replayed-token",
+			setup: func(u *testdata.MockUserRepo, r *testdata.MockRefreshTokenRepo) {
+				now := time.Now()
+				rotatedAt := now.Add(-time.Minute)
+				r.Tokens = map[string]*ports.RefreshToken{
+					"hashed-replayed-token": {
+						UserID:         uuid.New(),
+						OrganizationID: uuid.New(),
+						Hash:           "hashed-replayed-token",
+						ExpiresAt:      now.Add(24 * time.Hour),
+						CreatedAt:      now.Add(-2 * time.Hour),
+						FamilyID:       uuid.New(),
+						RotatedAt:      &rotatedAt,
+					},
+				}
+			},
+			wantErr: ErrTokenReuse,
+		},
+		{
+			name:  "replay of revoked token",
+			token: "revoked-token",
+			setup: func(u *testdata.MockUserRepo, r *testdata.MockRefreshTokenRepo) {
+				now := time.Now()
+				revokedAt := now.Add(-time.Minute)
+				r.Tokens = map[string]*ports.RefreshToken{
+					"hashed-revoked-token": {
+						UserID:         uuid.New(),
+						OrganizationID: uuid.New(),
+						Hash:           "hashed-revoked-token",
+						ExpiresAt:      now.Add(24 * time.Hour),
+						CreatedAt:      now.Add(-2 * time.Hour),
+						FamilyID:       uuid.New(),
+						RevokedAt:      &revokedAt,
+					},
+				}
+			},
+			wantErr: ErrTokenReuse,
+		},
 	}
 
 	for _, tt := range tests {
@@ -317,6 +357,59 @@ func TestService_Refresh(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// TestService_Refresh_ReplayRevokesFamily
+// ---------------------------------------------------------------------------
+
+// A replayed rotated token must revoke the ENTIRE family — including the
+// successor issued by the original rotation — not just the replayed hash.
+func TestService_Refresh_ReplayRevokesFamily(t *testing.T) {
+	userRepo := &testdata.MockUserRepo{}
+	orgRepo := &testdata.MockOrgRepo{}
+	tokenSvc := &testdata.MockTokenService{}
+	pwHasher := &testdata.MockPasswordHasher{}
+	refreshRepo := &testdata.MockRefreshTokenRepo{}
+
+	userID := uuid.New()
+	orgID := uuid.New()
+	familyID := uuid.New()
+	now := time.Now()
+	rotatedAt := now.Add(-time.Minute)
+
+	// Token A was already rotated; token B is its successor (same family).
+	refreshRepo.Tokens = map[string]*ports.RefreshToken{
+		"hashed-token-a": {
+			UserID:         userID,
+			OrganizationID: orgID,
+			Hash:           "hashed-token-a",
+			ExpiresAt:      now.Add(24 * time.Hour),
+			CreatedAt:      now.Add(-2 * time.Hour),
+			FamilyID:       familyID,
+			RotatedAt:      &rotatedAt,
+		},
+		"hashed-token-b": {
+			UserID:         userID,
+			OrganizationID: orgID,
+			Hash:           "hashed-token-b",
+			ExpiresAt:      now.Add(7 * 24 * time.Hour),
+			CreatedAt:      now,
+			FamilyID:       familyID,
+		},
+	}
+
+	svc := NewService(userRepo, orgRepo, tokenSvc, pwHasher, refreshRepo)
+
+	// Replaying the rotated token A must surface as ErrTokenReuse...
+	resp, err := svc.Refresh(context.Background(), "token-a")
+	assert.ErrorIs(t, err, ErrTokenReuse)
+	assert.Nil(t, resp)
+
+	// ...and must have tombstoned the successor B too.
+	sibling := refreshRepo.Tokens["hashed-token-b"]
+	require.NotNil(t, sibling, "successor token should still exist in store")
+	require.NotNil(t, sibling.RevokedAt, "successor token should be revoked with its family")
 }
 
 // ---------------------------------------------------------------------------

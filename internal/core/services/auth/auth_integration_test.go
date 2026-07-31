@@ -272,6 +272,43 @@ func TestAuthIntegration(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("RefreshTokenReuse_ReturnsErrTokenReuse_AndRevokesFamily", func(t *testing.T) {
+		svc := realRepoFixture(t, pool)
+
+		email := uuid.New().String() + "@test.com"
+		password := "SecurePass123!"
+		username := "reuse_" + uuid.New().String()[:8]
+
+		_, err := svc.Register(context.Background(), RegisterRequest{
+			Email:     email,
+			Password:  password,
+			FirstName: "Reuse",
+			LastName:  "Test",
+			Username:  username,
+			OrgName:   "Reuse Corp",
+		})
+		require.NoError(t, err)
+
+		loginResp, err := svc.Login(context.Background(), LoginRequest{
+			Identifier: email,
+			Password:   password,
+		})
+		require.NoError(t, err)
+
+		// Legitimate rotation: token A -> token B (same family).
+		refreshResp, err := svc.Refresh(context.Background(), loginResp.RefreshToken)
+		require.NoError(t, err)
+		require.NotEqual(t, loginResp.RefreshToken, refreshResp.RefreshToken)
+
+		// Replaying the rotated token A is detected as reuse...
+		_, err = svc.Refresh(context.Background(), loginResp.RefreshToken)
+		require.ErrorIs(t, err, ErrTokenReuse, "replay of rotated token should surface ErrTokenReuse")
+
+		// ...and the whole family dies: the successor B is revoked too.
+		_, err = svc.Refresh(context.Background(), refreshResp.RefreshToken)
+		require.ErrorIs(t, err, ErrTokenReuse, "successor token should be revoked with its family")
+	})
+
 	t.Run("GetProfileWithoutOrg", func(t *testing.T) {
 		svc := realRepoFixture(t, pool)
 

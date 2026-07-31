@@ -349,17 +349,26 @@ func (s *Service) GetProfile(ctx context.Context, userID uuid.UUID, orgID uuid.U
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (*RefreshResponse, error) {
 	hash := s.tokenService.HashRefreshToken(refreshToken)
 
-	token, err := s.refreshTokenRepo.FindByHash(ctx, hash)
+	// Issue the successor first so the repo transaction is as short as possible.
+	newRefreshToken, err := s.tokenService.GenerateRefreshToken()
 	if err != nil {
+		return nil, err
+	}
+	newHash := s.tokenService.HashRefreshToken(newRefreshToken)
+	newExpiresAt := time.Now().Add(7 * 24 * time.Hour)
+
+	// Atomic rotation with reuse detection: the repository finds the token,
+	// marks it rotated and inserts the successor in ONE transaction. A replayed
+	// token revokes the whole family and surfaces as ErrTokenReuse.
+	token, err := s.refreshTokenRepo.Rotate(ctx, hash, newHash, newExpiresAt)
+	if err != nil {
+		if errors.Is(err, ports.ErrTokenReuse) {
+			return nil, ErrTokenReuse
+		}
 		return nil, err
 	}
 	if token == nil {
 		return nil, ErrInvalidCreds
-	}
-
-	// Rotate the old refresh token: revoke old hash
-	if err := s.refreshTokenRepo.RevokeByHash(ctx, hash); err != nil {
-		return nil, err
 	}
 
 	user, err := s.userRepo.GetByID(ctx, token.UserID)
@@ -381,17 +390,6 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*RefreshRes
 
 	newToken, err := s.tokenService.GenerateToken(user.ID, token.OrganizationID, role, user.Email)
 	if err != nil {
-		return nil, err
-	}
-
-	// Issue a new refresh token
-	newRefreshToken, err := s.tokenService.GenerateRefreshToken()
-	if err != nil {
-		return nil, err
-	}
-	newHash := s.tokenService.HashRefreshToken(newRefreshToken)
-	newExpiresAt := time.Now().Add(7 * 24 * time.Hour)
-	if err := s.refreshTokenRepo.Add(ctx, token.UserID, token.OrganizationID, newHash, newExpiresAt); err != nil {
 		return nil, err
 	}
 

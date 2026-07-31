@@ -836,6 +836,19 @@ type MockRefreshTokenRepo struct {
 }
 
 func (m *MockRefreshTokenRepo) Add(ctx context.Context, userID, organizationID uuid.UUID, tokenHash string, expiresAt time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Tokens == nil {
+		m.Tokens = make(map[string]*ports.RefreshToken)
+	}
+	m.Tokens[tokenHash] = &ports.RefreshToken{
+		UserID:         userID,
+		OrganizationID: organizationID,
+		Hash:           tokenHash,
+		ExpiresAt:      expiresAt,
+		CreatedAt:      time.Now(),
+		FamilyID:       uuid.New(),
+	}
 	return nil
 }
 
@@ -846,18 +859,88 @@ func (m *MockRefreshTokenRepo) FindByHash(ctx context.Context, hash string) (*po
 		return nil, nil
 	}
 	token, ok := m.Tokens[hash]
-	if !ok {
+	if !ok || token.RotatedAt != nil || token.RevokedAt != nil {
 		return nil, nil
 	}
 	return token, nil
 }
 
 func (m *MockRefreshTokenRepo) RevokeByHash(ctx context.Context, hash string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Tokens == nil {
+		return nil
+	}
+	if token, ok := m.Tokens[hash]; ok && token.RevokedAt == nil {
+		now := time.Now()
+		token.RevokedAt = &now
+		m.Tokens[hash] = token
+	}
 	return nil
 }
 
 func (m *MockRefreshTokenRepo) RevokeAllByUser(ctx context.Context, userID uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := time.Now()
+	for h, t := range m.Tokens {
+		if t.UserID == userID && t.RevokedAt == nil {
+			t.RevokedAt = &now
+			m.Tokens[h] = t
+		}
+	}
 	return nil
+}
+
+func (m *MockRefreshTokenRepo) RevokeFamily(ctx context.Context, familyID uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := time.Now()
+	for h, t := range m.Tokens {
+		if t.FamilyID == familyID && t.RevokedAt == nil {
+			t.RevokedAt = &now
+			m.Tokens[h] = t
+		}
+	}
+	return nil
+}
+
+// Rotate mirrors the postgres implementation's semantics:
+//   - unknown hash -> (nil, nil)
+//   - already rotated/revoked -> revoke the whole family, return token + ports.ErrTokenReuse
+//   - valid -> mark rotated_at, insert successor with the same family_id
+func (m *MockRefreshTokenRepo) Rotate(ctx context.Context, hash, newHash string, newExpiresAt time.Time) (*ports.RefreshToken, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Tokens == nil {
+		return nil, nil
+	}
+	token, ok := m.Tokens[hash]
+	if !ok {
+		return nil, nil
+	}
+	if token.RotatedAt != nil || token.RevokedAt != nil {
+		now := time.Now()
+		for h, t := range m.Tokens {
+			if t.FamilyID == token.FamilyID && t.RevokedAt == nil {
+				t.RevokedAt = &now
+				m.Tokens[h] = t
+			}
+		}
+		return token, ports.ErrTokenReuse
+	}
+	now := time.Now()
+	token.RotatedAt = &now
+	m.Tokens[hash] = token
+	m.Tokens[newHash] = &ports.RefreshToken{
+		UserID:         token.UserID,
+		OrganizationID: token.OrganizationID,
+		Hash:           newHash,
+		ExpiresAt:      newExpiresAt,
+		CreatedAt:      now,
+		FamilyID:       token.FamilyID,
+	}
+	return token, nil
 }
 
 type MockTokenService struct {
