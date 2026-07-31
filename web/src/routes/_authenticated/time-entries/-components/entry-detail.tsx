@@ -272,6 +272,7 @@ export function EntryDetail() {
               step="0.25"
               min="0"
               max="24"
+              name="hours"
               value={newEntry.hours || ""}
               onChange={(e) =>
                 setNewEntry({
@@ -284,6 +285,7 @@ export function EntryDetail() {
             />
             <span className="text-sm">hours</span>
             <Input
+              name="description"
               value={newEntry.description}
               onChange={(e) =>
                 setNewEntry({ ...newEntry, description: e.target.value })

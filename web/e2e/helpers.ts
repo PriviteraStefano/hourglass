@@ -107,32 +107,37 @@ export async function useSession(
 
 /**
  * Seed the org-scoped entities the time_entries FK chain requires
- * (unit -> project -> subproject -> working group). Returns their ids.
+ * (unit -> activity -> child activity -> working group). Returns their ids.
+ * New orgs registered via the API have no activity_kinds catalog rows (kinds
+ * are seeded only for the MVP org), so the kind is inserted alongside.
  */
 export function seedBaseEntities(
   orgId: string,
   userId: string
-): { unitId: string; projectId: string; subprojectId: string } {
+): { unitId: string; activityId: string; childActivityId: string } {
   const unitId = psql(
     `INSERT INTO units (org_id, name) VALUES ('${orgId}', 'Default Unit') RETURNING id`
   );
-  const projectId = psql(
-    `INSERT INTO projects (org_id, name, project_type, type, governance_model, created_by_org_id) VALUES ('${orgId}', 'E2E Seed Project', 'billable', 'billable', 'creator_controlled', '${orgId}') RETURNING id`
+  psql(
+    `INSERT INTO activity_kinds (org_id, name, is_seed) VALUES ('${orgId}', 'engagement', true), ('${orgId}', 'phase', true) ON CONFLICT (org_id, name) DO NOTHING`
   );
-  const subprojectId = psql(
-    `INSERT INTO subprojects (project_id, name) VALUES ('${projectId}', 'E2E Seed Subproject') RETURNING id`
+  const activityId = psql(
+    `INSERT INTO activities (org_id, name, kind, governance_model, created_by_org_id) VALUES ('${orgId}', 'E2E Seed Activity', 'engagement', 'creator_controlled', '${orgId}') RETURNING id`
+  );
+  const childActivityId = psql(
+    `INSERT INTO activities (org_id, parent_id, name, kind, governance_model, created_by_org_id) VALUES ('${orgId}', '${activityId}', 'E2E Seed Child', 'phase', 'creator_controlled', '${orgId}') RETURNING id`
   );
   psql(
-    `INSERT INTO working_groups (org_id, subproject_id, name, manager_id) VALUES ('${orgId}', '${subprojectId}', 'E2E Seed WG', '${userId}')`
+    `INSERT INTO working_groups (org_id, activity_id, name, manager_id) VALUES ('${orgId}', '${childActivityId}', 'E2E Seed WG', '${userId}')`
   );
-  return { unitId, projectId, subprojectId };
+  return { unitId, activityId, childActivityId };
 }
 
 /** Seed one time entry per workflow state, all inside the current month. */
 export function seedTimeEntries(
   orgId: string,
   userId: string,
-  base: { unitId: string; projectId: string; subprojectId: string },
+  base: { unitId: string; activityId: string; childActivityId: string },
   prefix: string
 ) {
   const wgId = psql(
@@ -148,7 +153,7 @@ export function seedTimeEntries(
   ];
   for (const r of rows) {
     psql(
-      `INSERT INTO time_entries (org_id, user_id, project_id, subproject_id, wg_id, unit_id, hours, description, entry_date, status) VALUES ('${orgId}', '${userId}', '${base.projectId}', '${base.subprojectId}', '${wgId}', '${base.unitId}', ${r.hours}, '${r.desc}', '${r.date} 00:00:00+00', '${r.status}')`
+      `INSERT INTO time_entries (org_id, user_id, activity_id, unit_id, hours, description, entry_date, status) VALUES ('${orgId}', '${userId}', '${base.childActivityId}', '${base.unitId}', ${r.hours}, '${r.desc}', '${r.date} 00:00:00+00', '${r.status}')`
     );
   }
 }
@@ -160,7 +165,7 @@ export function seedTimeEntries(
 export function seedExpenses(
   orgId: string,
   userId: string,
-  base: { unitId: string; projectId: string },
+  base: { unitId: string; activityId: string; childActivityId: string },
   prefix: string
 ) {
   const rows = [
@@ -174,7 +179,7 @@ export function seedExpenses(
     const km = r.km == null ? "NULL" : String(r.km);
     const receipt = r.receipt == null ? "NULL" : `'${r.receipt}'`;
     psql(
-      `INSERT INTO expenses (org_id, user_id, project_id, unit_id, category, amount, km_distance, description, expense_date, status, receipt_url) VALUES ('${orgId}', '${userId}', '${base.projectId}', '${base.unitId}', '${r.category}', ${r.amount}, ${km}, '${r.desc}', '${r.date} 00:00:00+00', '${r.status}', ${receipt})`
+      `INSERT INTO expenses (org_id, user_id, activity_id, unit_id, category, amount, km_distance, description, expense_date, status, receipt_url) VALUES ('${orgId}', '${userId}', '${base.activityId}', '${base.unitId}', '${r.category}', ${r.amount}, ${km}, '${r.desc}', '${r.date} 00:00:00+00', '${r.status}', ${receipt})`
     );
   }
 }

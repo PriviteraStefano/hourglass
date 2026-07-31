@@ -104,6 +104,7 @@ export function CreateActivityDialog({
             navigate({
               to: "/activities/$id",
               params: { id: data.id },
+              search: { from: "owned" },
             });
           }
         },

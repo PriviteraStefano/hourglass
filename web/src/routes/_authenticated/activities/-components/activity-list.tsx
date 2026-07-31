@@ -30,8 +30,9 @@ export function ActivityList({ initialTab = "owned" }: ActivityListProps) {
   );
 
   const handleTabChange = (newTab: string) => {
-    setTab(newTab as "owned" | "adopted" | "all");
-    navigate({ search: { tab: newTab } });
+    const next = newTab as "owned" | "adopted" | "all";
+    setTab(next);
+    navigate({ to: "/activities", search: { tab: next } });
   };
 
   const handleRowClick = (activity: ActivityResponse) => {
