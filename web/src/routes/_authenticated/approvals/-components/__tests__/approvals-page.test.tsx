@@ -182,7 +182,7 @@ describe("ApprovalsPage composition (10-05)", () => {
   it("dual-stage user (finance + WG manager) sees both Manager and Finance tabs", async () => {
     currentRole = "finance";
     currentWgs = [
-      { id: "wg1", org_id: "o1", manager_id: USER_ID, delegate_ids: [] } as WorkingGroup,
+      { id: "wg1", org_id: "o1", manager_id: USER_ID } as WorkingGroup,
     ];
     currentPendingTe = [te({ id: "te3", status: "pending_finance", activity_name: "Beta" })];
 
