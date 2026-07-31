@@ -23,3 +23,5 @@ web/.DS_Store
 /graphify-out/
 /graphify-out/cache
 .github
+# TypeScript build cache
+web/tsconfig.tsbuildinfo

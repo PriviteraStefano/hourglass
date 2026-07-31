@@ -17,15 +17,18 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "ignoreDeprecations": "6.0",
-    "types": ["vitest/globals"],
+    "types": ["vitest/globals", "vite/client"],
 
     /* Path aliases */
-    "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "components/**/*.tsx", "lib/**/*.ts", "src/routeTree.gen.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "components/**/*.tsx",
+    "lib/**/*.ts",
+    "src/routeTree.gen.ts"
+  ]
 }
