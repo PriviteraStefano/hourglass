@@ -128,7 +128,7 @@ export function seedBaseEntities(
     `INSERT INTO activities (org_id, parent_id, name, kind, governance_model, created_by_org_id) VALUES ('${orgId}', '${activityId}', 'E2E Seed Child', 'phase', 'creator_controlled', '${orgId}') RETURNING id`
   );
   psql(
-    `INSERT INTO working_groups (org_id, activity_id, name, manager_id) VALUES ('${orgId}', '${childActivityId}', 'E2E Seed WG', '${userId}')`
+    `INSERT INTO working_groups (org_id, activity_id, name, description, manager_id) VALUES ('${orgId}', '${childActivityId}', 'E2E Seed WG', 'E2E seeded working group', '${userId}')`
   );
   return { unitId, activityId, childActivityId };
 }
