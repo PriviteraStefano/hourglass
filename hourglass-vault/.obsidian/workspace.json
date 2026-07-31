@@ -1,0 +1,225 @@
+{
+  "main": {
+    "id": "10f0fc8be8f5beec",
+    "type": "split",
+    "children": [
+      {
+        "id": "44d769c394aabcdc",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "4fdfe5fbe4aed023",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "VISION.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "VISION"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "777d17443587bc4e",
+    "type": "split",
+    "children": [
+      {
+        "id": "ce705b04a7f05233",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "93ae6b54a4c60e3b",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "d588f4bbcf6b4e79",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "d7ab55f34c126cad",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "8ee299724edb1e49",
+    "type": "split",
+    "children": [
+      {
+        "id": "c3106d04014913df",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b1147729d8301813",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "research/2026-07-28 — Pre-Deployment Audit — Hourglass v0.1.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for 2026-07-28 — Pre-Deployment Audit — Hourglass v0.1"
+            }
+          },
+          {
+            "id": "ff2f513e38a32656",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "research/2026-07-28 — Pre-Deployment Audit — Hourglass v0.1.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from 2026-07-28 — Pre-Deployment Audit — Hourglass v0.1"
+            }
+          },
+          {
+            "id": "d69353962720a966",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "4529952afd607dc5",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "df8115e2e67c2e48",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "research/2026-07-28 — Pre-Deployment Audit — Hourglass v0.1.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of 2026-07-28 — Pre-Deployment Audit — Hourglass v0.1"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "93ae6b54a4c60e3b",
+  "lastOpenFiles": [
+    "research/kotlinllm-learning/lessons/0001-what-makes-a-smart-macro-not-an-llm-call.html",
+    "research/kotlinllm-learning/reference/glossary.html",
+    "research/kotlinllm-learning/learning-records/0001-mission-is-evaluation-not-adoption.md",
+    "research/kotlinllm-learning/NOTES.md",
+    "research/kotlinllm-learning/RESOURCES.md",
+    "research/kotlinllm-learning/MISSION.md",
+    "research/kotlinllm-learning/thesis.pdf",
+    "research/kotlinllm-learning/reference",
+    "research/kotlinllm-learning/learning-records",
+    "research/kotlinllm-learning/lessons",
+    "research/kotlinllm-learning",
+    "01-Features/F13-Exports.md",
+    "01-Features/F11-Time-Entries.md",
+    "01-Features/F10-Activities.md",
+    "01-Features/F12-Expenses.md",
+    "01-Features/F09-Contracts.md",
+    "01-Features/F08-Customers.md",
+    "01-Features/F07-Org-Hierarchy-Units.md",
+    "decisions/project/ADR-P-011 — Information Architecture & Role-Scoped Surfaces.md",
+    "01-Features/_TEMPLATE.md",
+    "VISION.md",
+    "decisions/project/ADR-P-001 — Units vs Working Groups.md",
+    "decisions/project/ADR-P-008 — Availability & Employment Validity.md",
+    "decisions/backend/ADR-BE-002 — Hexagonal Wiring.md",
+    "decisions/backend/ADR-BE-001 — Error Handling Sentinel Errors.md",
+    "decisions/backend/ADR-BE-004 — Database Migrations.md",
+    "decisions/backend/ADR-BE-003 — Data Access pgxpool No ORM.md",
+    "decisions/backend/ADR-BE-005 — Auth JWT + Refresh Rotation.md",
+    "decisions/backend/ADR-BE-006 — Middleware Composition.md",
+    "decisions/backend/ADR-BE-007 — Rate Limiting.md",
+    "decisions/backend/ADR-BE-008 — API Versioning Accept Header.md",
+    "decisions/backend/ADR-BE-009 — Testing testcontainers testify.md",
+    "02-Technical/adr",
+    "decisions/project",
+    "decisions/backend",
+    "decisions"
+  ]
+}
