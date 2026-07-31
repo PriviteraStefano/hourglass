@@ -23,6 +23,9 @@ func NewContractRepository(pool *pgxpool.Pool) *ContractRepository {
 
 // baseContractQuery returns the SELECT list and FROM clause used by List and Get.
 // $1 is reserved for orgID (used in the is_adopted EXISTS subquery).
+// time_entries_count resolves the contract's activity subtree (ADR-P-007 D-3:
+// an entry belongs to a contract when its activity's ancestry hits an activity
+// linked to that contract).
 func baseContractQuery() string {
 	return `SELECT c.id, c.name, c.km_rate, c.currency, c.customer_id, c.governance_model,
 		c.created_by_org_id, c.is_shared, c.is_active, c.created_at,
@@ -30,7 +33,15 @@ func baseContractQuery() string {
 		(SELECT COUNT(*) FROM contract_adoptions ca WHERE ca.contract_id = c.id) AS adoption_count,
 		EXISTS(SELECT 1 FROM contract_adoptions ca2 WHERE ca2.contract_id = c.id AND ca2.organization_id = $1) AS is_adopted,
 		COALESCE((SELECT cu.name FROM customers cu WHERE cu.id = c.customer_id), '') AS customer_name,
-		(SELECT COUNT(*) FROM time_entries te WHERE te.project_id IN (SELECT p.id FROM projects p WHERE p.contract_id = c.id)) AS time_entries_count
+		(SELECT COUNT(*) FROM time_entries te WHERE te.activity_id IN (
+			WITH RECURSIVE act_tree AS (
+				SELECT id FROM activities WHERE contract_id = c.id
+				UNION ALL
+				SELECT a.id FROM activities a
+				INNER JOIN act_tree t ON a.parent_id = t.id
+			)
+			SELECT id FROM act_tree
+		)) AS time_entries_count
 	FROM contracts c
 	LEFT JOIN organizations o ON o.id = c.created_by_org_id`
 }
@@ -207,6 +218,8 @@ func (r *ContractRepository) Update(ctx context.Context, orgID, contractID uuid.
 }
 
 // RecalculateMileage updates expense amounts based on contract km_rate.
+// Only expenses whose activity's commercial chain resolves to this contract
+// are touched (D-3: derived via the activity subtree).
 func (r *ContractRepository) RecalculateMileage(ctx context.Context, orgID, contractID uuid.UUID, fromDate string, actorUserID uuid.UUID) (int, error) {
 	// Fetch the contract's km_rate first
 	var kmRate float64
@@ -219,8 +232,16 @@ func (r *ContractRepository) RecalculateMileage(ctx context.Context, orgID, cont
 	}
 
 	query := `UPDATE expenses SET amount = km_distance * $1
-		WHERE project_id IN (SELECT id FROM projects WHERE contract_id = $2 AND org_id = $3)
-		AND km_distance IS NOT NULL`
+		WHERE km_distance IS NOT NULL
+		AND activity_id IN (
+			WITH RECURSIVE act_tree AS (
+				SELECT id FROM activities WHERE contract_id = $2 AND org_id = $3
+				UNION ALL
+				SELECT a.id FROM activities a
+				INNER JOIN act_tree t ON a.parent_id = t.id
+			)
+			SELECT id FROM act_tree
+		)`
 
 	var args []interface{}
 	args = append(args, kmRate, contractID, orgID)
@@ -252,9 +273,9 @@ func (r *ContractRepository) Delete(ctx context.Context, orgID, contractID uuid.
 	return nil
 }
 
-// HasProjects returns the count of projects under this contract.
+// HasProjects returns the count of activities directly linked to this contract.
 func (r *ContractRepository) HasProjects(ctx context.Context, contractID uuid.UUID) (int, error) {
-	query := `SELECT COUNT(*) FROM projects WHERE contract_id = $1`
+	query := `SELECT COUNT(*) FROM activities WHERE contract_id = $1`
 	var count int
 	err := r.pool.QueryRow(ctx, query, contractID).Scan(&count)
 	if err != nil {
@@ -263,10 +284,18 @@ func (r *ContractRepository) HasProjects(ctx context.Context, contractID uuid.UU
 	return count, nil
 }
 
-// HasTimeEntries returns the count of time entries for projects under this contract.
+// HasTimeEntries returns the count of time entries for activities under this contract.
 func (r *ContractRepository) HasTimeEntries(ctx context.Context, contractID uuid.UUID) (int, error) {
 	query := `SELECT COUNT(*) FROM time_entries
-		WHERE project_id IN (SELECT id FROM projects WHERE contract_id = $1)`
+		WHERE activity_id IN (
+			WITH RECURSIVE act_tree AS (
+				SELECT id FROM activities WHERE contract_id = $1
+				UNION ALL
+				SELECT a.id FROM activities a
+				INNER JOIN act_tree t ON a.parent_id = t.id
+			)
+			SELECT id FROM act_tree
+		)`
 	var count int
 	err := r.pool.QueryRow(ctx, query, contractID).Scan(&count)
 	if err != nil {

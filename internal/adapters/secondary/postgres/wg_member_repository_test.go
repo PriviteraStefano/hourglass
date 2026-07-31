@@ -17,10 +17,10 @@ func TestWGMemberRepository_ListByWG(t *testing.T) {
 
 	repo := NewWorkingGroupRepository(pool)
 	now := time.Now().UTC()
-	orgID, _, spID, managerID, unitID := seedWGSetup(t, pool, now)
+	orgID, activityID, managerID, unitID := seedWGSetup(t, pool, now)
 
 	wg, err := repo.Create(context.Background(), &working_group.WorkingGroup{
-		OrgID: orgID, SubprojectID: spID, Name: "WG Members Test",
+		OrgID: orgID, SubprojectID: activityID, Name: "WG Members Test",
 		ManagerID: managerID, IsActive: true,
 	})
 	require.NoError(t, err)
@@ -46,10 +46,10 @@ func TestWGMemberRepository_Add_ListByWG(t *testing.T) {
 
 	repo := NewWorkingGroupRepository(pool)
 	now := time.Now().UTC()
-	orgID, _, spID, managerID, unitID := seedWGSetup(t, pool, now)
+	orgID, activityID, managerID, unitID := seedWGSetup(t, pool, now)
 
 	wg, err := repo.Create(context.Background(), &working_group.WorkingGroup{
-		OrgID: orgID, SubprojectID: spID, Name: "WG Add Test",
+		OrgID: orgID, SubprojectID: activityID, Name: "WG Add Test",
 		ManagerID: managerID, IsActive: true,
 	})
 	require.NoError(t, err)
@@ -71,10 +71,10 @@ func TestWGMemberRepository_Remove(t *testing.T) {
 
 	repo := NewWorkingGroupRepository(pool)
 	now := time.Now().UTC()
-	orgID, _, spID, managerID, unitID := seedWGSetup(t, pool, now)
+	orgID, activityID, managerID, unitID := seedWGSetup(t, pool, now)
 
 	wg, err := repo.Create(context.Background(), &working_group.WorkingGroup{
-		OrgID: orgID, SubprojectID: spID, Name: "WG Remove Test",
+		OrgID: orgID, SubprojectID: activityID, Name: "WG Remove Test",
 		ManagerID: managerID, IsActive: true,
 	})
 	require.NoError(t, err)

@@ -153,24 +153,31 @@ func seedUser(t *testing.T, pool *pgxpool.Pool, now time.Time) uuid.UUID {
 	return id
 }
 
-func seedProject(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, now time.Time) uuid.UUID {
+// seedActivityKind ensures the org has a kind in its activity_kinds catalog
+// (ADR-P-007 D-2 — kind is an org-level catalog label, not an enum).
+func seedActivityKind(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, kind string) {
 	t.Helper()
-	id := uuid.New()
 	_, err := pool.Exec(context.Background(),
-		`INSERT INTO projects (id, org_id, name, project_type, type, governance_model, created_by_org_id, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		id, orgID, "Test Project", "billable", "billable", "creator_controlled", orgID, now, now)
+		`INSERT INTO activity_kinds (org_id, name, is_seed) VALUES ($1, $2, true)
+		 ON CONFLICT (org_id, name) DO NOTHING`,
+		orgID, kind)
 	require.NoError(t, err)
-	return id
 }
 
-func seedSubproject(t *testing.T, pool *pgxpool.Pool, projectID uuid.UUID, now time.Time) uuid.UUID {
+// seedActivity creates an activity linked to the org's kind catalog.
+// parentID nil = root activity; kind defaults to "engagement" when empty.
+func seedActivity(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, kind string, parentID *uuid.UUID, now time.Time) uuid.UUID {
 	t.Helper()
+	if kind == "" {
+		kind = "engagement"
+	}
+	seedActivityKind(t, pool, orgID, kind)
 	id := uuid.New()
 	_, err := pool.Exec(context.Background(),
-		`INSERT INTO subprojects (id, project_id, name, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5)`,
-		id, projectID, "Test Subproject", now, now)
+		`INSERT INTO activities (id, org_id, parent_id, name, description, kind,
+			governance_model, created_by_org_id, is_shared, is_active, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, 'creator_controlled', $2, false, true, $7, $7)`,
+		id, orgID, parentID, "Test Activity", "Test activity description", kind, now)
 	require.NoError(t, err)
 	return id
 }

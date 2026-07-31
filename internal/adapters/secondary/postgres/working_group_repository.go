@@ -14,6 +14,8 @@ import (
 )
 
 // WorkingGroupRepository implements ports.WorkingGroupRepository using a pgxpool.
+// Working groups anchor to activities at any depth (ADR-P-007 D-5); the
+// legacy unit-tuple toggle column was dropped in migration 011 (ADR-P-001 Q3).
 type WorkingGroupRepository struct {
 	pool    *pgxpool.Pool
 	members *WGMemberRepository
@@ -26,17 +28,17 @@ func NewWorkingGroupRepository(pool *pgxpool.Pool) *WorkingGroupRepository {
 	}
 }
 
-// ListByOrg returns working groups for the given org, optionally filtered by subproject.
-func (r *WorkingGroupRepository) ListByOrg(ctx context.Context, orgID uuid.UUID, subprojectID *uuid.UUID) ([]working_group.WorkingGroup, error) {
+// ListByOrg returns working groups for the given org, optionally filtered by activity.
+func (r *WorkingGroupRepository) ListByOrg(ctx context.Context, orgID uuid.UUID, activityID *uuid.UUID) ([]working_group.WorkingGroup, error) {
 	var query string
 	var args []interface{}
-	if subprojectID != nil {
-		query = `SELECT id, org_id, subproject_id, name, description, unit_ids, enforce_unit_tuple,
+	if activityID != nil {
+		query = `SELECT id, org_id, activity_id, name, description, unit_ids,
 			manager_id, delegate_ids, is_active, created_at, updated_at
-			FROM working_groups WHERE org_id = $1 AND subproject_id = $2 ORDER BY name`
-		args = []interface{}{orgID, *subprojectID}
+			FROM working_groups WHERE org_id = $1 AND activity_id = $2 ORDER BY name`
+		args = []interface{}{orgID, *activityID}
 	} else {
-		query = `SELECT id, org_id, subproject_id, name, description, unit_ids, enforce_unit_tuple,
+		query = `SELECT id, org_id, activity_id, name, description, unit_ids,
 			manager_id, delegate_ids, is_active, created_at, updated_at
 			FROM working_groups WHERE org_id = $1 ORDER BY name`
 		args = []interface{}{orgID}
@@ -64,7 +66,7 @@ func (r *WorkingGroupRepository) ListByOrg(ctx context.Context, orgID uuid.UUID,
 
 // GetByID returns a working group by ID, or working_group.ErrWorkingGroupNotFound.
 func (r *WorkingGroupRepository) GetByID(ctx context.Context, id uuid.UUID) (*working_group.WorkingGroup, error) {
-	query := `SELECT id, org_id, subproject_id, name, description, unit_ids, enforce_unit_tuple,
+	query := `SELECT id, org_id, activity_id, name, description, unit_ids,
 		manager_id, delegate_ids, is_active, created_at, updated_at
 		FROM working_groups WHERE id = $1`
 	wg, err := scanWorkingGroup(r.pool.QueryRow(ctx, query, id))
@@ -84,14 +86,14 @@ func (r *WorkingGroupRepository) Create(ctx context.Context, wg *working_group.W
 	unitIDs := toUUIDArray(wg.UnitIDs)
 	delegateIDs := toUUIDArray(wg.DelegateIDs)
 
-	query := `INSERT INTO working_groups (id, org_id, subproject_id, name, description,
-		unit_ids, enforce_unit_tuple, manager_id, delegate_ids, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
-		RETURNING id, org_id, subproject_id, name, description, unit_ids, enforce_unit_tuple,
+	query := `INSERT INTO working_groups (id, org_id, activity_id, name, description,
+		unit_ids, manager_id, delegate_ids, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+		RETURNING id, org_id, activity_id, name, description, unit_ids,
 			manager_id, delegate_ids, is_active, created_at, updated_at`
 	return scanWorkingGroup(r.pool.QueryRow(ctx, query,
 		wg.ID, wg.OrgID, wg.SubprojectID, wg.Name, wg.Description,
-		unitIDs, wg.EnforceUnitTuple, wg.ManagerID, delegateIDs, wg.IsActive))
+		unitIDs, wg.ManagerID, delegateIDs, wg.IsActive))
 }
 
 // Update dynamically builds a SET clause for a working group.
@@ -100,18 +102,17 @@ func (r *WorkingGroupRepository) Update(ctx context.Context, wg *working_group.W
 		"name = $2",
 		"description = $3",
 		"unit_ids = $4",
-		"enforce_unit_tuple = $5",
-		"manager_id = $6",
-		"delegate_ids = $7",
+		"manager_id = $5",
+		"delegate_ids = $6",
 	}
 	args := []interface{}{
 		wg.ID, wg.Name, wg.Description,
-		toUUIDArray(wg.UnitIDs), wg.EnforceUnitTuple, wg.ManagerID,
+		toUUIDArray(wg.UnitIDs), wg.ManagerID,
 		toUUIDArray(wg.DelegateIDs),
 	}
 
 	query := fmt.Sprintf(`UPDATE working_groups SET %s, updated_at = NOW() WHERE id = $1
-		RETURNING id, org_id, subproject_id, name, description, unit_ids, enforce_unit_tuple,
+		RETURNING id, org_id, activity_id, name, description, unit_ids,
 			manager_id, delegate_ids, is_active, created_at, updated_at`,
 		strings.Join(sets, ", "))
 	return scanWorkingGroup(r.pool.QueryRow(ctx, query, args...))
@@ -194,7 +195,7 @@ func scanWorkingGroup(s wgScanner) (*working_group.WorkingGroup, error) {
 
 	err := s.Scan(
 		&wg.ID, &wg.OrgID, &wg.SubprojectID, &wg.Name, &wg.Description,
-		&unitIDs, &wg.EnforceUnitTuple, &wg.ManagerID, &delegateIDs,
+		&unitIDs, &wg.ManagerID, &delegateIDs,
 		&wg.IsActive, &wg.CreatedAt, &wg.UpdatedAt,
 	)
 	if err != nil {

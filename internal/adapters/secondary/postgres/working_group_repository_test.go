@@ -12,15 +12,14 @@ import (
 )
 
 // seedWGSetup creates all FK dependencies needed for a working group and returns
-// (orgID, projectID, subprojectID, managerID, unitID).
-func seedWGSetup(t *testing.T, pool *pgxpool.Pool, now time.Time) (uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) {
+// (orgID, activityID, managerID, unitID).
+func seedWGSetup(t *testing.T, pool *pgxpool.Pool, now time.Time) (uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) {
 	t.Helper()
 	orgID := seedOrg(t, pool, now)
-	projectID := seedProject(t, pool, orgID, now)
-	spID := seedSubproject(t, pool, projectID, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
 	managerID := seedUser(t, pool, now)
 	unitID := seedUnit(t, pool, orgID, now)
-	return orgID, projectID, spID, managerID, unitID
+	return orgID, activityID, managerID, unitID
 }
 
 func TestWorkingGroupRepository_ListByOrg(t *testing.T) {
@@ -30,14 +29,14 @@ func TestWorkingGroupRepository_ListByOrg(t *testing.T) {
 
 	repo := NewWorkingGroupRepository(pool)
 	now := time.Now().UTC()
-	orgID, _, spID, managerID, _ := seedWGSetup(t, pool, now)
+	orgID, activityID, managerID, _ := seedWGSetup(t, pool, now)
 
 	wg1 := &working_group.WorkingGroup{
-		OrgID: orgID, SubprojectID: spID, Name: "Alpha Team",
+		OrgID: orgID, SubprojectID: activityID, Name: "Alpha Team",
 		ManagerID: managerID, IsActive: true,
 	}
 	wg2 := &working_group.WorkingGroup{
-		OrgID: orgID, SubprojectID: spID, Name: "Beta Team",
+		OrgID: orgID, SubprojectID: activityID, Name: "Beta Team",
 		ManagerID: managerID, IsActive: true,
 	}
 
@@ -52,15 +51,14 @@ func TestWorkingGroupRepository_ListByOrg(t *testing.T) {
 	require.Len(t, wgs, 2)
 	require.Equal(t, "Alpha Team", wgs[0].Name)
 
-	// Filter by subproject
-	filtered, err := repo.ListByOrg(context.Background(), orgID, &spID)
+	// Filter by activity
+	filtered, err := repo.ListByOrg(context.Background(), orgID, &activityID)
 	require.NoError(t, err)
 	require.Len(t, filtered, 2)
 
-	// Different subproject — should be empty
-	otherSP := seedSubproject(t, pool,
-		seedProject(t, pool, orgID, now), now)
-	empty, err := repo.ListByOrg(context.Background(), orgID, &otherSP)
+	// Different activity — should be empty
+	otherActivity := seedActivity(t, pool, orgID, "internal", nil, now)
+	empty, err := repo.ListByOrg(context.Background(), orgID, &otherActivity)
 	require.NoError(t, err)
 	require.Empty(t, empty)
 }
@@ -72,17 +70,17 @@ func TestWorkingGroupRepository_Create_GetByID(t *testing.T) {
 
 	repo := NewWorkingGroupRepository(pool)
 	now := time.Now().UTC()
-	orgID, _, spID, managerID, unitID := seedWGSetup(t, pool, now)
+	orgID, activityID, managerID, unitID := seedWGSetup(t, pool, now)
 
 	wg := &working_group.WorkingGroup{
 		OrgID:        orgID,
-		SubprojectID: spID,
-		Name:         "Core Team",
-		Description:  "Core development team",
-		UnitIDs:      []string{unitID.String()},
-		ManagerID:    managerID,
-		DelegateIDs:  []string{unitID.String()},
-		IsActive:     true,
+		SubprojectID: activityID,
+		Name:        "Core Team",
+		Description: "Core development team",
+		UnitIDs:     []string{unitID.String()},
+		ManagerID:   managerID,
+		DelegateIDs: []string{unitID.String()},
+		IsActive:    true,
 	}
 
 	created, err := repo.Create(context.Background(), wg)
@@ -122,10 +120,10 @@ func TestWorkingGroupRepository_Update(t *testing.T) {
 
 	repo := NewWorkingGroupRepository(pool)
 	now := time.Now().UTC()
-	orgID, _, spID, managerID, unitID := seedWGSetup(t, pool, now)
+	orgID, activityID, managerID, unitID := seedWGSetup(t, pool, now)
 
 	created, err := repo.Create(context.Background(), &working_group.WorkingGroup{
-		OrgID: orgID, SubprojectID: spID, Name: "Old Name",
+		OrgID: orgID, SubprojectID: activityID, Name: "Old Name",
 		ManagerID: managerID, IsActive: true,
 	})
 	require.NoError(t, err)
@@ -152,10 +150,10 @@ func TestWorkingGroupRepository_Delete(t *testing.T) {
 
 	repo := NewWorkingGroupRepository(pool)
 	now := time.Now().UTC()
-	orgID, _, spID, managerID, _ := seedWGSetup(t, pool, now)
+	orgID, activityID, managerID, _ := seedWGSetup(t, pool, now)
 
 	created, err := repo.Create(context.Background(), &working_group.WorkingGroup{
-		OrgID: orgID, SubprojectID: spID, Name: "To Delete",
+		OrgID: orgID, SubprojectID: activityID, Name: "To Delete",
 		ManagerID: managerID, IsActive: true,
 	})
 	require.NoError(t, err)
@@ -174,10 +172,10 @@ func TestWorkingGroupRepository_HasMembers(t *testing.T) {
 
 	repo := NewWorkingGroupRepository(pool)
 	now := time.Now().UTC()
-	orgID, _, spID, managerID, unitID := seedWGSetup(t, pool, now)
+	orgID, activityID, managerID, unitID := seedWGSetup(t, pool, now)
 
 	wg, err := repo.Create(context.Background(), &working_group.WorkingGroup{
-		OrgID: orgID, SubprojectID: spID, Name: "Member Check",
+		OrgID: orgID, SubprojectID: activityID, Name: "Member Check",
 		ManagerID: managerID, IsActive: true,
 	})
 	require.NoError(t, err)

@@ -23,33 +23,74 @@ func NewExportRepository(pool *pgxpool.Pool) *ExportRepository {
 
 // roleFilter builds a SQL fragment for role-based user filtering.
 // field is the user_id column expression (e.g., "te.user_id").
+// Manager scope resolves through the activity → working-group chain
+// (ADR-BE-014 R-1): the user is the WG manager or delegate.
 // Returns the SQL fragment and the total number of query parameters.
 func roleFilter(field string, role string) (string, int) {
 	switch role {
 	case "employee":
 		return fmt.Sprintf(" AND %s = $4", field), 4
 	case "manager":
-		return fmt.Sprintf(" AND (%s = $4 OR project_id IN (SELECT project_id FROM project_managers WHERE user_id = $4))", field), 4
+		return fmt.Sprintf(" AND (%s = $4 OR activity_id IN (SELECT activity_id FROM working_groups WHERE manager_id = $4 OR $4 = ANY(delegate_ids)))", field), 4
 	default:
 		return "", 3
 	}
 }
 
+// commercialChainCTE walks each entry's activity upward until a contract is
+// found (ADR-P-007 D-3 — commercial context derived, never stored). The CTE
+// yields one row per (entry, ancestor) until the contract-bearing ancestor
+// (or root); the final select picks the deepest row per entry, which carries
+// the entry's activity name and the resolved contract.
+const commercialChainCTE = `commercial AS (
+	SELECT te.id AS entry_id, a.id AS activity_id, a.parent_id, a.contract_id, a.name AS activity_name, 0 AS depth
+	FROM time_entries te
+	JOIN activities a ON a.id = te.activity_id
+	UNION ALL
+	SELECT c.entry_id, c.activity_id, a.parent_id, a.contract_id, c.activity_name, c.depth + 1
+	FROM commercial c
+	JOIN activities a ON a.id = c.parent_id
+	WHERE c.contract_id IS NULL
+),
+commercial_resolved AS (
+	SELECT DISTINCT ON (entry_id) entry_id, activity_id, activity_name, contract_id
+	FROM commercial
+	ORDER BY entry_id, depth DESC
+)`
+
+// commercialChainCTEExpenses is the expense variant of commercialChainCTE.
+const commercialChainCTEExpenses = `commercial AS (
+	SELECT e.id AS entry_id, a.id AS activity_id, a.parent_id, a.contract_id, a.name AS activity_name, 0 AS depth
+	FROM expenses e
+	JOIN activities a ON a.id = e.activity_id
+	UNION ALL
+	SELECT c.entry_id, c.activity_id, a.parent_id, a.contract_id, c.activity_name, c.depth + 1
+	FROM commercial c
+	JOIN activities a ON a.id = c.parent_id
+	WHERE c.contract_id IS NULL
+),
+commercial_resolved AS (
+	SELECT DISTINCT ON (entry_id) entry_id, activity_id, activity_name, contract_id
+	FROM commercial
+	ORDER BY entry_id, depth DESC
+)`
+
 // Timesheets returns time entry export rows for the given org and date range.
 func (r *ExportRepository) Timesheets(ctx context.Context, orgID uuid.UUID, from, to time.Time, role string, userID uuid.UUID) ([]ports.ExportRow, error) {
 	roleSQL, paramCount := roleFilter("te.user_id", role)
 
-	query := `SELECT 'time_entry' AS entry_type, te.entry_date AS date,
+	query := `WITH RECURSIVE ` + commercialChainCTE + `
+	SELECT 'time_entry' AS entry_type, te.entry_date AS date,
 		CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS employee,
-		COALESCE(p.name, '') AS project,
+		COALESCE(cr.activity_name, '') AS project,
 		COALESCE(c.name, '') AS contract,
 		COALESCE(cu.name, '') AS customer,
 		te.hours, NULL::decimal AS amount, NULL::decimal AS km_distance,
 		''::varchar AS type, te.description, te.status
 	FROM time_entries te
 	LEFT JOIN users u ON u.id = te.user_id
-	LEFT JOIN projects p ON p.id = te.project_id
-	LEFT JOIN contracts c ON c.id = p.contract_id
+	LEFT JOIN commercial_resolved cr ON cr.entry_id = te.id
+	LEFT JOIN contracts c ON c.id = cr.contract_id
 	LEFT JOIN customers cu ON cu.id = c.customer_id
 	WHERE te.org_id = $1 AND te.entry_date >= $2 AND te.entry_date <= $3 AND te.is_deleted = false` + roleSQL + `
 	ORDER BY te.entry_date`
@@ -73,17 +114,18 @@ func (r *ExportRepository) Timesheets(ctx context.Context, orgID uuid.UUID, from
 func (r *ExportRepository) Expenses(ctx context.Context, orgID uuid.UUID, from, to time.Time, role string, userID uuid.UUID) ([]ports.ExportRow, error) {
 	roleSQL, paramCount := roleFilter("e.user_id", role)
 
-	query := `SELECT 'expense' AS entry_type, e.expense_date AS date,
+	query := `WITH RECURSIVE ` + commercialChainCTEExpenses + `
+	SELECT 'expense' AS entry_type, e.expense_date AS date,
 		CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS employee,
-		COALESCE(p.name, '') AS project,
+		COALESCE(cr.activity_name, '') AS project,
 		COALESCE(c.name, '') AS contract,
 		COALESCE(cu.name, '') AS customer,
 		NULL::decimal AS hours, e.amount, e.km_distance,
 		COALESCE(e.category, '') AS type, e.description, e.status
 	FROM expenses e
 	LEFT JOIN users u ON u.id = e.user_id
-	LEFT JOIN projects p ON p.id = e.project_id
-	LEFT JOIN contracts c ON c.id = p.contract_id
+	LEFT JOIN commercial_resolved cr ON cr.entry_id = e.id
+	LEFT JOIN contracts c ON c.id = cr.contract_id
 	LEFT JOIN customers cu ON cu.id = c.customer_id
 	WHERE e.org_id = $1 AND e.expense_date >= $2 AND e.expense_date <= $3 AND e.is_deleted = false` + roleSQL + `
 	ORDER BY e.expense_date`
