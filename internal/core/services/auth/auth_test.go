@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -365,6 +366,8 @@ func TestService_Refresh(t *testing.T) {
 
 // A replayed rotated token must revoke the ENTIRE family — including the
 // successor issued by the original rotation — not just the replayed hash.
+// The replayed token itself is tombstoned too, and tokens in other families
+// are left untouched (RevokeFamily is scoped to the right family).
 func TestService_Refresh_ReplayRevokesFamily(t *testing.T) {
 	userRepo := &testdata.MockUserRepo{}
 	orgRepo := &testdata.MockOrgRepo{}
@@ -375,10 +378,12 @@ func TestService_Refresh_ReplayRevokesFamily(t *testing.T) {
 	userID := uuid.New()
 	orgID := uuid.New()
 	familyID := uuid.New()
+	otherFamilyID := uuid.New()
 	now := time.Now()
 	rotatedAt := now.Add(-time.Minute)
 
 	// Token A was already rotated; token B is its successor (same family).
+	// Token C belongs to a completely different family and must be untouched.
 	refreshRepo.Tokens = map[string]*ports.RefreshToken{
 		"hashed-token-a": {
 			UserID:         userID,
@@ -397,6 +402,14 @@ func TestService_Refresh_ReplayRevokesFamily(t *testing.T) {
 			CreatedAt:      now,
 			FamilyID:       familyID,
 		},
+		"hashed-token-c": {
+			UserID:         userID,
+			OrganizationID: orgID,
+			Hash:           "hashed-token-c",
+			ExpiresAt:      now.Add(7 * 24 * time.Hour),
+			CreatedAt:      now,
+			FamilyID:       otherFamilyID,
+		},
 	}
 
 	svc := NewService(userRepo, orgRepo, tokenSvc, pwHasher, refreshRepo)
@@ -406,10 +419,124 @@ func TestService_Refresh_ReplayRevokesFamily(t *testing.T) {
 	assert.ErrorIs(t, err, ErrTokenReuse)
 	assert.Nil(t, resp)
 
-	// ...and must have tombstoned the successor B too.
+	// ...and must have tombstoned the whole family:
 	sibling := refreshRepo.Tokens["hashed-token-b"]
 	require.NotNil(t, sibling, "successor token should still exist in store")
 	require.NotNil(t, sibling.RevokedAt, "successor token should be revoked with its family")
+
+	replayed := refreshRepo.Tokens["hashed-token-a"]
+	require.NotNil(t, replayed)
+	require.NotNil(t, replayed.RevokedAt, "replayed token itself should be tombstoned too")
+
+	// A token in a different family is unaffected (right-family scoping).
+	other := refreshRepo.Tokens["hashed-token-c"]
+	require.NotNil(t, other)
+	assert.Nil(t, other.RevokedAt, "token in a different family must not be revoked")
+	assert.Nil(t, other.RotatedAt)
+}
+
+// ---------------------------------------------------------------------------
+// TestService_Refresh_RotateHappyPath
+// ---------------------------------------------------------------------------
+
+// The atomic rotate happy path: the old row is marked rotated, the successor
+// is inserted with the SAME family_id, and a fresh token pair is returned.
+func TestService_Refresh_RotateHappyPath(t *testing.T) {
+	userRepo := &testdata.MockUserRepo{}
+	orgRepo := &testdata.MockOrgRepo{}
+	tokenSvc := &testdata.MockTokenService{}
+	pwHasher := &testdata.MockPasswordHasher{}
+	refreshRepo := &testdata.MockRefreshTokenRepo{}
+
+	userID := uuid.New()
+	orgID := uuid.New()
+	familyID := uuid.New()
+	now := time.Now()
+
+	refreshRepo.Tokens = map[string]*ports.RefreshToken{
+		"hashed-token-a": {
+			UserID:         userID,
+			OrganizationID: orgID,
+			Hash:           "hashed-token-a",
+			ExpiresAt:      now.Add(24 * time.Hour),
+			CreatedAt:      now.Add(-2 * time.Hour),
+			FamilyID:       familyID,
+		},
+	}
+	userRepo.Memberships = map[uuid.UUID][]authdomain.OrganizationMembership{
+		userID: {
+			{ID: uuid.New(), UserID: userID, OrganizationID: orgID, Role: "employee", IsActive: true},
+		},
+	}
+	_ = userRepo.Add(context.Background(), &authdomain.User{
+		ID:       userID,
+		Email:    "rotate-happy@test.com",
+		Username: "rotatehappy",
+		IsActive: true,
+	})
+
+	svc := NewService(userRepo, orgRepo, tokenSvc, pwHasher, refreshRepo)
+	resp, err := svc.Refresh(context.Background(), "token-a")
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.NotEqual(t, "token-a", resp.RefreshToken, "refresh must issue a new token")
+
+	// Old row: rotated, NOT revoked (happy path never tombstones).
+	old := refreshRepo.Tokens["hashed-token-a"]
+	require.NotNil(t, old)
+	require.NotNil(t, old.RotatedAt, "old token must be marked rotated")
+	assert.Nil(t, old.RevokedAt, "old token must not be revoked on the happy path")
+
+	// Successor: inserted with the same family id (mock token service always
+	// issues "mock-refresh-token", so the successor hash is deterministic).
+	succ := refreshRepo.Tokens["hashed-mock-refresh-token"]
+	require.NotNil(t, succ, "successor token must be inserted during rotation")
+	assert.Equal(t, familyID, succ.FamilyID, "successor must inherit the family id")
+	assert.Equal(t, userID, succ.UserID)
+}
+
+// ---------------------------------------------------------------------------
+// TestService_Refresh_MidRotateFailure_NoPartialState
+// ---------------------------------------------------------------------------
+
+// If the repository fails mid-rotation, the service must surface the error and
+// leave NO partial state behind: the old token is neither rotated nor revoked
+// (the real repository rolls its transaction back — no window where the old
+// token is consumed without a successor).
+func TestService_Refresh_MidRotateFailure_NoPartialState(t *testing.T) {
+	userRepo := &testdata.MockUserRepo{}
+	orgRepo := &testdata.MockOrgRepo{}
+	tokenSvc := &testdata.MockTokenService{}
+	pwHasher := &testdata.MockPasswordHasher{}
+	refreshRepo := &testdata.MockRefreshTokenRepo{}
+
+	userID := uuid.New()
+	orgID := uuid.New()
+	now := time.Now()
+	refreshRepo.Tokens = map[string]*ports.RefreshToken{
+		"hashed-token-a": {
+			UserID:         userID,
+			OrganizationID: orgID,
+			Hash:           "hashed-token-a",
+			ExpiresAt:      now.Add(24 * time.Hour),
+			CreatedAt:      now.Add(-2 * time.Hour),
+			FamilyID:       uuid.New(),
+		},
+	}
+	// Repo fails mid-rotation (e.g. successor insert violates a constraint and
+	// the tx rolls back).
+	refreshRepo.RotateErr = errors.New("simulated mid-rotate failure")
+
+	svc := NewService(userRepo, orgRepo, tokenSvc, pwHasher, refreshRepo)
+	resp, err := svc.Refresh(context.Background(), "token-a")
+	require.Error(t, err)
+	assert.Nil(t, resp, "no token pair may be issued when rotation fails")
+
+	old := refreshRepo.Tokens["hashed-token-a"]
+	require.NotNil(t, old)
+	assert.Nil(t, old.RotatedAt, "old token must NOT be rotated when rotation fails")
+	assert.Nil(t, old.RevokedAt, "old token must NOT be revoked when rotation fails")
+	assert.Empty(t, refreshRepo.Tokens["hashed-mock-refresh-token"], "no successor may exist when rotation fails")
 }
 
 // ---------------------------------------------------------------------------

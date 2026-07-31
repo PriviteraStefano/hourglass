@@ -240,6 +240,22 @@ func TestAuthIntegration(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, storedNew)
 		assert.Equal(t, newHash, storedNew.Hash)
+
+		// Second refresh: the chain rotates again — every token differs.
+		refreshResp2, err := svc.Refresh(context.Background(), refreshResp.RefreshToken)
+		require.NoError(t, err)
+		require.NotNil(t, refreshResp2)
+		assert.NotEqual(t, refreshResp.RefreshToken, refreshResp2.RefreshToken,
+			"second refresh must issue yet another distinct token")
+		assert.NotEqual(t, oldRefreshToken, refreshResp2.RefreshToken)
+
+		// The second rotation stays in the same family as the first.
+		newHash2 := auth.HashRefreshToken(refreshResp2.RefreshToken)
+		storedNew2, err := refreshRepo.FindByHash(context.Background(), newHash2)
+		require.NoError(t, err)
+		require.NotNil(t, storedNew2)
+		assert.Equal(t, storedNew.FamilyID, storedNew2.FamilyID,
+			"successor of a successor must keep the same family id")
 	})
 
 	t.Run("RefreshWithRevokedToken", func(t *testing.T) {
@@ -307,6 +323,83 @@ func TestAuthIntegration(t *testing.T) {
 		// ...and the whole family dies: the successor B is revoked too.
 		_, err = svc.Refresh(context.Background(), refreshResp.RefreshToken)
 		require.ErrorIs(t, err, ErrTokenReuse, "successor token should be revoked with its family")
+	})
+
+	// Two simultaneous refreshes of the SAME token must yield a deterministic
+	// outcome set: exactly one succeeds, the loser receives ErrTokenReuse.
+	//
+	// Chosen semantics (locked by 08-01, audit P0-5): SELECT ... FOR UPDATE in
+	// Rotate serializes the transactions — whichever commits first rotates the
+	// token; the loser observes the committed rotation and is
+	// indistinguishable from an attacker replay, so it revokes the whole
+	// family. Distinguishing a legitimate multi-tab race loser from an
+	// attacker replay (e.g. client fingerprinting) is audit item T9 and is
+	// explicitly out of scope. The outcome set holds for ANY goroutine
+	// scheduling — the assertions rely on the row lock, not on wall-clock
+	// timing.
+	t.Run("RefreshConcurrentRace_ExactlyOneSucceeds", func(t *testing.T) {
+		svc := realRepoFixture(t, pool)
+
+		email := uuid.New().String() + "@test.com"
+		password := "SecurePass123!"
+		username := "race_" + uuid.New().String()[:8]
+
+		_, err := svc.Register(context.Background(), RegisterRequest{
+			Email:     email,
+			Password:  password,
+			FirstName: "Race",
+			LastName:  "Test",
+			Username:  username,
+			OrgName:   "Race Corp",
+		})
+		require.NoError(t, err)
+
+		loginResp, err := svc.Login(context.Background(), LoginRequest{
+			Identifier: email,
+			Password:   password,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, loginResp)
+
+		start := make(chan struct{})
+		type result struct {
+			resp *RefreshResponse
+			err  error
+		}
+		results := make(chan result, 2)
+		for i := 0; i < 2; i++ {
+			go func() {
+				<-start
+				resp, err := svc.Refresh(context.Background(), loginResp.RefreshToken)
+				results <- result{resp: resp, err: err}
+			}()
+		}
+		close(start)
+
+		successes := 0
+		var winnerResp *RefreshResponse
+		var loserErr error
+		for i := 0; i < 2; i++ {
+			r := <-results
+			if r.err == nil {
+				successes++
+				winnerResp = r.resp
+			} else {
+				loserErr = r.err
+			}
+		}
+		assert.Equal(t, 1, successes, "exactly one concurrent refresh must succeed")
+		require.ErrorIs(t, loserErr, ErrTokenReuse, "the race loser follows the replay path")
+		require.NotNil(t, winnerResp)
+
+		// Post-race consistency: the loser's family revocation kills the
+		// winner's successor too — the session is consistently dead, never
+		// partially rotated.
+		refreshRepo := postgres.NewRefreshTokenRepository(pool)
+		winnerHash := auth.HashRefreshToken(winnerResp.RefreshToken)
+		stored, err := refreshRepo.FindByHash(context.Background(), winnerHash)
+		require.NoError(t, err)
+		assert.Nil(t, stored, "winner's successor must be revoked by the race loser (strict reuse semantics)")
 	})
 
 	t.Run("GetProfileWithoutOrg", func(t *testing.T) {

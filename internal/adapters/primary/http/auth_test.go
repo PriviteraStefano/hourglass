@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -313,6 +314,20 @@ func TestAuthHandlerIntegration(t *testing.T) {
 		loginResp := f.registerAndLogin(t, email, "refreshuser", "TestPass123!", "Refresh Org")
 		initialRefresh := loginResp.RefreshToken
 
+		// The cookie jar must hold the initial refresh token after login.
+		jarRefresh := func() string {
+			u, err := url.Parse(f.ServerURL)
+			require.NoError(t, err)
+			for _, c := range f.Client.Jar.Cookies(u) {
+				if c.Name == "refresh_token" {
+					return c.Value
+				}
+			}
+			return ""
+		}
+		assert.Equal(t, initialRefresh, jarRefresh(), "cookie jar should hold the initial refresh token after login")
+
+		// First refresh: rotation A -> B, cookie follows.
 		resp, err := f.Client.Post(f.ServerURL+"/auth/refresh", "application/json", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -329,6 +344,29 @@ func TestAuthHandlerIntegration(t *testing.T) {
 
 		assert.NotEqual(t, initialRefresh, wrapped.Data.RefreshToken, "refresh token should rotate")
 		assert.NotEmpty(t, wrapped.Data.Token, "new access token should be present")
+		assert.Equal(t, wrapped.Data.RefreshToken, jarRefresh(), "cookie jar should hold the rotated token after refresh")
+
+		// Second refresh: rotation B -> C — every refresh issues a distinct
+		// token and updates the cookie again.
+		resp2, err := f.Client.Post(f.ServerURL+"/auth/refresh", "application/json", nil)
+		require.NoError(t, err)
+		defer resp2.Body.Close()
+		require.Equal(t, http.StatusOK, resp2.StatusCode)
+
+		var wrapped2 struct {
+			Data struct {
+				Token        string `json:"token"`
+				RefreshToken string `json:"refresh_token"`
+			} `json:"data"`
+		}
+		err = json.NewDecoder(resp2.Body).Decode(&wrapped2)
+		require.NoError(t, err)
+
+		assert.NotEqual(t, wrapped.Data.RefreshToken, wrapped2.Data.RefreshToken,
+			"second refresh must issue a third distinct token")
+		assert.NotEqual(t, initialRefresh, wrapped2.Data.RefreshToken)
+		assert.Equal(t, wrapped2.Data.RefreshToken, jarRefresh(),
+			"cookie jar should hold the second rotated token")
 	})
 
 	t.Run("Refresh_InvalidToken_Returns401", func(t *testing.T) {

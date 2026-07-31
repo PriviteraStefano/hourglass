@@ -163,5 +163,114 @@ func TestRefreshTokenRepository_RevokeFamily(t *testing.T) {
 	assert.NotNil(t, gotB, "token in a different family should be untouched")
 }
 
+// TestRefreshTokenRepository_Rotate_MidFailure_RollsBack proves rotation is
+// atomic: when the successor insert fails, the whole transaction rolls back
+// and the old token stays valid — there is no window where the old token is
+// consumed (rotated) without a successor existing.
+func TestRefreshTokenRepository_Rotate_MidFailure_RollsBack(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewRefreshTokenRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	userID := seedUser(t, pool, now)
+
+	hashA := uuid.New().String()
+	hashB := uuid.New().String()
+	require.NoError(t, repo.Add(ctx, userID, orgID, hashA, now.Add(7*24*time.Hour)))
+	require.NoError(t, repo.Add(ctx, userID, orgID, hashB, now.Add(7*24*time.Hour)))
+
+	// Attempt to rotate A onto B's already-taken hash: the successor insert
+	// violates the token_hash UNIQUE constraint and the tx must roll back.
+	_, err := repo.Rotate(ctx, hashA, hashB, now.Add(7*24*time.Hour))
+	require.Error(t, err, "inserting a duplicate successor hash must fail")
+
+	// A is untouched: still findable, not rotated, not revoked.
+	got, err := repo.FindByHash(ctx, hashA)
+	require.NoError(t, err)
+	require.NotNil(t, got, "old token must survive a failed rotation")
+	assert.Nil(t, got.RotatedAt, "old token must not be marked rotated on rollback")
+	assert.Nil(t, got.RevokedAt, "old token must not be revoked on rollback")
+
+	// B is untouched too.
+	gotB, err := repo.FindByHash(ctx, hashB)
+	require.NoError(t, err)
+	require.NotNil(t, gotB)
+}
+
+// TestRefreshTokenRepository_Rotate_ConcurrentRace runs two simultaneous
+// rotations of the SAME token and asserts the deterministic outcome set:
+// exactly one succeeds and the loser receives ports.ErrTokenReuse.
+//
+// Chosen semantics (locked by 08-01, audit P0-5): with SELECT ... FOR UPDATE
+// the two transactions serialize — whichever commits first rotates the token;
+// the loser then observes the committed rotation and is indistinguishable from
+// an attacker replay, so it revokes the whole family. Distinguishing a
+// legitimate multi-tab race loser from an attacker replay (e.g. via client
+// fingerprinting) is audit item T9 and is explicitly out of scope. The
+// outcome set below holds for ANY goroutine scheduling — no wall-clock timing
+// is involved, only the FOR UPDATE row lock.
+func TestRefreshTokenRepository_Rotate_ConcurrentRace(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewRefreshTokenRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	userID := seedUser(t, pool, now)
+
+	oldHash := uuid.New().String()
+	require.NoError(t, repo.Add(ctx, userID, orgID, oldHash, now.Add(7*24*time.Hour)))
+
+	start := make(chan struct{})
+	type result struct {
+		newHash string
+		consumed *ports.RefreshToken
+		err      error
+	}
+	results := make(chan result, 2)
+	newHashes := []string{uuid.New().String(), uuid.New().String()}
+	for _, newHash := range newHashes {
+		go func(h string) {
+			<-start
+			consumed, err := repo.Rotate(ctx, oldHash, h, now.Add(7*24*time.Hour))
+			results <- result{newHash: h, consumed: consumed, err: err}
+		}(newHash)
+	}
+	close(start)
+
+	successes := 0
+	var winnerHash string
+	var loserErr error
+	for i := 0; i < 2; i++ {
+		r := <-results
+		if r.err == nil {
+			successes++
+			require.NotNil(t, r.consumed, "winner must return the consumed token")
+			winnerHash = r.newHash
+		} else {
+			loserErr = r.err
+		}
+	}
+	assert.Equal(t, 1, successes, "exactly one concurrent rotation must succeed")
+	require.ErrorIs(t, loserErr, ports.ErrTokenReuse, "the race loser follows the replay path")
+
+	// Post-race consistency: the old token is consumed and the winner's
+	// successor is revoked by the loser's family revocation — the family is
+	// consistently dead, never partially rotated.
+	old, err := repo.FindByHash(ctx, oldHash)
+	require.NoError(t, err)
+	assert.Nil(t, old, "old token must be consumed after the race")
+
+	winner, err := repo.FindByHash(ctx, winnerHash)
+	require.NoError(t, err)
+	assert.Nil(t, winner, "winner's successor must be revoked by the race loser (strict reuse semantics)")
+}
+
 // compile-time guard: the real repo satisfies the extended interface.
 var _ ports.RefreshTokenRepository = (*RefreshTokenRepository)(nil)

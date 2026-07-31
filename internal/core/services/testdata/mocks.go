@@ -831,8 +831,9 @@ func (m *MockExportRepo) CountExpenses(ctx context.Context, orgID uuid.UUID, fro
 }
 
 type MockRefreshTokenRepo struct {
-	mu     sync.Mutex
-	Tokens map[string]*ports.RefreshToken
+	mu       sync.Mutex
+	Tokens   map[string]*ports.RefreshToken
+	RotateErr error // when set, Rotate returns this error without mutating state
 }
 
 func (m *MockRefreshTokenRepo) Add(ctx context.Context, userID, organizationID uuid.UUID, tokenHash string, expiresAt time.Time) error {
@@ -912,6 +913,12 @@ func (m *MockRefreshTokenRepo) RevokeFamily(ctx context.Context, familyID uuid.U
 func (m *MockRefreshTokenRepo) Rotate(ctx context.Context, hash, newHash string, newExpiresAt time.Time) (*ports.RefreshToken, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.RotateErr != nil {
+		// Simulate a repo-level failure mid-rotation (e.g. the successor
+		// insert fails and the real transaction rolls back). No state may be
+		// mutated: the old token stays exactly as it was.
+		return nil, m.RotateErr
+	}
 	if m.Tokens == nil {
 		return nil, nil
 	}
