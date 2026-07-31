@@ -33,7 +33,7 @@ describe("ContractsApis", () => {
     );
 
     const opts = ContractsApis.contractsQueryOpts("owned");
-    const result = await opts.queryFn();
+    const result = await opts.queryFn!(undefined as any);
     expect(result).toEqual(mockContracts);
   });
 
@@ -48,7 +48,7 @@ describe("ContractsApis", () => {
     );
 
     const opts = ContractsApis.contractsQueryOpts("adopted", true);
-    await opts.queryFn();
+    await opts.queryFn!(undefined as any);
   });
 
   it("createContractMutationOpts sends POST /api/contracts with customer_id", async () => {
@@ -82,7 +82,7 @@ describe("ContractsApis", () => {
     );
 
     const result =
-      await ContractsApis.createContractMutationOpts.mutationFn(contractData);
+      await ContractsApis.createContractMutationOpts.mutationFn!(contractData, undefined as any);
     expect(capturedBody).toEqual(contractData);
     expect(result).toEqual(mockContract);
   });
@@ -116,7 +116,7 @@ describe("ContractsApis", () => {
     );
 
     const result =
-      await ContractsApis.createContractMutationOpts.mutationFn(contractData);
+      await ContractsApis.createContractMutationOpts.mutationFn!(contractData, undefined as any);
     expect(capturedBody).toEqual(contractData);
     expect(
       (capturedBody as Record<string, unknown>).customer_id
@@ -143,7 +143,7 @@ describe("ContractsApis", () => {
     );
 
     const opts = ContractsApis.contractQueryOpts("c1");
-    const result = await opts.queryFn();
+    const result = await opts.queryFn!(undefined as any);
     expect(result).toEqual(mockContract);
   });
 });

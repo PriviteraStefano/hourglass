@@ -31,7 +31,7 @@ describe("CustomersApis", () => {
       )
     );
 
-    const result = await CustomersApis.customersQueryOpts().queryFn();
+    const result = await CustomersApis.customersQueryOpts().queryFn!(undefined as any);
     expect(result).toEqual(mockCustomers);
   });
 
@@ -63,7 +63,7 @@ describe("CustomersApis", () => {
     );
 
     const result =
-      await CustomersApis.createCustomerMutationOpts.mutationFn(customerData);
+      await CustomersApis.createCustomerMutationOpts.mutationFn!(customerData, undefined as any);
     expect(capturedBody).toEqual(customerData);
     expect(result).toEqual(mockCustomer);
   });
@@ -103,7 +103,7 @@ describe("CustomersApis", () => {
     );
 
     const opts = CustomersApis.customerQueryOpts("cust1");
-    const result = await opts.queryFn();
+    const result = await opts.queryFn!(undefined as any);
     expect(result).toEqual(mockCustomerWithContracts);
   });
 
@@ -131,10 +131,10 @@ describe("CustomersApis", () => {
       })
     );
 
-    const result = await CustomersApis.updateCustomerMutationOpts.mutationFn({
-      id: "cust1",
-      data: updatePayload,
-    });
+    const result = await CustomersApis.updateCustomerMutationOpts.mutationFn!(
+      { id: "cust1", data: updatePayload },
+      undefined as any
+    );
     expect(capturedBody).toEqual(updatePayload);
     expect(result).toEqual(updatedCustomer);
   });
@@ -149,7 +149,7 @@ describe("CustomersApis", () => {
     );
 
     const result =
-      await CustomersApis.deleteCustomerMutationOpts.mutationFn("cust1");
+      await CustomersApis.deleteCustomerMutationOpts.mutationFn!("cust1", undefined as any);
     expect(capturedUrl).toContain("/api/customers/cust1");
     expect(result).toBeNull();
   });

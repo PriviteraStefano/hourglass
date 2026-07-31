@@ -24,32 +24,30 @@ describe("TimeEntriesApis", () => {
     );
 
     const opts = TimeEntriesApis.timeEntriesForMonthQueryOpts(5, 2026);
-    const result = await opts.queryFn();
+    const result = await opts.queryFn!(undefined as any);
     expect(result).toEqual(mockEntries);
   });
 
   it("createTimeEntryMutationOpts sends POST /time-entries with entry data", async () => {
     const entryData = {
+      activity_id: "a1",
+      unit_id: "u1",
+      hours: 8,
+      description: "Work",
       date: "2026-05-18",
-      items: [{ project_id: "p1", hours: 8, description: "Work" }],
     };
     const mockEntry = {
       id: "te1",
       user_id: "u1",
-      organization_id: "o1",
-      date: "2026-05-18",
+      org_id: "o1",
+      activity_id: "a1",
+      unit_id: "u1",
+      hours: 8,
+      description: "Work",
+      entry_date: "2026-05-18",
       status: "draft" as const,
       created_at: "2026-05-18T10:00:00Z",
       updated_at: "2026-05-18T10:00:00Z",
-      items: [
-        {
-          id: "i1",
-          time_entry_id: "te1",
-          project_id: "p1",
-          hours: 8,
-          description: "Work",
-        },
-      ],
     };
 
     let capturedBody: unknown = null;
@@ -61,7 +59,7 @@ describe("TimeEntriesApis", () => {
     );
 
     const result =
-      await TimeEntriesApis.createTimeEntryMutationOpts.mutationFn(entryData);
+      await TimeEntriesApis.createTimeEntryMutationOpts.mutationFn!(entryData, undefined as any);
     expect(capturedBody).toEqual(entryData);
     expect(result).toEqual(mockEntry);
   });
@@ -75,7 +73,7 @@ describe("TimeEntriesApis", () => {
     );
 
     const result =
-      await TimeEntriesApis.submitTimeEntryMutationOpts.mutationFn("te1");
+      await TimeEntriesApis.submitTimeEntryMutationOpts.mutationFn!("te1", undefined as any);
     expect(result).toEqual({ id: "te1", status: "submitted" });
   });
 
@@ -99,7 +97,7 @@ describe("TimeEntriesApis", () => {
     );
 
     const opts = TimeEntriesApis.timeEntryQueryOpts(new Date("2026-05-18"));
-    const result = await opts.queryFn();
+    const result = await opts.queryFn!(undefined as any);
     expect(result).toEqual(mockEntry);
   });
 });

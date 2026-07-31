@@ -38,7 +38,7 @@ describe("AuthApis", () => {
       http.get("/api/auth/me", () => HttpResponse.json({ data: mockData }))
     );
 
-    const result = await AuthApis.profileQueryOpts.queryFn();
+    const result = await AuthApis.profileQueryOpts.queryFn!(undefined as any);
     expect(result).toEqual(mockData);
   });
 
@@ -81,7 +81,7 @@ describe("AuthApis", () => {
       })
     );
 
-    const result = await AuthApis.loginMutationOpts.mutationFn(creds);
+    const result = await AuthApis.loginMutationOpts.mutationFn!(creds, undefined as any);
     expect(capturedBody).toEqual(creds);
     expect(result).toEqual(mockResponse);
   });
@@ -130,7 +130,7 @@ describe("AuthApis", () => {
       })
     );
 
-    const result = await AuthApis.registerMutationOpts.mutationFn(registerData);
+    const result = await AuthApis.registerMutationOpts.mutationFn!(registerData, undefined as any);
     expect(capturedBody).toEqual(registerData);
     expect(result).toEqual(mockResponse);
   });
@@ -142,7 +142,7 @@ describe("AuthApis", () => {
       )
     );
 
-    const result = await AuthApis.logoutMutationOpts.mutationFn();
+    const result = await AuthApis.logoutMutationOpts.mutationFn!(undefined, undefined as any);
     expect(result).toEqual({ message: "logged out" });
   });
 
@@ -182,7 +182,7 @@ describe("AuthApis", () => {
       )
     );
 
-    const result = await AuthApis.refreshMutationOpts.mutationFn();
+    const result = await AuthApis.refreshMutationOpts.mutationFn!(undefined, undefined as any);
     expect(result).toEqual(mockResponse);
   });
 });
