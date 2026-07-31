@@ -83,7 +83,7 @@ export function customerQueryOpts(id: string) {
 export const createCustomerMutationOpts = mutationOptions({
   mutationFn: (data: CreateCustomerRequest) =>
     api<Customer>("/customers", { method: "POST", body: JSON.stringify(data) }),
-  onSuccess: (_, __, { client }) => {
+  onSuccess: (_, __, ___, { client }) => {
     client.invalidateQueries({ queryKey: ["customers"] });
   },
 });
@@ -94,7 +94,7 @@ export const updateCustomerMutationOpts = mutationOptions({
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  onSuccess: (_, variables, { client }) => {
+  onSuccess: (_, variables, ___, { client }) => {
     client.invalidateQueries({ queryKey: ["customers"] });
     client.invalidateQueries({ queryKey: ["customers", variables.id] });
   },
@@ -103,7 +103,7 @@ export const updateCustomerMutationOpts = mutationOptions({
 export const deleteCustomerMutationOpts = mutationOptions({
   mutationFn: (id: string) =>
     api<void>(`/customers/${id}`, { method: "DELETE" }),
-  onSuccess: (_, id, { client }) => {
+  onSuccess: (_, id, ___, { client }) => {
     client.invalidateQueries({ queryKey: ["customers"] });
     client.invalidateQueries({ queryKey: ["customers", id] });
   },

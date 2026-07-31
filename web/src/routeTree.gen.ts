@@ -18,6 +18,7 @@ import { Route as AuthLoginIndexRouteImport } from './routes/_auth/login/index'
 import { Route as AuthPasswordResetIndexRouteImport } from './routes/_auth/password-reset/index'
 import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/index'
 import { Route as AuthenticatedContractsIndexRouteImport } from './routes/_authenticated/contracts/index'
+import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers/index'
 import { Route as AuthenticatedCustomersIdRouteImport } from './routes/_authenticated/customers/$id'
 import { Route as AuthenticatedExpensesIndexRouteImport } from './routes/_authenticated/expenses/index'
 import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports/index'
@@ -69,6 +70,12 @@ const AuthenticatedContractsIndexRoute =
   AuthenticatedContractsIndexRouteImport.update({
     id: '/contracts/',
     path: '/contracts/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedCustomersIndexRoute =
+  AuthenticatedCustomersIndexRouteImport.update({
+    id: '/customers/',
+    path: '/customers/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedCustomersIdRoute =
@@ -129,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/password-reset/': typeof AuthPasswordResetIndexRoute
   '/register/': typeof AuthRegisterIndexRoute
   '/contracts/': typeof AuthenticatedContractsIndexRoute
+  '/customers/': typeof AuthenticatedCustomersIndexRoute
   '/expenses/': typeof AuthenticatedExpensesIndexRoute
   '/exports/': typeof AuthenticatedExportsIndexRoute
   '/org-hierarchy/': typeof AuthenticatedOrgHierarchyIndexRoute
@@ -146,6 +154,7 @@ export interface FileRoutesByTo {
   '/password-reset': typeof AuthPasswordResetIndexRoute
   '/register': typeof AuthRegisterIndexRoute
   '/contracts': typeof AuthenticatedContractsIndexRoute
+  '/customers': typeof AuthenticatedCustomersIndexRoute
   '/expenses': typeof AuthenticatedExpensesIndexRoute
   '/exports': typeof AuthenticatedExportsIndexRoute
   '/org-hierarchy': typeof AuthenticatedOrgHierarchyIndexRoute
@@ -166,6 +175,7 @@ export interface FileRoutesById {
   '/_auth/password-reset/': typeof AuthPasswordResetIndexRoute
   '/_auth/register/': typeof AuthRegisterIndexRoute
   '/_authenticated/contracts/': typeof AuthenticatedContractsIndexRoute
+  '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
   '/_authenticated/expenses/': typeof AuthenticatedExpensesIndexRoute
   '/_authenticated/exports/': typeof AuthenticatedExportsIndexRoute
   '/_authenticated/org-hierarchy/': typeof AuthenticatedOrgHierarchyIndexRoute
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
     | '/password-reset/'
     | '/register/'
     | '/contracts/'
+    | '/customers/'
     | '/expenses/'
     | '/exports/'
     | '/org-hierarchy/'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
     | '/password-reset'
     | '/register'
     | '/contracts'
+    | '/customers'
     | '/expenses'
     | '/exports'
     | '/org-hierarchy'
@@ -221,6 +233,7 @@ export interface FileRouteTypes {
     | '/_auth/password-reset/'
     | '/_auth/register/'
     | '/_authenticated/contracts/'
+    | '/_authenticated/customers/'
     | '/_authenticated/expenses/'
     | '/_authenticated/exports/'
     | '/_authenticated/org-hierarchy/'
@@ -297,6 +310,13 @@ declare module '@tanstack/react-router' {
       path: '/contracts'
       fullPath: '/contracts/'
       preLoaderRoute: typeof AuthenticatedContractsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/customers/': {
+      id: '/_authenticated/customers/'
+      path: '/customers'
+      fullPath: '/customers/'
+      preLoaderRoute: typeof AuthenticatedCustomersIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/customers/$id': {
@@ -381,6 +401,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCustomersIdRoute: typeof AuthenticatedCustomersIdRoute
   AuthenticatedProjectsIdRoute: typeof AuthenticatedProjectsIdRoute
   AuthenticatedContractsIndexRoute: typeof AuthenticatedContractsIndexRoute
+  AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
   AuthenticatedExpensesIndexRoute: typeof AuthenticatedExpensesIndexRoute
   AuthenticatedExportsIndexRoute: typeof AuthenticatedExportsIndexRoute
   AuthenticatedOrgHierarchyIndexRoute: typeof AuthenticatedOrgHierarchyIndexRoute
@@ -394,6 +415,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCustomersIdRoute: AuthenticatedCustomersIdRoute,
   AuthenticatedProjectsIdRoute: AuthenticatedProjectsIdRoute,
   AuthenticatedContractsIndexRoute: AuthenticatedContractsIndexRoute,
+  AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
   AuthenticatedExpensesIndexRoute: AuthenticatedExpensesIndexRoute,
   AuthenticatedExportsIndexRoute: AuthenticatedExportsIndexRoute,
   AuthenticatedOrgHierarchyIndexRoute: AuthenticatedOrgHierarchyIndexRoute,

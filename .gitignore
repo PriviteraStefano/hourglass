@@ -6,6 +6,10 @@ web/node_modules/
 web/dist/
 web/.tanstack/
 
+# Playwright output
+web/test-results/
+web/playwright-report/
+
 # OS/editor noise
 .DS_Store
 web/.DS_Store
