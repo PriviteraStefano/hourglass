@@ -140,9 +140,6 @@ export function seedTimeEntries(
   base: { unitId: string; activityId: string; childActivityId: string },
   prefix: string
 ) {
-  const wgId = psql(
-    `SELECT id FROM working_groups WHERE org_id='${orgId}' LIMIT 1`
-  );
   const rows = [
     { status: "draft", date: "2026-07-15", hours: 2.5, desc: `seeded-draft-${prefix}` },
     { status: "submitted", date: "2026-07-16", hours: 3, desc: `seeded-submitted-${prefix}` },
