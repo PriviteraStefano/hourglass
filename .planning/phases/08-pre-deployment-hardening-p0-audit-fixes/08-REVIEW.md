@@ -51,8 +51,10 @@ findings:
   warning: 5
   info: 3
   total: 9
-status: issues_found
+status: resolved_critical
 ---
+
+**Resolution (2026-07-31):** CR-01 **FIXED** — `entries-filters.tsx` label now guards each bound independently (`{from && …} {from && to && " - "} {to && …}`). Regression coverage added in `web/src/components/shared/__tests__/entries-filters.test.tsx` (5 tests: from-only, to-only, both, placeholder, badge). Warnings WR-01..05 remain open (deferred to `deferred-items.md` / Phase 9).
 
 # Phase 8: Code Review Report
 

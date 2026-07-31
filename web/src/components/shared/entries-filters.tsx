@@ -126,8 +126,9 @@ export function DateRangeFilter({ from, to, onChange }: DateRangeFilterProps) {
             <CalendarRangeIcon className="h-3.5 w-3.5 text-muted-foreground" />
             {hasRange ? (
               <span>
-                {format(new Date(`${from}T00:00:00`), "dd MMM")} -{" "}
-                {format(new Date(`${to}T00:00:00`), "dd MMM")}
+                {from && format(new Date(`${from}T00:00:00`), "dd MMM")}
+                {from && to && " - "}
+                {to && format(new Date(`${to}T00:00:00`), "dd MMM")}
               </span>
             ) : (
               <span className="text-muted-foreground">Date range</span>
