@@ -82,6 +82,7 @@ func TeardownTestSchema(t *testing.T, pool *pgxpool.Pool) {
 		"backup_approvers",
 		"budget_caps",
 		"financial_cutoff_periods",
+		"availability_windows",
 		"refresh_tokens",
 		"expense_approvals",
 		"password_resets",
