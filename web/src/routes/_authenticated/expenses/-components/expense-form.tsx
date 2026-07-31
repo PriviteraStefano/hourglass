@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { ProjectsApis } from "@/api/projects.ts";
+import { ActivitiesApis } from "@/api/activities.ts";
 import { UploadIcon } from "lucide-react";
 import type { ChangeEvent } from "react";
 
@@ -32,14 +32,14 @@ const EXPENSE_CATEGORIES: ExpenseCategory[] = [
 interface ExpenseFormProps {
   date: Date;
   onSaveDraft: (data: {
-    project_id: string;
+    activity_id: string;
     category: ExpenseCategory;
     amount: number;
     km_distance?: number;
     description?: string;
   }) => void;
   onSubmit: (data: {
-    project_id: string;
+    activity_id: string;
     category: ExpenseCategory;
     amount: number;
     km_distance?: number;
@@ -54,25 +54,25 @@ export function ExpenseForm({
   onSubmit,
   isPending,
 }: ExpenseFormProps) {
-  const { data: projects } = useSuspenseQuery(
-    ProjectsApis.projectsQueryOpts("all")
+  const { data: activities } = useSuspenseQuery(
+    ActivitiesApis.activitiesQueryOpts("all")
   );
 
-  const [projectId, setProjectId] = useState("");
+  const [activityId, setActivityId] = useState("");
   const [category, setCategory] = useState<ExpenseCategory>("mileage");
   const [amount, setAmount] = useState(0);
   const [kmDistance, setKmDistance] = useState<number | undefined>(undefined);
   const [description, setDescription] = useState("");
 
   const formData = () => ({
-    project_id: projectId,
+    activity_id: activityId,
     category,
     amount,
     km_distance: category === "mileage" ? kmDistance : undefined,
     description: description || undefined,
   });
 
-  const isFormValid = projectId !== "" && amount > 0;
+  const isFormValid = activityId !== "" && amount > 0;
 
   const handleFileChange = (_e: ChangeEvent<HTMLInputElement>) => {
     // Receipt upload handled at expense-detail level
@@ -86,18 +86,18 @@ export function ExpenseForm({
       </div>
 
       <div className="space-y-1">
-        <Label className="text-sm">Project</Label>
+        <Label className="text-sm">Activity</Label>
         <Select
-          value={projectId}
-          onValueChange={(v) => v !== null && setProjectId(v)}
+          value={activityId}
+          onValueChange={(v) => v !== null && setActivityId(v)}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select project" />
+            <SelectValue placeholder="Select activity" />
           </SelectTrigger>
           <SelectContent>
-            {projects?.map((p: { id: string; name: string }) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
+            {activities?.map((a: { id: string; name: string }) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.name}
               </SelectItem>
             ))}
           </SelectContent>

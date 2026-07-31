@@ -23,32 +23,32 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ProjectsApis } from "@/api/projects";
-import { EditProjectDialog } from "./edit-project-dialog";
-import type { Project, Subproject } from "@/types/models";
+import { ActivitiesApis } from "@/api/activities";
+import { EditActivityDialog } from "./edit-activity-dialog";
+import type { ActivityDetail as ActivityDetailType } from "@/types/models";
 
-interface ProjectDetailProps {
+interface ActivityDetailProps {
   id: string;
   fromTab?: "owned" | "adopted" | "all";
 }
 
-export function ProjectDetail({ id, fromTab = "owned" }: ProjectDetailProps) {
+export function ActivityDetail({ id, fromTab = "owned" }: ActivityDetailProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: project, isLoading } = useQuery(
-    ProjectsApis.projectQueryOpts(id)
+  const { data: detail, isLoading } = useQuery(
+    ActivitiesApis.activityQueryOpts(id)
   );
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const deleteProject = useMutation({
-    mutationFn: ProjectsApis.deleteProjectMutationOpts.mutationFn,
+  const deleteActivity = useMutation({
+    mutationFn: ActivitiesApis.deleteActivityMutationOpts.mutationFn,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast.success("Project deleted");
-      navigate({ to: "/projects", search: { tab: fromTab } });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
+      toast.success("Activity deleted");
+      navigate({ to: "/activities", search: { tab: fromTab } });
     },
     onError: (error: Error) => {
       setDeleteError(error.message);
@@ -61,46 +61,61 @@ export function ProjectDetail({ id, fromTab = "owned" }: ProjectDetailProps) {
     );
   }
 
-  if (!project) {
+  if (!detail) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        Project not found
+        Activity not found
       </div>
     );
   }
 
-  const p: Project = project;
+  const d: ActivityDetailType = detail;
+  const a = d.activity;
   const isAdopted = fromTab === "adopted";
+  const contractName = d.commercial_context?.contract_id
+    ? "Contract linked"
+    : "None (internal work)";
 
   return (
     <div className="space-y-4">
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => navigate({ to: "/projects", search: { tab: fromTab } })}
+        onClick={() => navigate({ to: "/activities", search: { tab: fromTab } })}
       >
         <ArrowLeftIcon className="w-4 h-4 mr-1" />
-        Back to Projects
+        Back to Activities
       </Button>
+
+      {d.ancestry.length > 0 && (
+        <nav className="flex items-center gap-1 text-sm text-muted-foreground flex-wrap">
+          {d.ancestry
+            .slice()
+            .reverse()
+            .map((ancestor) => (
+              <span key={ancestor.id} className="flex items-center gap-1">
+                <span>{ancestor.name}</span>
+                <span>/</span>
+              </span>
+            ))}
+          <span className="font-medium text-foreground">{a.name}</span>
+        </nav>
+      )}
 
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold">{p.name}</h1>
-            {p.is_shared ? (
+            <h1 className="text-2xl font-semibold">{a.name}</h1>
+            {a.is_shared ? (
               <GlobeIcon className="w-5 h-5 text-muted-foreground" />
             ) : (
               <LockIcon className="w-5 h-5 text-muted-foreground" />
             )}
-            <Badge variant={p.type === "billable" ? "default" : "secondary"}>
-              {p.type === "billable" ? "Billable" : "Internal"}
-            </Badge>
-            {p.is_shared && <Badge variant="outline">Shared</Badge>}
+            <Badge variant="secondary">{a.kind}</Badge>
+            {a.is_shared && <Badge variant="outline">Shared</Badge>}
           </div>
-          {isAdopted && p.created_by_org_name && (
-            <p className="text-sm text-muted-foreground mt-1">
-              Adopted from {p.created_by_org_name}
-            </p>
+          {isAdopted && a.created_by_org_id && (
+            <p className="text-sm text-muted-foreground mt-1">Adopted</p>
           )}
         </div>
         <div className="flex gap-2">
@@ -127,53 +142,66 @@ export function ProjectDetail({ id, fromTab = "owned" }: ProjectDetailProps) {
         <CardContent className="space-y-3">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Contract</span>
-            <span>{p.contract_name || "Unknown"}</span>
+            <span>{contractName}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Type</span>
-            <span className="capitalize">{p.type}</span>
+            <span className="text-muted-foreground">Kind</span>
+            <span className="capitalize">{a.kind}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Billable</span>
+            <span>
+              {d.billable === true
+                ? "Billable"
+                : d.billable === false
+                  ? "Non-billable"
+                  : "Inherited (unset)"}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Governance</span>
             <span className="capitalize">
-              {p.governance_model.replace("_", " ")}
+              {a.governance_model.replace("_", " ")}
             </span>
           </div>
-          {p.is_shared && (
+          {a.is_shared && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Adoption Count</span>
-              <span>{p.adoption_count ?? 0}</span>
+              <span>—</span>
             </div>
+          )}
+          {a.description && (
+            <p className="text-sm text-muted-foreground pt-2">{a.description}</p>
           )}
         </CardContent>
       </Card>
 
       <Accordion>
-        <AccordionItem value="subprojects">
-          <AccordionTrigger>Subprojects</AccordionTrigger>
+        <AccordionItem value="children">
+          <AccordionTrigger>Children</AccordionTrigger>
           <AccordionContent>
-            <SubprojectSection id={id} />
+            <ChildrenSection id={id} />
           </AccordionContent>
         </AccordionItem>
       </Accordion>
 
-      <EditProjectDialog
+      <EditActivityDialog
         open={editOpen}
         onOpenChange={setEditOpen}
-        project={p}
+        activity={a}
         onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["projects", id] });
+          queryClient.invalidateQueries({ queryKey: ["activities", id] });
         }}
       />
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{p.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>Delete "{a.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this project, remove all adoption
-              records, and cannot be undone. If this project or its subprojects
-              have active time entries, deletion will be blocked.
+              This will permanently delete this activity and cannot be undone.
+              If this activity or its children have active time entries or
+              expenses, deletion will be blocked.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError && (
@@ -185,14 +213,14 @@ export function ProjectDetail({ id, fromTab = "owned" }: ProjectDetailProps) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteProject.isPending}
+              disabled={deleteActivity.isPending}
               onClick={(e) => {
                 e.preventDefault();
                 setDeleteError(null);
-                deleteProject.mutate(p.id);
+                deleteActivity.mutate(a.id);
               }}
             >
-              {deleteProject.isPending ? "Deleting..." : "Delete"}
+              {deleteActivity.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -201,11 +229,11 @@ export function ProjectDetail({ id, fromTab = "owned" }: ProjectDetailProps) {
   );
 }
 
-function SubprojectSection({ id }: { id: string }) {
+function ChildrenSection({ id }: { id: string }) {
   const { data, isLoading, isError, refetch } = useQuery(
-    ProjectsApis.subprojectsQueryOpts(id)
+    ActivitiesApis.activityChildrenQueryOpts(id)
   );
-  const subprojects = data as Subproject[] | undefined;
+  const children = data;
 
   if (isLoading) {
     return (
@@ -220,7 +248,7 @@ function SubprojectSection({ id }: { id: string }) {
   if (isError) {
     return (
       <div className="text-center py-4">
-        <p className="text-sm text-destructive">Failed to load subprojects.</p>
+        <p className="text-sm text-destructive">Failed to load children.</p>
         <Button
           variant="ghost"
           size="sm"
@@ -233,12 +261,12 @@ function SubprojectSection({ id }: { id: string }) {
     );
   }
 
-  if (!subprojects?.length) {
+  if (!children?.length) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        <p className="text-sm">No subprojects</p>
+        <p className="text-sm">No children</p>
         <p className="text-xs mt-1">
-          Subprojects can be created through time entries or project settings.
+          Child activities can be created from the activities list.
         </p>
       </div>
     );
@@ -246,19 +274,24 @@ function SubprojectSection({ id }: { id: string }) {
 
   return (
     <div className="space-y-2">
-      {subprojects.map((sp) => (
+      {children.map((child) => (
         <div
-          key={sp.id}
+          key={child.id}
           className="flex items-center justify-between py-2 border-b last:border-0"
         >
           <div>
-            <span className="font-medium">{sp.name}</span>
-            {sp.description && (
-              <p className="text-sm text-muted-foreground">{sp.description}</p>
+            <span className="font-medium">{child.name}</span>
+            <Badge variant="secondary" className="text-xs ml-2">
+              {child.kind}
+            </Badge>
+            {child.description && (
+              <p className="text-sm text-muted-foreground">
+                {child.description}
+              </p>
             )}
           </div>
-          <Badge variant={sp.is_active ? "default" : "secondary"}>
-            {sp.is_active ? "Active" : "Inactive"}
+          <Badge variant={child.is_active ? "default" : "secondary"}>
+            {child.is_active ? "Active" : "Inactive"}
           </Badge>
         </div>
       ))}

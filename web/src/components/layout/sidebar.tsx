@@ -58,7 +58,7 @@ const projectItems: Array<{
 }> = [
   { label: "Contracts", href: "/contracts", icon: FileTextIcon },
   { label: "Customers", href: "/customers", icon: Building2 },
-  { label: "Projects", href: "/projects", icon: FolderIcon },
+  { label: "Activities", href: "/activities", icon: FolderIcon },
   { label: "Org Hierarchy", href: "/org-hierarchy", icon: NetworkIcon },
 ];
 

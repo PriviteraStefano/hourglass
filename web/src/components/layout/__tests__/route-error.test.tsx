@@ -26,8 +26,8 @@ const handlers = [
   http.get("/api/auth/memberships", () =>
     HttpResponse.json({ data: { memberships: [] } })
   ),
-  http.get("/api/projects", () =>
-    HttpResponse.json({ data: [{ id: "p1", name: "Acme Website", type: "billable" }] })
+  http.get("/api/activities", () =>
+    HttpResponse.json({ data: [{ id: "a1", name: "Acme Website", kind: "engagement" }] })
   ),
 ];
 
@@ -44,10 +44,10 @@ const timeEntriesHandler = http.get("/api/time-entries", () => {
         id: "te-1",
         user_id: "u1",
         org_id: "o1",
-        project_id: "p1",
-        subproject_id: "",
-        wg_id: "",
-        unit_id: "",
+        activity_id: "a1",
+        activity_name: "Acme Website",
+        activity_kind: "engagement",
+        unit_id: "u1",
         hours: 7.5,
         description: "Recovered entry",
         entry_date: "2026-05-18",

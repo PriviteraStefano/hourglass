@@ -22,7 +22,9 @@ function makeExpense(overrides: Record<string, unknown> = {}) {
     id: "ex-1",
     org_id: "o1",
     user_id: "u1",
-    project_id: "p1",
+    activity_id: "a1",
+    activity_name: "Acme Website",
+    activity_kind: "engagement",
     category: "meal",
     amount: 32.5,
     description: "Team lunch",
@@ -76,9 +78,9 @@ const handlers = [
     }
     return HttpResponse.json({ data: [] });
   }),
-  http.get("/api/projects", () =>
+  http.get("/api/activities", () =>
     HttpResponse.json({
-      data: [{ id: "p1", name: "Acme Website", type: "billable", contract_id: "c1" }],
+      data: [{ id: "a1", name: "Acme Website", kind: "engagement", contract_id: "c1" }],
     })
   ),
   http.get("/api/contracts", () =>

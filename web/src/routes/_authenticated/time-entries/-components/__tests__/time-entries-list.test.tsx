@@ -21,10 +21,10 @@ function makeEntry(overrides: Record<string, unknown> = {}) {
     id: "te-1",
     user_id: "u1",
     org_id: "o1",
-    project_id: "p1",
-    subproject_id: "",
-    wg_id: "",
-    unit_id: "",
+    activity_id: "a1",
+    activity_name: "Acme Website",
+    activity_kind: "engagement",
+    unit_id: "u1",
     hours: 7.5,
     description: "Client workshop",
     entry_date: "2026-05-18",
@@ -134,9 +134,9 @@ const handlers = [
     }
     return HttpResponse.json({ data: [] });
   }),
-  http.get("/api/projects", () =>
+  http.get("/api/activities", () =>
     HttpResponse.json({
-      data: [{ id: "p1", name: "Acme Website", type: "billable" }],
+      data: [{ id: "a1", name: "Acme Website", kind: "engagement" }],
     })
   ),
 ];
@@ -152,7 +152,7 @@ describe("TimeEntriesList (via route)", () => {
     await waitFor(() => {
       expect(screen.getByText("Client workshop")).toBeInTheDocument();
     });
-    // Project name appears in the table (and in the calendar tab's select, so
+    // Activity name appears in the table (and in the calendar tab's select, so
     // getAllByText is required)
     expect(screen.getAllByText("Acme Website").length).toBeGreaterThan(0);
     expect(screen.getByText("7.5h")).toBeInTheDocument();

@@ -10,7 +10,7 @@ import {
 } from "@/types/expense-types";
 import { type EntryStatus } from "@/types";
 import { ExpensesApis } from "@/api/expenses.ts";
-import { ProjectsApis } from "@/api/projects.ts";
+import { ActivitiesApis } from "@/api/activities.ts";
 import { ContractsApis } from "@/api/contracts.ts";
 import {
   EntriesTable,
@@ -68,27 +68,25 @@ export function ExpensesList({
       month.getFullYear()
     )
   );
-  const { data: projects } = useSuspenseQuery(
-    ProjectsApis.projectsQueryOpts("all")
+  const { data: activities } = useSuspenseQuery(
+    ActivitiesApis.activitiesQueryOpts("all")
   );
   const { data: contracts } = useSuspenseQuery(
     ContractsApis.contractsQueryOpts("all")
   );
 
   // Expenses carry no currency field; resolve it through the existing
-  // project → contract relationship (both endpoints already exist).
-  const projectMeta = useMemo(() => {
-    const name = new Map<string, string>();
+  // activity → contract relationship (both endpoints already exist).
+  const activityMeta = useMemo(() => {
     const currency = new Map<string, string>();
     const contractCurrency = new Map<string, string>();
     for (const c of contracts ?? []) contractCurrency.set(c.id, c.currency);
-    for (const p of projects ?? []) {
-      name.set(p.id, p.name);
-      const cc = p.contract_id ? contractCurrency.get(p.contract_id) : undefined;
-      if (cc) currency.set(p.id, cc);
+    for (const a of activities ?? []) {
+      const cc = a.contract_id ? contractCurrency.get(a.contract_id) : undefined;
+      if (cc) currency.set(a.id, cc);
     }
-    return { name: (id: string) => name.get(id) ?? "—", currency };
-  }, [projects, contracts]);
+    return { currency };
+  }, [activities, contracts]);
 
   const rows = useMemo(() => {
     let filtered = expenses ?? [];
@@ -158,9 +156,9 @@ export function ExpensesList({
       ),
     },
     {
-      key: "project",
-      header: "Project",
-      cell: (e) => projectMeta.name(e.project_id),
+      key: "activity",
+      header: "Activity",
+      cell: (e) => e.activity_name || "—",
     },
     {
       key: "category",
@@ -201,7 +199,7 @@ export function ExpensesList({
       header: "Amount",
       cell: (e) => {
         if (e.amount == null) return "—";
-        const currency = projectMeta.currency.get(e.project_id);
+        const currency = activityMeta.currency.get(e.activity_id);
         const formatted = currency
           ? new Intl.NumberFormat(undefined, {
               style: "currency",

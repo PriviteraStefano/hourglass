@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ExpensesPage } from "@/routes/_authenticated/expenses/-components/expenses-page.tsx";
 import { z } from "zod";
 import { ExpensesApis } from "@/api/expenses.ts";
-import { ProjectsApis } from "@/api/projects.ts";
+import { ActivitiesApis } from "@/api/activities.ts";
 import { listStatusesSchema } from "@/lib/list-filters";
 import { RouteError } from "@/components/layout/route-error";
 
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/expenses/")({
         )
       ),
       client.ensureQueryData(ExpensesApis.expenseQueryOpts(date)),
-      client.ensureQueryData(ProjectsApis.projectsQueryOpts("all")),
+      client.ensureQueryData(ActivitiesApis.activitiesQueryOpts("all")),
     ]),
   // Leaf-level boundary (P0-4): the error attaches to THIS match, which is
   // rebuilt on navigation — unlike the layout-level fallback, whose match

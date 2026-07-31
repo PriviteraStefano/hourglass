@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import type { ChangeEvent } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { ProjectsApis } from "@/api/projects.ts";
+import { ActivitiesApis } from "@/api/activities.ts";
 import { StatusBadge } from "./status-badge.tsx";
 import {
   AlertDialog,
@@ -41,29 +41,33 @@ export function EntryRow({
   onDelete,
   onSubmit,
 }: EntryRowProps) {
-  const { data: projects } = useSuspenseQuery(
-    ProjectsApis.projectsQueryOpts("all")
+  const { data: activities } = useSuspenseQuery(
+    ActivitiesApis.activitiesQueryOpts("all")
   );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const selectedProject = projects?.find(
-    (p: { id: string }) => p.id === entry.project_id
+  const selectedActivity = activities?.find(
+    (a: { id: string }) => a.id === entry.activity_id
   );
 
   return (
     <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
       <Select
-        value={entry.project_id}
-        onValueChange={(v) => v !== null && onUpdate?.("project_id", v)}
+        value={entry.activity_id}
+        onValueChange={(v) => v !== null && onUpdate?.("activity_id", v)}
         disabled={!editable}
       >
         <SelectTrigger className="w-48">
-          <SelectValue placeholder="Select project" />
+          <SelectValue
+            placeholder={
+              selectedActivity ? selectedActivity.name : "Select activity"
+            }
+          />
         </SelectTrigger>
         <SelectContent>
-          {projects?.map((p: { id: string; name: string }) => (
-            <SelectItem key={p.id} value={p.id}>
-              {p.name}
+          {activities?.map((a: { id: string; name: string }) => (
+            <SelectItem key={a.id} value={a.id}>
+              {a.name}
             </SelectItem>
           ))}
         </SelectContent>

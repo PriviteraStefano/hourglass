@@ -5,7 +5,6 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { EyeIcon, PlusIcon } from "lucide-react";
 import { type TimeEntry, type EntryStatus } from "@/types";
 import { TimeEntriesApis } from "@/api/time-entries.ts";
-import { ProjectsApis } from "@/api/projects.ts";
 import {
   EntriesTable,
   type EntriesColumn,
@@ -54,15 +53,8 @@ export function TimeEntriesList({
       month.getFullYear()
     )
   );
-  const { data: projects } = useSuspenseQuery(
-    ProjectsApis.projectsQueryOpts("all")
-  );
 
-  const projectName = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of projects ?? []) map.set(p.id, p.name);
-    return (id: string) => map.get(id) ?? "—";
-  }, [projects]);
+  const activityName = (entry: TimeEntry) => entry.activity_name || "—";
 
   const rows = useMemo(() => {
     let filtered = entries ?? [];
@@ -123,9 +115,9 @@ export function TimeEntriesList({
       ),
     },
     {
-      key: "project",
-      header: "Project",
-      cell: (e) => projectName(e.project_id),
+      key: "activity",
+      header: "Activity",
+      cell: (e) => activityName(e),
     },
     {
       key: "description",

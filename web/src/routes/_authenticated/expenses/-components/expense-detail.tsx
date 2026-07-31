@@ -35,7 +35,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { ExpensesApis } from "@/api/expenses.ts";
-import { ProjectsApis } from "@/api/projects.ts";
+import { ActivitiesApis } from "@/api/activities.ts";
 import { useSearch } from "@tanstack/react-router";
 import { api } from "@/lib/api.ts";
 import { toast } from "sonner";
@@ -60,8 +60,8 @@ export function ExpenseDetail() {
   const { data: expenses } = useSuspenseQuery(
     ExpensesApis.expenseQueryOpts(date)
   );
-  const { data: projects } = useSuspenseQuery(
-    ProjectsApis.projectsQueryOpts("all")
+  const { data: activities } = useSuspenseQuery(
+    ActivitiesApis.activitiesQueryOpts("all")
   );
 
   const createExpense = useMutation(ExpensesApis.createExpenseMutationOpts);
@@ -78,7 +78,7 @@ export function ExpenseDetail() {
     undefined
   );
   const [newDescription, setNewDescription] = useState("");
-  const [newProjectId, setNewProjectId] = useState("");
+  const [newActivityId, setNewActivityId] = useState("");
 
   const hasExpenses = expenses && expenses.length > 0;
   const totalAmount = expenses?.reduce((sum, e) => sum + e.amount, 0) ?? 0;
@@ -94,7 +94,7 @@ export function ExpenseDetail() {
     createExpense.mutate(
       {
         date: format(date, "yyyy-MM-dd"),
-        project_id: newProjectId,
+        activity_id: newActivityId,
         category: newCategory,
         amount: newAmount,
         km_distance: newCategory === "mileage" ? newKmDistance : undefined,
@@ -107,7 +107,7 @@ export function ExpenseDetail() {
           setNewAmount(0);
           setNewKmDistance(undefined);
           setNewDescription("");
-          setNewProjectId("");
+          setNewActivityId("");
         },
       }
     );
@@ -209,16 +209,16 @@ export function ExpenseDetail() {
             <div className="flex items-center gap-2">
               <div className="w-36">
                 <Select
-                  value={newProjectId}
-                  onValueChange={(v) => v !== null && setNewProjectId(v)}
+                  value={newActivityId}
+                  onValueChange={(v) => v !== null && setNewActivityId(v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Project" />
+                    <SelectValue placeholder="Activity" />
                   </SelectTrigger>
                   <SelectContent>
-                    {projects?.map((p: { id: string; name: string }) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
+                    {activities?.map((a: { id: string; name: string }) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -281,14 +281,14 @@ export function ExpenseDetail() {
               <Button
                 size="sm"
                 onClick={handleCreateSubmit}
-                disabled={!newProjectId || createExpense.isPending}
+                disabled={!newActivityId || createExpense.isPending}
               >
                 {createExpense.isPending ? "Saving..." : "Save Draft"}
               </Button>
               <Button
                 size="sm"
                 onClick={handleCreateSubmit}
-                disabled={!newProjectId || createExpense.isPending}
+                disabled={!newActivityId || createExpense.isPending}
                 variant="default"
               >
                 Submit Expense

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { type CreateTimeEntryRequest, type TimeEntry } from "@/types";
-import type { Subproject } from "@/types/models";
+import type { ActivityResponse } from "@/types/models";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { EntryRow } from "./entry-row.tsx";
@@ -31,7 +31,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { TimeEntriesApis } from "@/api/time-entries.ts";
-import { ProjectsApis } from "@/api/projects.ts";
+import { ActivitiesApis } from "@/api/activities.ts";
 import { useSearch } from "@tanstack/react-router";
 import { api } from "@/lib/api.ts";
 import { toast } from "sonner";
@@ -42,8 +42,8 @@ export function EntryDetail() {
   const { data: entries } = useSuspenseQuery(
     TimeEntriesApis.timeEntryQueryOpts(date)
   );
-  const { data: projects } = useSuspenseQuery(
-    ProjectsApis.projectsQueryOpts("all")
+  const { data: activities } = useSuspenseQuery(
+    ActivitiesApis.activitiesQueryOpts("all")
   );
 
   const createEntry = useMutation(TimeEntriesApis.createTimeEntryMutationOpts);
@@ -55,44 +55,41 @@ export function EntryDetail() {
   const [isCreating, setIsCreating] = useState(false);
   const [newEntry, setNewEntry] = useState<CreateTimeEntryRequest>({
     date: format(date, "yyyy-MM-dd"),
-    project_id: "",
-    subproject_id: "",
-    wg_id: "",
+    activity_id: "",
     unit_id: "",
     hours: 0,
     description: "",
   });
-  const [subprojects, setSubprojects] = useState<Subproject[]>([]);
+  const [children, setChildren] = useState<ActivityResponse[]>([]);
+  const [childActivityId, setChildActivityId] = useState("");
   const [wgs, setWgs] = useState<
     { id: string; name: string; unit_ids: string[] }[]
   >([]);
-  const [loadingSub, setLoadingSub] = useState(false);
+  const [loadingChildren, setLoadingChildren] = useState(false);
   const [loadingWg, setLoadingWg] = useState(false);
 
   useEffect(() => {
-    if (!newEntry.project_id) {
-      setSubprojects([]);
+    if (!newEntry.activity_id) {
+      setChildren([]);
+      setChildActivityId("");
       setWgs([]);
       return;
     }
-    setLoadingSub(true);
-    api<Subproject[]>(`/projects/${newEntry.project_id}/subprojects`)
-      .then((subs) => {
-        setSubprojects(subs);
-        const spId = subs.length > 0 ? subs[0].id : "";
-        setNewEntry((prev) => ({
-          ...prev,
-          subproject_id: spId,
-          wg_id: "",
-          unit_id: "",
-        }));
+    setLoadingChildren(true);
+    api<ActivityResponse[]>(`/activities/${newEntry.activity_id}/children`)
+      .then((childList) => {
+        setChildren(childList);
+        const childId = childList.length > 0 ? childList[0].id : "";
+        setChildActivityId(childId);
+        setNewEntry((prev) => ({ ...prev, unit_id: "" }));
       })
-      .catch(() => toast.error("Failed to load subprojects"))
-      .finally(() => setLoadingSub(false));
-  }, [newEntry.project_id]);
+      .catch(() => toast.error("Failed to load children"))
+      .finally(() => setLoadingChildren(false));
+  }, [newEntry.activity_id]);
 
   useEffect(() => {
-    if (!newEntry.subproject_id) {
+    const targetActivityId = childActivityId || newEntry.activity_id;
+    if (!targetActivityId) {
       setWgs([]);
       return;
     }
@@ -103,7 +100,7 @@ export function EntryDetail() {
         name: string;
         unit_ids: string[];
       }[]
-    >(`/working-groups?subproject_id=${newEntry.subproject_id}`)
+    >(`/working-groups?subproject_id=${targetActivityId}`)
       .then((wgList) => {
         setWgs(wgList);
         const wgId = wgList.length > 0 ? wgList[0].id : "";
@@ -111,11 +108,11 @@ export function EntryDetail() {
           wgList.length > 0 && wgList[0].unit_ids.length > 0
             ? wgList[0].unit_ids[0]
             : "";
-        setNewEntry((prev) => ({ ...prev, wg_id: wgId, unit_id: unitId }));
+        setNewEntry((prev) => ({ ...prev, unit_id: unitId }));
       })
       .catch(() => toast.error("Failed to load working groups"))
       .finally(() => setLoadingWg(false));
-  }, [newEntry.subproject_id]);
+  }, [childActivityId, newEntry.activity_id]);
 
   const hasEntries = entries && entries.length > 0;
   const totalHours = entries?.reduce((sum, e) => sum + e.hours, 0) ?? 0;
@@ -126,33 +123,24 @@ export function EntryDetail() {
   const handleCreate = () => {
     setNewEntry({
       date: format(date, "yyyy-MM-dd"),
-      project_id: "",
-      subproject_id: "",
-      wg_id: "",
+      activity_id: "",
       unit_id: "",
       hours: 0,
       description: "",
     });
-    setSubprojects([]);
+    setChildren([]);
+    setChildActivityId("");
     setWgs([]);
     setIsCreating(true);
   };
 
   const handleSaveNewEntry = () => {
-    if (!newEntry.project_id) {
-      toast.error("Please select a project");
-      return;
-    }
-    if (!newEntry.subproject_id) {
-      toast.error("No subproject available for this project");
-      return;
-    }
-    if (!newEntry.wg_id) {
-      toast.error("No working group available for this subproject");
+    if (!newEntry.activity_id) {
+      toast.error("Please select an activity");
       return;
     }
     if (!newEntry.unit_id) {
-      toast.error("No unit available for this working group");
+      toast.error("No working group available for this activity");
       return;
     }
     if (!newEntry.hours || newEntry.hours <= 0) {
@@ -244,22 +232,41 @@ export function EntryDetail() {
         <div className="flex flex-col gap-2 p-2 bg-muted/30 rounded">
           <div className="flex items-center gap-2">
             <Select
-              value={newEntry.project_id}
+              value={newEntry.activity_id}
               onValueChange={(v) =>
-                v !== null && setNewEntry({ ...newEntry, project_id: v })
+                v !== null && setNewEntry({ ...newEntry, activity_id: v })
               }
             >
               <SelectTrigger className="w-48">
-                <SelectValue placeholder="Select project" />
+                <SelectValue placeholder="Select activity" />
               </SelectTrigger>
               <SelectContent>
-                {projects?.map((p: { id: string; name: string }) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
+                {activities?.map((a: { id: string; name: string }) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {children.length > 0 && (
+              <Select
+                value={childActivityId}
+                onValueChange={(v) =>
+                  v !== null && setChildActivityId(v)
+                }
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Select child activity" />
+                </SelectTrigger>
+                <SelectContent>
+                  {children.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Input
               type="number"
               step="0.25"
@@ -288,9 +295,7 @@ export function EntryDetail() {
               onClick={handleSaveNewEntry}
               disabled={
                 createEntry.isPending ||
-                !newEntry.project_id ||
-                !newEntry.subproject_id ||
-                !newEntry.wg_id ||
+                !newEntry.activity_id ||
                 !newEntry.unit_id
               }
             >
@@ -304,27 +309,19 @@ export function EntryDetail() {
               Cancel
             </Button>
           </div>
-          {(loadingSub || loadingWg) && (
+          {(loadingChildren || loadingWg) && (
             <p className="text-xs text-muted-foreground">
-              {loadingSub
-                ? "Loading subprojects..."
+              {loadingChildren
+                ? "Loading children..."
                 : "Loading working group..."}
             </p>
           )}
-          {!loadingSub &&
+          {!loadingChildren &&
             !loadingWg &&
-            newEntry.project_id &&
-            !newEntry.subproject_id && (
+            newEntry.activity_id &&
+            !newEntry.unit_id && (
               <p className="text-xs text-destructive">
-                No subproject found for this project
-              </p>
-            )}
-          {!loadingSub &&
-            !loadingWg &&
-            newEntry.subproject_id &&
-            !newEntry.wg_id && (
-              <p className="text-xs text-destructive">
-                No working group found for this subproject
+                No working group found for this activity
               </p>
             )}
         </div>

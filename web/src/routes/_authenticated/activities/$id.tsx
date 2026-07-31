@@ -1,16 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ProjectDetail } from "./-components/project-detail";
+import { ActivityDetail } from "./-components/activity-detail";
 
-export const Route = createFileRoute("/_authenticated/projects/$id")({
-  component: ProjectDetailPage,
+export const Route = createFileRoute("/_authenticated/activities/$id")({
+  component: ActivityDetailPage,
   validateSearch: (search: Record<string, unknown>) => ({
     from: (search.from as "owned" | "adopted" | "all") || "owned",
   }),
 });
 
-function ProjectDetailPage() {
+function ActivityDetailPage() {
   const { id } = Route.useParams();
   const search = Route.useSearch();
 
-  return <ProjectDetail id={id} fromTab={search.from} />;
+  return <ActivityDetail id={id} fromTab={search.from} />;
 }
