@@ -378,6 +378,53 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 - 1-year max date range enforced both frontend and backend
 - XLSX combined export uses two sheets (Timesheets + Expenses)
 
+## Phase 8: Pre-Deployment Hardening (P0 audit fixes)
+
+**Status:** Planned — 4 plans, 2 waves
+
+**Goal:** Close the six P0 findings from the 2026-07-28 Pre-Deployment Audit (status CHECK constraint, list views, /customers route, error boundaries, refresh rotation, reset-code exposure) plus folded-in S3 input length caps. Phase gates first deployment of v0.1.
+
+**Depends on:** Phase 7
+
+**Source:** `hourglass-vault/research/2026-07-28 — Pre-Deployment Audit — Hourglass v0.1.md` (§6 P0 matrix)
+
+**Context:** `08-CONTEXT.md` — audit-ingest express path (discuss-phase bypassed: audit is the spec, all decisions locked)
+
+### Key behaviors
+
+- P0-1: widen time-entry status CHECK constraint (`pending_manager`, `pending_finance`, `rejected`) — mirrors `005_expenses_status_check`
+- P0-2: real filterable list views on the time-entries and expenses List tabs (shared table shell, URL-driven filters)
+- P0-3: `/customers` index route (list page exists but is unreachable)
+- P0-4: route error boundaries per ADR-FE-014 (layout default + auth slim variant)
+- P0-5: refresh-token rotation with family reuse detection (ADR-FE-013 mechanism unchanged)
+- P0-6: reset code out of response body, 8-digit entropy, enumeration-safe generic response
+- S3: request string length caps at the handler boundary (400 on violation)
+
+### Waves
+
+| Wave | Plans | Description |
+|------|-------|-------------|
+| 1 | 08-01 + 08-02 (parallel) | Backend security & schema fixes ∥ Frontend completion |
+| 2 | 08-03 + 08-04 (parallel) | Backend regression tests ∥ Frontend E2E + audit closeout |
+
+### Plans
+
+| Plan | Objective | Wave | Tasks | Files |
+|------|-----------|------|-------|-------|
+| [ ] 08-01 | Backend: status-constraint migration, refresh rotation, reset-code exposure, length caps | 1 | 4 | ~12 |
+| [ ] 08-02 | Frontend: /customers route, time/expense list views + shared table, error boundaries | 1 | 5 | ~9 |
+| [ ] 08-03 | Backend regression tests: lifecycle, rotation (incl. race), reset contract, E2E auth updates | 2 | 4 | ~8 |
+| [ ] 08-04 | Frontend E2E: list views, customers, error recovery; audit P0 table → Fixed; 00-Index closeout | 2 | 4 | ~7 |
+
+### Edge cases
+
+- Rotation reuse race: two concurrent refreshes with one token → exactly one succeeds, family revokes on replay
+- Down-migration of 010 must not fail if rows already carry the new states (rollback only on clean DB or after state cleanup)
+- Password reset: unknown email returns identical-shape 200 (no enumeration)
+- Filter state must survive page reload via URL params (validateSearch)
+- Error boundary retry must re-run the loader (router reset), not just re-render
+- Phase explicitly does NOT pre-rename projects→activities (Phase 9, ADR-P-007)
+
 ---
 
 ## Superseded Phases
