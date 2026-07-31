@@ -64,9 +64,7 @@ export interface PasswordResetVerify {
 }
 
 export interface CreateTimeEntryRequest {
-  project_id: string;
-  subproject_id: string;
-  wg_id: string;
+  activity_id: string;
   unit_id: string;
   hours: number;
   description?: string;
@@ -74,9 +72,7 @@ export interface CreateTimeEntryRequest {
 }
 
 export interface UpdateTimeEntryRequest {
-  project_id?: string;
-  subproject_id?: string;
-  wg_id?: string;
+  activity_id?: string;
   unit_id?: string;
   hours?: number;
   description?: string;
@@ -95,20 +91,4 @@ export interface CreateContractRequest {
   governance_model: "creator_controlled" | "unanimous" | "majority";
   is_shared: boolean;
   customer_id?: string;
-}
-
-export interface CreateProjectRequest {
-  name: string;
-  type: "billable" | "internal";
-  contract_id: string;
-  governance_model: "creator_controlled" | "unanimous" | "majority";
-  is_shared: boolean;
-}
-
-export interface UpdateProjectRequest {
-  name: string;
-  type: "billable" | "internal";
-  contract_id: string;
-  governance_model: "creator_controlled" | "unanimous" | "majority";
-  is_shared: boolean;
 }

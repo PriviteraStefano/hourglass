@@ -15,7 +15,9 @@ export interface Expense {
   id: string;
   org_id: string;
   user_id: string;
-  project_id: string;
+  activity_id: string;
+  activity_name?: string;
+  activity_kind?: string;
   category: ExpenseCategory;
   amount: number;
   km_distance?: number;
@@ -30,7 +32,7 @@ export interface Expense {
 }
 
 export interface CreateExpenseRequest {
-  project_id: string;
+  activity_id: string;
   category: ExpenseCategory;
   amount: number;
   km_distance?: number;
@@ -39,7 +41,7 @@ export interface CreateExpenseRequest {
 }
 
 export interface UpdateExpenseRequest {
-  project_id?: string;
+  activity_id?: string;
   category?: ExpenseCategory;
   amount?: number;
   km_distance?: number;

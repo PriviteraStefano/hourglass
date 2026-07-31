@@ -1,4 +1,4 @@
-export type Role = "employee" | "manager" | "finance" | "customer";
+export type Role = "employee" | "manager" | "finance" | "hr" | "customer";
 
 export type EntryStatus =
   | "draft"
@@ -59,40 +59,71 @@ export interface Contract {
   created_at: string;
 }
 
-export interface Project {
+export interface Activity {
   id: string;
+  org_id: string;
+  parent_id?: string;
   name: string;
-  type: "billable" | "internal";
-  contract_id: string;
-  contract_name?: string;
+  description: string;
+  kind: string;
+  contract_id?: string;
   governance_model: "creator_controlled" | "unanimous" | "majority";
-  is_shared: boolean;
-  is_active: boolean;
   created_by_org_id: string;
-  created_by_org_name?: string;
-  adoption_count?: number;
-  is_adopted?: boolean;
-  created_at: string;
-}
-
-export interface Subproject {
-  id: string;
-  project_id: string;
-  name: string;
-  description?: string;
-  sequence_order: number;
+  is_shared: boolean;
+  billable?: boolean | null;
+  budget_amount?: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface ActivityResponse extends Activity {
+  parent_name?: string;
+  contract_name: string;
+  created_by_org_name: string;
+  adoption_count: number;
+  is_adopted: boolean;
+}
+
+export interface ActivityDetail {
+  activity: Activity;
+  ancestry: Activity[];
+  commercial_context: { contract_id?: string; customer_id?: string } | null;
+  billable: boolean | null;
+}
+
+export interface CreateActivityRequest {
+  parent_id?: string;
+  name: string;
+  description: string;
+  kind: string;
+  contract_id?: string;
+  governance_model: "creator_controlled" | "unanimous" | "majority";
+  is_shared: boolean;
+  billable?: boolean;
+  budget_amount?: number;
+}
+
+export interface UpdateActivityRequest {
+  parent_id?: string;
+  name?: string;
+  description?: string;
+  kind?: string;
+  contract_id?: string;
+  governance_model?: "creator_controlled" | "unanimous" | "majority";
+  is_shared?: boolean;
+  billable?: boolean;
+  budget_amount?: number;
+  is_active?: boolean;
 }
 
 export interface TimeEntry {
   id: string;
   user_id: string;
   org_id: string;
-  project_id: string;
-  subproject_id: string;
-  wg_id: string;
+  activity_id: string;
+  activity_name?: string;
+  activity_kind?: string;
   unit_id: string;
   hours: number;
   description: string;
