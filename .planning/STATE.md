@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-31T20:54:56.442Z"
+last_updated: "2026-07-31T21:10:48.905Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 14
   completed_phases: 12
   total_plans: 61
-  completed_plans: 55
+  completed_plans: 56
   percent: 86
 ---
 
@@ -173,11 +173,14 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 10-information-architecture-implementation]: Billable checkbox in activity create/edit dialogs: checked = true, unchecked = undefined (inherit) - tri-state omitted per plan
 - [Phase 10-information-architecture-implementation]: Activity detail shows derived commercial context + resolved billability from ActivityDetail payload; adoption count renders "-" (detail endpoint carries no adoption_count)
 - [Phase 10-information-architecture-implementation]: Entry creation cascade simplified to activity -> children -> working-group -> unit; backend create needs only activity_id + unit_id
+- [Phase 10]: Sidebar groups render from a single declarative navStructure filtered by pure role-matrix predicates; visibility logic never lives inline in JSX — ADR-P-011 D-1/D-5; keeps the matrix testable and the render loop dumb
+- [Phase 10]: Approval stages derived client-side from route-context profile + GET /working-groups (manager_id/delegate_ids); hr stripped per ADR-P-008 D-4 — RESEARCH 2.1: no new backend endpoint needed; UX scoping only, backend stays authoritative
+- [Phase 10]: workingGroupsQueryOpts named export + WorkingGroupsApis object; 60s staleTime keyed ['working-groups'] as the stable home for Plan 10-06 mutations — Satisfies the acceptance contract and the established API-layer object convention
 
 ## Current Position
 
 Phase: 10 (information-architecture-implementation) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-07-31 -- Phase 10 execution started
 Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for verification)
@@ -221,3 +224,4 @@ Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for 
 | Phase 09-activity-ontology P09-04 | 7min | 3 tasks | 16 files |
 | Phase 09-activity-ontology PP09-05 | 17min | 3 tasks | 18 files |
 | Phase 10-information-architecture-implementation P01 | 37min | 3 tasks | 27 files |
+| Phase 10 P02 | 9min | 3 tasks | 6 files |
