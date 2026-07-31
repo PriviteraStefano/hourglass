@@ -36,6 +36,12 @@ func (h *PasswordResetHandler) Request(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateStringLengths(w,
+		lengthField("identifier", req.Identifier, MaxEmailLength),
+	) {
+		return
+	}
+
 	if req.Identifier == "" {
 		api.RespondWithError(w, http.StatusBadRequest, "identifier is required")
 		return
@@ -63,6 +69,14 @@ func (h *PasswordResetHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	var req VerifyResetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if !validateStringLengths(w,
+		lengthField("identifier", req.Identifier, MaxEmailLength),
+		lengthField("code", req.Code, MaxShortStringLength),
+		lengthField("password", req.Password, MaxPasswordLength),
+	) {
 		return
 	}
 

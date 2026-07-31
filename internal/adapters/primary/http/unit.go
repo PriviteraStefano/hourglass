@@ -79,6 +79,14 @@ func (h *UnitHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateStringLengths(w,
+		lengthField("name", req.Name, MaxNameLength),
+		lengthField("description", req.Description, MaxDescriptionLength),
+		lengthField("code", req.Code, MaxShortStringLength),
+	) {
+		return
+	}
+
 	if req.Name == "" {
 		api.RespondWithError(w, http.StatusBadRequest, "name is required")
 		return
@@ -120,6 +128,14 @@ func (h *UnitHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var req UpdateUnitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if !validateStringLengths(w,
+		lengthField("name", req.Name, MaxNameLength),
+		lengthField("description", req.Description, MaxDescriptionLength),
+		lengthField("code", req.Code, MaxShortStringLength),
+	) {
 		return
 	}
 

@@ -134,6 +134,13 @@ func (h *TimeEntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateStringLengths(w,
+		lengthField("description", req.Description, MaxDescriptionLength),
+		lengthField("date", req.Date, MaxShortStringLength),
+	) {
+		return
+	}
+
 	if req.ProjectID == "" {
 		api.RespondWithError(w, http.StatusBadRequest, "project_id is required")
 		return
@@ -219,6 +226,20 @@ func (h *TimeEntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var req UpdateTimeEntryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	var description, date string
+	if req.Description != nil {
+		description = *req.Description
+	}
+	if req.Date != nil {
+		date = *req.Date
+	}
+	if !validateStringLengths(w,
+		lengthField("description", description, MaxDescriptionLength),
+		lengthField("date", date, MaxShortStringLength),
+	) {
 		return
 	}
 
@@ -405,6 +426,12 @@ func (h *TimeEntryHandler) Reject(w http.ResponseWriter, r *http.Request) {
 
 	var req RejectRequest
 	json.NewDecoder(r.Body).Decode(&req)
+
+	if !validateStringLengths(w,
+		lengthField("reason", req.Reason, MaxShortStringLength),
+	) {
+		return
+	}
 
 	entryID, err := uuid.Parse(entryIDStr)
 	if err != nil {

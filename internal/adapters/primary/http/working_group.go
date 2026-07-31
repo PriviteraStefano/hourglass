@@ -101,6 +101,13 @@ func (h *WorkingGroupHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateStringLengths(w,
+		lengthField("name", req.Name, MaxNameLength),
+		lengthField("description", req.Description, MaxDescriptionLength),
+	) {
+		return
+	}
+
 	if req.Name == "" {
 		api.RespondWithError(w, http.StatusBadRequest, "name is required")
 		return
@@ -158,6 +165,13 @@ func (h *WorkingGroupHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var req UpdateWorkingGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if !validateStringLengths(w,
+		lengthField("name", req.Name, MaxNameLength),
+		lengthField("description", req.Description, MaxDescriptionLength),
+	) {
 		return
 	}
 

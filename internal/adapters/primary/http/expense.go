@@ -142,6 +142,13 @@ func (h *ExpenseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateStringLengths(w,
+		lengthField("description", req.Description, MaxDescriptionLength),
+		lengthField("date", req.Date, MaxShortStringLength),
+	) {
+		return
+	}
+
 	if req.ProjectID == "" {
 		api.RespondWithError(w, http.StatusBadRequest, "project_id is required")
 		return
@@ -208,6 +215,20 @@ func (h *ExpenseHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var req UpdateExpenseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	var description, date string
+	if req.Description != nil {
+		description = *req.Description
+	}
+	if req.Date != nil {
+		date = *req.Date
+	}
+	if !validateStringLengths(w,
+		lengthField("description", description, MaxDescriptionLength),
+		lengthField("date", date, MaxShortStringLength),
+	) {
 		return
 	}
 
@@ -376,6 +397,12 @@ func (h *ExpenseHandler) Reject(w http.ResponseWriter, r *http.Request) {
 
 	var req RejectExpenseRequest
 	json.NewDecoder(r.Body).Decode(&req)
+
+	if !validateStringLengths(w,
+		lengthField("reason", req.Reason, MaxShortStringLength),
+	) {
+		return
+	}
 
 	expenseID, err := uuid.Parse(expenseIDStr)
 	if err != nil {

@@ -59,6 +59,14 @@ func (h *ContractHandler) Create(w http.ResponseWriter, r *http.Request) {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+
+	if !validateStringLengths(w,
+		lengthField("name", req.Name, MaxNameLength),
+		lengthField("currency", req.Currency, MaxShortStringLength),
+	) {
+		return
+	}
+
 	var parsedCustomerID *uuid.UUID
 	if req.CustomerID != nil && *req.CustomerID != "" {
 		cid, err := uuid.Parse(*req.CustomerID)
@@ -140,6 +148,14 @@ func (h *ContractHandler) Update(w http.ResponseWriter, r *http.Request) {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+
+	if !validateStringLengths(w,
+		lengthField("name", req.Name, MaxNameLength),
+		lengthField("currency", req.Currency, MaxShortStringLength),
+	) {
+		return
+	}
+
 	updated, affectedMileageCount, err := h.service.Update(r.Context(), middleware.GetRole(r.Context()), orgID, contractID, &contractdomain.UpdateContractRequest{
 		Name:            req.Name,
 		KmRate:          req.KmRate,

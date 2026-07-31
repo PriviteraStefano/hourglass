@@ -77,6 +77,17 @@ func (h *CustomerHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateStringLengths(w,
+		lengthField("company_name", req.CompanyName, MaxNameLength),
+		lengthField("contact_name", req.ContactName, MaxNameLength),
+		lengthField("email", req.Email, MaxEmailLength),
+		lengthField("phone", req.Phone, MaxPhoneLength),
+		lengthField("vat_number", req.VATNumber, MaxVATLength),
+		lengthField("address", req.Address, MaxAddressLength),
+	) {
+		return
+	}
+
 	created, err := h.service.Create(ctx, orgID, role, &customerdomain.CreateCustomerRequest{
 		CompanyName: req.CompanyName,
 		ContactName: req.ContactName,
@@ -149,6 +160,17 @@ func (h *CustomerHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var req CustomerUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if !validateStringLengths(w,
+		lengthField("company_name", req.CompanyName, MaxNameLength),
+		lengthField("contact_name", req.ContactName, MaxNameLength),
+		lengthField("email", req.Email, MaxEmailLength),
+		lengthField("phone", req.Phone, MaxPhoneLength),
+		lengthField("vat_number", req.VATNumber, MaxVATLength),
+		lengthField("address", req.Address, MaxAddressLength),
+	) {
 		return
 	}
 

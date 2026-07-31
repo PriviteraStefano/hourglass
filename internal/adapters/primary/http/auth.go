@@ -42,6 +42,17 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateStringLengths(w,
+		lengthField("email", req.Email, MaxEmailLength),
+		lengthField("username", req.Username, MaxShortStringLength),
+		lengthField("firstname", req.FirstName, MaxNameLength),
+		lengthField("lastname", req.LastName, MaxNameLength),
+		lengthField("password", req.Password, MaxPasswordLength),
+		lengthField("organization_name", req.OrganizationName, MaxNameLength),
+	) {
+		return
+	}
+
 	resp, err := h.authService.Register(ctx, auth.RegisterRequest{
 		Email:            req.Email,
 		Username:         req.Username,
@@ -81,6 +92,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if !validateStringLengths(w,
+		lengthField("identifier", req.Identifier, MaxEmailLength),
+		lengthField("password", req.Password, MaxPasswordLength),
+	) {
 		return
 	}
 

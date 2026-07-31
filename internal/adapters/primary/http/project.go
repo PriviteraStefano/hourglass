@@ -59,6 +59,13 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+
+	if !validateStringLengths(w,
+		lengthField("name", req.Name, MaxNameLength),
+	) {
+		return
+	}
+
 	project, err := h.service.Create(r.Context(), orgID, &projectdomain.CreateProjectRequest{
 		Name:            req.Name,
 		Type:            req.Type,
@@ -189,6 +196,13 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+
+	if !validateStringLengths(w,
+		lengthField("name", req.Name, MaxNameLength),
+	) {
+		return
+	}
+
 	updated, err := h.service.Update(r.Context(), middleware.GetRole(r.Context()), orgID, projectID, &projectdomain.UpdateProjectRequest{
 		Name:            req.Name,
 		Type:            req.Type,
