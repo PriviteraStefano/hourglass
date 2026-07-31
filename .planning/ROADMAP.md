@@ -429,7 +429,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 9: Activity Ontology (Big-Bang Migration + Routing Rewrite)
 
-**Status:** Complete — 5/5 plans executed
+**Status:** Complete — 5/5 plans executed + 3/3 gap-closure plans planned (09-06/07/08)
 
 **Goal:** Replace `projects`+`subprojects` with the recursive `activities` entity, rewrite all FKs and approval routing onto the new ontology, land the additive staffing schema (ADR-P-008), and leave the backend API fully activity-shaped. Backend + database only — frontend rename and new surfaces are Phase 10.
 
@@ -456,6 +456,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 |------|-------|-------------|
 | 1 | 09-01 + 09-02 (parallel) | Ontology migration ∥ Staffing schema |
 | 2 | 09-03 + 09-04 + 09-05 (sequential within wave) | Domain/repo collapse → service rewrite → handler/router wiring |
+| 3 | 09-06 + 09-07 + 09-08 (parallel gap closure) | kind='phase' forward migration 013 ∥ WG test re-seed ∥ cycle prevention |
 
 ### Plans
 
@@ -466,6 +467,9 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 | [x] 09-03 | Domain + repository collapse: Activity entity, ports, PG adapters, CTE queries (completed 2026-07-31) | 2 | 3 | 23 |
 | [x] 09-04 | Service layer: routing rewrite (R-1/R-2/R-3) + ActivityService (completed 2026-07-31) | 2 | 3 | 16 |
 | [x] 09-05 | HTTP handlers + router: /api/activities, entry DTO updates, route wiring (completed 2026-07-31) | 2 | 3 | 18 |
+| [ ] 09-06 | Gap fix: kind='phase' forward migration 013 (subproject-derived activities) + migration-test surgery (planned 2026-07-31) | 3 | 2 | 4 |
+| [ ] 09-07 | Gap fix: working_group integration test re-seed onto activities (planned 2026-07-31) | 3 | 1 | 1 |
+| [ ] 09-08 | Gap fix: cycle prevention on activities.parent_id (ErrActivityCycle + validateParent + 400 mapping) (planned 2026-07-31) | 3 | 2 | 5 |
 
 ### Edge cases
 

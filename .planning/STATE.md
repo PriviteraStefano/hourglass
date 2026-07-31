@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
-status: verifying
-last_updated: "2026-07-31T17:14:20.418Z"
+status: executing
+last_updated: "2026-07-31T18:06:20.013Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 13
@@ -25,7 +25,7 @@ progress:
 
 ## Phase 0: testing-foundation
 
-- **Status:** Phase complete — ready for verification
+- **Status:** Ready to execute
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -175,7 +175,7 @@ The following phases from the previous milestone structure are superseded:
 
 Phase: 09 (activity-ontology) — EXECUTING
 Plan: 5 of 5
-Status: Phase complete — ready for verification
+Status: Ready to execute
 Last activity: 2026-07-31 -- Plan 09-05 (HTTP Handlers + Route Wiring) completed; backend API fully activity-shaped, ready for Phase 10 frontend rename
 Next up: Phase 09 (activity-ontology) — COMPLETE, 5 plans, 2 waves (ready for verification)
 
