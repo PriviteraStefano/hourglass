@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-31T12:31:03.784Z"
+last_updated: "2026-07-31T13:07:15.654Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 13
   completed_phases: 10
   total_plans: 52
-  completed_plans: 44
+  completed_plans: 45
   percent: 77
 ---
 
@@ -18,9 +18,9 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plan 08-02 (Frontend completion: /customers route, list views, error boundaries)
-- **Source:** `.planning/phases/08-pre-deployment-hardening-p0-audit-fixes/08-02-PLAN.md`
-- **Previous:** Plan 08-01 (Backend security hardening: refresh-token reuse detection + input caps)
+- **Completed:** Plan 08-03 (Backend regression tests: reuse-detection suites, S3 length-cap tables, e2e auth rotation)
+- **Source:** `.planning/phases/08-pre-deployment-hardening-p0-audit-fixes/08-03-PLAN.md`
+- **Previous:** Plan 08-02 (Frontend completion: /customers route, list views, error boundaries)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
@@ -150,14 +150,16 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 08-pre-deployment-hardening-p0-audit-fixes] (08-02): Row click / New-entry affordance switch to the calendar tab and set the date search param, reusing the existing EntryDetail/ExpenseDetail surfaces
 - [Phase 08-pre-deployment-hardening-p0-audit-fixes] (08-02): Error recovery uses errorComponent with router.invalidate() (not reset) so loaders re-run — TanStack Router v1 semantics
 - [Phase 08-pre-deployment-hardening-p0-audit-fixes] (08-02): Customers e2e suite logs in once via API and injects cookies to stay under the backend 5/min anonymous login rate limit
+- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: Race-loser semantics kept as locked in 08-01 (strict reuse model): the concurrent-refresh loser is indistinguishable from an attacker replay and revokes the family; tests assert exactly-one-success + ErrTokenReuse and document T9 as out of scope
+- [Phase 08-pre-deployment-hardening-p0-audit-fixes]: ANONYMOUS_RATE_LIMIT env knob added for the outer route rate limiter (default 20/min unchanged) so full e2e suites can run; e2e runs raise RATE_LIMIT + ANONYMOUS_RATE_LIMIT
 
 ## Current Position
 
 Phase: 08 (pre-deployment-hardening-p0-audit-fixes) — EXECUTING
-Plan: 3 of 4 (08-02 complete)
+Plan: 4 of 4 (08-03 complete)
 Status: Ready to execute
-Last activity: 2026-07-31 -- Phase 08 execution: 08-02 completed
-Next up: Plan 08-03, then Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
+Last activity: 2026-07-31 -- Phase 08 execution: 08-03 completed
+Next up: Plan 08-04, then Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
 
 ## Performance Metrics
 
@@ -189,3 +191,5 @@ Next up: Plan 08-03, then Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 w
 | Phase 07-exports P03 | 1 min | 2 tasks | 2 files |
 | Phase 08-pre-deployment-hardening-p0-audit-fixes P08-01 | 40min | 2 tasks | 21 files |
 | Phase 08-pre-deployment-hardening-p0-audit-fixes P08-02 | 93 | 5 tasks | 24 files |
+| Phase 08-pre-deployment-hardening-p0-audit-fixes P08-03 | 29min | 3 tasks | 8 files |
+| Phase 08-pre-deployment-hardening-p0-audit-fixes P08-03 | 29min | 3 tasks | 8 files |
