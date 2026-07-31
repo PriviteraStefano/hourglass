@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-31T16:29:22.614Z"
+last_updated: "2026-07-31T16:49:53.031Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 13
   completed_phases: 11
   total_plans: 52
-  completed_plans: 49
+  completed_plans: 50
   percent: 85
 ---
 
@@ -18,9 +18,9 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plan 09-03 (Domain + Repository Collapse: Activity type/port/PG adapter with ancestry-commercial-billability CTEs, entry repos on activity_id, wg/cutoff re-anchored, contract/export commercial-chain CTEs)
-- **Source:** `.planning/phases/09-activity-ontology/09-03-PLAN.md`
-- **Previous:** Plan 09-02 (Staffing schema: availability_windows + membership validity dates + hr role — 012 migration pair, testcontainers cycle test)
+- **Completed:** Plan 09-04 (Service Layer: ActivityService replaces project service; time-entry + expense approval routing on the activity chain — WG manager/delegate, unit-manager fallback, ErrActivityNotLoggable, D-11 skip incl. delegates, Approve-set verification)
+- **Source:** `.planning/phases/09-activity-ontology/09-04-PLAN.md`
+- **Previous:** Plan 09-03 (Domain + Repository Collapse: Activity type/port/PG adapter with ancestry-commercial-billability CTEs, entry repos on activity_id, wg/cutoff re-anchored, contract/export commercial-chain CTEs)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
@@ -161,13 +161,17 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 09-activity-ontology]: Migration numbered 012 not 011 (011 taken by activity ontology; ADR-BE-004 max+1) — Migration numbered 012 not 011 (011 taken by activity ontology; ADR-BE-004 max+1)
 - [Phase 09-activity-ontology]: Down migration downgrades existing hr rows to employee before restoring role CHECK (rollback must not fail on violating rows) — Down migration downgrades existing hr rows to employee before restoring role CHECK (rollback must not fail on violating rows)
 - [Phase ?]: Activity domain follows repo subdirectory convention: domain/activity/activity.go (plan flat path mapped); BudgetAmount as *float64 not *decimal (no decimal lib; codebase money is float64); working_group domain keeps legacy SubprojectID field name mapped to activities.activity_id (services not in 04/05 file lists); contract/export commercial-chain queries rewritten as activity-tree CTEs (Rule 3, old SQL hit dropped projects table); financial_cutoff_period queries live in entry repos IsPeriodLocked, updated in place to org+activity+date
+- [Phase 09-activity-ontology]: ErrActivityNotLoggable sentinel lives in the activity domain (single source shared by both entry services) — Plan requires the same sentinel across both entry services; declared once in domain/activity per ADR-BE-001
+- [Phase 09-activity-ontology]: Manager-stage approver set = WG row ManagerID + DelegateIDs; Approve re-resolves it and verifies membership — R-1 defines the manager stage as WG manager+delegates; Approve-side membership check makes routing enforceable (Rule 2)
+- [Phase 09-activity-ontology]: Terminal unit-tree case (org root without manager) stays role-gated per ADR-BE-014 consequences — Service cannot pin an org-role manager user; handler role resolution governs that terminal state
+- [Phase 09-activity-ontology]: KindExists port method added for D-2 kind-catalog validation on Create — Plan requires Create to validate kind against the org catalog; Plan-03 port had no way to express it (Rule 2)
 
 ## Current Position
 
 Phase: 09 (activity-ontology) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
-Last activity: 2026-07-31 -- Plan 09-03 (Domain + Repository Collapse) completed; ready for 09-04 (Service Layer)
+Last activity: 2026-07-31 -- Plan 09-04 (Service Layer: routing rewrite + activity service) completed; ready for 09-05 (HTTP Handlers + Route Wiring)
 Next up: Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
 
 ## Performance Metrics
@@ -206,3 +210,4 @@ Next up: Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
 | Phase 09-activity-ontology P09-01 | 7min | 2 tasks | 4 files |
 | Phase 09-activity-ontology P02 | 10min | 2 tasks | 4 files |
 | Phase 09-activity-ontology PP09-03 | 20min | 3 tasks | 23 files |
+| Phase 09-activity-ontology P09-04 | 7min | 3 tasks | 16 files |
