@@ -241,7 +241,17 @@ func main() {
 		allowedOrigins = []string{"http://localhost:3000"}
 	}
 
-	rateLimiter := middleware.NewRateLimiter(20, 100)
+	// Outer rate limiter covering all routes: anonymous clients get
+	// anonymousRateLimit requests/min (default 20), authenticated clients 100.
+	// ANONYMOUS_RATE_LIMIT is a deployment knob (same pattern as RATE_LIMIT
+	// for the auth endpoints) — e2e suites raise it to run full specs.
+	anonymousRateLimit := 20
+	if rl := os.Getenv("ANONYMOUS_RATE_LIMIT"); rl != "" {
+		if v, err := strconv.Atoi(rl); err == nil && v > 0 {
+			anonymousRateLimit = v
+		}
+	}
+	rateLimiter := middleware.NewRateLimiter(anonymousRateLimit, 100)
 
 	log.Printf("Server starting on port %s", port)
 	handler := middleware.TryAuth(authService, rateLimiter.Middleware(middleware.Logging(middleware.APIVersion(middleware.CORS(allowedOrigins)(mux)))))
