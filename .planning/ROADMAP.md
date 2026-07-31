@@ -484,7 +484,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 10: Information Architecture Implementation
 
-**Status:** In progress — 2/6 plans executed (10-01: frontend activities API layer, `/projects` → `/activities` rename, e2e green; 10-02: D-1 sidebar regroup + role-scoped visibility)
+**Status:** In progress — 3/6 plans executed (10-01: frontend activities API layer, `/projects` → `/activities` rename, e2e green; 10-02: D-1 sidebar regroup + role-scoped visibility; 10-03: Header+Body page shell wrap on all carried-over pages, contracts typecheck rot 10 → 6)
 
 **Goal:** Implement ADR-P-011: sidebar regrouping, `/projects` → `/activities` rename, Today landing (ticketless), Approvals queue, Working Groups surface, role-scoped visibility. Requires Phase 9 backend live.
 

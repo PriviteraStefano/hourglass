@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-31T21:10:48.905Z"
+last_updated: "2026-07-31T21:32:01.819Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 14
   completed_phases: 12
   total_plans: 61
-  completed_plans: 56
-  percent: 86
+  completed_plans: 57
+  percent: 92
 ---
 
 # Phase State
@@ -18,9 +18,9 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plan 10-01 (Foundation: Role type + activities API layer + /projects → /activities rename — frontend rebuilt onto the Phase 9 activity ontology; full e2e 41/41 green)
-- **Source:** `.planning/phases/10-information-architecture-implementation/10-01-PLAN.md`
-- **Previous:** Plan 09-06/07/08 (gap closure) — Phase 9 complete
+- **Completed:** Plan 10-03 (Page shell migration — Header+Body wrap on all carried-over pages; every authenticated page now renders through the locked shell; contracts typecheck rot 10 → 6)
+- **Source:** `.planning/phases/10-information-architecture-implementation/10-03-PLAN.md`
+- **Previous:** Plan 10-02 (sidebar regroup + role-scoped visibility)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
@@ -176,13 +176,20 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 10]: Sidebar groups render from a single declarative navStructure filtered by pure role-matrix predicates; visibility logic never lives inline in JSX — ADR-P-011 D-1/D-5; keeps the matrix testable and the render loop dumb
 - [Phase 10]: Approval stages derived client-side from route-context profile + GET /working-groups (manager_id/delegate_ids); hr stripped per ADR-P-008 D-4 — RESEARCH 2.1: no new backend endpoint needed; UX scoping only, backend stays authoritative
 - [Phase 10]: workingGroupsQueryOpts named export + WorkingGroupsApis object; 60s staleTime keyed ['working-groups'] as the stable home for Plan 10-06 mutations — Satisfies the acceptance contract and the established API-layer object convention
+- [Phase 10-information-architecture-implementation] (10-03): Layout barrel index.ts created so @/components/layout resolves (task 1 acceptance criterion); exports Header/Body only — minimal, no behavior change
+- [Phase 10-information-architecture-implementation] (10-03): Tab triggers (List/Calendar/Export) stay inside Body, not moved to Header — the binding acceptance criterion 'existing control tree unmodified apart from being wrapped' + threat T-10-03-1 override the action text's 'tab triggers that fit the band'; moving TabsList out of the Tabs root would break base-ui Tabs context wiring and constitute re-layout
+- [Phase 10-information-architecture-implementation] (10-03): Shell page titles use UI-SPEC Heading style (text-xl font-semibold) in the Header on every wrapped page
+- [Phase 10-information-architecture-implementation] (10-03): Pages with no prior padding (exports/contracts/customers/activities) get the UI-SPEC lg 24px inner container (p-6) inside Body; time-entries/expenses keep their existing p-2 (plan: keep existing padding container as-is)
+- [Phase 10-information-architecture-implementation] (10-03): All wrapped pages get the h-full overflow-y-auto inner scroll container inside Body (UI-SPEC: long content scrolls inside Body, window never scrolls)
+- [Phase 10-information-architecture-implementation] (10-03): Leaf-level errorComponent preserved verbatim per plan instruction; in-page pending/error UI (activity-detail loading/not-found) now renders inside Body within the shell frame (threat T-10-03-2)
+- [Phase 10-information-architecture-implementation] (10-03): Contracts typecheck rot fixed inline (deferred-items assigns those 4 errors to 10-03): currency v??undefined, Customer.company_name, navigate search:{from:'owned'}, Select onChange wrapper
 
 ## Current Position
 
 Phase: 10 (information-architecture-implementation) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
-Last activity: 2026-07-31 -- Phase 10 execution started
+Last activity: 2026-07-31 -- Plan 10-03 complete (page shell wrap); 41/41 e2e green
 Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for verification)
 
 ## Performance Metrics
@@ -225,3 +232,4 @@ Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for 
 | Phase 09-activity-ontology PP09-05 | 17min | 3 tasks | 18 files |
 | Phase 10-information-architecture-implementation P01 | 37min | 3 tasks | 27 files |
 | Phase 10 P02 | 9min | 3 tasks | 6 files |
+| Phase 10-information-architecture-implementation P03 | 9min | 3 tasks | 10 files |
