@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivitiesApis } from "@/api/activities";
 import { CreateActivityDialog } from "./create-activity-dialog";
+import { Header, Body } from "@/components/layout";
 import type { ActivityResponse } from "@/types/models";
 
 interface ActivityListProps {
@@ -45,9 +46,9 @@ export function ActivityList({ initialTab = "owned" }: ActivityListProps) {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold">Activities</h1>
-        <div className="flex items-center gap-4">
+      <Header>
+        <h1 className="text-xl font-semibold">Activities</h1>
+        <div className="ml-auto flex items-center gap-4">
           <div className="relative">
             <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -64,76 +65,80 @@ export function ActivityList({ initialTab = "owned" }: ActivityListProps) {
             </Button>
           )}
         </div>
-      </div>
+      </Header>
 
-      <Tabs value={tab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="owned">Owned</TabsTrigger>
-          <TabsTrigger value="adopted">Adopted</TabsTrigger>
-          <TabsTrigger value="all">All</TabsTrigger>
-        </TabsList>
+      <Body>
+        <div className="h-full overflow-y-auto p-6">
+          <Tabs value={tab} onValueChange={handleTabChange}>
+            <TabsList>
+              <TabsTrigger value="owned">Owned</TabsTrigger>
+              <TabsTrigger value="adopted">Adopted</TabsTrigger>
+              <TabsTrigger value="all">All</TabsTrigger>
+            </TabsList>
 
-        <TabsContent value={tab} className="mt-4">
-          {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Loading...
-            </div>
-          ) : filteredActivities?.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {searchQuery
-                ? "No activities match your search"
-                : `No ${tab} activities`}
-            </div>
-          ) : (
-            <div className="border rounded-lg divide-y">
-              {filteredActivities?.map((activity: ActivityResponse) => (
-                <div
-                  key={activity.id}
-                  className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer"
-                  onClick={() => handleRowClick(activity)}
-                >
-                  <div className="flex items-center gap-3">
-                    {activity.is_shared ? (
-                      <GlobeIcon className="w-4 h-4 text-muted-foreground" />
-                    ) : (
-                      <LockIcon className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{activity.name}</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {activity.kind}
-                        </Badge>
-                        {activity.is_shared && (
-                          <Badge variant="outline" className="text-xs">
-                            Shared
-                          </Badge>
+            <TabsContent value={tab} className="mt-4">
+              {isLoading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading...
+                </div>
+              ) : filteredActivities?.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {searchQuery
+                    ? "No activities match your search"
+                    : `No ${tab} activities`}
+                </div>
+              ) : (
+                <div className="border rounded-lg divide-y">
+                  {filteredActivities?.map((activity: ActivityResponse) => (
+                    <div
+                      key={activity.id}
+                      className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer"
+                      onClick={() => handleRowClick(activity)}
+                    >
+                      <div className="flex items-center gap-3">
+                        {activity.is_shared ? (
+                          <GlobeIcon className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <LockIcon className="w-4 h-4 text-muted-foreground" />
                         )}
-                        {tab === "adopted" &&
-                          activity.created_by_org_name && (
-                            <span className="text-xs text-muted-foreground">
-                              from {activity.created_by_org_name}
-                            </span>
-                          )}
-                        {tab === "all" && activity.is_adopted && (
-                          <Badge variant="outline" className="text-xs">
-                            Already adopted
-                          </Badge>
-                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{activity.name}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {activity.kind}
+                            </Badge>
+                            {activity.is_shared && (
+                              <Badge variant="outline" className="text-xs">
+                                Shared
+                              </Badge>
+                            )}
+                            {tab === "adopted" &&
+                              activity.created_by_org_name && (
+                                <span className="text-xs text-muted-foreground">
+                                  from {activity.created_by_org_name}
+                                </span>
+                              )}
+                            {tab === "all" && activity.is_adopted && (
+                              <Badge variant="outline" className="text-xs">
+                                Already adopted
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+              )}
+            </TabsContent>
+          </Tabs>
 
-      <CreateActivityDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-      />
+          <CreateActivityDialog
+            open={createDialogOpen}
+            onOpenChange={setCreateDialogOpen}
+          />
+        </div>
+      </Body>
     </>
   );
 }

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ActivitiesApis } from "@/api/activities";
 import { EditActivityDialog } from "./edit-activity-dialog";
+import { Header, Body } from "@/components/layout";
 import type { ActivityDetail as ActivityDetailType } from "@/types/models";
 
 interface ActivityDetailProps {
@@ -57,15 +58,35 @@ export function ActivityDetail({ id, fromTab = "owned" }: ActivityDetailProps) {
 
   if (isLoading) {
     return (
-      <div className="text-center py-8 text-muted-foreground">Loading...</div>
+      <>
+        <Header>
+          <h1 className="text-xl font-semibold">Activity</h1>
+        </Header>
+        <Body>
+          <div className="h-full overflow-y-auto p-6">
+            <div className="text-center py-8 text-muted-foreground">
+              Loading...
+            </div>
+          </div>
+        </Body>
+      </>
     );
   }
 
   if (!detail) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        Activity not found
-      </div>
+      <>
+        <Header>
+          <h1 className="text-xl font-semibold">Activity</h1>
+        </Header>
+        <Body>
+          <div className="h-full overflow-y-auto p-6">
+            <div className="text-center py-8 text-muted-foreground">
+              Activity not found
+            </div>
+          </div>
+        </Body>
+      </>
     );
   }
 
@@ -77,48 +98,46 @@ export function ActivityDetail({ id, fromTab = "owned" }: ActivityDetailProps) {
     : "None (internal work)";
 
   return (
-    <div className="space-y-4">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate({ to: "/activities", search: { tab: fromTab } })}
-      >
-        <ArrowLeftIcon className="w-4 h-4 mr-1" />
-        Back to Activities
-      </Button>
+    <>
+      <Header>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() =>
+            navigate({ to: "/activities", search: { tab: fromTab } })
+          }
+        >
+          <ArrowLeftIcon className="w-4 h-4 mr-1" />
+          Back to Activities
+        </Button>
 
-      {d.ancestry.length > 0 && (
-        <nav className="flex items-center gap-1 text-sm text-muted-foreground flex-wrap">
-          {d.ancestry
-            .slice()
-            .reverse()
-            .map((ancestor) => (
-              <span key={ancestor.id} className="flex items-center gap-1">
-                <span>{ancestor.name}</span>
-                <span>/</span>
-              </span>
-            ))}
-          <span className="font-medium text-foreground">{a.name}</span>
-        </nav>
-      )}
+        {d.ancestry.length > 0 && (
+          <nav className="flex items-center gap-1 text-sm text-muted-foreground flex-wrap">
+            {d.ancestry
+              .slice()
+              .reverse()
+              .map((ancestor) => (
+                <span key={ancestor.id} className="flex items-center gap-1">
+                  <span>{ancestor.name}</span>
+                  <span>/</span>
+                </span>
+              ))}
+            <span className="font-medium text-foreground">{a.name}</span>
+          </nav>
+        )}
 
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold">{a.name}</h1>
-            {a.is_shared ? (
-              <GlobeIcon className="w-5 h-5 text-muted-foreground" />
-            ) : (
-              <LockIcon className="w-5 h-5 text-muted-foreground" />
-            )}
-            <Badge variant="secondary">{a.kind}</Badge>
-            {a.is_shared && <Badge variant="outline">Shared</Badge>}
-          </div>
-          {isAdopted && a.created_by_org_id && (
-            <p className="text-sm text-muted-foreground mt-1">Adopted</p>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold">{a.name}</h1>
+          {a.is_shared ? (
+            <GlobeIcon className="w-5 h-5 text-muted-foreground" />
+          ) : (
+            <LockIcon className="w-5 h-5 text-muted-foreground" />
           )}
+          <Badge variant="secondary">{a.kind}</Badge>
+          {a.is_shared && <Badge variant="outline">Shared</Badge>}
         </div>
-        <div className="flex gap-2">
+
+        <div className="ml-auto flex gap-2">
           <Button variant="outline" onClick={() => setEditOpen(true)}>
             Edit
           </Button>
@@ -133,99 +152,109 @@ export function ActivityDetail({ id, fromTab = "owned" }: ActivityDetailProps) {
             Delete
           </Button>
         </div>
-      </div>
+      </Header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Contract</span>
-            <span>{contractName}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Kind</span>
-            <span className="capitalize">{a.kind}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Billable</span>
-            <span>
-              {d.billable === true
-                ? "Billable"
-                : d.billable === false
-                  ? "Non-billable"
-                  : "Inherited (unset)"}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Governance</span>
-            <span className="capitalize">
-              {a.governance_model.replace("_", " ")}
-            </span>
-          </div>
-          {a.is_shared && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Adoption Count</span>
-              <span>—</span>
-            </div>
+      <Body>
+        <div className="h-full overflow-y-auto p-6 space-y-4">
+          {isAdopted && a.created_by_org_id && (
+            <p className="text-sm text-muted-foreground">Adopted</p>
           )}
-          {a.description && (
-            <p className="text-sm text-muted-foreground pt-2">{a.description}</p>
-          )}
-        </CardContent>
-      </Card>
 
-      <Accordion>
-        <AccordionItem value="children">
-          <AccordionTrigger>Children</AccordionTrigger>
-          <AccordionContent>
-            <ChildrenSection id={id} />
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+          <Card>
+            <CardHeader>
+              <CardTitle>Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Contract</span>
+                <span>{contractName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Kind</span>
+                <span className="capitalize">{a.kind}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Billable</span>
+                <span>
+                  {d.billable === true
+                    ? "Billable"
+                    : d.billable === false
+                      ? "Non-billable"
+                      : "Inherited (unset)"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Governance</span>
+                <span className="capitalize">
+                  {a.governance_model.replace("_", " ")}
+                </span>
+              </div>
+              {a.is_shared && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Adoption Count</span>
+                  <span>—</span>
+                </div>
+              )}
+              {a.description && (
+                <p className="text-sm text-muted-foreground pt-2">
+                  {a.description}
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
-      <EditActivityDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        activity={a}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["activities", id] });
-        }}
-      />
+          <Accordion>
+            <AccordionItem value="children">
+              <AccordionTrigger>Children</AccordionTrigger>
+              <AccordionContent>
+                <ChildrenSection id={id} />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
 
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{a.name}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete this activity and cannot be undone.
-              If this activity or its children have active time entries or
-              expenses, deletion will be blocked.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && (
-            <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">
-              {deleteError}
-            </div>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteActivity.isPending}
-              onClick={(e) => {
-                e.preventDefault();
-                setDeleteError(null);
-                deleteActivity.mutate(a.id);
-              }}
-            >
-              {deleteActivity.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+          <EditActivityDialog
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            activity={a}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ["activities", id] });
+            }}
+          />
+
+          <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete "{a.name}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete this activity and cannot be
+                  undone. If this activity or its children have active time
+                  entries or expenses, deletion will be blocked.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {deleteError && (
+                <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">
+                  {deleteError}
+                </div>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={deleteActivity.isPending}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setDeleteError(null);
+                    deleteActivity.mutate(a.id);
+                  }}
+                >
+                  {deleteActivity.isPending ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </Body>
+    </>
   );
 }
 
