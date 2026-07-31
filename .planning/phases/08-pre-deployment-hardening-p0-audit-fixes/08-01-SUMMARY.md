@@ -86,7 +86,7 @@ Each task was committed atomically:
 1. **Task 1: Refresh-token reuse detection with family revocation** - `e4b7932` (feat)
 2. **Task 2: Request-string length caps at handler boundary** - `96da472` (feat)
 
-**Plan metadata:** pending (docs: complete plan — created with this summary)
+**Plan metadata:** `14538d1` (docs: complete plan)
 
 ## Files Created/Modified
 
