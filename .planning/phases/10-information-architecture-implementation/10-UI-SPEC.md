@@ -3,6 +3,7 @@ phase: 10
 slug: information-architecture-implementation
 status: approved
 reviewed_at: 2026-07-31
+amended_at: 2026-07-31 (page shell composition lock — Header + Body wrap for all pages)
 shadcn_initialized: true
 preset: base-mira (olive base color, cssVariables, @base-ui/react primitives)
 created: 2026-07-31
@@ -25,7 +26,37 @@ created: 2026-07-31
 | Icon library | `lucide-react` (existing import convention: named imports, `type LucideIcon` for nav item typing) |
 | Font | Inter Variable (`@fontsource-variable/inter`, `font-sans` on `html`); Martian Mono 200 for `.font-display`, Geist Mono 300 for `.font-text` — display/mono fonts NOT used for nav or body copy |
 
-No new dependencies may be added in this phase. Every surface composes the installed `ui/` primitives.
+No new dependencies may be added in this phase. Every surface composes the installed `ui/` primitives and the existing `@/components/layout` shell primitives (`app-shell.tsx`, `sidebar.tsx`, `header.tsx`, `body.tsx`).
+
+---
+
+## Page Shell
+
+Locked composition for **every** authenticated page in Phase 10 — the "wrapped" effect already shipped on `/org-hierarchy` (`OrgHierarchyPage`) becomes the universal contract: the app sidebar runs the full viewport height on the left; the page column shows a shell header band on top and one rounded, elevated content surface filling the rest.
+
+| Concern | Value |
+|---------|-------|
+| Shell components | `Header` and `Body` from `@/components/layout` (already exist — **do not re-implement, do not fork**) |
+| Locked structure | `<AppShell>` → `<Header>{page affordances}</Header>` → `<Body>{page content}</Body>` — no page renders bare content directly into `SidebarInset` |
+| Shell `Header` role | Carries page-global affordances: page title, stage/view tabs, filters, search bar, and CTA buttons — as long as they fit nicely in the single 48px band |
+| Header overflow rule | Whatever does not fit the band moves **below** into the page body (e.g. a filter row pinned atop a table) — never into a second header row and never into the sidebar |
+| Shell `Body` role | Wraps **all** page content. Class list locked: `flex-1 rounded-lg bg-background overflow-clip shadow-lg ring-1 ring-sidebar-border m-0.5` — pages opt out of nothing; per-page variation goes through the existing `className` escape hatch only |
+| Padding ownership | `Body` is padding-free; the page's own inner content container applies `lg` (24px) padding. Exception: edge-to-edge surfaces (org chart canvas, full-bleed tables) stay at 0 inside `Body` |
+| Scrolling | Long content scrolls **inside** `Body` (`overflow-clip` + inner scroll container); the shell header stays fixed — the window itself never scrolls |
+| Route boundaries | `errorComponent` / `pendingComponent` states for a route render **inside** `Body`, so the shell frame (sidebar + header band) survives load and error states |
+
+Per-surface header composition:
+
+| Surface | Shell `Header` contents |
+|---------|--------------------------|
+| Today | Greeting/title (Display 28px) + primary CTA right-aligned ("Review now" or "Log time") |
+| Approvals | Title + Manager/Finance tabs + queue filters |
+| Working Groups | Title + search bar + "New working group" CTA right-aligned |
+| Activities | Title + search bar + "New activity" CTA right-aligned |
+| Org | Existing `OrgChartToolbar` (reference implementation — unchanged) |
+| Carried-over surfaces (Time, Expenses, Contracts, Customers, Exports) | Title + existing primary CTA/filters — **wrap-only migration in this phase: no re-layout, no control redesign** |
+
+Accessibility: the shell `Header` is a `<header>` landmark; page titles render as the page's single `h1` there, so heading order starts inside `Body` at `h2`.
 
 ---
 
@@ -40,7 +71,7 @@ Declared values (multiples of 4, Tailwind default scale — already the project 
 | md | 16px (`p-4`, `gap-4`) | Default card/section padding; Today section internal spacing; queue row padding |
 | lg | 24px (`p-6`, `gap-6`) | Page content padding; gaps between Today composition sections |
 | xl | 32px (`p-8`, `gap-8`) | Empty-state vertical rhythm (icon → heading → body → CTA) |
-| 2xl | 48px | Top-level page header block separation (title → content) on Today, Approvals, Working Groups |
+| 2xl | 48px | Not hand-applied in this phase — title → content separation is owned by the locked page shell (shell `Header` block above `Body`); see Page Shell |
 | 3xl | 64px | Not used in this phase (no marketing-scale surfaces) |
 
 Exceptions:
@@ -57,8 +88,8 @@ Inter Variable is the sole UI typeface for this phase. Declare exactly 4 sizes, 
 |------|------|--------|-------------|-------|
 | Label | 12px (`text-xs`) | 500 (`font-medium`) | 1.33 | Sidebar group labels (Track / Work / People / Economics / Review / Reports / Admin), table column headers, badge text |
 | Body | 14px (`text-sm`) | 400 (`font-normal`) | 1.5 | Nav item labels, queue row content, empty-state body, form copy |
-| Heading | 20px (`text-xl`) | 600 (`font-semibold`) | 1.2 | Page titles (Today, Approvals, Working Groups, Activities), section headings inside Today |
-| Display | 28px (`text-3xl`) | 600 (`font-semibold`) | 1.2 | Today page greeting/title only — the single largest text on any Phase 10 surface |
+| Heading | 20px (`text-xl`) | 600 (`font-semibold`) | 1.2 | Page titles — rendered inside the shell `Header`, not in page body (Today, Approvals, Working Groups, Activities) — and section headings inside Today |
+| Display | 28px (`text-3xl`) | 600 (`font-semibold`) | 1.2 | Today page greeting/title only, rendered in the shell `Header` — the single largest text on any Phase 10 surface |
 
 Rules:
 * Only two weights exist in Phase 10 UI: 400 and 600. (Sidebar group labels at 500 are the third value — **locked exception**: they inherit the shadcn `SidebarGroupLabel` style and must not be re-weighted.)
@@ -146,6 +177,7 @@ Per ADR-P-011/ADR-P-004, these are binding for the checker:
 4. **Role-scoped visibility matrix** (ADR-P-011 D-5) drives sidebar rendering: Employee (no Review/Economics/Admin), Manager (Review manager stage), Finance (Review finance stage, Economics), HR (no Review — curator pattern, People full), Admin group hidden from all but org admin.
 5. **Route rename**: `/projects` → `/activities` rides the Phase 9 big-bang; the nav label, page title, and CTA all switch to "activity" vocabulary in the same phase.
 6. Role data source: current membership role from `GET /auth/me` (already available client-side — no new endpoint).
+7. **Page shell (amended 2026-07-31):** every authenticated page — new Phase 10 surfaces and carried-over ones — renders through the locked `<Header>` + `<Body>` composition defined in Page Shell. Carried-over pages get a wrap-only migration (no re-layout); the org-hierarchy page is the canonical reference implementation.
 
 ---
 
