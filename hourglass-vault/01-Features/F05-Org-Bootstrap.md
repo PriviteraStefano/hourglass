@@ -1,3 +1,15 @@
+## Pillar & Purpose
+
+| Field | Value |
+|-------|-------|
+| **Pillar** | Control |
+| **Purpose** | Lets a new organization enter the system atomically — no orphaned users, no half-created orgs — so structure starts trustworthy. |
+| **Answers** | Indirect — enables the Structure pillar by creating the org + admin that own it. |
+| **Vision ref** | [[VISION]] §5 (invitations/bootstrap) |
+| **Decision ref** | [[ADR-P-002 — Four Pillars & Feature Purposes]] |
+
+---
+
 # Feature: Organization Bootstrap
 
 ## Overview

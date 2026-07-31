@@ -1,3 +1,15 @@
+## Pillar & Purpose
+
+| Field | Value |
+|-------|-------|
+| **Pillar** | Control |
+| **Purpose** | Lets org admins bring people in under control — invitees arrive as employees by default, invites expire — so membership is deliberate, not open. |
+| **Answers** | Indirect — feeds the Structure pillar with properly-roled members. |
+| **Vision ref** | [[VISION]] §5 (invitations/bootstrap) |
+| **Decision ref** | [[ADR-P-002 — Four Pillars & Feature Purposes]] |
+
+---
+
 # Feature: Invitation System
 
 ## Overview
