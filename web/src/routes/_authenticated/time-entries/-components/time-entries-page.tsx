@@ -6,6 +6,7 @@ import { EntryDetail } from "@/routes/_authenticated/time-entries/-components/en
 import { TimeEntriesList } from "@/routes/_authenticated/time-entries/-components/time-entries-list.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExportForm } from "@/components/exports/export-form";
+import { Header, Body } from "@/components/layout";
 import { type TimeEntry } from "@/types";
 
 export function TimeEntriesPage() {
@@ -31,24 +32,36 @@ export function TimeEntriesPage() {
   };
 
   return (
-    <Tabs value={tab} onValueChange={setTab} className="p-2">
-      <TabsList>
-        <TabsTrigger value="list">List</TabsTrigger>
-        <TabsTrigger value="calendar">Calendar</TabsTrigger>
-        <TabsTrigger value="export">Export</TabsTrigger>
-      </TabsList>
-      <TabsContent value="list">
-        <TimeEntriesList onOpenDetail={openDetail} onNewEntry={openNewEntry} />
-      </TabsContent>
-      <TabsContent value="calendar">
-        <div className="flex">
-          <MiniCalendar />
-          <EntryDetail />
+    <>
+      <Header>
+        <h1 className="text-xl font-semibold">Time</h1>
+      </Header>
+      <Body>
+        <div className="h-full overflow-y-auto">
+          <Tabs value={tab} onValueChange={setTab} className="p-2">
+            <TabsList>
+              <TabsTrigger value="list">List</TabsTrigger>
+              <TabsTrigger value="calendar">Calendar</TabsTrigger>
+              <TabsTrigger value="export">Export</TabsTrigger>
+            </TabsList>
+            <TabsContent value="list">
+              <TimeEntriesList
+                onOpenDetail={openDetail}
+                onNewEntry={openNewEntry}
+              />
+            </TabsContent>
+            <TabsContent value="calendar">
+              <div className="flex">
+                <MiniCalendar />
+                <EntryDetail />
+              </div>
+            </TabsContent>
+            <TabsContent value="export">
+              <ExportForm type="timesheets" />
+            </TabsContent>
+          </Tabs>
         </div>
-      </TabsContent>
-      <TabsContent value="export">
-        <ExportForm type="timesheets" />
-      </TabsContent>
-    </Tabs>
+      </Body>
+    </>
   );
 }

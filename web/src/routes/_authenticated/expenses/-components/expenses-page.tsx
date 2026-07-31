@@ -5,6 +5,7 @@ import { ExpenseDetail } from "@/routes/_authenticated/expenses/-components/expe
 import { ExpensesList } from "@/routes/_authenticated/expenses/-components/expenses-list.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExportForm } from "@/components/exports/export-form";
+import { Header, Body } from "@/components/layout";
 import { type Expense } from "@/types/expense-types";
 
 export function ExpensesPage() {
@@ -30,24 +31,36 @@ export function ExpensesPage() {
   };
 
   return (
-    <Tabs value={tab} onValueChange={setTab} className="p-2">
-      <TabsList>
-        <TabsTrigger value="list">List</TabsTrigger>
-        <TabsTrigger value="calendar">Calendar</TabsTrigger>
-        <TabsTrigger value="export">Export</TabsTrigger>
-      </TabsList>
-      <TabsContent value="list">
-        <ExpensesList onOpenDetail={openDetail} onNewExpense={openNewExpense} />
-      </TabsContent>
-      <TabsContent value="calendar">
-        <div className="flex">
-          <ExpenseCalendar />
-          <ExpenseDetail />
+    <>
+      <Header>
+        <h1 className="text-xl font-semibold">Expenses</h1>
+      </Header>
+      <Body>
+        <div className="h-full overflow-y-auto">
+          <Tabs value={tab} onValueChange={setTab} className="p-2">
+            <TabsList>
+              <TabsTrigger value="list">List</TabsTrigger>
+              <TabsTrigger value="calendar">Calendar</TabsTrigger>
+              <TabsTrigger value="export">Export</TabsTrigger>
+            </TabsList>
+            <TabsContent value="list">
+              <ExpensesList
+                onOpenDetail={openDetail}
+                onNewExpense={openNewExpense}
+              />
+            </TabsContent>
+            <TabsContent value="calendar">
+              <div className="flex">
+                <ExpenseCalendar />
+                <ExpenseDetail />
+              </div>
+            </TabsContent>
+            <TabsContent value="export">
+              <ExportForm type="expenses" />
+            </TabsContent>
+          </Tabs>
         </div>
-      </TabsContent>
-      <TabsContent value="export">
-        <ExportForm type="expenses" />
-      </TabsContent>
-    </Tabs>
+      </Body>
+    </>
   );
 }
