@@ -163,7 +163,7 @@ func TestInputLengthCaps_RejectOversizedFields(t *testing.T) {
 
 // Under-limit values must pass through the length gate untouched — later
 // validation (not the length cap) decides the outcome. Here a short
-// description must reach the required-field check for project_id instead of
+// description must reach the required-field check for activity_id instead of
 // tripping the length gate.
 func TestInputLengthCaps_DoNotRejectNormalLength(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/time-entries",
@@ -176,7 +176,7 @@ func TestInputLengthCaps_DoNotRejectNormalLength(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected existing required-field 400, got %d (body: %s)", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "project_id is required") {
+	if !strings.Contains(rec.Body.String(), "activity_id is required") {
 		t.Fatalf("length gate must not shadow required-field validation, got: %s", rec.Body.String())
 	}
 }
@@ -195,7 +195,7 @@ func TestInputLengthCaps_DoNotRejectNormalLength_Expense(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected existing required-field 400, got %d (body: %s)", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "project_id is required") {
+	if !strings.Contains(rec.Body.String(), "activity_id is required") {
 		t.Fatalf("length gate must not shadow required-field validation, got: %s", rec.Body.String())
 	}
 }

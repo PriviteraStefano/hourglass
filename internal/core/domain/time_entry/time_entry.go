@@ -27,33 +27,33 @@ const (
 )
 
 type TimeEntry struct {
-	ID                  uuid.UUID       `json:"id"`
-	OrgID               uuid.UUID       `json:"org_id"`
-	UserID              uuid.UUID       `json:"user_id"`
-	ActivityID          uuid.UUID       `json:"activity_id"`
-	ActivityName        string          `json:"activity_name,omitempty"` // joined display field (09-05)
-	ActivityKind        string          `json:"activity_kind,omitempty"` // joined display field (09-05)
-	UnitID              uuid.UUID       `json:"unit_id"`
-	Hours               float64         `json:"hours"`
-	Description         string          `json:"description"`
-	EntryDate           time.Time       `json:"entry_date"`
-	Status              string          `json:"status"`
-	CurrentApproverRole *string         `json:"current_approver_role,omitempty"`
-	SubmittedAt         *time.Time      `json:"submitted_at,omitempty"`
-	IsDeleted           bool            `json:"is_deleted"`
-	CreatedFromEntryID  *uuid.UUID      `json:"created_from_entry_id,omitempty"`
-	CreatedAt           time.Time       `json:"created_at"`
-	UpdatedAt           time.Time       `json:"updated_at"`
+	ID                  uuid.UUID  `json:"id"`
+	OrgID               uuid.UUID  `json:"org_id"`
+	UserID              uuid.UUID  `json:"user_id"`
+	ActivityID          uuid.UUID  `json:"activity_id"`
+	ActivityName        string     `json:"activity_name,omitempty"` // joined display field (09-05)
+	ActivityKind        string     `json:"activity_kind,omitempty"` // joined display field (09-05)
+	UnitID              uuid.UUID  `json:"unit_id"`
+	Hours               float64    `json:"hours"`
+	Description         string     `json:"description"`
+	EntryDate           time.Time  `json:"entry_date"`
+	Status              string     `json:"status"`
+	CurrentApproverRole *string    `json:"current_approver_role,omitempty"`
+	SubmittedAt         *time.Time `json:"submitted_at,omitempty"`
+	IsDeleted           bool       `json:"is_deleted"`
+	CreatedFromEntryID  *uuid.UUID `json:"created_from_entry_id,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
 type CreateTimeEntryRequest struct {
-	OrgID      uuid.UUID `json:"org_id"`
-	UserID     uuid.UUID `json:"user_id"`
-	ActivityID uuid.UUID `json:"activity_id"`
-	UnitID     uuid.UUID `json:"unit_id"`
-	Hours      float64   `json:"hours"`
-	Description string   `json:"description"`
-	Date       string    `json:"date"`
+	OrgID       uuid.UUID `json:"org_id"`
+	UserID      uuid.UUID `json:"user_id"`
+	ActivityID  uuid.UUID `json:"activity_id"`
+	UnitID      uuid.UUID `json:"unit_id"`
+	Hours       float64   `json:"hours"`
+	Description string    `json:"description"`
+	Date        string    `json:"date"`
 }
 
 type UpdateTimeEntryRequest struct {
@@ -75,16 +75,16 @@ type Approval struct {
 }
 
 type AuditLog struct {
-	ID        uuid.UUID          `json:"id"`
-	OrgID     uuid.UUID          `json:"org_id"`
-	EntryID   string             `json:"entry_id"`
-	EntryType string             `json:"entry_type"`
-	Action    string             `json:"action"`
-	ActorRole string             `json:"actor_role"`
-	ActorID   uuid.UUID          `json:"actor_id"`
-	Reason    string             `json:"reason"`
-	Changes   map[string]any     `json:"changes"`
-	Timestamp time.Time          `json:"timestamp"`
+	ID        uuid.UUID      `json:"id"`
+	OrgID     uuid.UUID      `json:"org_id"`
+	EntryID   string         `json:"entry_id"`
+	EntryType string         `json:"entry_type"`
+	Action    string         `json:"action"`
+	ActorRole string         `json:"actor_role"`
+	ActorID   uuid.UUID      `json:"actor_id"`
+	Reason    string         `json:"reason"`
+	Changes   map[string]any `json:"changes"`
+	Timestamp time.Time      `json:"timestamp"`
 }
 
 func (e *TimeEntry) IsOwner(userID uuid.UUID) bool {

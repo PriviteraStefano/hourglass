@@ -255,10 +255,10 @@ func (h *ActivityHandler) Update(w http.ResponseWriter, r *http.Request) {
 		svcReq.ContractID = &cid
 	}
 	if req.Name != nil {
-		svcReq.Name = req.Name
+		svcReq.Name = *req.Name
 	}
 	if req.Description != nil {
-		svcReq.Description = req.Description
+		svcReq.Description = *req.Description
 	}
 	if req.Kind != nil {
 		svcReq.Kind = activitydomain.ActivityKind(*req.Kind)

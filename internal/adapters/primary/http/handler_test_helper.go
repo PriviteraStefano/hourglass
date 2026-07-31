@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/postgres"
 	"github.com/stefanoprivitera/hourglass/internal/auth"
+	activitysvc "github.com/stefanoprivitera/hourglass/internal/core/services/activity"
 	authsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
 	contractsvc "github.com/stefanoprivitera/hourglass/internal/core/services/contract"
 	customersvc "github.com/stefanoprivitera/hourglass/internal/core/services/customer"
@@ -18,7 +19,6 @@ import (
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
 	orgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/organization"
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
-	projectsvc "github.com/stefanoprivitera/hourglass/internal/core/services/project"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
 	unitsvc "github.com/stefanoprivitera/hourglass/internal/core/services/unit"
 	wgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/working_group"
@@ -64,8 +64,7 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	wgRepo := postgres.NewWorkingGroupRepository(pool)
 	customerRepo := postgres.NewCustomerRepository(pool)
 	orgMgmtRepo := postgres.NewOrganizationManagementRepository(pool)
-	projectRepo := postgres.NewProjectRepository(pool)
-	subprojectRepo := postgres.NewSubprojectRepository(pool)
+	activityRepo := postgres.NewActivityRepository(pool)
 	contractRepo := postgres.NewContractRepository(pool)
 	timeEntryRepo := postgres.NewTimeEntryRepository(pool)
 	exportRepo := postgres.NewExportRepository(pool)
@@ -79,9 +78,9 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	wgService := wgsvc.NewService(wgRepo)
 	customerService := customersvc.NewService(customerRepo)
 	orgMgmtService := orgsvc.NewService(orgMgmtRepo, customerService)
-	projectService := projectsvc.NewService(projectRepo)
+	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo)
 	contractService := contractsvc.NewService(contractRepo)
-	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo)
+	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo)
 	exportService := exportsvc.NewService(exportRepo)
 
 	// Handlers
@@ -91,7 +90,7 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	wgHandler := NewWorkingGroupHandler(wgService)
 	customerHandler := NewCustomerHandler(customerService)
 	orgHandler := NewOrganizationHandler(orgMgmtService)
-	projectHandler := NewProjectHandler(projectService, subprojectRepo)
+	activityHandler := NewActivityHandler(activityService, activityRepo)
 	contractHandler := NewContractHandler(contractService)
 	teHandler := NewTimeEntryHandler(teService)
 	exportHandler := NewExportHandler(exportService)
@@ -157,14 +156,14 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	mux.HandleFunc("PUT /organizations/members/{member_id}/roles", middleware.Auth(authSvc, orgHandler.UpdateMemberRoles))
 	mux.HandleFunc("DELETE /organizations/members/{member_id}", middleware.Auth(authSvc, orgHandler.DeactivateMember))
 
-	// Projects
-	mux.HandleFunc("GET /projects", middleware.Auth(authSvc, projectHandler.List))
-	mux.HandleFunc("POST /projects", middleware.Auth(authSvc, projectHandler.Create))
-	mux.HandleFunc("GET /projects/{id}", middleware.Auth(authSvc, projectHandler.Get))
-	mux.HandleFunc("POST /projects/{id}/adopt", middleware.Auth(authSvc, projectHandler.Adopt))
-	mux.HandleFunc("GET /projects/{id}/managers", middleware.Auth(authSvc, projectHandler.ListManagers))
-	mux.HandleFunc("POST /projects/{id}/managers", middleware.Auth(authSvc, projectHandler.AddManager))
-	mux.HandleFunc("DELETE /projects/{id}/managers/{user_id}", middleware.Auth(authSvc, projectHandler.RemoveManager))
+	// Activities
+	mux.HandleFunc("GET /activities", middleware.Auth(authSvc, activityHandler.List))
+	mux.HandleFunc("POST /activities", middleware.Auth(authSvc, activityHandler.Create))
+	mux.HandleFunc("GET /activities/{id}", middleware.Auth(authSvc, activityHandler.Get))
+	mux.HandleFunc("PUT /activities/{id}", middleware.Auth(authSvc, activityHandler.Update))
+	mux.HandleFunc("DELETE /activities/{id}", middleware.Auth(authSvc, activityHandler.Delete))
+	mux.HandleFunc("GET /activities/{id}/children", middleware.Auth(authSvc, activityHandler.ListChildren))
+	mux.HandleFunc("GET /activity-kinds", middleware.Auth(authSvc, activityHandler.ListKinds))
 
 	// Contracts
 	mux.HandleFunc("GET /contracts", middleware.Auth(authSvc, contractHandler.List))
