@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -23,8 +24,8 @@ func readMigration(t *testing.T, name string) string {
 
 // applyMigrations applies every *.up.sql migration in sorted order (the same
 // order SetupTestSchema and cmd/migrate use), optionally including seed files,
-// skipping a single named file.
-func applyMigrations(t *testing.T, pool *pgxpool.Pool, skip string, withSeed bool) {
+// skipping the named files.
+func applyMigrations(t *testing.T, pool *pgxpool.Pool, withSeed bool, skip ...string) {
 	t.Helper()
 	root := findProjectRoot(t)
 	files, err := filepath.Glob(filepath.Join(root, "migrations", "*.up.sql"))
@@ -32,7 +33,7 @@ func applyMigrations(t *testing.T, pool *pgxpool.Pool, skip string, withSeed boo
 	sort.Strings(files)
 	for _, f := range files {
 		base := filepath.Base(f)
-		if base == skip {
+		if slices.Contains(skip, base) {
 			continue
 		}
 		if strings.Contains(base, "seed") && !withSeed {
@@ -100,9 +101,13 @@ func TestMigration011_ActivityOntology_UpDownUpCycle(t *testing.T) {
 
 	up011 := readMigration(t, "011_activity_ontology.up.sql")
 	down011 := readMigration(t, "011_activity_ontology.down.sql")
+	up013 := readMigration(t, "013_activity_kind_phase_fix.up.sql")
+	down013 := readMigration(t, "013_activity_kind_phase_fix.down.sql")
 
 	// --- Pre-state: schema 000-010 + MVP seed -------------------------------
-	applyMigrations(t, pool, "011_activity_ontology.up.sql", true)
+	// 013 is skipped in pre-state: it UPDATEs the activities table that only
+	// exists after 011 — applied before 011 it would fail with SQLSTATE 42P01.
+	applyMigrations(t, pool, true, "011_activity_ontology.up.sql", "013_activity_kind_phase_fix.up.sql")
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM projects", 6)
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM subprojects", 6)
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM time_entries", 12)
@@ -111,6 +116,12 @@ func TestMigration011_ActivityOntology_UpDownUpCycle(t *testing.T) {
 	// --- UP ------------------------------------------------------------------
 	_, err := pool.Exec(ctx, up011)
 	require.NoError(t, err, "011 up should apply cleanly")
+
+	// Forward label fix (SPEC acceptance #6, ADR-BE-004 append-only): the
+	// subproject-derived rows hardcoded kind='task' by 011 line 115 are
+	// relabeled 'phase' by 013.
+	_, err = pool.Exec(ctx, up013)
+	require.NoError(t, err, "013 up should apply cleanly")
 
 	// Old two-level tables are gone.
 	assertTableExists(t, pool, ctx, "projects", false)
@@ -139,11 +150,12 @@ func TestMigration011_ActivityOntology_UpDownUpCycle(t *testing.T) {
 	assertFkAction(t, pool, ctx, "activities_contract_id_fkey", "r")
 	assertConstraintExists(t, pool, ctx, "activities_governance_model_check")
 
-	// Seed data: 6 projects (engagement) + 6 subprojects (task) + 1 internal
-	// fallback activity (for the 2 NULL-project expenses) = 13 activities.
+	// Seed data: 6 projects (engagement) + 6 subprojects (phase after 013) +
+	// 1 internal fallback activity (for the 2 NULL-project expenses) = 13.
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM activities", 13)
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM activities WHERE kind = 'engagement'", 6)
-	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM activities WHERE kind = 'task'", 6)
+	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM activities WHERE kind = 'phase'", 6)
+	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM activities WHERE kind = 'task'", 0)
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM activities WHERE kind = 'internal'", 1)
 
 	// Zero orphaned entries after migration.
@@ -165,6 +177,14 @@ func TestMigration011_ActivityOntology_UpDownUpCycle(t *testing.T) {
 	assertCount(t, pool, ctx, `SELECT COUNT(*) FROM activity_kinds WHERE is_seed = TRUE`, 4)
 
 	// --- DOWN ----------------------------------------------------------------
+	// 013 down first: the label fix must reverse before 011 down rewrites the
+	// schema. The relabeled phase rows return to 'task' — proving down013
+	// reverses exactly the same row set.
+	_, err = pool.Exec(ctx, down013)
+	require.NoError(t, err, "013 down should apply cleanly")
+	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM activities WHERE kind = 'task'", 6)
+	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM activities WHERE kind = 'phase'", 0)
+
 	_, err = pool.Exec(ctx, down011)
 	require.NoError(t, err, "011 down should apply cleanly")
 
@@ -210,7 +230,11 @@ func TestMigration011_ActivityOntology_UpDownUpCycle(t *testing.T) {
 	// --- UP again (cycle) -----------------------------------------------------
 	_, err = pool.Exec(ctx, up011)
 	require.NoError(t, err, "011 up should re-apply cleanly after down")
+	_, err = pool.Exec(ctx, up013)
+	require.NoError(t, err, "013 up should re-apply cleanly after down")
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM activities", 13)
+	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM activities WHERE kind = 'phase'", 6)
+	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM activities WHERE kind = 'task'", 0)
 	assertCount(t, pool, ctx, `SELECT COUNT(*) FROM time_entries te
 		LEFT JOIN activities a ON a.id = te.activity_id WHERE a.id IS NULL`, 0)
 	assertCount(t, pool, ctx, `SELECT COUNT(*) FROM expenses e

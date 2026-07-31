@@ -28,7 +28,10 @@ func TestMigration012_StaffingSchema_UpDownUpCycle(t *testing.T) {
 	down012 := readMigration(t, "012_staffing_schema.down.sql")
 
 	// --- Pre-state: schema 000-011 + MVP seed -------------------------------
-	applyMigrations(t, pool, "012_staffing_schema.up.sql", true)
+	// 013 is not skipped here: it applies in sorted order AFTER 011 (the
+	// activities table exists), and its kind relabel is a no-op for this
+	// test's assertions.
+	applyMigrations(t, pool, true, "012_staffing_schema.up.sql")
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM organization_memberships", 6)
 
 	// --- UP ------------------------------------------------------------------
