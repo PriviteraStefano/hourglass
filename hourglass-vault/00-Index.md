@@ -9,6 +9,10 @@ tags: ["index", "hourglass"]
 **Last restructured:** 2026-07-28
 **Governing document:** [[VISION]]
 
+> **2026-07-31 — v0.1 P0 gate closed.** All six P0 items from the pre-deployment
+> audit are verified Fixed (see the audit §6 priority matrix). Phase 8
+> (pre-deployment hardening) is complete; the deployment blocker list is empty.
+
 Hourglass is a **work operations platform**: it removes the meta-work around work so people focus on real work. Everything in this vault traces back to the mission, three questions, and four pillars defined in [[VISION]].
 
 ---
@@ -97,7 +101,7 @@ flowchart TD
 | Backend ADRs | ✅ 14 drafted (ADR-BE-001…014, all **Accepted**) |
 | Feature docs | ✅ F05–F13 exist; F07–F13 are vision-aligned skeletons (pillar + purpose + surface) with ACs to backfill from `legacy/` |
 | Schema contracts | ✅ S01–S05 exist (auth-era — need review against current code) |
-| v0.1 MVP | ✅ Feature-complete; 🔴 6 P0 fixes before deployment (see audit); IA restructure per [[ADR-P-011 — Information Architecture & Role-Scoped Surfaces]] queued pre-deploy |
+| v0.1 MVP | ✅ Feature-complete; ✅ **P0 gate closed** (all six P0 fixes verified — see [[research/2026-07-28 — Pre-Deployment Audit — Hourglass v0.1]] §6); Phase 8 (pre-deployment hardening) complete; IA restructure per [[ADR-P-011 — Information Architecture & Role-Scoped Surfaces]] queued pre-deploy |
 
 ### Open resolutions for you to confirm
 

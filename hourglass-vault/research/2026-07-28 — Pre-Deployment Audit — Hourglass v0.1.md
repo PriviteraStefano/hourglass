@@ -10,6 +10,22 @@ status: draft
 
 ---
 
+## Corrections — 2026-07-31 Code Verification
+
+Verified against the codebase during Phase 8 planning. Three findings were **stale at audit time** (static analysis missed existing migrations/tests):
+
+| Item | Audit claim | Real state (verified 2026-07-31) | Action |
+|------|-------------|-----------------------------------|--------|
+| **B1 / P0-1** | Time-entry CHECK constraint allows only `('draft','submitted','approved')` | `migrations/004_time_entries_status_check.up.sql` already widens it to all six states (with matching `.down.sql`). The audit quoted the `000` baseline, not the corrective migration. | ✅ Closed — no work |
+| **T8 / P0-6** | Reset code returned in response body; 3-digit, brute-forceable | Handler returns only `message` + `expires_at` (code discarded, `password_reset.go:44,54-57`); `generateResetCode()` emits 8 chars from a 62-char charset (62^8, crypto/rand). Regression tests already guard the absence (`password_reset_test.go:137-139`, `auth_integration_test.go:302-304` — "per D-16"). | ✅ Closed — no work |
+| **T5 / P0-5** | Refresh token rotation entirely missing | Rotation exists — `Refresh` (`internal/core/services/auth/auth.go:349–404`) revokes the old hash via `RevokeByHash` and issues a new token. The real gap is the **reuse-detection layer**: no `family_id`/`rotated_at`/`revoked_at` in token persistence, replay of a rotated token is a silent generic 401 (no family revocation), and rotate runs as 3 untransacted statements (crash window + multi-tab race). | 🔶 Rescoped — Small |
+
+**Phase 8 impact:** scope drops from 6 items to 3.5 — P0-2 (list views), P0-3 (`/customers` route), P0-4 (error boundaries), P0-5-lite (reuse detection + family revocation + atomic rotate), + S3 input caps. Plans 08-01/08-03 rewritten 2026-07-31 accordingly.
+
+**Process note:** B1 and T8 were already fixed when this audit ran — the analysis didn't cross-check `migrations/` for corrective files or `*_test.go` for existing guards. Future audits: verify each "open bug" against migrations and tests before cataloguing.
+
+---
+
 ## 1. High-Level Architecture
 
 ### System Shape
@@ -225,7 +241,7 @@ All routes under middleware chain: `TryAuth → RateLimiter → Logging → APIV
 
 | # | Bug | Severity | Files | Status |
 |---|-----|----------|-------|--------|
-| B1 | **Time Entry DB Status Constraint Mismatch** — DB CHECK constraint allows `('draft', 'submitted', 'approved')` but code uses `pending_manager`, `pending_finance`, `rejected`. Approval workflow with these states cannot be persisted. | 🔴 Critical | `migrations/000_full_schema.up.sql`, `internal/models/models.go`, `internal/core/services/time_entry/time_entry.go` | Open |
+| B1 | **Time Entry DB Status Constraint Mismatch** — DB CHECK constraint allows `('draft', 'submitted', 'approved')` but code uses `pending_manager`, `pending_finance`, `rejected`. Approval workflow with these states cannot be persisted. | 🔴 Critical | `migrations/000_full_schema.up.sql`, `internal/models/models.go`, `internal/core/services/time_entry/time_entry.go` | ✅ **Stale at audit time** — already fixed by `004_time_entries_status_check.up.sql` (see Corrections) |
 | B2 | **Bogus Error on Register with Bad OrgID** — `uuid.Parse(req.OrgID)` silently ignores parse errors. Invalid invite code falls through without telling the user. | 🟡 Medium | `internal/core/services/auth/auth.go` | Open |
 | B3 | **Unhandled JSON Decode Error in Time Entry Reject** — Malformed JSON to `/time-entries/{id}/reject` proceeds without a reason. | 🟡 Medium | `internal/adapters/primary/http/time_entry.go` | Open |
 | B4 | **MockOrgRepo.GetMembership Always Returns nil** — Tests using this mock cannot exercise membership-dependent paths. | 🟡 Medium | `internal/core/services/testdata/mocks.go` | Open |
@@ -238,10 +254,10 @@ All routes under middleware chain: `TryAuth → RateLimiter → Logging → APIV
 | T2 | **SurrealDB Cleanup Remnant** — `internal/models/surreal_models.go` (251 lines) is dead code. No production code references it. | Maintenance surface, misleading to developers | Low | High |
 | T3 | **Duplicate Project Type Column** — `projects` table has both `project_type` and `type` columns with same CHECK constraint. | Ambiguity in which column to use | Low | Medium |
 | T4 | **In-Memory Rate Limiting** — Resets on server restart, no sharing across instances. Map grows unbounded. | Ineffective in multi-instance deployments | Medium | Low (single-instance for now) |
-| T5 | **Refresh Token Lacks Rotation** — Old refresh token not revoked when used. Stolen token grants access up to 7-day TTL. | Security risk | Medium | High |
+| T5 | **Refresh Token Lacks Reuse Detection** — Rotation exists (revoke + reissue), but no `family_id`/`rotated_at` state: replay of a rotated token is a silent 401 with no family revocation, and rotate is 3 untransacted statements (crash window + tab race). | Stolen-token window stays open after replay | Small | High |
 | T6 | **Cookie Name Mismatch** — `cookies.go` defines `access_token` but handlers hard-code `auth_token`. Helper functions are dead code. | Confusion, dead code | Low | Medium |
 | T7 | **Fire-and-Forget Audit Log** — `go s.auditRepo.Create(ctx, auditLog)` uses request context that may be cancelled. Errors silently discarded. | Audit entries silently dropped | Low | Medium |
-| T8 | **Password Reset Code in Response Body** — Reset code returned in API response. 3-digit code is trivially brute-forceable. | Security vulnerability | Low | High |
+| T8 | **Password Reset Code in Response Body** — Reset code returned in API response. 3-digit code is trivially brute-forceable. | Security vulnerability | ✅ **Stale at audit time** — code never in response (8-char/62-charset); regression-tested per D-16 (see Corrections) | — | — |
 | T9 | **`/auth/refresh` Lacks Auth Middleware** — No CSRF protection or client fingerprint on refresh endpoint. | Single-point-of-failure for session security | Low | Medium |
 
 ### Security Considerations
@@ -291,12 +307,12 @@ From PROJECT.md's "Active" requirements:
 
 | # | Item | Type | Effort | Impact |
 |---|------|------|--------|--------|
-| P0-1 | **Time Entry DB Status Constraint** — migration to add `pending_manager`, `pending_finance`, `rejected` to CHECK constraint | Bug | Small | Approval workflow breaks without it |
-| P0-2 | **List view placeholders** — implement actual list views for time-entries and expenses | UX | Medium | Core feature incomplete |
-| P0-3 | **`/customers` index route missing** — add route definition for customers list | UX | Small | Feature unreachable |
-| P0-4 | **Error boundaries on routes** — add `errorComponent` to layout and per-route overrides | UX | Small | Blank screens on error |
-| P0-5 | **Refresh token rotation** — revoke old token, issue new one on refresh | Security | Medium | Token theft risk |
-| P0-6 | **Password reset code exposure** — remove code from response body, deliver via email only | Security | Small | Account takeover risk |
+| P0-1 | **Time Entry DB Status Constraint** — migration to add `pending_manager`, `pending_finance`, `rejected` to CHECK constraint | Bug | Small | ✅ **Fixed (pre-audit)** — `004_time_entries_status_check.up.sql` (2026-07-31 verification) |
+| P0-2 | **List view placeholders** — implement actual list views for time-entries and expenses | UX | Medium | ✅ **Fixed (08-04)** — shared `EntriesTable` list views (`web/src/components/shared/entries-table.tsx` + `time-entries-list.tsx`/`expenses-list.tsx`) with URL-shareable filters; Vitest route tests + E2E (`web/e2e/time-entries.spec.ts`, `web/e2e/expenses.spec.ts`) |
+| P0-3 | **`/customers` index route missing** — add route definition for customers list | UX | Small | ✅ **Fixed (08-04)** — `/customers` index route (`web/src/routes/_authenticated/customers/index.tsx`); E2E sidebar→list→detail + search + deep-link (`web/e2e/customers.spec.ts`) |
+| P0-4 | **Error boundaries on routes** — add `errorComponent` to layout and per-route overrides | UX | Small | ✅ **Fixed (08-04)** — shared `RouteError` panel, leaf-level `errorComponent` on data routes (`web/src/components/layout/route-error.tsx`); component + E2E recovery tests incl. retry-after-outage |
+| P0-5 | **Refresh token reuse detection** — add `family_id` + `rotated_at` state; replay of a rotated token → `ErrTokenReuse` + family revocation; make rotate atomic (rotation itself already exists) | Security | Small | ✅ **Fixed (08-01/08-03)** — `010_refresh_token_reuse_detection` tombstone model + atomic rotate; replay → `ErrTokenReuse` + family revocation; regression suites (`auth_test.go`, `refresh_token_rotate_test.go`, `web/e2e/auth.spec.ts`) |
+| P0-6 | **Password reset code exposure** — remove code from response body, deliver via email only | Security | Small | ✅ **Fixed (pre-audit)** — never in response; 8-char/62-charset; regression-tested per D-16 |
 
 ### Should Fix Before Deployment (P1)
 
