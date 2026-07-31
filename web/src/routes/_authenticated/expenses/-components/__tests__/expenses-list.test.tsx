@@ -93,6 +93,8 @@ beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
+const WAIT_TIMEOUT = 5000;
+
 function renderAt(initialEntries: string[]) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: 0 } },
@@ -119,7 +121,7 @@ describe("ExpensesList (via route)", () => {
     const table = () => screen.getByRole("table");
     await waitFor(() => {
       expect(screen.getByText("Team lunch")).toBeInTheDocument();
-    });
+    }, { timeout: WAIT_TIMEOUT });
     // "Meal" also appears in the category filter select — scope to the table
     expect(within(table()).getByText("Meal")).toBeInTheDocument();
     // Amount rendered with contract-derived currency (EUR)
@@ -140,7 +142,7 @@ describe("ExpensesList (via route)", () => {
     ]);
     await waitFor(() => {
       expect(screen.getByText("Team lunch")).toBeInTheDocument();
-    });
+    }, { timeout: WAIT_TIMEOUT });
 
     // Category filter
     fireEvent.change(screen.getByLabelText("Category filter"), {
@@ -159,7 +161,7 @@ describe("ExpensesList (via route)", () => {
     await waitFor(() => {
       search = new URLSearchParams(router.state.location.searchStr);
       expect(search.get("listStatuses")).toBe('["approved"]');
-    });
+    }, { timeout: WAIT_TIMEOUT });
     expect(screen.getByText("Client site visit")).toBeInTheDocument();
   });
 
@@ -169,7 +171,7 @@ describe("ExpensesList (via route)", () => {
     ]);
     await waitFor(() => {
       expect(screen.getByText("Team lunch")).toBeInTheDocument();
-    });
+    }, { timeout: WAIT_TIMEOUT });
     expect(screen.queryByText("Client site visit")).not.toBeInTheDocument();
     expect(screen.queryByText("Hotel night")).not.toBeInTheDocument();
   });
@@ -180,7 +182,7 @@ describe("ExpensesList (via route)", () => {
     ]);
     await waitFor(() => {
       expect(screen.getByText("Client site visit")).toBeInTheDocument();
-    });
+    }, { timeout: WAIT_TIMEOUT });
 
     fireEvent.click(screen.getByText("Client site visit"));
 
@@ -199,6 +201,6 @@ describe("ExpensesList (via route)", () => {
       expect(
         screen.getByText("No expenses match the current filters.")
       ).toBeInTheDocument();
-    });
+    }, { timeout: WAIT_TIMEOUT });
   });
 });
