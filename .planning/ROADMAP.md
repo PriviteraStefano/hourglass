@@ -380,7 +380,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 8: Pre-Deployment Hardening (P0 audit fixes)
 
-**Status:** In Progress — 2/4 plans complete (08-01 backend hardening, 08-02 frontend completion done)
+**Status:** Complete — 4/4 plans executed (P0 gate closed)
 
 **Goal:** Close the remaining P0 findings from the 2026-07-28 Pre-Deployment Audit after code verification (2026-07-31): P0-2 list views, P0-3 `/customers` route, P0-4 error boundaries, P0-5-lite refresh-token reuse detection — plus folded-in S3 input length caps. P0-1 (status CHECK) and P0-6 (reset-code exposure) verified already-fixed pre-audit. Phase gates first deployment of v0.1.
 
@@ -412,9 +412,9 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 | Plan | Objective | Wave | Tasks | Files |
 |------|-----------|------|-------|-------|
 | [x] 08-01 | Backend: refresh-token reuse detection (family model, atomic rotate) + input length caps | 1 | 2 | 21 |
-| [ ] 08-02 | Frontend: /customers route, time/expense list views + shared table, error boundaries | 1 | 5 | ~9 |
-| [ ] 08-03 | Backend regression tests: reuse detection (incl. race), S3 caps, E2E auth cookie-rotation | 2 | 3 | ~5 |
-| [ ] 08-04 | Frontend E2E: list views, customers, error recovery; audit P0 table closeout; 00-Index | 2 | 4 | ~7 |
+| [x] 08-02 | Frontend: /customers route, time/expense list views + shared table, error boundaries | 1 | 5 | ~9 |
+| [x] 08-03 | Backend regression tests: reuse detection (incl. race), S3 caps, E2E auth cookie-rotation | 2 | 3 | ~5 |
+| [x] 08-04 | Frontend E2E: list views, customers, error recovery; audit P0 table closeout; 00-Index | 2 | 4 | ~7 |
 
 ### Edge cases
 

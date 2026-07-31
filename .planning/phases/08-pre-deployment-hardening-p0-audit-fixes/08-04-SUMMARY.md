@@ -190,6 +190,10 @@ None — no external service credentials were required.
 
 None — all list/customers/error surfaces are wired to real data sources in the tested flows.
 
+## Post-Merge Follow-up
+
+- **Flake fix committed after wave merge (`08789d4`):** `expenses-list.test.tsx` data-loading `waitFor` assertions used the 1s default timeout, which intermittently failed under parallel full-suite load (load avg ~29 during verification). Extended to a 5s `WAIT_TIMEOUT` constant across all data-loading waits. Full parallel suite confirmed 76/76 green after the fix.
+
 ## Next Phase Readiness
 
 - **Phase 8 is complete:** P0-2, P0-3, P0-4, P0-5 (08-01/08-03) verified, P0-1/P0-6 confirmed pre-audit-fixed — the audit's P0 gate reads Fixed for all six rows, and the vault 00-Index records the closed gate.
