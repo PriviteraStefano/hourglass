@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-31T15:54:48.864Z"
+last_updated: "2026-07-31T16:29:22.614Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 13
   completed_phases: 11
   total_plans: 52
-  completed_plans: 48
+  completed_plans: 49
   percent: 85
 ---
 
@@ -18,9 +18,9 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plan 09-02 (Staffing schema: availability_windows + membership validity dates + hr role — 012 migration pair, testcontainers cycle test)
-- **Source:** `.planning/phases/09-activity-ontology/09-02-PLAN.md`
-- **Previous:** Plan 09-01 (Ontology migration: activities schema + data migration)
+- **Completed:** Plan 09-03 (Domain + Repository Collapse: Activity type/port/PG adapter with ancestry-commercial-billability CTEs, entry repos on activity_id, wg/cutoff re-anchored, contract/export commercial-chain CTEs)
+- **Source:** `.planning/phases/09-activity-ontology/09-03-PLAN.md`
+- **Previous:** Plan 09-02 (Staffing schema: availability_windows + membership validity dates + hr role — 012 migration pair, testcontainers cycle test)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
@@ -160,13 +160,14 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 09-activity-ontology]: NULL-project expenses get per-org internal General & Admin fallback activity so activity_id is NOT NULL (D-4) — NULL-project expenses get per-org internal General & Admin fallback activity so activity_id is NOT NULL (D-4)
 - [Phase 09-activity-ontology]: Migration numbered 012 not 011 (011 taken by activity ontology; ADR-BE-004 max+1) — Migration numbered 012 not 011 (011 taken by activity ontology; ADR-BE-004 max+1)
 - [Phase 09-activity-ontology]: Down migration downgrades existing hr rows to employee before restoring role CHECK (rollback must not fail on violating rows) — Down migration downgrades existing hr rows to employee before restoring role CHECK (rollback must not fail on violating rows)
+- [Phase ?]: Activity domain follows repo subdirectory convention: domain/activity/activity.go (plan flat path mapped); BudgetAmount as *float64 not *decimal (no decimal lib; codebase money is float64); working_group domain keeps legacy SubprojectID field name mapped to activities.activity_id (services not in 04/05 file lists); contract/export commercial-chain queries rewritten as activity-tree CTEs (Rule 3, old SQL hit dropped projects table); financial_cutoff_period queries live in entry repos IsPeriodLocked, updated in place to org+activity+date
 
 ## Current Position
 
 Phase: 09 (activity-ontology) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
-Last activity: 2026-07-31 -- Phase 09 execution started
+Last activity: 2026-07-31 -- Plan 09-03 (Domain + Repository Collapse) completed; ready for 09-04 (Service Layer)
 Next up: Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
 
 ## Performance Metrics
@@ -204,3 +205,4 @@ Next up: Phase 09 (activity-ontology) — PLANNED, 5 plans, 2 waves
 | Phase 08 P08-04 | 176min | 4 tasks | 11 files |
 | Phase 09-activity-ontology P09-01 | 7min | 2 tasks | 4 files |
 | Phase 09-activity-ontology P02 | 10min | 2 tasks | 4 files |
+| Phase 09-activity-ontology PP09-03 | 20min | 3 tasks | 23 files |
