@@ -8,7 +8,7 @@ import (
 )
 
 type WorkingGroupRepository interface {
-	ListByOrg(ctx context.Context, orgID uuid.UUID, subprojectID *uuid.UUID) ([]working_group.WorkingGroup, error)
+	ListByOrg(ctx context.Context, orgID uuid.UUID, activityID *uuid.UUID) ([]working_group.WorkingGroup, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*working_group.WorkingGroup, error)
 	Create(ctx context.Context, wg *working_group.WorkingGroup) (*working_group.WorkingGroup, error)
 	Update(ctx context.Context, wg *working_group.WorkingGroup) (*working_group.WorkingGroup, error)

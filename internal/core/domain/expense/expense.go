@@ -52,7 +52,7 @@ type Expense struct {
 	ID                  uuid.UUID  `json:"id"`
 	OrgID               uuid.UUID  `json:"org_id"`
 	UserID              uuid.UUID  `json:"user_id"`
-	ProjectID           uuid.UUID  `json:"project_id"`
+	ActivityID          uuid.UUID  `json:"activity_id"`
 	UnitID              uuid.UUID  `json:"unit_id"`
 	Category            string     `json:"category"`
 	Amount              float64    `json:"amount"`
@@ -93,7 +93,7 @@ type Approval struct {
 type CreateExpenseRequest struct {
 	OrgID       uuid.UUID `json:"org_id"`
 	UserID      uuid.UUID `json:"user_id"`
-	ProjectID   uuid.UUID `json:"project_id"`
+	ActivityID  uuid.UUID `json:"activity_id"`
 	Category    string    `json:"category"`
 	Amount      float64   `json:"amount"`
 	KmDistance  *float64  `json:"km_distance,omitempty"`
@@ -102,7 +102,7 @@ type CreateExpenseRequest struct {
 }
 
 type UpdateExpenseRequest struct {
-	ProjectID   *uuid.UUID `json:"project_id,omitempty"`
+	ActivityID  *uuid.UUID `json:"activity_id,omitempty"`
 	Category    *string    `json:"category,omitempty"`
 	Amount      *float64   `json:"amount,omitempty"`
 	KmDistance  *float64   `json:"km_distance,omitempty"`

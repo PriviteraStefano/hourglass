@@ -13,38 +13,35 @@ var (
 )
 
 type WorkingGroup struct {
-	ID               uuid.UUID `json:"id"`
-	OrgID            uuid.UUID `json:"org_id"`
-	SubprojectID     uuid.UUID `json:"subproject_id"`
-	Name             string    `json:"name"`
-	Description      string    `json:"description"`
-	UnitIDs          []string  `json:"unit_ids"`
-	EnforceUnitTuple bool      `json:"enforce_unit_tuple"`
-	ManagerID        uuid.UUID `json:"manager_id"`
-	DelegateIDs      []string  `json:"delegate_ids"`
-	IsActive         bool      `json:"is_active"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID          uuid.UUID `json:"id"`
+	OrgID       uuid.UUID `json:"org_id"`
+	ActivityID  uuid.UUID `json:"activity_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	UnitIDs     []string  `json:"unit_ids"`
+	ManagerID   uuid.UUID `json:"manager_id"`
+	DelegateIDs []string  `json:"delegate_ids"`
+	IsActive    bool      `json:"is_active"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type CreateWorkingGroupRequest struct {
-	OrgID            uuid.UUID `json:"org_id"`
-	SubprojectID     uuid.UUID `json:"subproject_id"`
-	Name             string    `json:"name"`
-	Description      string    `json:"description"`
-	UnitIDs          []string  `json:"unit_ids"`
-	EnforceUnitTuple bool      `json:"enforce_unit_tuple"`
-	ManagerID        uuid.UUID `json:"manager_id"`
-	DelegateIDs      []string  `json:"delegate_ids"`
+	OrgID       uuid.UUID `json:"org_id"`
+	ActivityID  uuid.UUID `json:"activity_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	UnitIDs     []string  `json:"unit_ids"`
+	ManagerID   uuid.UUID `json:"manager_id"`
+	DelegateIDs []string  `json:"delegate_ids"`
 }
 
 type UpdateWorkingGroupRequest struct {
-	Name             string    `json:"name"`
-	Description      string    `json:"description"`
-	UnitIDs          []string  `json:"unit_ids"`
-	EnforceUnitTuple *bool     `json:"enforce_unit_tuple"`
-	ManagerID        uuid.UUID `json:"manager_id"`
-	DelegateIDs      []string  `json:"delegate_ids"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	UnitIDs     []string  `json:"unit_ids"`
+	ManagerID   uuid.UUID `json:"manager_id"`
+	DelegateIDs []string  `json:"delegate_ids"`
 }
 
 type WorkingGroupMember struct {

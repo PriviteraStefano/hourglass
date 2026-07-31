@@ -30,9 +30,7 @@ type TimeEntry struct {
 	ID                 uuid.UUID       `json:"id"`
 	OrgID              uuid.UUID       `json:"org_id"`
 	UserID             uuid.UUID       `json:"user_id"`
-	ProjectID          uuid.UUID       `json:"project_id"`
-	SubprojectID       uuid.UUID       `json:"subproject_id"`
-	WGID               uuid.UUID       `json:"wg_id"`
+	ActivityID         uuid.UUID       `json:"activity_id"`
 	UnitID             uuid.UUID       `json:"unit_id"`
 	Hours              float64         `json:"hours"`
 	Description        string          `json:"description"`
@@ -47,25 +45,21 @@ type TimeEntry struct {
 }
 
 type CreateTimeEntryRequest struct {
-	OrgID        uuid.UUID `json:"org_id"`
-	UserID       uuid.UUID `json:"user_id"`
-	ProjectID    uuid.UUID `json:"project_id"`
-	SubprojectID uuid.UUID `json:"subproject_id"`
-	WGID         uuid.UUID `json:"wg_id"`
-	UnitID       uuid.UUID `json:"unit_id"`
-	Hours        float64   `json:"hours"`
-	Description  string    `json:"description"`
-	Date         string    `json:"date"`
+	OrgID      uuid.UUID `json:"org_id"`
+	UserID     uuid.UUID `json:"user_id"`
+	ActivityID uuid.UUID `json:"activity_id"`
+	UnitID     uuid.UUID `json:"unit_id"`
+	Hours      float64   `json:"hours"`
+	Description string   `json:"description"`
+	Date       string    `json:"date"`
 }
 
 type UpdateTimeEntryRequest struct {
-	ProjectID    *uuid.UUID `json:"project_id,omitempty"`
-	SubprojectID *uuid.UUID `json:"subproject_id,omitempty"`
-	WGID         *uuid.UUID `json:"wg_id,omitempty"`
-	UnitID       *uuid.UUID `json:"unit_id,omitempty"`
-	Hours        *float64  `json:"hours,omitempty"`
-	Description  *string    `json:"description,omitempty"`
-	Date         *string    `json:"date,omitempty"`
+	ActivityID  *uuid.UUID `json:"activity_id,omitempty"`
+	UnitID      *uuid.UUID `json:"unit_id,omitempty"`
+	Hours       *float64   `json:"hours,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	Date        *string    `json:"date,omitempty"`
 }
 
 type Approval struct {

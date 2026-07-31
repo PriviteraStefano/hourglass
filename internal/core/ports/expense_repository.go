@@ -14,7 +14,7 @@ type ExpenseRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, orgID uuid.UUID, filters ExpenseListFilters) ([]domainexpense.Expense, error)
 	ListPending(ctx context.Context, orgID uuid.UUID, role, userID string) ([]domainexpense.Expense, error)
-	IsPeriodLocked(ctx context.Context, orgID, projectID uuid.UUID, entryDate string) (bool, error)
+	IsPeriodLocked(ctx context.Context, orgID, activityID uuid.UUID, entryDate string) (bool, error)
 	CreateApproval(ctx context.Context, a *domainexpense.Approval) error
 }
 
@@ -25,7 +25,7 @@ type ExpenseListFilters struct {
 	Year          string
 	UserID        string
 	Status        string
-	ProjectID     string
+	ActivityID    string
 	Role          string
 	IsDeleted     bool
 	RequestUserID string

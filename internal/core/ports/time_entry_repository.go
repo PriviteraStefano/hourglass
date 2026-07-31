@@ -13,7 +13,7 @@ type TimeEntryRepository interface {
 	Create(ctx context.Context, e *time_entry.TimeEntry) (*time_entry.TimeEntry, error)
 	Update(ctx context.Context, e *time_entry.TimeEntry) (*time_entry.TimeEntry, error)
 	Delete(ctx context.Context, id uuid.UUID) error
-	IsPeriodLocked(ctx context.Context, orgID, projectID uuid.UUID, entryDate string) (bool, error)
+	IsPeriodLocked(ctx context.Context, orgID, activityID uuid.UUID, entryDate string) (bool, error)
 	ListPending(ctx context.Context, orgID uuid.UUID, role, userID string) ([]time_entry.TimeEntry, error)
 }
 
@@ -24,8 +24,7 @@ type ListFilters struct {
 	Year          string
 	UserID        string
 	Status        string
-	WGID          string
-	ProjectID     string
+	ActivityID    string
 	Role          string
 	IsDeleted     bool
 	RequestUserID string
