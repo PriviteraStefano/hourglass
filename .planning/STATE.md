@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-31T18:06:20.013Z"
+last_updated: "2026-07-31T20:30:00.000Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 13
-  completed_phases: 12
-  total_plans: 52
-  completed_plans: 51
-  percent: 92
+  completed_phases: 11
+  total_plans: 55
+  completed_plans: 54
+  percent: 98
 ---
 
 # Phase State
@@ -18,14 +18,14 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plan 09-05 (HTTP Handlers + Route Wiring: ActivityHandler with /activities + /activity-kinds endpoints replaces project/subproject handlers; entry handlers + repos on activity_id with subtree filters and joined activity_name/kind; router rewired, full backend suite green)
-- **Source:** `.planning/phases/09-activity-ontology/09-05-PLAN.md`
-- **Previous:** Plan 09-04 (Service Layer: ActivityService replaces project service; time-entry + expense approval routing on the activity chain — WG manager/delegate, unit-manager fallback, ErrActivityNotLoggable, D-11 skip incl. delegates, Approve-set verification)
+- **Completed:** Plans 09-06 + 09-07 + 09-08 (gap closure: forward migration 013 kind='phase' fix + migration-test surgery; WG integration test re-seeded onto activities; parent_id cycle prevention via ErrActivityCycle + validateParent path check)
+- **Source:** `.planning/phases/09-activity-ontology/09-06-PLAN.md` / `09-07-PLAN.md` / `09-08-PLAN.md`
+- **Previous:** Plan 09-05 (HTTP Handlers + Route Wiring: ActivityHandler with /activities + /activity-kinds endpoints replaces project/subproject handlers; entry handlers + repos on activity_id with subtree filters and joined activity_name/kind; router rewired, full backend suite green)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
 
-- **Status:** Ready to execute
+- **Status:** Executing Phase 09
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -174,10 +174,10 @@ The following phases from the previous milestone structure are superseded:
 ## Current Position
 
 Phase: 09 (activity-ontology) — EXECUTING
-Plan: 5 of 5
-Status: Ready to execute
-Last activity: 2026-07-31 -- Plan 09-05 (HTTP Handlers + Route Wiring) completed; backend API fully activity-shaped, ready for Phase 10 frontend rename
-Next up: Phase 09 (activity-ontology) — COMPLETE, 5 plans, 2 waves (ready for verification)
+Plan: 8 of 8
+Status: Ready to verify
+Last activity: 2026-07-31 -- Gap-closure plans 09-06/07/08 completed; full backend suite green (19/19 packages); VERIFICATION gaps 1-3 closed
+Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for verification)
 
 ## Performance Metrics
 
