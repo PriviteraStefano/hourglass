@@ -19,6 +19,7 @@ import { Route as AuthPasswordResetIndexRouteImport } from './routes/_auth/passw
 import { Route as AuthRegisterIndexRouteImport } from './routes/_auth/register/index'
 import { Route as AuthenticatedActivitiesIndexRouteImport } from './routes/_authenticated/activities/index'
 import { Route as AuthenticatedActivitiesIdRouteImport } from './routes/_authenticated/activities/$id'
+import { Route as AuthenticatedApprovalsIndexRouteImport } from './routes/_authenticated/approvals/index'
 import { Route as AuthenticatedContractsIndexRouteImport } from './routes/_authenticated/contracts/index'
 import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers/index'
 import { Route as AuthenticatedCustomersIdRouteImport } from './routes/_authenticated/customers/$id'
@@ -76,6 +77,12 @@ const AuthenticatedActivitiesIdRoute =
   AuthenticatedActivitiesIdRouteImport.update({
     id: '/activities/$id',
     path: '/activities/$id',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedApprovalsIndexRoute =
+  AuthenticatedApprovalsIndexRouteImport.update({
+    id: '/approvals/',
+    path: '/approvals/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedContractsIndexRoute =
@@ -137,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/password-reset/': typeof AuthPasswordResetIndexRoute
   '/register/': typeof AuthRegisterIndexRoute
   '/activities/': typeof AuthenticatedActivitiesIndexRoute
+  '/approvals/': typeof AuthenticatedApprovalsIndexRoute
   '/contracts/': typeof AuthenticatedContractsIndexRoute
   '/customers/': typeof AuthenticatedCustomersIndexRoute
   '/expenses/': typeof AuthenticatedExpensesIndexRoute
@@ -155,6 +163,7 @@ export interface FileRoutesByTo {
   '/password-reset': typeof AuthPasswordResetIndexRoute
   '/register': typeof AuthRegisterIndexRoute
   '/activities': typeof AuthenticatedActivitiesIndexRoute
+  '/approvals': typeof AuthenticatedApprovalsIndexRoute
   '/contracts': typeof AuthenticatedContractsIndexRoute
   '/customers': typeof AuthenticatedCustomersIndexRoute
   '/expenses': typeof AuthenticatedExpensesIndexRoute
@@ -176,6 +185,7 @@ export interface FileRoutesById {
   '/_auth/password-reset/': typeof AuthPasswordResetIndexRoute
   '/_auth/register/': typeof AuthRegisterIndexRoute
   '/_authenticated/activities/': typeof AuthenticatedActivitiesIndexRoute
+  '/_authenticated/approvals/': typeof AuthenticatedApprovalsIndexRoute
   '/_authenticated/contracts/': typeof AuthenticatedContractsIndexRoute
   '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
   '/_authenticated/expenses/': typeof AuthenticatedExpensesIndexRoute
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
     | '/password-reset/'
     | '/register/'
     | '/activities/'
+    | '/approvals/'
     | '/contracts/'
     | '/customers/'
     | '/expenses/'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '/password-reset'
     | '/register'
     | '/activities'
+    | '/approvals'
     | '/contracts'
     | '/customers'
     | '/expenses'
@@ -234,6 +246,7 @@ export interface FileRouteTypes {
     | '/_auth/password-reset/'
     | '/_auth/register/'
     | '/_authenticated/activities/'
+    | '/_authenticated/approvals/'
     | '/_authenticated/contracts/'
     | '/_authenticated/customers/'
     | '/_authenticated/expenses/'
@@ -320,6 +333,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedActivitiesIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/approvals/': {
+      id: '/_authenticated/approvals/'
+      path: '/approvals'
+      fullPath: '/approvals/'
+      preLoaderRoute: typeof AuthenticatedApprovalsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/contracts/': {
       id: '/_authenticated/contracts/'
       path: '/contracts'
@@ -402,6 +422,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedActivitiesIdRoute: typeof AuthenticatedActivitiesIdRoute
   AuthenticatedCustomersIdRoute: typeof AuthenticatedCustomersIdRoute
   AuthenticatedActivitiesIndexRoute: typeof AuthenticatedActivitiesIndexRoute
+  AuthenticatedApprovalsIndexRoute: typeof AuthenticatedApprovalsIndexRoute
   AuthenticatedContractsIndexRoute: typeof AuthenticatedContractsIndexRoute
   AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
   AuthenticatedExpensesIndexRoute: typeof AuthenticatedExpensesIndexRoute
@@ -416,6 +437,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedActivitiesIdRoute: AuthenticatedActivitiesIdRoute,
   AuthenticatedCustomersIdRoute: AuthenticatedCustomersIdRoute,
   AuthenticatedActivitiesIndexRoute: AuthenticatedActivitiesIndexRoute,
+  AuthenticatedApprovalsIndexRoute: AuthenticatedApprovalsIndexRoute,
   AuthenticatedContractsIndexRoute: AuthenticatedContractsIndexRoute,
   AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
   AuthenticatedExpensesIndexRoute: AuthenticatedExpensesIndexRoute,
