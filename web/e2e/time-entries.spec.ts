@@ -1,4 +1,12 @@
 import { test, expect } from '@playwright/test';
+import {
+  registerUser,
+  fetchIds,
+  loginOnce,
+  useSession,
+  seedBaseEntities,
+  seedTimeEntries,
+} from './helpers';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -81,5 +89,73 @@ test.describe('Time Entries CRUD', () => {
         await confirmBtn.click();
       }
     }
+  });
+});
+
+test.describe('Time Entries List View (P0-2)', () => {
+  let sessionCookies: Array<{ name: string; value: string }> = [];
+  const P = `telist_${Date.now()}`;
+  const desc = (state: string) => `seeded-${state}-${P}`;
+
+  test.beforeAll(async ({ request }) => {
+    const { email, password } = await registerUser(request, 'telist');
+    const { userId, orgId } = fetchIds(email);
+    const base = seedBaseEntities(orgId, userId);
+    seedTimeEntries(orgId, userId, base, P);
+    sessionCookies = await loginOnce(request, email, password);
+  });
+
+  test('list tab shows seeded rows for all six workflow states', async ({ page }) => {
+    await useSession(page.context(), sessionCookies);
+    await page.goto('/time-entries');
+    await page.waitForLoadState('networkidle');
+
+    // The page defaults to the List tab; the seeded rows render for every state
+    for (const state of [
+      'draft',
+      'submitted',
+      'pending-manager',
+      'pending-finance',
+      'approved',
+      'rejected',
+    ]) {
+      await expect(page.getByText(desc(state))).toBeVisible();
+    }
+    await expect(page.getByRole('table', { name: 'Time entries list' })).toBeVisible();
+  });
+
+  test('status filter narrows rows and the URL round-trips through reload', async ({ page }) => {
+    await useSession(page.context(), sessionCookies);
+    await page.goto('/time-entries');
+    await page.waitForLoadState('networkidle');
+
+    // Open the status multi-select and pick only "Approved"
+    await page.getByRole('button', { name: /^Status/ }).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Approved' }).click();
+    await page.keyboard.press('Escape');
+
+    // URL reflects the filter; only the approved row remains
+    // (listStatuses is an array search param — TanStack serializes it as
+    // a JSON-encoded array ["approved"])
+    await expect(page).toHaveURL(/listStatuses=.*approved/);
+    await expect(page.getByText(desc('approved'))).toBeVisible();
+    await expect(page.getByText(desc('draft'))).not.toBeVisible();
+
+    // Reload: the filter is restored from the URL
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(/listStatuses=.*approved/);
+    await expect(page.getByText(desc('approved'))).toBeVisible();
+    await expect(page.getByText(desc('draft'))).not.toBeVisible();
+  });
+
+  test('row click opens the entry detail (calendar tab + date param)', async ({ page }) => {
+    await useSession(page.context(), sessionCookies);
+    await page.goto('/time-entries');
+    await page.waitForLoadState('networkidle');
+
+    await page.getByText(desc('draft')).click();
+    // date is a z.coerce.date() search param — serialized JSON-encoded
+    await expect(page).toHaveURL(/date=.*2026-07-15/);
   });
 });
