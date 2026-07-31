@@ -1,14 +1,84 @@
 package http
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stefanoprivitera/hourglass/internal/adapters/secondary/postgres"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// TestValidateStringLengths_Boundaries is the helper-level boundary table:
+// every limit class enforced by validate.go is exercised at N-1, N (both
+// accepted — no false positives) and N+1 (rejected with a field-level 400).
+func TestValidateStringLengths_Boundaries(t *testing.T) {
+	longString := func(n int) string { return strings.Repeat("x", n) }
+
+	limitClasses := []struct {
+		name      string
+		fieldName string
+		max       int
+	}{
+		{"email", "email", MaxEmailLength},
+		{"name", "firstname", MaxNameLength},
+		{"description", "description", MaxDescriptionLength},
+		{"address", "address", MaxAddressLength},
+		{"vat", "vat_number", MaxVATLength},
+		{"phone", "phone", MaxPhoneLength},
+		{"password", "password", MaxPasswordLength},
+		{"short string", "short", MaxShortStringLength},
+	}
+
+	for _, tt := range limitClasses {
+		t.Run(tt.name+"_under_limit", func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			ok := validateStringLengths(rec, lengthField(tt.fieldName, longString(tt.max-1), tt.max))
+			assert.True(t, ok, "N-1 must be accepted")
+			assert.Equal(t, http.StatusOK, rec.Code, "no response may be written for accepted input")
+			assert.Empty(t, rec.Body.String())
+		})
+		t.Run(tt.name+"_at_limit", func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			ok := validateStringLengths(rec, lengthField(tt.fieldName, longString(tt.max), tt.max))
+			assert.True(t, ok, "exactly N must be accepted")
+			assert.Equal(t, http.StatusOK, rec.Code)
+			assert.Empty(t, rec.Body.String())
+		})
+		t.Run(tt.name+"_over_limit", func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			ok := validateStringLengths(rec, lengthField(tt.fieldName, longString(tt.max+1), tt.max))
+			assert.False(t, ok, "N+1 must be rejected")
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+			want := tt.fieldName + " exceeds maximum length of " + strconv.Itoa(tt.max)
+			assert.Contains(t, rec.Body.String(), want, "field-level message must name the field and cap")
+		})
+	}
+}
+
+// Caps are rune-count based (user-facing character semantics), so multi-byte
+// characters must not trip them: 200 é's (400 bytes) pass a 200-rune name cap,
+// 201 é's fail it.
+func TestValidateStringLengths_RuneCount(t *testing.T) {
+	accents := func(n int) string { return strings.Repeat("é", n) }
+
+	rec := httptest.NewRecorder()
+	ok := validateStringLengths(rec, lengthField("firstname", accents(MaxNameLength), MaxNameLength))
+	assert.True(t, ok, "200 multi-byte runes must pass a 200-rune cap (byte length 400)")
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	rec2 := httptest.NewRecorder()
+	ok = validateStringLengths(rec2, lengthField("firstname", accents(MaxNameLength+1), MaxNameLength))
+	assert.False(t, ok, "201 multi-byte runes must be rejected")
+	assert.Equal(t, http.StatusBadRequest, rec2.Code)
+	assert.Contains(t, rec2.Body.String(), "firstname exceeds maximum length of "+strconv.Itoa(MaxNameLength))
+}
 
 // Over-limit input must be rejected with 400 at the handler boundary (audit
 // S3) — long before any service call or domain validation. Handlers are
@@ -59,6 +129,20 @@ func TestInputLengthCaps_RejectOversizedFields(t *testing.T) {
 			body:    `{"name":"` + longString(10001) + `"}`,
 			handler: NewContractHandler(nil).Create,
 		},
+		{
+			name: "expense description with 5000 chars",
+			body: `{"project_id":"` + uuid.NewString() + `","category":"mileage","amount":10,"description":"` + longString(5000) + `","date":"2026-01-15"}`,
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				ctx := middleware.SetUserID(r.Context(), uuid.New())
+				ctx = middleware.SetOrganizationID(ctx, uuid.New())
+				NewExpenseHandler(nil).Create(w, r.WithContext(ctx))
+			},
+		},
+		{
+			name:    "register firstname with 10000 chars",
+			body:    `{"email":"capname@test.com","firstname":"` + longString(10000) + `","lastname":"Doe","password":"password123","organization_name":"Cap Org"}`,
+			handler: NewAuthHandler(nil, nil).Register,
+		},
 	}
 
 	for _, tt := range tests {
@@ -95,4 +179,42 @@ func TestInputLengthCaps_DoNotRejectNormalLength(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "project_id is required") {
 		t.Fatalf("length gate must not shadow required-field validation, got: %s", rec.Body.String())
 	}
+}
+
+// Same no-false-positive guarantee for the expense endpoint: a normal-length
+// description passes the length gate and the handler falls through to its own
+// required-field validation.
+func TestInputLengthCaps_DoNotRejectNormalLength_Expense(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/expenses",
+		strings.NewReader(`{"description":"short desc"}`))
+	rec := httptest.NewRecorder()
+	ctx := middleware.SetUserID(req.Context(), uuid.New())
+	ctx = middleware.SetOrganizationID(ctx, uuid.New())
+	NewExpenseHandler(nil).Create(rec, req.WithContext(ctx))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected existing required-field 400, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "project_id is required") {
+		t.Fatalf("length gate must not shadow required-field validation, got: %s", rec.Body.String())
+	}
+}
+
+// End-to-end no-false-positive: a real registration whose name sits exactly at
+// the boundary cap (200 runes) succeeds — the length gate must not reject
+// input at the limit. Backed by real PostgreSQL via the handler fixture.
+func TestRegister_BoundaryLengthName_Succeeds(t *testing.T) {
+	pool := postgres.SetupPackageContainer(t)
+	postgres.SetupTestSchema(t, pool)
+	t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
+
+	f := newHandlerFixture(t, pool)
+	body := fmt.Sprintf(`{"email":"%s","username":"bnd_%s","firstname":"%s","lastname":"Doe","password":"password123","organization_name":"%s"}`,
+		uniqueEmail(), uniqueID(), strings.Repeat("x", MaxNameLength), uniqueOrgName())
+
+	resp, err := f.Client.Post(f.ServerURL+"/auth/register", "application/json", strings.NewReader(body))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode,
+		"a name at exactly the cap must be accepted, not rejected by the length gate")
 }
