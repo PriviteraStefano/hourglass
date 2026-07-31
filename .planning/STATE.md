@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-31T21:32:01.819Z"
+last_updated: "2026-07-31T21:58:46.859Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 14
   completed_phases: 12
   total_plans: 61
-  completed_plans: 57
-  percent: 92
+  completed_plans: 58
+  percent: 86
 ---
 
 # Phase State
@@ -18,9 +18,9 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plan 10-03 (Page shell migration — Header+Body wrap on all carried-over pages; every authenticated page now renders through the locked shell; contracts typecheck rot 10 → 6)
-- **Source:** `.planning/phases/10-information-architecture-implementation/10-03-PLAN.md`
-- **Previous:** Plan 10-02 (sidebar regroup + role-scoped visibility)
+- **Completed:** Plan 10-04 (Today landing page — read-only composition, never blank; / renders Today with waiting-on-you + your-week sections and locked empty states; 42/42 e2e green)
+- **Source:** `.planning/phases/10-information-architecture-implementation/10-04-PLAN.md`
+- **Previous:** Plan 10-03 (page shell migration — Header+Body wrap on all carried-over pages; every authenticated page now renders through the locked shell; contracts typecheck rot 10 → 6)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
@@ -183,13 +183,18 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 10-information-architecture-implementation] (10-03): All wrapped pages get the h-full overflow-y-auto inner scroll container inside Body (UI-SPEC: long content scrolls inside Body, window never scrolls)
 - [Phase 10-information-architecture-implementation] (10-03): Leaf-level errorComponent preserved verbatim per plan instruction; in-page pending/error UI (activity-detail loading/not-found) now renders inside Body within the shell frame (threat T-10-03-2)
 - [Phase 10-information-architecture-implementation] (10-03): Contracts typecheck rot fixed inline (deferred-items assigns those 4 errors to 10-03): currency v??undefined, Customer.company_name, navigate search:{from:'owned'}, Select onChange wrapper
+- [Phase 10]: In-Body error state renders the locked copy 'We couldn't load Today. {reason}. Try again.' with router.invalidate() recovery; RouteError stays registered as the leaf boundary
+- [Phase 10]: ISO-week filter compares entry_date.slice(0,10) against date-fns startOfWeek/endOfWeek bounds (string compare, timezone-immune, matches list-view convention)
+- [Phase 10]: Links to /approvals typed as ToPathOption (route lands in 10-05); typed Link to would not compile
+- [Phase 10]: Pending endpoints not called for employees/HR proven by msw request capture in unit tests (enabled gate), not just inspection
+- [Phase 10]: Expense preview values render amount.toFixed(2) in .font-text (no hours on expenses); time entries render hours
 
 ## Current Position
 
 Phase: 10 (information-architecture-implementation) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
-Last activity: 2026-07-31 -- Plan 10-03 complete (page shell wrap); 41/41 e2e green
+Last activity: 2026-07-31 -- Plan 10-04 complete (Today landing at /, never blank; 42/42 e2e green; build blocked by 6 pre-existing typecheck errors — deferred-items.md)
 Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for verification)
 
 ## Performance Metrics
@@ -233,3 +238,4 @@ Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for 
 | Phase 10-information-architecture-implementation P01 | 37min | 3 tasks | 27 files |
 | Phase 10 P02 | 9min | 3 tasks | 6 files |
 | Phase 10-information-architecture-implementation P03 | 9min | 3 tasks | 10 files |
+| Phase 10-information-architecture-implementation P04 | 17min | 3 tasks | 6 files |
