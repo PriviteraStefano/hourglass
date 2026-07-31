@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
 status: executing
-last_updated: "2026-07-31T20:30:00.000Z"
+last_updated: "2026-07-31T20:54:56.442Z"
 last_activity: 2026-07-31
 progress:
-  total_phases: 13
-  completed_phases: 11
-  total_plans: 55
-  completed_plans: 54
-  percent: 98
+  total_phases: 14
+  completed_phases: 12
+  total_plans: 61
+  completed_plans: 55
+  percent: 86
 ---
 
 # Phase State
@@ -18,14 +18,14 @@ progress:
 ## Session
 
 - **Last activity:** 2026-07-31
-- **Completed:** Plans 09-06 + 09-07 + 09-08 (gap closure: forward migration 013 kind='phase' fix + migration-test surgery; WG integration test re-seeded onto activities; parent_id cycle prevention via ErrActivityCycle + validateParent path check)
-- **Source:** `.planning/phases/09-activity-ontology/09-06-PLAN.md` / `09-07-PLAN.md` / `09-08-PLAN.md`
-- **Previous:** Plan 09-05 (HTTP Handlers + Route Wiring: ActivityHandler with /activities + /activity-kinds endpoints replaces project/subproject handlers; entry handlers + repos on activity_id with subtree filters and joined activity_name/kind; router rewired, full backend suite green)
+- **Completed:** Plan 10-01 (Foundation: Role type + activities API layer + /projects → /activities rename — frontend rebuilt onto the Phase 9 activity ontology; full e2e 41/41 green)
+- **Source:** `.planning/phases/10-information-architecture-implementation/10-01-PLAN.md`
+- **Previous:** Plan 09-06/07/08 (gap closure) — Phase 9 complete
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
 
-- **Status:** Executing Phase 09
+- **Status:** Ready to execute
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -170,13 +170,16 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 09-activity-ontology]: Detail composition (GetAncestry/ResolveCommercialContext/ResolveBillability) lives in the handler via the repo port per 09-04 heads-up
 - [Phase 09-activity-ontology]: activity_name + activity_kind joined display fields on entry domain types: LEFT JOIN for reads, scalar-subquery RETURNING for Create/Update (data-modifying CTE rows invisible to base-table reads)
 - [Phase 09-activity-ontology]: Adopt + manager-management endpoints intentionally not exposed on the activity HTTP surface (plan endpoint list omits them); service methods remain
+- [Phase 10-information-architecture-implementation]: Billable checkbox in activity create/edit dialogs: checked = true, unchecked = undefined (inherit) - tri-state omitted per plan
+- [Phase 10-information-architecture-implementation]: Activity detail shows derived commercial context + resolved billability from ActivityDetail payload; adoption count renders "-" (detail endpoint carries no adoption_count)
+- [Phase 10-information-architecture-implementation]: Entry creation cascade simplified to activity -> children -> working-group -> unit; backend create needs only activity_id + unit_id
 
 ## Current Position
 
-Phase: 09 (activity-ontology) — EXECUTING
-Plan: 8 of 8
-Status: Ready to verify
-Last activity: 2026-07-31 -- Gap-closure plans 09-06/07/08 completed; full backend suite green (19/19 packages); VERIFICATION gaps 1-3 closed
+Phase: 10 (information-architecture-implementation) — EXECUTING
+Plan: 2 of 6
+Status: Ready to execute
+Last activity: 2026-07-31 -- Phase 10 execution started
 Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for verification)
 
 ## Performance Metrics
@@ -217,3 +220,4 @@ Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for 
 | Phase 09-activity-ontology PP09-03 | 20min | 3 tasks | 23 files |
 | Phase 09-activity-ontology P09-04 | 7min | 3 tasks | 16 files |
 | Phase 09-activity-ontology PP09-05 | 17min | 3 tasks | 18 files |
+| Phase 10-information-architecture-implementation P01 | 37min | 3 tasks | 27 files |
