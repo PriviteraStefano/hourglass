@@ -72,16 +72,16 @@ describe("api<T>() HTTP client", () => {
   });
 
   it("sets Content-Type: application/json header", async () => {
-    let capturedHeaders: Headers | null = null;
+    const captured: { headers: Headers | null } = { headers: null };
     server.use(
       http.get("/api/test", ({ request }) => {
-        capturedHeaders = request.headers;
+        captured.headers = request.headers;
         return HttpResponse.json({ data: "ok" });
       })
     );
 
     await api("/test");
-    expect(capturedHeaders?.get("Content-Type")).toBe("application/json");
+    expect(captured.headers?.get("Content-Type")).toBe("application/json");
   });
 
   it("handles network error", async () => {
