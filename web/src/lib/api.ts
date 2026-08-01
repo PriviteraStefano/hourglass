@@ -85,5 +85,11 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
       .catch(() => ({ message: "Request failed" }))) as ApiError;
     throw new Error(error.message || error.error || "Request failed");
   }
+  // 204 No Content (all DELETE handlers): nothing to parse — json() on an
+  // empty body throws, which would reject every delete mutation even though
+  // the server succeeded.
+  if (res.status === 204) {
+    return undefined as T;
+  }
   return ((await res.json()) as ApiResponse<T>).data;
 }
