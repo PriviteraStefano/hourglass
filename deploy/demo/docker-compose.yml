@@ -1,0 +1,93 @@
+name: hourglass-demo
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:2025.7.0   # pin to current release
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    restart: unless-stopped
+    logging: *default-logging
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/demo/Dockerfile.web
+    restart: unless-stopped
+    depends_on:
+      - app
+    logging: *default-logging
+    # no published ports — reachable ONLY via the tunnel
+
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/demo/Dockerfile
+    environment:
+      - PORT=8080
+      - GO_ENV=production          # enforces JWT_SECRET at startup
+      - JWT_SECRET=${JWT_SECRET}
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      - TZ=Europe/Rome
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *default-logging
+    # no published ports — only reachable via web (Caddy)
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - TZ=Europe/Rome
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *default-logging
+    # no ports: — internal network only, never proxied
+
+  # One-shot: apply migrations. Run: docker compose run --rm migrate
+  migrate:
+    profiles: ["ops"]
+    build:
+      context: ../..
+      dockerfile: deploy/demo/Dockerfile
+    entrypoint: ["/usr/local/bin/migrate", "-all", "-dir", "/migrations"]
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # One-shot: demo seed. scripts/seed_demo.sql via psql inside a postgres client.
+  # Run: docker compose run --rm seed   (idempotent; see Makefile `make seed`)
+  seed:
+    profiles: ["ops"]
+    image: postgres:17-alpine
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - psql "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable" -v ON_ERROR_STOP=1 -f /seed/seed_demo.sql
+    volumes:
+      - ../../scripts:/seed:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  pgdata: {}

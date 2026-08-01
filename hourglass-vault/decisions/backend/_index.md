@@ -35,6 +35,7 @@ These ADRs record **how we build in this repo** — Go/backend decisions **speci
 | [[ADR-BE-012 — Audit Log Writes]] | Detached context, logged failures, no silent drops | T7 | Accepted |
 | [[ADR-BE-013 — Password Reset Out-of-Band Codes]] | Codes never in responses, 6+ char entropy, attempt limits | T8 (P0-6) | Accepted |
 | [[ADR-BE-014 — Approval-Routing Precedence & Activity-Chain Resolution]] | Routing via activity → anchored WG manager/delegate; no fallback; D-11 skip incl. delegates; unit-subtree visibility; `enforce_unit_tuple` drop | P-001 Q1–Q4, P-007 | Accepted |
+| [[ADR-BE-015 — Demo Environment Topology]] | Compose + Caddy + cloudflared (named tunnel + Access); zero published ports; seed via `scripts/seed_demo.sql`; VPS as portable escalation path; k8s deferred | Phase 11 demo | Accepted |
 
 ## Coverage vs. the audit
 

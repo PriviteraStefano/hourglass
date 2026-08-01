@@ -1,0 +1,14 @@
+# syntax=docker/dockerfile:1
+
+# --- SPA build stage ---
+FROM oven/bun:1-alpine AS build
+WORKDIR /app
+COPY web/package.json web/bun.lock ./
+RUN bun install --frozen-lockfile
+COPY web/ ./
+RUN bun run build   # tsc -b && vite build → dist/
+
+# --- serve stage ---
+FROM caddy:2-alpine
+COPY deploy/demo/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/dist /srv/spa

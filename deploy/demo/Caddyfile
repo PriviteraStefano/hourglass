@@ -1,0 +1,27 @@
+# Plain HTTP inside the compose network.
+# TLS terminates at Cloudflare's edge; the tunnel is encrypted to this container.
+:80 {
+	root * /srv/spa
+	encode zstd gzip
+
+	# API → Go binary. Strip the /api prefix to mirror the dev proxy
+	# in web/vite.config.ts (backend routes are unprefixed: /auth/..., /units, …).
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy app:8080
+	}
+
+	# SPA with client-side routing fallback (TanStack Router)
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# Tighten once the SPA's connect-src needs are known:
+		# Content-Security-Policy "default-src 'self'"
+	}
+}

@@ -1,5 +1,10 @@
 # Operations
 
+## Environments
+
+* **[Demo deployment](./demo-deployment.md)** — private demo: Compose + Caddy + cloudflared (Cloudflare Tunnel + Access). Topology, one-time setup, daily ops. See ADR-BE-015.
+* **Local dev** — root `docker-compose.yml` (postgres + app, ports published). `make docker-up`, `make seed`.
+
 ## Configuration
 
 ### Environment Variables
