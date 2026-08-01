@@ -199,7 +199,7 @@ The following phases from the previous milestone structure are superseded:
 Phase: 10 (information-architecture-implementation) — EXECUTING
 Plan: 6 of 6
 Status: Phase complete — ready for verification
-Last activity: 2026-08-01 - Completed quick task 260801-msb: Fix TypeScript error TS2339: Property 'get' does not exist on type 'never' in src/lib/__tests__/api.test.ts:84
+Last activity: 2026-08-01 - Completed quick task 260801-o06: Recover demo postgres auth failure (SQLSTATE 28P01) in deploy/demo
 Next up: Phase 10 (information-architecture-implementation) — COMPLETE, 6 plans, 3 waves (ready for verification)
 
 ### Quick Tasks Completed
@@ -209,6 +209,7 @@ Next up: Phase 10 (information-architecture-implementation) — COMPLETE, 6 plan
 | 260801-got | Fix collapsed-sidebar hover/click dead zone over icons | 2026-08-01 | 54f465a | [260801-got-investigate-sidebar-collapsed-mode-hover](./quick/260801-got-investigate-sidebar-collapsed-mode-hover/) |
 | 260801-luy | Document demo deployment topology (Compose + Caddy + cloudflared) — ADR-BE-015 + deploy/demo artifacts | 2026-08-01 | f7637d0 | [260801-luy-document-demo-deployment-topology-compos](./quick/260801-luy-document-demo-deployment-topology-compos/) |
 | 260801-msb | Fix TypeScript error TS2339: Property 'get' does not exist on type 'never' in src/lib/__tests__/api.test.ts:84 | 2026-08-01 | b557a8e | [260801-msb-fix-typescript-error-ts2339-property-get](./quick/260801-msb-fix-typescript-error-ts2339-property-get/) |
+| 260801-o06 | Recover demo postgres auth failure (SQLSTATE 28P01) in deploy/demo + recover-db one-shot service | 2026-08-01 | 302c83d | [260801-o06-failed-to-initialize-postgresql-pool-pas](./quick/260801-o06-failed-to-initialize-postgresql-pool-pas/) |
 
 ## Performance Metrics
 
