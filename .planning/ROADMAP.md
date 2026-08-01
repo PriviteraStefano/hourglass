@@ -484,7 +484,7 @@ Frontend additions: UpdateProjectRequest type, update/delete/subprojects API hoo
 
 ## Phase 10: Information Architecture Implementation
 
-**Status:** In progress — 5/6 plans executed (10-01: frontend activities API layer, `/projects` → `/activities` rename; 10-02: D-1 sidebar regroup + role-scoped visibility; 10-03: Header+Body page shell wrap, contracts typecheck rot 10 → 6; 10-04: Today landing page — read-only composition, never blank; 10-05: Approvals queue — stage-filtered Manager/Finance tabs, merged pending TE+expense queue with approve/reject, ListPending handler gate admits WG manager/delegate)
+**Status:** Complete — 6/6 plans executed (10-01: frontend activities API layer, `/projects` → `/activities` rename; 10-02: D-1 sidebar regroup + role-scoped visibility; 10-03: Header+Body page shell wrap, contracts typecheck rot 10 → 6; 10-04: Today landing page — read-only composition, never blank; 10-05: Approvals queue — stage-filtered Manager/Finance tabs, merged pending TE+expense queue with approve/reject, ListPending handler gate admits WG manager/delegate; 10-06: Working Groups surface — /working-groups list/search/create/edit/members against the live WG API, WorkingGroupsApis completed, api<T> 204 helper fix, 5/5 e2e green — ready for verification)
 
 **Goal:** Implement ADR-P-011: sidebar regrouping, `/projects` → `/activities` rename, Today landing (ticketless), Approvals queue, Working Groups surface, role-scoped visibility. Requires Phase 9 backend live.
 
