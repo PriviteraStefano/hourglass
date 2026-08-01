@@ -6,79 +6,62 @@ Hourglass is a time entry and expense tracking system with approval workflows fo
 
 ## Core Value
 
-Role-based approval workflows (employee → manager → finance) with hierarchical organization structures, contract/project management, and export capabilities.
+Role-based approval workflows (employee → manager → finance) with hierarchical organization structures, contract/activity management, and export capabilities. Approval routing resolves through the activity → working-group → manager/delegate chain, enforceable at approval time.
 
-## Current Milestone: v0.1 MVP Consolidation
+## Current State
 
-**Goal:** Ship a working MVP on PostgreSQL — test infrastructure reboot + all core feature CRUD pages.
+**Shipped:** v0.1 MVP Consolidation (2026-08-01) — 16 phases, 62 plans, 138 tasks
 
-**Target features:**
-- Testing foundation reboot — testcontainers-go for service-layer integration tests, known auth bugs fixed, full test coverage against real PostgreSQL
-- Authorization — fix broken auth endpoints
-- Org hierarchy — org tree with ReactFlow, unit CRUD, member management
-- Customers — full customer CRUD with search/filter
-- Contracts — contract CRUD with customer dropdown
-- Projects — project CRUD with subprojects
-- Time entries + Expenses — full CRUD + approval workflow
-- Exports — CSV/Excel downloads
+- Full PostgreSQL stack: 24-table schema, 18 repos, testcontainers-go integration tests, ~30 Go package suites green
+- Auth: JWT HttpOnly cookies, refresh-token rotation with reuse detection + family revocation, rate limiting, password reset hardening
+- Org hierarchy: ReactFlow tree, unit CRUD, member management, edge-driven reparenting, delete protection
+- Customers (incl. internal customers), Contracts, Exports (CSV/XLSX)
+- **Activity ontology** (Phase 9): recursive `activities` table replaces projects/subprojects; commercial context + billability resolved via CTE; approval routing via activity → WG → manager/delegate
+- **Information architecture** (Phase 10): pillar sidebar (Today/Track/Work/People/Economics/Review/Reports/Admin), role-scoped visibility, Today landing, `/approvals` queue, Working Groups surface
+- Frontend: React 19, TanStack Router + Query v5, shadcn/ui, Tailwind; Playwright e2e + Vitest suites green
 
 ## Requirements
 
 ### Validated
 
-<!-- Shipped and confirmed valuable. -->
+<!-- Shipped and confirmed valuable. Full 55-item traceability: .planning/milestones/v0.1-REQUIREMENTS.md -->
 
-- ✓ Full PostgreSQL schema with 24 tables, FK constraints, CHECK constraints, JSONB, UUID PKs — Pg-1/Pg-2/Pg-3
-- ✓ 18 PostgreSQL repository implementations with integration tests — Pg-2
-- ✓ Shared sentinel errors (`ErrNotFound`, `ErrConflict`, `ErrForeignKey`) with `wrapPGError` — Pg-2
-- ✓ Recursive CTE for hierarchical unit queries — Pg-2
-- ✓ CORS middleware extracted to `internal/middleware/` — Pg-3
-- ✓ Automated smoke test — Pg-3
-- ✓ Server compiles and runs with zero SurrealDB imports — Pg-3
-- ✓ ~7,300 lines SurrealDB code deleted — Pg-3
-- ✓ MVP demo seed data (6 users, 3 contracts, 6 projects, 12 time entries, 6 expenses) — Phase 5
-- ✓ Testcontainers-go infrastructure for PostgreSQL-backed integration tests — Phase 0
-- ✓ 4 auth bugs fixed (nil pointers, empty profiles, 500s for bad input) — Phase 0
-- ✓ Auth security cleanup (refresh token rotation, cookie unification, password reset hardening, auth rate limiting) — Phase 0
-- ✓ 9 service-layer integration test files against real PostgreSQL — Phase 0
-- ✓ 8 handler integration test files against real PostgreSQL — Phase 0
-- ✓ All 6 E2E Playwright specs verified — Phase 0
-- ✓ Full Go backend test suite green (16 packages, zero skipped tests) — Phase 0
-- ✓ Testify, shared testdata factories, service tests (auth/org/time-entry/contract/project/customer/unit/WG/invitation/password-reset/export), handler integration tests, repository tests, frontend Vitest — Phase 0 (SurrealDB era, needs PG reboot)
-- ✓ Playwright E2E tests for all CRUD flows — Phase 0
+- ✓ 60/60 v0.1 requirements shipped (TEST-01..06, AUTH-01..05, ORG-01..05, CUST-01..06, CTRT-01..07, PROJ-01..06, TIME-01..08, EXPN-01..06, APPR-01..05, EXPT-01..06)
+- ✓ Projects/subprojects → recursive Activity model (PROJ-* superseded; intent delivered via `/activities` surface) — v0.1
+- ✓ Approval workflow: two-stage (manager → finance), immutable history, reason-required reject, self-approval prevention — v0.1
+- ✓ Refresh-token reuse detection with family revocation (P0-5) — v0.1
+- ✓ Filterable list views, `/customers` index, route error boundaries (P0-2/3/4) — v0.1
+- ✓ Working Groups surface (list/search/create/edit/members) — v0.1
+- ✓ Today landing + Approvals queue (stage-filtered Manager/Finance) — v0.1
 
 ### Active
 
-<!-- Current scope. Building toward these. -->
+<!-- Current scope. Next milestone to be defined via /gsd-new-milestone. -->
 
-- [ ] Testcontainers-go for PostgreSQL-backed service-layer integration tests
-- [ ] Fix known auth bugs (`/auth/memberships` panic, `/auth/me` empty role/org_id, `/units/{id}/members` 500, `/organizations/members` 500)
-- [ ] Branch bug-fix from BUGS.md (Wave 4)
-- [ ] Auth endpoint fixes verified with seed users
-- [ ] Org hierarchy ReactFlow frontend
-- [ ] Customer CRUD frontend
-- [ ] Contract CRUD frontend with customer dropdown
-- [ ] Project CRUD frontend with subprojects
-- [ ] Time entry + expense frontend with approval workflow
-- [ ] CSV/Excel export frontend
+- [ ] Next milestone requirements TBD (questioning → research → requirements → roadmap)
+- [ ] Outstanding verification debt: 25 UAT scenarios + 3 human verification reviews (phases 6/8/9/10 — see STATE.md Deferred Items)
 
 ### Out of Scope
 
 <!-- Explicit boundaries. Includes reasoning to prevent re-adding. -->
 
 - SurrealDB — fully replaced by PostgreSQL, no longer supported
-- Real-time features — not part of v0.1 scope
+- Real-time features — high complexity, not core to v0.1
 - Mobile apps — web-first, not planned for v0.1
+- OAuth/Social login — email/password sufficient for v0.1
+- CI/CD pipeline — ad-hoc for now, will add later
 
 ## Context
 
-Hourglass was originally built on SurrealDB. All database code was ported to PostgreSQL in v0.1 (Phases Pg-1/Pg-2/Pg-3). The previous Phase 0 testing effort targeted SurrealDB infrastructure — those tests need to be rewritten to target PostgreSQL using testcontainers-go. All backend endpoints already exist; the primary gap is frontend CRUD pages plus fixing known auth bugs.
+Hourglass was originally built on SurrealDB; v0.1 fully ported to PostgreSQL (Phases Pg-1/Pg-2/Pg-3, ~7,300 lines deleted) and rebuilt the test infrastructure on testcontainers-go. The big-bang activity ontology migration (Phase 9) replaced the projects/subprojects model with a recursive activities tree; all approval routing was rewritten onto the activity chain. v0.1 shipped the Information Architecture phase (Phase 10) with the demo deployment topology documented (Compose + Caddy + cloudflared, ADR-BE-015).
+
+Known debt at close: 25 pending UAT scenarios, 3 human verification reviews, 2 quick tasks with unknown status — deferred to next milestone (see STATE.md).
 
 ## Constraints
 
 - **[Tech stack]**: Go 1.26.1, PostgreSQL (pgx/v5), React 19, TanStack Router + Query, shadcn/ui + Tailwind — no SurrealDB
-- **[Database]**: PostgreSQL via pgxpool, all repos exist, hand-written SQL, no ORM
-- **[Auth]**: JWT in HttpOnly cookies (auth_token/refresh_token), bcrypt password hashing
+- **[Database]**: PostgreSQL via pgxpool, all repos exist, hand-written SQL, no ORM; migrations append-only per ADR-BE-004
+- **[Auth]**: JWT in HttpOnly cookies (auth_token/refresh_token), bcrypt password hashing, strict reuse model with family revocation
 - **[Architecture]**: Hexagonal — services in `internal/core/services/*`, HTTP adapters in `internal/adapters/primary/http/*`, PostgreSQL adapters in `internal/adapters/secondary/postgres/*`
 
 ## Key Decisions
@@ -90,9 +73,13 @@ Hourglass was originally built on SurrealDB. All database code was ported to Pos
 | PostgreSQL over SurrealDB | Better ecosystem, proper SQL JOINs, production-grade pgx | ✓ Good |
 | Hexagonal architecture preserved | Only adapter layer changed; services/domain untouched | ✓ Good |
 | Hand-written SQL with pgx (no ORM) | Full query control, pgx is Go's gold standard PG driver | ✓ Good |
-| Testcontainers-go for integration tests | Isolated PostgreSQL per test run, no external DB dependency | — Pending |
+| Testcontainers-go for integration tests | Isolated PostgreSQL per test run, no external DB dependency | ✓ Good |
 | UUID PKs with `gen_random_uuid()` | Consistent ID format, no sequential PK exposure | ✓ Good |
+| Activity ontology (projects/subprojects → recursive activities) | Single recursive entity; commercial context/billability derived via CTE; enables WG-anchored approval routing | ✓ Good |
+| Approval routing via activity → WG → manager/delegate | Enforceable at approval time; unit-manager fallback for personal activities; D-11 skip incl. delegates | ✓ Good |
+| Refresh-token strict reuse model | Concurrent-refresh loser is indistinguishable from attacker replay → family revokes | ✓ Good |
+| Pillar-based IA (ADR-P-011) | Role-scoped visibility from pure, testable predicates; single declarative navStructure | ✓ Good |
 
 ---
 
-*Last updated: 2026-06-08 after v0.1 milestone continuation*
+*Last updated: 2026-08-01 after v0.1 milestone*

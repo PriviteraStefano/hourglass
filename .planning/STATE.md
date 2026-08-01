@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
-status: verifying
-last_updated: "2026-08-01T06:44:01.622Z"
+status: completed
+last_updated: "2026-08-01T16:22:27.510Z"
 last_activity: 2026-08-01
 progress:
   total_phases: 14
@@ -25,7 +25,7 @@ progress:
 
 ## Phase 0: testing-foundation
 
-- **Status:** Phase complete — ready for verification
+- **Status:** v0.1 milestone complete
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -194,13 +194,30 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 10] (10-05): URL-shareable stage via validateSearch (ADR-FE-017): /approvals?stage=finance
 - [Phase 10-information-architecture-implementation]: Working Group frontend type keeps subproject_id (legacy activity anchor) — the plan's 'activity_id' name conflicts with the live API JSON key; the 10-02 type mirrors the Go payload exactly and is untouched — read_first verification against working_group.go; the API returns subproject_id for the activity anchor
 
+## Deferred Items
+
+Items acknowledged and deferred at milestone close on 2026-08-01 (user chose "Acknowledge all" during /gsd-complete-milestone):
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat_gap | 06-UAT.md | 14 pending scenarios |
+| uat_gap | 08-UAT.md | 4 pending scenarios |
+| uat_gap | 09-UAT.md | 1 pending scenario |
+| uat_gap | 10-UAT.md | 6 pending scenarios |
+| verification_gap | 08-VERIFICATION.md | human_needed |
+| verification_gap | 09-VERIFICATION.md | human_needed |
+| verification_gap | 10-VERIFICATION.md | human_needed |
+| quick_task | 260801-got-investigate-sidebar-collapsed-mode-hover | unknown |
+| quick_task | 260801-o06-failed-to-initialize-postgresql-pool-pas | unknown |
+
+Remediation: `/gsd-verify-work` (UAT + human verification) and `/gsd-audit-uat` in the next milestone.
+
 ## Current Position
 
-Phase: 10 (information-architecture-implementation) — EXECUTING
-Plan: 6 of 6
-Status: Phase complete — ready for verification
-Last activity: 2026-08-01 - Completed quick task 260801-o06: Recover demo postgres auth failure (SQLSTATE 28P01) in deploy/demo
-Next up: Phase 10 (information-architecture-implementation) — COMPLETE, 6 plans, 3 waves (ready for verification)
+Phase: Milestone v0.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-08-01 — Milestone v0.1 completed and archived
 
 ### Quick Tasks Completed
 
@@ -255,3 +272,15 @@ Next up: Phase 10 (information-architecture-implementation) — COMPLETE, 6 plan
 | Phase 10-information-architecture-implementation P04 | 17min | 3 tasks | 6 files |
 | Phase 10-information-architecture-implementation P05 | 48min | 4 tasks | 10 files |
 | Phase 10-information-architecture-implementation P06 | 453 | 4 tasks | 10 files |
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
+
+## Project Reference
+
+See: .planning/PROJECT.md (updated 2026-08-01)
+
+**Core value:** Role-based approval workflows (employee → manager → finance) with hierarchical organization structures, contract/activity management, and export capabilities.
+
+**Current focus:** Planning next milestone — 9 deferred items (UAT + verification + quick tasks) open from v0.1.
