@@ -88,38 +88,38 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UXFD-01 | | Pending |
-| UXFD-02 | | Pending |
-| TICK-01 | | Pending |
-| TICK-02 | | Pending |
-| TICK-03 | | Pending |
-| TICK-04 | | Pending |
-| TICK-05 | | Pending |
-| TICK-06 | | Pending |
-| TICK-07 | | Pending |
-| TICK-08 | | Pending |
-| AVAIL-01 | | Pending |
-| AVAIL-02 | | Pending |
-| AVAIL-03 | | Pending |
-| AVAIL-04 | | Pending |
-| AVAIL-05 | | Pending |
-| POLS-01 | | Pending |
-| POLS-02 | | Pending |
-| POLS-03 | | Pending |
-| POLS-04 | | Pending |
-| POLS-05 | | Pending |
-| POLS-06 | | Pending |
-| POLS-07 | | Pending |
-| POLS-08 | | Pending |
-| POLS-09 | | Pending |
-| POLS-10 | | Pending |
-| POLS-11 | | Pending |
+| UXFD-01 | Phase 11 | Pending |
+| UXFD-02 | Phase 11 | Pending |
+| TICK-01 | Phase 12 | Pending |
+| TICK-02 | Phase 13 | Pending |
+| TICK-03 | Phase 12 | Pending |
+| TICK-04 | Phase 12 | Pending |
+| TICK-05 | Phase 12 | Pending |
+| TICK-06 | Phase 12 | Pending |
+| TICK-07 | Phase 13 | Pending |
+| TICK-08 | Phase 13 | Pending |
+| AVAIL-01 | Phase 14 | Pending |
+| AVAIL-02 | Phase 14 | Pending |
+| AVAIL-03 | Phase 15 | Pending |
+| AVAIL-04 | Phase 15 | Pending |
+| AVAIL-05 | Phase 15 | Pending |
+| POLS-01 | Phase 16 | Pending |
+| POLS-02 | Phase 17 | Pending |
+| POLS-03 | Phase 17 | Pending |
+| POLS-04 | Phase 19 | Pending |
+| POLS-05 | Phase 19 | Pending |
+| POLS-06 | Phase 18 | Pending |
+| POLS-07 | Phase 20 | Pending |
+| POLS-08 | Phase 20 | Pending |
+| POLS-09 | Phase 21 | Pending |
+| POLS-10 | Phase 21 | Pending |
+| POLS-11 | Phase 22 | Pending |
 
 **Coverage:**
 - v0.2 requirements: 26 total
-- Mapped to phases: 0
-- Unmapped: 26 ⚠️ (filled during roadmap creation)
+- Mapped to phases: 26
+- Unmapped: 0 ✓ (all requirements mapped during roadmap creation)
 
 ---
 *Requirements defined: 2026-08-01*
-*Last updated: 2026-08-01 after initial definition*
+*Last updated: 2026-08-01 after roadmap creation*
