@@ -63,6 +63,23 @@ The `/api` handling is deliberately identical to the dev proxy in `web/vite.conf
 | Nightly reset | host cron: `15 6 * * * cd deploy/demo && docker compose run --rm seed` |
 | Pre-demo check | `curl -s https://demo.<your-domain>/api/health` → 200, then log in via Access once |
 
+### Troubleshooting: postgres auth failure (SQLSTATE 28P01)
+
+**Symptom:** `app` crash-loops with `Failed to initialize PostgreSQL pool: ... password
+authentication failed for user "hourglass" (SQLSTATE 28P01)`.
+
+**Root cause:** postgres reads `POSTGRES_PASSWORD` only on first init of an empty
+`pgdata` volume; changing `.env` later never touches the stored password.
+
+**Fix (preserves data):** `make demo-recover-db` (realigns the stored password with
+`.env`), then `make demo-up` or `docker compose up -d app`.
+
+**Reset fallback (wipes demo data):** `docker compose down -v` → `up -d` →
+`run --rm migrate` → `run --rm seed`.
+
+See `deploy/demo/README.md` → "Troubleshooting: postgres auth failure (28P01)" for the
+full write-up.
+
 ## Security notes
 
 * `postgres` has no published ports and no ingress path — only `app` can reach it.

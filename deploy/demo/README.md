@@ -8,7 +8,7 @@ Ops doc: `openwiki/operations/demo-deployment.md`.
 
 ```
 deploy/demo/
-├── docker-compose.yml   # web (Caddy) · app (Go) · postgres · cloudflared · migrate · seed
+├── docker-compose.yml   # web (Caddy) · app (Go) · postgres · cloudflared · migrate · seed · recover-db
 ├── Dockerfile           # Go binary (distroless, static, pgx)
 ├── Dockerfile.web       # Vite build (bun) → Caddy image
 ├── Caddyfile            # SPA + /api reverse proxy (prefix strip, mirrors dev proxy)
@@ -37,6 +37,37 @@ deploy/demo/
 | Seed now | `docker compose run --rm seed` (idempotent — see `scripts/seed_demo.sql`) |
 | Nightly reset | host cron: `15 6 * * * cd deploy/demo && docker compose run --rm seed` |
 | Pre-demo check | `curl -s https://demo.<your-domain>/api/health` → 200; log in through Access once |
+
+## Troubleshooting: postgres auth failure (28P01)
+
+**Symptom:** the `app` container crash-loops; its log shows
+
+```
+Failed to initialize PostgreSQL pool: ... FATAL: password authentication failed for user "hourglass" (SQLSTATE 28P01)
+```
+
+**Root cause:** Postgres reads `POSTGRES_PASSWORD` **only on the first init of an
+empty `pgdata` volume**. Changing `POSTGRES_PASSWORD` in `.env` afterwards never
+touches the stored password, so the app's `DATABASE_URL` (composed from the same
+`.env`) is rejected.
+
+**Fix A — preserve data (preferred):** realign the stored password with `.env`:
+
+```bash
+docker compose run --rm recover-db   # idempotent — or `make demo-recover-db` from repo root
+docker compose up -d app
+```
+
+**Fix B — full demo reset (wipes demo data):**
+
+```bash
+docker compose down -v
+docker compose up -d
+docker compose run --rm migrate
+docker compose run --rm seed
+```
+
+Postgres re-initializes the empty volume with the current `.env` password.
 
 ## Properties
 

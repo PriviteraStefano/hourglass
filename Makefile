@@ -1,4 +1,4 @@
-.PHONY: build run migrate test setup clean docker-build docker-up docker-down seed seed-demo demo-up demo-migrate demo-seed demo-redeploy
+.PHONY: build run migrate test setup clean docker-build docker-up docker-down seed seed-demo demo-up demo-migrate demo-seed demo-recover-db demo-redeploy
 
 BINARY_NAME=hourglass
 MIGRATIONS_DIR=migrations
@@ -72,5 +72,8 @@ demo-migrate:
 	docker compose -f $(DEMO_DIR)/docker-compose.yml run --rm migrate
 demo-seed:
 	docker compose -f $(DEMO_DIR)/docker-compose.yml run --rm seed
+# Realign postgres password with .env after a pgdata volume exists (28P01 recovery).
+demo-recover-db:
+	docker compose -f $(DEMO_DIR)/docker-compose.yml run --rm recover-db
 demo-redeploy:
 	git pull && docker compose -f $(DEMO_DIR)/docker-compose.yml up -d --build && docker image prune -f

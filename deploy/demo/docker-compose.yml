@@ -89,5 +89,26 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # One-shot: realign postgres superuser password with .env when the pgdata volume
+  # already exists (postgres only reads POSTGRES_PASSWORD on first init of an empty
+  # data dir). Run: docker compose run --rm recover-db  (idempotent)
+  # Note: psql does NOT interpolate :'pw' inside -c, so the SQL is piped via stdin
+  # with a \set (psql variable interpolation applies to stdin input); credentials
+  # come from the container env so the password never appears in the process argv
+  # or compose command logs.
+  recover-db:
+    profiles: ["ops"]
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "printf '\\\\set pw %s\\nALTER USER \"%s\" WITH PASSWORD :\\047pw\\047;\\n' \"$$POSTGRES_PASSWORD\" \"$$POSTGRES_USER\" | PGPASSWORD=\"$$POSTGRES_PASSWORD\" psql -h postgres -U \"$$POSTGRES_USER\" -d postgres -v ON_ERROR_STOP=1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
 volumes:
   pgdata: {}
