@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "VISION.md",
+                "file": "03-Schema/S04-API-Contracts.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "VISION"
+              "title": "S04-API-Contracts"
             }
           }
         ]
@@ -183,8 +183,13 @@
       "bases:Create new base": false
     }
   },
-  "active": "4fdfe5fbe4aed023",
+  "active": "93ae6b54a4c60e3b",
   "lastOpenFiles": [
+    "decisions/backend/ADR-BE-015 — Demo Environment Topology.md",
+    "03-Schema/S03-Ports-Interfaces.md",
+    "03-Schema/S02-Domain-Models.md",
+    "03-Schema/S01-Database-ERD.md",
+    "VISION.md",
     "old/design/files/surrealdb-schema.sql",
     "old/design/files/schema-implementation-guide.md",
     "old/design/files/api-specification.md",
@@ -202,7 +207,6 @@
     "old",
     "research/2026-07-28 — Work Ontology — Full Picture & Revision Proposal.md",
     "research/2026-07-28 — Pre-Deployment Audit — Hourglass v0.1.md",
-    "VISION.md",
     "research/kotlinllm-learning/lessons/0001-what-makes-a-smart-macro-not-an-llm-call.html",
     "research/kotlinllm-learning/reference/glossary.html",
     "research/kotlinllm-learning/learning-records/0001-mission-is-evaluation-not-adoption.md",
@@ -213,13 +217,9 @@
     "research/kotlinllm-learning/reference",
     "research/kotlinllm-learning/learning-records",
     "research/kotlinllm-learning/lessons",
-    "research/kotlinllm-learning",
     "01-Features/F13-Exports.md",
     "01-Features/F11-Time-Entries.md",
     "01-Features/F10-Activities.md",
-    "01-Features/F12-Expenses.md",
-    "01-Features/F09-Contracts.md",
-    "01-Features/F08-Customers.md",
-    "01-Features/F07-Org-Hierarchy-Units.md"
+    "01-Features/F12-Expenses.md"
   ]
 }
