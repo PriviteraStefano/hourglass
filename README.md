@@ -97,6 +97,8 @@ That is the whole loop for an employee: record once, submit, and watch the statu
 
 **The vision path — direction, not current scope.** Today view, tickets, knowledge profiles, project maps, pricing analytics, live project finance. Each step builds on the data v0.1 captures; none of it is in v0.1.
 
+**More on the wiki:** the [Home](wiki/Home.md) page introduces the four pillars, with deeper guides for [getting started](wiki/Getting-Started.md), [adopters](wiki/Adopters.md), [employees](wiki/Employees.md), the [vision](wiki/Vision.md), and the [FAQ](wiki/FAQ.md).
+
 ---
 
 ## For developers
