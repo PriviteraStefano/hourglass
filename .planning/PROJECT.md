@@ -36,10 +36,12 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 
 ### Active
 
-<!-- Current scope. Next milestone to be defined via /gsd-new-milestone. -->
+<!-- Current scope: v0.2 UX Polish + Tickets + Availability. Detailed REQ-IDs in REQUIREMENTS.md. -->
 
-- [ ] Next milestone requirements TBD (questioning → research → requirements → roadmap)
-- [ ] Outstanding verification debt: 25 UAT scenarios + 3 human verification reviews (phases 6/8/9/10 — see STATE.md Deferred Items)
+- [ ] UX/UI pass across all pages — one phase per page, gsd-sketch-driven (options → agree → implement → verify)
+- [ ] Ticket ontology — unified ticket entity: internal work tasks + external helpdesk (incl. internal customers), request tracking per customer for billing
+- [ ] Availability — employee absences UI + resource/capacity views per activity/WG
+- [ ] Fold in v0.1 verification debt (25 UAT scenarios + 3 human verification reviews) per-page
 
 ### Out of Scope
 
@@ -79,7 +81,34 @@ Known debt at close: 25 pending UAT scenarios, 3 human verification reviews, 2 q
 | Approval routing via activity → WG → manager/delegate | Enforceable at approval time; unit-manager fallback for personal activities; D-11 skip incl. delegates | ✓ Good |
 | Refresh-token strict reuse model | Concurrent-refresh loser is indistinguishable from attacker replay → family revokes | ✓ Good |
 | Pillar-based IA (ADR-P-011) | Role-scoped visibility from pure, testable predicates; single declarative navStructure | ✓ Good |
+| Ticket ontology (v0.2) | Unified ticket entity (kinds: task/helpdesk) scoped under the activity tree; request counting per customer enables billing | — Pending |
+
+## Current Milestone: v0.2 UX Polish + Tickets + Availability
+
+**Goal:** Polish the product page by page through sketch-driven UX/UI work, add a ticket ontology (internal tasks + customer helpdesk), and surface availability (absences + resource views).
+
+**Target features:**
+- UX/UI pass: one phase per page — gsd-sketch options → agree → implement → verify; all pillars step by step
+- Ticket ontology: internal work tasks + external helpdesk (incl. internal customers); request tracking per customer for billing
+- Availability: employee absences + resource/capacity views per activity/WG
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
 
 ---
 
-*Last updated: 2026-08-01 after v0.1 milestone*
+*Last updated: 2026-08-01 after v0.2 milestone started*
