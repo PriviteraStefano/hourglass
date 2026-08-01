@@ -2,30 +2,30 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: MVP Consolidation
-status: executing
-last_updated: "2026-07-31T23:04:39.611Z"
-last_activity: 2026-07-31
+status: verifying
+last_updated: "2026-08-01T06:44:01.622Z"
+last_activity: 2026-08-01
 progress:
   total_phases: 14
-  completed_phases: 12
+  completed_phases: 13
   total_plans: 61
-  completed_plans: 59
-  percent: 86
+  completed_plans: 60
+  percent: 93
 ---
 
 # Phase State
 
 ## Session
 
-- **Last activity:** 2026-07-31
-- **Completed:** Plan 10-05 (Approvals queue — /approvals with stage-filtered Manager/Finance tabs; merged pending TE+expense queue with approve/reject; ListPending handler gate relaxed to admit WG manager/delegate via Service.IsWGManager; 4/4 approvals e2e green)
-- **Source:** `.planning/phases/10-information-architecture-implementation/10-05-PLAN.md`
-- **Previous:** Plan 10-04 (Today landing page — read-only composition, never blank; / renders Today with waiting-on-you + your-week sections and locked empty states; 42/42 e2e green)
+- **Last activity:** 2026-08-01
+- **Completed:** Plan 10-06 (Working Groups surface — /working-groups list/search/create/edit/members against the live WG API; WorkingGroupsApis completed with 5 mutations; api<T> 204 helper fix; 5/5 e2e green; phase 10 complete, ready for verification)
+- **Source:** `.planning/phases/10-information-architecture-implementation/10-06-PLAN.md`
+- **Previous:** Plan 10-05 (Approvals queue — /approvals with stage-filtered Manager/Finance tabs; merged pending TE+expense queue with approve/reject; ListPending handler gate relaxed to admit WG manager/delegate via Service.IsWGManager; 4/4 approvals e2e green)
 - **Intel:** `.planning/intel/`
 
 ## Phase 0: testing-foundation
 
-- **Status:** Ready to execute
+- **Status:** Phase complete — ready for verification
 - **Plans:**
   - 00-02-PLAN.md — Testcontainers infrastructure (Wave 1) [completed]
   - 00-01-PLAN.md — Auth bug fixes + cleanup (Wave 2, depends on 02) [completed]
@@ -192,14 +192,15 @@ The following phases from the previous milestone structure are superseded:
 - [Phase 10] (10-05): Stage tabs render only from deriveApprovalStages output; single-stage users skip the tab bar and see their queue directly; stage derived from row status (pending_finance → finance; submitted/pending_manager → manager) mirroring BE-014
 - [Phase 10] (10-05): 403 while tabs render → locked error state 'We couldn't load Approvals. {reason}. Try again.' with router.invalidate(); never 'Queue is clear' (T-10-05-2)
 - [Phase 10] (10-05): URL-shareable stage via validateSearch (ADR-FE-017): /approvals?stage=finance
+- [Phase 10-information-architecture-implementation]: Working Group frontend type keeps subproject_id (legacy activity anchor) — the plan's 'activity_id' name conflicts with the live API JSON key; the 10-02 type mirrors the Go payload exactly and is untouched — read_first verification against working_group.go; the API returns subproject_id for the activity anchor
 
 ## Current Position
 
 Phase: 10 (information-architecture-implementation) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-07-31 -- Plan 10-04 complete (Today landing at /, never blank; 42/42 e2e green; build blocked by 6 pre-existing typecheck errors — deferred-items.md)
-Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for verification)
+Status: Phase complete — ready for verification
+Last activity: 2026-08-01 -- Plan 10-06 complete (Working Groups surface at /working-groups: list + create/edit + members + delete against the live WG API; WorkingGroupsApis completed; api<T> 204 fix; 5/5 WG e2e green; full suite 41 pass + 3 pre-existing July-date rollover failures — deferred-items §2)
+Next up: Phase 10 (information-architecture-implementation) — COMPLETE, 6 plans, 3 waves (ready for verification)
 
 ## Performance Metrics
 
@@ -244,3 +245,4 @@ Next up: Phase 09 (activity-ontology) — COMPLETE, 8 plans, 3 waves (ready for 
 | Phase 10-information-architecture-implementation P03 | 9min | 3 tasks | 10 files |
 | Phase 10-information-architecture-implementation P04 | 17min | 3 tasks | 6 files |
 | Phase 10-information-architecture-implementation P05 | 48min | 4 tasks | 10 files |
+| Phase 10-information-architecture-implementation P06 | 453 | 4 tasks | 10 files |
