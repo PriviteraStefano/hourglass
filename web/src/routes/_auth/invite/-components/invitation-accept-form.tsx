@@ -10,8 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useSearchParams, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { AuthApis } from "@/api/auth.ts";
 import { toast } from "sonner";
@@ -31,10 +31,8 @@ const acceptInviteSchema = z.object({
 type AcceptInviteFormData = z.infer<typeof acceptInviteSchema>;
 
 export function InvitationAcceptForm() {
-  const [searchParams] = useSearchParams();
+  const { token, code } = useSearch({ from: "/_auth/invite/" });
   const navigate = useNavigate();
-  const token = searchParams.get("token");
-  const code = searchParams.get("code");
 
   const { data: invitation, isLoading: loadingInvitation } = useQuery({
     ...(token

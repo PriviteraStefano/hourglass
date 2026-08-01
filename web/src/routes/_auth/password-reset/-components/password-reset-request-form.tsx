@@ -59,7 +59,7 @@ export function PasswordResetRequestForm() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Link to="/password-reset/verify" className="text-primary underline">
+          <Link to="/password-reset" className="text-primary underline">
             Enter reset code
           </Link>
         </CardContent>

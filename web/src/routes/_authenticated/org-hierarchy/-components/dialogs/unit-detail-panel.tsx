@@ -49,7 +49,9 @@ import {
   unitTreeQueryOpts,
   updateUnitMemberMutationOpts,
 } from "@/api/units.ts";
-import { useOrgHierarchyStore } from "@/routes/_authenticated/org-hierarchy/-context/org-hierarchy-context.tsx";
+import {
+  useOrgHierarchyStore,
+} from "@/routes/_authenticated/org-hierarchy/-context/org-hierarchy-context.tsx";
 import { flattenTree } from "../utils/tree-utils";
 import type { Unit, UnitMember, UnitTreeNode } from "@/types/unit.ts";
 import { toast } from "sonner";
@@ -194,7 +196,7 @@ function AddMemberPopover({ unitId }: { unitId: string }) {
                   key={m.user_id}
                   value={m.user_name}
                   onSelect={() => {
-                    if (m.user_id) handleAdd(m.user_id, m.user_name);
+                    if (m.user_id) handleAdd(m.user_id, m.user_name ?? "");
                     setOpen(false);
                   }}
                 >

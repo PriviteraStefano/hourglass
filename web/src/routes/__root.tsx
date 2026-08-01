@@ -13,7 +13,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     <ThemeProvider
       defaultTheme="system"
       storageKey="hourglass-theme"
-      attribute="class"
+      // attribute="class"
     >
       <TooltipProvider>
         <Outlet />

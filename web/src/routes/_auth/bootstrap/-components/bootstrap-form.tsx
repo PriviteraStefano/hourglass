@@ -16,7 +16,7 @@ import { AuthApis } from "@/api/auth.ts";
 import { toast } from "sonner";
 
 const bootstrapSchema = z.object({
-  organization_name: z.string().min(1, "Organization name is required"),
+  org_name: z.string().min(1, "Organization name is required"),
   email: z.string().email("Invalid email address"),
   username: z
     .string()
@@ -44,7 +44,7 @@ export function BootstrapForm() {
   const form = useForm<BootstrapFormData>({
     resolver: zodResolver(bootstrapSchema),
     defaultValues: {
-      organization_name: "",
+      org_name: "",
       email: "",
       username: "",
       firstname: "",
@@ -83,11 +83,11 @@ export function BootstrapForm() {
               type="text"
               placeholder="Acme Corp"
               autoComplete="organization"
-              {...form.register("organization_name")}
+              {...form.register("org_name")}
             />
-            {form.formState.errors.organization_name && (
+            {form.formState.errors.org_name && (
               <p className="text-sm text-destructive">
-                {form.formState.errors.organization_name.message}
+                {form.formState.errors.org_name.message}
               </p>
             )}
           </div>

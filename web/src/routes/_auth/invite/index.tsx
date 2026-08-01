@@ -1,5 +1,6 @@
 import { InvitationAcceptForm } from "./-components/invitation-accept-form";
 import { createFileRoute } from "@tanstack/react-router";
+import z from "zod";
 
 export const Route = createFileRoute("/_auth/invite/")({
   component: () => (
@@ -7,4 +8,8 @@ export const Route = createFileRoute("/_auth/invite/")({
       <InvitationAcceptForm />
     </div>
   ),
+  validateSearch: z.object({
+    token: z.string().optional(),
+    code: z.string().optional(),
+  }),
 });

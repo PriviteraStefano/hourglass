@@ -1,10 +1,10 @@
+@import url("https://fonts.googleapis.com/css2?family=Martian%20Mono:wght@200&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist%20Mono:wght@300&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
 
-@import url("https://fonts.googleapis.com/css2?family=Martian%20Mono:wght@200&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Geist%20Mono:wght@300&display=swap");
 
 @custom-variant dark (&:is(.dark *));
 
