@@ -9,9 +9,11 @@ x-logging: &default-logging
 services:
   cloudflared:
     image: cloudflare/cloudflared:2025.7.0   # pin to current release
-    command: tunnel --no-autoupdate run
-    environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    command: tunnel --url http://web
+    #   # If you want to use a tunnel token instead of a full config file, uncomment the following lines and set TUNNEL_TOKEN in your .env file.
+    #   command: tunnel --no-autoupdate run
+    #   environment:
+    #      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
     restart: unless-stopped
     logging: *default-logging
 
