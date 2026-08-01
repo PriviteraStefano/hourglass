@@ -1,31 +1,107 @@
 # Hourglass
 
-**Time entry and expense tracking with approval workflows for organizations.**
+**Hourglass removes the meta-work around work** — so every person knows what to do, every project knows where it stands, and every contract knows what it's worth.
 
-Hourglass is a full-stack application that lets organizations track employee time
-entries and expenses through a configurable, role-based approval workflow
-(employee → manager → finance). It ships with a Go backend (hexagonal
-architecture) and a React frontend.
+Hourglass is a work operations platform, not just a time-and-expense tracker. It records what actually happened at work, once and at the source, and turns it into trusted data that answers three questions at any moment.
 
 ---
 
-## Features
+## The problem
 
-- **Time entries** — employees log hours per project with draft → submitted →
-  pending_manager → pending_finance → approved/rejected status flow
-- **Expenses** — mileage, meal, accommodation, and other categories, with the
-  same two-stage approval workflow
-- **Approval workflow** — role-differentiated actions: submit, approve, reject,
-  edit_approve, edit_return, partial_approve, delegate
-- **Organizations & roles** — `employee`, `manager`, `finance`, `customer` with
-  DB-enforced CHECK constraints
-- **Contracts & projects** — billable or internal, organization-specific or
-  shared, with governance models (`creator_controlled`, `unanimous`, `majority`)
-- **Exports** — date-range CSV export of approved entries
-- **Auth** — JWT in HttpOnly cookies, bcrypt password hashing, refresh-on-401
-- **Multi-stage Docker** — Postgres + app via `docker-compose`
+Work generates meta-work: recording what happened, chasing approvals, answering status questions, reconciling numbers at month end. In most organizations that meta-work lives in spreadsheets, email threads, and last-minute report-building — and nobody sees the same picture twice.
+
+Hourglass exists so the data of work is captured once, at the source, and every question reads from that same record. No re-entry, no chasing, no cost surprises.
 
 ---
+
+## The three questions
+
+Everything in Hourglass exists to answer three questions, from captured data:
+
+1. **"What should I be working on?"** — direction for people
+2. **"Is the work on track?"** — steering for managers
+3. **"What does the work cost and earn?"** — economics for finance
+
+---
+
+## The four pillars
+
+Every feature belongs to one of four pillars, each answering the questions above using data from the pillars below it:
+
+- **Capture** — work is recorded once, where it happens: time entries and expenses
+- **Structure** — a map of who works on what: org units, activities, contracts, customers
+- **Control** — who approves and who sees what: roles, governance, the approval chain
+- **Insight** — steering signals from captured data: exports today, dashboards coming
+
+v0.1 is **Capture + Structure + Control**, with exports as the first Insight capability.
+
+---
+
+## Hourglass for adopters
+
+### What you get
+
+v0.1 ships all four pillars working together:
+
+- **Capture** — Employees log hours against an activity, one entry per activity per date, captured at the source. Approved and rejected entries are immutable; rejected entries show a reason and can be corrected. Employees claim expenses — mileage, meal, accommodation, and more — with amounts and receipt upload, captured with the same fidelity as time.
+- **Structure** — The org hierarchy maps who is accountable for whom, with multi-unit membership, so managers see their subtree's data. Activities are recursive work containers at any granularity, with internal (non-commercial) work first-class. Contracts bind a customer to a scope of work and its economics, and are the source of the billability default. Customers are the commercial counterparty — including the internal customer that anchors non-commercial work.
+- **Control** — Time entries and expenses become trusted through a two-stage approval chain: manager, then finance. Entries move through a status flow — draft, submitted, pending manager, pending finance, approved or rejected — visible to the employee anytime. Governance models define whose approval counts per activity: creator-controlled, unanimous, or majority. An organization and its admin account are created in one atomic step, and admins invite members via code or link.
+- **Insight** — Exports hand trusted data outward: timesheet, expense, and combined reports as CSV or XLSX, date-ranged and role-scoped.
+
+**Trying it:** the [Getting started](#getting-started) quickstart below runs the whole stack in a few commands.
+
+### What it is not
+
+Hourglass stays deliberately narrow. It is not:
+
+- **A chat tool** — it references work; it does not host conversation about work
+- **A task board** — no Jira board, sprint planner, or Kanban tool; tickets track demand, not execution
+- **Payroll or HR machinery** — Hourglass produces trusted data for those systems; it does not become them
+
+### What is coming
+
+Planned after v0.1 — **not in v0.1**:
+
+- **V1 Today view** — one screen answering "what now" from tickets, projects, and pending approvals
+- **V2 Tickets** — request tracking for internal and external demand
+- **V3 Knowledge profiles** — skills, current load, and project history per person
+- **V4 Project knowledge maps** — living state for projects, scope changes as first-class events
+- **V5 Pricing analytics** — "what did similar work actually cost us?" from captured history
+- **V6 Live project finance** — burn versus budget, in real time
+- **V7 Outcome capture** — entries record what was made, learnt, taught, or shown
+- **V8 Company knowledge wiki** — a query surface over captured outcomes, inside Hourglass
+
+---
+
+## Hourglass for employees
+
+### The daily loop
+
+1. **Capture** your work — hours against an activity, expenses as they happen
+2. **Submit** — your entries leave your desk
+3. **Manager approves** — one check, with a reason if anything is rejected
+4. **Finance confirms** — the second stage of the chain closes
+5. **See status anytime** — draft, submitted, pending manager, pending finance, approved or rejected, always visible
+
+### One worked example
+
+An engineer logs 6 hours against a project activity on Tuesday and submits. The manager approves; finance confirms. Done — no spreadsheets, no chasing.
+
+That is the whole loop for an employee: record once, submit, and watch the status move until the entry is approved.
+
+---
+
+## Roadmap
+
+**v0.1 — Capture + Structure + Control.** Time entries, expenses, the org hierarchy, activities, contracts, customers, governance models, invitations, and the exports that make the data useful elsewhere. This is what ships today.
+
+**The vision path — direction, not current scope.** Today view, tickets, knowledge profiles, project maps, pricing analytics, live project finance. Each step builds on the data v0.1 captures; none of it is in v0.1.
+
+---
+
+## For developers
+
+Hourglass is a full-stack application with a Go backend and a React frontend. If you are evaluating or contributing, the technical documentation — stack, architecture, setup, and configuration — starts below.
 
 ## Tech stack
 
