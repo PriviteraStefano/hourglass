@@ -101,7 +101,7 @@ That is the whole loop for an employee: record once, submit, and watch the statu
 
 ## For developers
 
-Hourglass is a full-stack application with a Go backend and a React frontend. If you are evaluating or contributing, the technical documentation — stack, architecture, setup, and configuration — starts below.
+Hourglass is a full-stack application with a Go backend and a React frontend. If you are evaluating or contributing, the technical documentation — stack, architecture, setup, and configuration — starts below, and the full developer reference — every environment variable, Makefile target, testing command, and the domain model — lives on [wiki/Developer.md](wiki/Developer.md).
 
 ## Tech stack
 
@@ -121,48 +121,30 @@ Hourglass is a full-stack application with a Go backend and a React frontend. If
 
 ```
 hourglass/
-├── cmd/
-│   ├── server/          # HTTP server entry point + route wiring
-│   ├── migrate/         # PostgreSQL migration CLI
-│   └── schema/          # Schema tooling
+├── cmd/             # Server entry, migration CLI, schema tooling
 ├── internal/
-│   ├── core/            # Domain, ports, application services
-│   ├── adapters/
-│   │   ├── primary/http/      # Thin HTTP adapters (auth, project, time-entry, expense…)
-│   │   └── secondary/postgres/# PostgreSQL repositories (driven adapters)
-│   ├── auth/            # JWT, password hashing
-│   ├── cookies/         # Cookie helpers
-│   ├── db/              # PostgreSQL connection pool
-│   ├── handlers/        # Health handler + legacy glue
-│   ├── middleware/      # Auth middleware
-│   └── models/          # Data structures, constants (Role, Status, Governance)
-├── pkg/api/             # Shared response envelope
-├── migrations/          # SQL migrations (*.up.sql / *.down.sql)
-├── web/                 # React frontend (Vite + TanStack)
-│   └── src/
-│       ├── api/         # Query/mutation options (auth, projects, time-entries…)
-│       ├── routes/      # TanStack Router file-based routing
-│       ├── hooks/       # Domain hooks
-│       ├── components/  # Reusable UI (shadcn-based)
-│       └── lib/         # HTTP client, query client
-├── Dockerfile
-├── docker-compose.yml
+│   ├── core/        # Domain, ports, application services
+│   ├── adapters/    # primary/http (handlers) + secondary/postgres (repos)
+│   └── …            # auth, cookies, db, handlers, middleware, models
+├── pkg/api/         # Shared response envelope
+├── migrations/      # SQL migrations (*.up.sql / *.down.sql)
+├── web/             # React frontend (Vite + TanStack)
 ├── Makefile
-└── go.mod
+└── docker-compose.yml
 ```
+
+This is the shallow view — the full per-directory tree lives on [wiki/Developer.md](wiki/Developer.md).
 
 ---
 
-## Requirements
+## Getting started
+
+### Prerequisites
 
 - **Go** >= 1.26.1
 - **Node.js** / **Bun** (for the frontend)
 - **PostgreSQL** >= 15 (or use the bundled docker-compose service)
 - **Docker** + **docker-compose** (optional, for containerized runs)
-
----
-
-## Getting started
 
 ### 1. Clone
 
@@ -183,13 +165,8 @@ make docker-down        # stop
 **Backend** (terminal 1):
 
 ```bash
-# start postgres (or point DATABASE_URL at your own)
-make docker-up          # or just the postgres service
-
-# apply migrations + seed
-make setup              # runs: go run ./cmd/migrate -all
-
-# run the server
+make docker-up          # start postgres (or point DATABASE_URL at your own)
+make setup              # apply migrations + seed (go run ./cmd/migrate -all)
 make run                # http://localhost:8080
 ```
 
@@ -205,70 +182,14 @@ bun run dev             # http://localhost:3000 (proxies /api → :8080)
 
 ## Configuration
 
-### Backend environment variables
+Local development needs only two variables; the full reference — every backend
+and frontend environment variable, Makefile target, testing command, and the
+domain model — lives on [wiki/Developer.md](wiki/Developer.md).
 
-| Variable          | Description                                  | Default                                             |
-|-------------------|----------------------------------------------|-----------------------------------------------------|
-| `DATABASE_URL`    | PostgreSQL connection string                 | `postgres://hourglass:hourglass@localhost:5432/...` |
-| `JWT_SECRET`      | JWT signing key (**required in production**) | `dev-secret-change-in-production`                   |
-| `ALLOWED_ORIGINS` | Comma-separated CORS allowlist               | `http://localhost:3000`                             |
-| `PORT`            | HTTP listen port                             | `8080`                                              |
-
-### Frontend environment variables
-
-| Variable       | Description      | Default |
-|----------------|------------------|---------|
-| `VITE_API_URL` | Backend base URL | `/api`  |
-
----
-
-## Makefile targets
-
-| Target         | Description                             |
-|----------------|-----------------------------------------|
-| `make build`   | Compile Go binary to `bin/hourglass`    |
-| `make run`     | Run the server (`go run ./cmd/server`)  |
-| `make test`    | Run Go tests (`go test -v ./...`)       |
-| `make setup`   | Apply all migrations + seed             |
-| `migrate-up`   | Apply pending migrations                |
-| `migrate-down` | Roll back last migration                |
-| `migrate-all`  | Apply all migrations then seed          |
-| `docker-build` | Build the multi-stage Docker image      |
-| `docker-up`    | Start postgres + app via docker-compose |
-| `docker-down`  | Stop containers                         |
-| `clean`        | Remove `bin/`                           |
-
----
-
-## Testing
-
-```bash
-# backend
-make test                                # go test -v ./...
-
-# frontend
-cd web && bun run test                   # vitest
-cd web && bun run lint                   # eslint
-cd web && bunx playwright test           # e2e
-```
-
----
-
-## Domain model reference
-
-**Roles**: `employee`, `manager`, `finance`, `customer`
-
-**Entry status**: `draft` → `submitted` → `pending_manager` → `pending_finance` → `approved` / `rejected`
-
-**Approval actions**: `submit`, `approve`, `reject`, `edit_approve`, `edit_return`, `partial_approve`, `delegate`
-
-**Governance models**: `creator_controlled`, `unanimous`, `majority`
-
-**Project types**: `billable`, `internal`
-
-**Expense categories**: `mileage`, `meal`, `accommodation`, `other`
-
-**Time entry**: `TimeEntry` (header) contains `[]TimeEntryItem` (line items with hours per project)
+| Variable       | Description                 | Default                                             |
+|----------------|-----------------------------|-----------------------------------------------------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgres://hourglass:hourglass@localhost:5432/...` |
+| `JWT_SECRET`   | JWT signing key (**required in production**) | `dev-secret-change-in-production`                   |
 
 ---
 
