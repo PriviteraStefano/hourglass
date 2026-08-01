@@ -207,7 +207,7 @@ Next up: Phase 10 (information-architecture-implementation) — COMPLETE, 6 plan
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260801-got | Fix collapsed-sidebar hover/click dead zone over icons | 2026-08-01 | 54f465a | [260801-got-investigate-sidebar-collapsed-mode-hover](./quick/260801-got-investigate-sidebar-collapsed-mode-hover/) |
-| 260801-luy | Document demo deployment topology (Compose + Caddy + cloudflared) — ADR-BE-015 + deploy/demo artifacts | 2026-08-01 | — | [260801-luy-document-demo-deployment-topology-compos](./quick/260801-luy-document-demo-deployment-topology-compos/) |
+| 260801-luy | Document demo deployment topology (Compose + Caddy + cloudflared) — ADR-BE-015 + deploy/demo artifacts | 2026-08-01 | f7637d0 | [260801-luy-document-demo-deployment-topology-compos](./quick/260801-luy-document-demo-deployment-topology-compos/) |
 
 ## Performance Metrics
 
