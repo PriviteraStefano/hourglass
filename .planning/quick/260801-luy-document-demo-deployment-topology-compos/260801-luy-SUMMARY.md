@@ -34,3 +34,6 @@ date: 2026-08-01
 * `.env` must be created from `.env.example` (TUNNEL_TOKEN, JWT_SECRET, POSTGRES_PASSWORD) before `demo-up`.
 * One-time Cloudflare setup (named tunnel, public hostname → `http://web:80`, Access application) is manual — documented in the ops doc.
 * Not yet smoke-tested end-to-end (`demo-up` + migrate + seed + tunnel) — requires the Cloudflare tunnel token.
+
+## Addendum (2026-08-01)
+* Also published to the **GitHub wiki**: page [Demo-Deployment](https://github.com/PriviteraStefano/hourglass/wiki/Demo-Deployment) (live, HTTP 200), linked from `Home` and `Developer`. Wiki commit `a1cb0df` on `PriviteraStefano/hourglass.wiki` (master). Note: GitHub wiki is a separate repo from the main codebase.
