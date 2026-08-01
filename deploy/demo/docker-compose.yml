@@ -66,7 +66,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/demo/Dockerfile
-    entrypoint: ["/usr/local/bin/migrate", "-all", "-dir", "/migrations"]
+    entrypoint: ["/usr/local/bin/migrate", "-up", "-dir", "/migrations"]
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
     depends_on:
