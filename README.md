@@ -167,9 +167,9 @@ make docker-down        # stop
 **Backend** (terminal 1):
 
 ```bash
-make docker-up          # start postgres (or point DATABASE_URL at your own)
-make setup              # apply migrations + seed (go run ./cmd/migrate -all)
-make run                # http://localhost:8080
+docker-compose up -d postgres   # start only PostgreSQL (or make docker-up for the full stack in containers)
+make migrate-up                 # apply migrations (go run ./cmd/migrate -up -dir migrations)
+make run                        # http://localhost:8080
 ```
 
 **Frontend** (terminal 2):

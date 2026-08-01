@@ -28,7 +28,7 @@ There is no hosted trial — the repository is how you run it. The [README](http
 git clone https://github.com/PriviteraStefano/hourglass.git
 cd hourglass
 
-make docker-up      # starts PostgreSQL and the app on :8080
+docker-compose up -d postgres   # start only PostgreSQL (or make docker-up for the full stack in containers)
 make migrate-up     # apply migrations — or make db-init to initialize a fresh database
 make run            # backend at http://localhost:8080
 
