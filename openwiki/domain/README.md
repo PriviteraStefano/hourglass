@@ -11,13 +11,15 @@
 
 ### Roles
 
-Four roles enforced by database `CHECK` constraints:
+Roles enforced by database `CHECK` constraints (the `hr` role was added by
+migration `012`):
 
 | Role       | Description                                             |
 |------------|---------------------------------------------------------|
 | `employee` | Can create/edit/submit time entries and expenses        |
 | `manager`  | Can approve/reject entries at the first approval stage  |
 | `finance`  | Can approve/reject entries at the second approval stage |
+| `hr`       | People/employment data; never holds an approval stage   |
 | `customer` | Limited read-only access                                |
 
 ### Organization Structure
@@ -74,6 +76,27 @@ pending_finance). Once rejected, the entry goes back to draft.
 | `edit_return`     | Return for edits                  | Manager or Finance |
 | `partial_approve` | Approve part of an entry          | Manager or Finance |
 | `delegate`        | Delegate approval to another user | Manager or Finance |
+
+### Approver Resolution
+
+Who approves the **manager stage** is resolved from the entry's activity chain
+(ADR-BE-014 R-1/R-2) rather than the org role alone:
+
+- **R-1 (anchored WG):** if the entry's activity anchors a working group, the
+  approver set is that WG's `manager_id` + `delegate_ids`. If the entry owner is
+  inside that set, submission skips straight to `pending_finance` (D-11 skip).
+- **R-2 (commercial without WG):** a commercial activity (one carrying a
+  contract via its ancestor chain) with no anchored working group rejects
+  submissions with `ErrActivityNotLoggable` — commercial activities must anchor
+  a WG before accepting entries.
+- **R-2 fallback (personal activity):** an activity with no contract and no WG
+  routes to the submitter's unit manager, walking the unit tree upward.
+- **Terminal case:** an org root with no unit manager falls back to a
+  role-gated manager stage.
+
+Activity parent assignments additionally reject cycles (`ErrActivityCycle`):
+a proposed `parent_id` whose ancestry already contains the activity itself is
+refused.
 
 ### Approval History
 
@@ -138,8 +161,8 @@ mileage calculation.
 - `category` — Expense type
 - `amount` — Monetary amount
 - `km_distance` — For mileage expenses (distance in km)
-- `project_id` — Optional project association
-- `customer_id` — Optional customer association
+- `activity_id` — Required activity association (migration `011` backfills
+  non-project expenses with a per-org "General & Admin" internal activity)
 - `unit_id` — Optional unit association
 - `status` — Same workflow as time entries
 - `description` — Expense description
@@ -294,4 +317,6 @@ Rate-limited to 3 requests per 60 seconds per client.
 
 All shared data structures, enums, and request/response DTOs are defined in
 the `models` package. This is the authoritative source for entity shapes,
+status transitions, and validation logic.
+entity shapes,
 status transitions, and validation logic.

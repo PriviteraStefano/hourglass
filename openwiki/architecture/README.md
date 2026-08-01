@@ -46,7 +46,7 @@ One subdirectory per bounded context:
 - `invitation/` — Invitation models
 - `organization/` — Organization models
 - `password_reset/` — Password reset models
-- `project/` — Project models
+- `activity/` — Activity models (single recursive work entity; replaced the old project/subproject domains)
 - `time_entry/` — Time entry models
 - `unit/` — Unit (org hierarchy) models
 - `working_group/` — Working group models
@@ -225,15 +225,34 @@ __root (ThemeProvider > TooltipProvider > Outlet > Toaster)
 │   └── /bootstrap
 └── _authenticated (requires auth — redirects to /login on 401)
     └── AppShell (SidebarProvider > AppSidebar > Outlet)
-        ├── / (dashboard)
+        ├── / (Today landing page — read-only)
         ├── /time-entries (List | Calendar | Export tabs)
         ├── /expenses (Calendar + detail side-by-side)
+        ├── /activities, /activities/$id
+        ├── /working-groups
+        ├── /approvals (Manager | Finance stage tabs)
         ├── /contracts, /contracts/$id
         ├── /customers, /customers/$id
-        ├── /projects, /projects/$id
         ├── /org-hierarchy
         └── /exports
 ```
+
+### Sidebar & Role-Scoped Visibility
+
+The app sidebar (`web/src/components/layout/sidebar.tsx`) groups navigation into
+pillar groups — **Today** (ungrouped), **Track**, **Work**, **People**,
+**Economics**, **Review**, **Reports**, **Admin** — per ADR-P-011. Group
+visibility is scoped by role via `web/src/lib/role-visibility.ts`:
+
+- **Review** (Approvals) renders only for users holding an approval stage —
+  org-role `manager`/`finance` plus anyone who is a working-group manager or
+  delegate; HR never sees it.
+- **Economics** is hidden from `employee` and `customer`.
+- **Admin** is hidden from every v0.1 role (no org-admin role exists yet).
+
+These helpers are UX scoping only; every role-restricted surface stays
+backend-gated. Authenticated pages render inside the shared `Header` + `Body`
+shell (`web/src/components/layout/index.ts`).
 
 ### Auth Guard Pattern
 
@@ -245,7 +264,8 @@ fetch succeeds, it redirects to `/`.
 ### Component Organization
 
 - **Shared UI** (`web/src/components/ui/`): shadcn/ui primitives (button, dialog, card, etc.)
-- **Layout** (`web/src/components/layout/`): AppShell, sidebar, header, body
+- **Layout** (`web/src/components/layout/`): AppShell, sidebar, header, body, route error boundary
+- **Shared entries** (`web/src/components/shared/`): `EntriesTable`, `StatusBadge`, `EntriesFilters` (used by the time-entries and expenses list views)
 - **Approval** (`web/src/components/approval/`): `ApprovalButtons`, `ApprovalHistory`
 - **Exports** (`web/src/components/exports/`): `ExportForm` (shared between time-entries and expenses)
 - **Route-local** (`web/src/routes/_authenticated/time-entries/-components/`): Components co-located with their routes

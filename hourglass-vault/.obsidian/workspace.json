@@ -14,7 +14,7 @@
               "type": "markdown",
               "state": {
                 "file": "VISION.md",
-                "mode": "source",
+                "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
@@ -183,8 +183,26 @@
       "bases:Create new base": false
     }
   },
-  "active": "93ae6b54a4c60e3b",
+  "active": "4fdfe5fbe4aed023",
   "lastOpenFiles": [
+    "old/design/files/surrealdb-schema.sql",
+    "old/design/files/schema-implementation-guide.md",
+    "old/design/files/api-specification.md",
+    "old/design/files/VISUAL_REFERENCE.md",
+    "old/design/files/SCHEMA_DESIGN_PACKAGE.md",
+    "old/design/files/INDEX.md",
+    "old/design/pre-plan.md",
+    "old/design/plan.md",
+    "old/design/files",
+    "old/design",
+    "old/2026-03-29-hourglass-redesign.md",
+    "old/2026-03-28-contracts-projects-frontend.md",
+    "old/2026-03-27-hourglass-design.md",
+    "old/2026-03-27-frontend-phase9-design.md",
+    "old",
+    "research/2026-07-28 — Work Ontology — Full Picture & Revision Proposal.md",
+    "research/2026-07-28 — Pre-Deployment Audit — Hourglass v0.1.md",
+    "VISION.md",
     "research/kotlinllm-learning/lessons/0001-what-makes-a-smart-macro-not-an-llm-call.html",
     "research/kotlinllm-learning/reference/glossary.html",
     "research/kotlinllm-learning/learning-records/0001-mission-is-evaluation-not-adoption.md",
@@ -202,24 +220,6 @@
     "01-Features/F12-Expenses.md",
     "01-Features/F09-Contracts.md",
     "01-Features/F08-Customers.md",
-    "01-Features/F07-Org-Hierarchy-Units.md",
-    "decisions/project/ADR-P-011 — Information Architecture & Role-Scoped Surfaces.md",
-    "01-Features/_TEMPLATE.md",
-    "VISION.md",
-    "decisions/project/ADR-P-001 — Units vs Working Groups.md",
-    "decisions/project/ADR-P-008 — Availability & Employment Validity.md",
-    "decisions/backend/ADR-BE-002 — Hexagonal Wiring.md",
-    "decisions/backend/ADR-BE-001 — Error Handling Sentinel Errors.md",
-    "decisions/backend/ADR-BE-004 — Database Migrations.md",
-    "decisions/backend/ADR-BE-003 — Data Access pgxpool No ORM.md",
-    "decisions/backend/ADR-BE-005 — Auth JWT + Refresh Rotation.md",
-    "decisions/backend/ADR-BE-006 — Middleware Composition.md",
-    "decisions/backend/ADR-BE-007 — Rate Limiting.md",
-    "decisions/backend/ADR-BE-008 — API Versioning Accept Header.md",
-    "decisions/backend/ADR-BE-009 — Testing testcontainers testify.md",
-    "02-Technical/adr",
-    "decisions/project",
-    "decisions/backend",
-    "decisions"
+    "01-Features/F07-Org-Hierarchy-Units.md"
   ]
 }

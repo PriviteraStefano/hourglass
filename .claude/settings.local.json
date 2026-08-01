@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": [
+    "gsd-workflow",
+    "gsd-browser"
+  ]
+}

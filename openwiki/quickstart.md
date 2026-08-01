@@ -114,7 +114,7 @@ hourglass/
 | Section                                | Description                                                                                                                            |
 |----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
 | [Architecture](architecture/README.md) | Hexagonal backend, frontend structure, data flow, routing                                                                              |
-| [Domain Concepts](domain/README.md)    | Organizations, users, roles, time entries, expenses, approval workflow, contracts, projects, units, working groups, customers, exports |
+| [Domain Concepts](domain/README.md)    | Organizations, users, roles, time entries, expenses, approval workflow, contracts, activities, units, working groups, customers, exports |
 | [Operations](operations/README.md)     | Setup, config, database, Docker, Makefile targets                                                                                      |
 | [Testing](testing/README.md)           | Backend tests, frontend tests, e2e tests, test patterns                                                                                |
 
@@ -144,6 +144,6 @@ cd web && bunx playwright test  # E2E tests
 
 1. Read the [Architecture](architecture/README.md) page to understand how the backend and frontend are organized.
 2. Read the [Domain Concepts](domain/README.md) page to understand the core business models: organizations, time
-   entries, expenses, approval workflows, and the contract/project hierarchy.
+   entries, expenses, approval workflows, and the contract/activity hierarchy.
 3. Read the [Operations](operations/README.md) page for configuration details and operational runbooks.
 4. Read the [Testing](testing/README.md) page to understand the test infrastructure and how to write and run tests.
