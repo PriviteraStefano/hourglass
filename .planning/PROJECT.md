@@ -36,12 +36,16 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 
 ### Active
 
-<!-- Current scope: v0.2 UX Polish + Tickets + Availability. Detailed REQ-IDs in REQUIREMENTS.md. -->
+<!-- Current scope: v0.2 Ontology Extension — Origins, Tickets & Coverage + Direction. Detailed REQ-IDs in REQUIREMENTS.md. -->
 
-- [ ] UX/UI pass across all pages — one phase per page, gsd-sketch-driven (options → agree → implement → verify)
-- [ ] Ticket ontology — unified ticket entity: internal work tasks + external helpdesk (incl. internal customers), request tracking per customer for billing
-- [ ] Availability — employee absences UI + resource/capacity views per activity/WG
-- [ ] Fold in v0.1 verification debt (25 UAT scenarios + 3 human verification reviews) per-page
+- [ ] Origins on activities — type + reference set (manager-assignment / employee-proposal / customer-ticket), proposal approval via activity routing (FND-01..04)
+- [ ] Tickets — first-class, internal-only: lifecycle + triage + reopen, kinds question/bug/change/evolution, ticket→activity→entries chain, dismissal guard (TICK-01..06)
+- [ ] Coverage — allocation ledger per entry, funding sources (contract budget / support bucket / service request / internal absorption / cross-project transfer), to-cover queue, monthly rhythm, snapshot-not-lock (COV-01..05)
+- [ ] Direction — the plan plane: scheduled/queued modes, claim model, lifecycle, org policy, direction-coverage read-model (DIR-01..06)
+- [ ] Availability — employee absences UI + capacity views per activity/WG (AVAIL-01..05)
+- [ ] Surfaces — prototype-driven: allocation screen + to-cover queue, buckets + per-unit report, Today both shapes, direction scheduler (SURF-01..08)
+- [ ] Per-page UX polish — one phase per page, gsd-sketch-driven, folding v0.1 UAT debt (POLS-01..11)
+- [ ] UX foundation — design tokens + shared components + sketch loop contract (UXFD-01..02)
 
 ### Out of Scope
 
@@ -52,6 +56,17 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 - Mobile apps — web-first, not planned for v0.1
 - OAuth/Social login — email/password sufficient for v0.1
 - CI/CD pipeline — ad-hoc for now, will add later
+- External ticket intake (helpdesk port) — future hexagonal secondary adapter, not v0.2 (D-E)
+- Expense coverage allocations — schema-ready only (polymorphic entry D-K), `time` only in v0.2; revisit in a later milestone if expense-splitting need is demonstrated
+- Smart/auto allocation proposals — blocked by P-005 data-maturity gate
+- Estimate-accuracy analytics (V5) — v0.2 stores the raw material (sold_hours + actuals); mining is V5
+- Warranty certification flow — warranty is declared at allocation time; the warranty-cost report is the control (D-H/D-C)
+- Full budget machinery — rates, money, per-activity estimates (ADR-P-010, V4); only `sold_hours` on contracts lands in v0.2 (D-N)
+- Customer-facing ticket portal — tickets are internal-only (D-E)
+- SLA engine / escalation chains / email ingestion / KB — anti-features for v0.2, ITSM creep
+- Plan-adherence per-day-per-person metrics — aggregate-only per-period (D-U), never a surveillance number
+- Per-customer request counts for billing — billing story superseded by coverage allocations; request counts deferred
+- Kanban board — tickets are demand tracking, not task execution (no kanban, no sub-task trees, no comment threads)
 
 ## Context
 
@@ -59,12 +74,16 @@ Hourglass was originally built on SurrealDB; v0.1 fully ported to PostgreSQL (Ph
 
 Known debt at close: 25 pending UAT scenarios, 3 human verification reviews, 2 quick tasks with unknown status — deferred to next milestone (see STATE.md).
 
+**v0.2 ontology research round (2026-08-01/02):** a domain walkthrough surfaced two gaps in the accepted activity ontology (ADR-P-007): *origins* (where demand came from) and *coverage* (who pays). The research extended the model to three orthogonal planes — **direction** (the plan, mutable, manager/self-owned) → **facts** (time entries, immutable after approval) → **coverage** (the money label, mutable, snapshot-protected) — with the cardinal principle "the plan/decision never rewrites the fact". All decisions D-A…D-AA are closed; the vault note (`hourglass-vault/research/2026-08-01 — Origins, Tickets & Coverage — Ontology Extension Research.md`) is the record of truth. Formal ADRs (P-003 rev, P-013, P-014, P-015) are deferred and written as phases land; ADR-P-012 (coverage ledger) is drafted (Proposed) in the vault. No legacy-data migration is needed — Hourglass has never been deployed (P-007 D-6 big-bang landed pre-deploy).
+
 ## Constraints
 
 - **[Tech stack]**: Go 1.26.1, PostgreSQL (pgx/v5), React 19, TanStack Router + Query, shadcn/ui + Tailwind — no SurrealDB
 - **[Database]**: PostgreSQL via pgxpool, all repos exist, hand-written SQL, no ORM; migrations append-only per ADR-BE-004
 - **[Auth]**: JWT in HttpOnly cookies (auth_token/refresh_token), bcrypt password hashing, strict reuse model with family revocation
 - **[Architecture]**: Hexagonal — services in `internal/core/services/*`, HTTP adapters in `internal/adapters/primary/http/*`, PostgreSQL adapters in `internal/adapters/secondary/postgres/*`
+- **[Domain]**: Captured effort is a fact, coverage is a decision, direction is a plan — the decision/plan never rewrites the fact (Σ allocations = entry hours; deviations are data, not violations)
+- **[UI]**: UI-last in v0.2 — all new surfaces are prototype-driven (gsd-sketch) against the complete backend; D-O IA leans validated in prototypes before any P-011 revision
 
 ## Key Decisions
 
@@ -81,16 +100,26 @@ Known debt at close: 25 pending UAT scenarios, 3 human verification reviews, 2 q
 | Approval routing via activity → WG → manager/delegate | Enforceable at approval time; unit-manager fallback for personal activities; D-11 skip incl. delegates | ✓ Good |
 | Refresh-token strict reuse model | Concurrent-refresh loser is indistinguishable from attacker replay → family revokes | ✓ Good |
 | Pillar-based IA (ADR-P-011) | Role-scoped visibility from pure, testable predicates; single declarative navStructure | ✓ Good |
-| Ticket ontology (v0.2) | Unified ticket entity (kinds: task/helpdesk) scoped under the activity tree; request counting per customer enables billing | — Pending |
+| Three-plane ontology (direction → facts → coverage) | Origins + coverage gaps surfaced in domain walkthrough; "the decision never rewrites the fact" keeps V5 analytics honest; direction completes the timeline (D-Q) | ✓ Good |
+| Coverage allocation ledger (P-012) | 4+4 split applied by editing entries would corrupt actual-effort truth; allocations are money-labeling with Σ invariant + to-cover queue | ✓ Good |
+| Tickets first-class, internal-only (P-003 rev) | Demand tracking (not task execution); ticket→activity→entries chain preserves single-FK capture (P-007 D-4); external intake is a future port | ✓ Good |
+| Direction in v0.2 ontology, build staged (P-015) | Retrofit after v0.2 would destroy drafted ADRs; additive pre-deploy big-bang, same logic as P-007 D-6 | ✓ Good |
+| Contracts carry `sold_hours` (D-N) | "Sold 4h, took 8h → next time sell 16" needs explicit sold figure; richer budget machinery stays at V4 (P-010) | — Pending |
+| ADRs deferred to phase landing | Pre-deploy, the only ADR consumer is the build process itself (Stefano's call) | ✓ Good |
+| Coverage allocations editable indefinitely (D-F) | Cutoff is a reporting snapshot, not a lock; realism over enforcement | ✓ Good |
 
-## Current Milestone: v0.2 UX Polish + Tickets + Availability
+## Current Milestone: v0.2 Ontology Extension — Origins, Tickets & Coverage + Direction
 
-**Goal:** Polish the product page by page through sketch-driven UX/UI work, add a ticket ontology (internal tasks + customer helpdesk), and surface availability (absences + resource views).
+**Goal:** Extend the activity ontology into the three-plane model (direction → facts → coverage): tickets as the second capture layer with triage, origins on activities, coverage allocations with funding sources, and the direction plan plane — then surface them prototype-driven, and finish with per-page polish folding v0.1 UAT debt.
 
 **Target features:**
-- UX/UI pass: one phase per page — gsd-sketch options → agree → implement → verify; all pillars step by step
-- Ticket ontology: internal work tasks + external helpdesk (incl. internal customers); request tracking per customer for billing
-- Availability: employee absences + resource/capacity views per activity/WG
+- Tickets: first-class, internal-only, lifecycle + triage + reopen, kinds question/bug/change/evolution, ticket→activity→entries chain, dismissal guard
+- Origins: activity carries origin type + reference set (assigned_by/assigned_to · proposed_by/reviewed_by · ticket_id), proposal approval via activity routing
+- Coverage: per-entry allocation ledger, funding sources (contract budget, support bucket, zero-value service request, internal absorption, cross-project transfer), to-cover queue, monthly rhythm, one-step manager confirm, snapshot-not-lock
+- Direction: scheduled/queued modes, claim model, lifecycle draft→active→superseded/cancelled, org policy, P-008 absence warnings, direction-coverage read-model
+- Availability: absences + capacity views (kept from original v0.2 scope)
+- Surfaces: prototype-driven — allocation screen + to-cover queue + own-coverage, buckets + per-unit non-billed report, Today both shapes, direction scheduler
+- Trailing: 7 per-page UX polish phases folding v0.1 UAT/verification debt
 
 ## Evolution
 
@@ -111,4 +140,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-08-01 after v0.2 milestone started*
+*Last updated: 2026-08-02 after v0.2 milestone redefined (ontology research round)*

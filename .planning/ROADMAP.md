@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v0.1 MVP Consolidation** — Phases 0-10 (shipped 2026-08-01)
-- 🚧 **v0.2 UX Polish + Tickets + Availability** — Phases 11-22 (in progress)
+- 🚧 **v0.2 Ontology Extension — Origins, Tickets & Coverage + Direction** — Phases 11-26 (in progress)
 
 ## Phases
 
@@ -24,101 +24,166 @@
 
 </details>
 
-### 🚧 v0.2 UX Polish + Tickets + Availability (In Progress)
+### 🚧 v0.2 Ontology Extension — Origins, Tickets & Coverage + Direction (In Progress)
 
-**Milestone Goal:** Polish the product page by page through sketch-driven UX/UI work, add a ticket ontology (internal tasks + customer helpdesk), and surface availability (absences + resource views) — folding in all v0.1 UAT debt per page.
+**Milestone Goal:** Extend the activity ontology into the three-plane model (direction → facts → coverage): tickets as the second capture layer with triage, origins on activities, coverage allocations with funding sources, and the direction plan plane — then surface them prototype-driven, and finish with per-page polish folding v0.1 UAT debt.
 
-**Build order:** UX foundation (tokens) → ticket backend → ticket frontend → staffing backend → availability frontend → per-page polish. Each polish phase is sketch-driven (2–3 gsd-sketch options → user agrees → implement → verify), UI-only, and folds in that page's v0.1 UAT/verification debt.
+**Build order (research Part 15, agreed):** Foundations (schema + origins + tickets) → Coverage backend → Direction backend → Availability (kept from original scope) → UX Foundation → UI-last prototype-driven surfaces → trailing per-page polish. Backend planes land before any new UI so prototype sessions run against the complete backend with real data. ADRs are drafted as phases land (P-003 rev + P-013 in Phase 11, P-012 + BE in Phase 12, P-015 + BE in Phase 13); ADR-P-012 draft already exists in the vault.
 
-- [ ] **Phase 11: UX Foundation** - Design tokens + shared components frozen before any page work; sketch loop contract established
-- [ ] **Phase 12: Ticket Ontology Backend** - Migration 014, ticket domain/service/repo, counts endpoint, auto-approve + assignee ADR decisions
-- [ ] **Phase 13: Ticket Frontend + Today Composition** - Tickets in Track pillar, event timeline, customer request counts + export, Today ticket block
-- [ ] **Phase 14: Staffing Backend** - Absence declare/confirm/reject over availability_windows + capacity queries
-- [ ] **Phase 15: Availability + Capacity Frontend** - Absence calendars + capacity grid in People pillar
-- [ ] **Phase 16: Today Polish** - Sketch-driven polish of Today landing, folding 10-UAT + 10-VERIFICATION
-- [ ] **Phase 17: Track Polish (Time Entries + Expenses)** - Sketch-driven polish, folding 06-UAT (14 scenarios)
-- [ ] **Phase 18: Activities Polish** - Sketch-driven polish, folding 09-UAT + 09-VERIFICATION
-- [ ] **Phase 19: Approvals + Working Groups Polish** - Sketch-driven polish, folding 10-UAT scenarios
-- [ ] **Phase 20: Customers + Contracts Polish** - Sketch-driven polish, folding 08-UAT + 08-VERIFICATION
-- [ ] **Phase 21: Exports + People/Org/Admin Polish** - Sketch-driven polish of tail pages
-- [ ] **Phase 22: Auth Pages Polish** - Sketch-driven polish of login/register/reset
+- [ ] **Phase 11: Foundations** - Schema + origins + tickets backend: activity origin refs, sold_hours, ticket lifecycle with triage + dismissal guard; ADR-P-003 rev + P-013
+- [ ] **Phase 12: Coverage Backend** - Allocation ledger, funding sources, to-cover queue, proposals-on-read, one-step confirm, snapshot mechanics; ADR-P-012 + BE encoding
+- [ ] **Phase 13: Direction Backend** - Plan plane: direction entity, lifecycle, claim model, org policy, coverage read-model; ADR-P-015 + BE encoding
+- [ ] **Phase 14: Availability Backend** - Absence declare/confirm/reject + capacity queries over availability_windows
+- [ ] **Phase 15: UX Foundation** - Design tokens + shared components frozen; sketch loop contract established
+- [ ] **Phase 16: Availability Frontend** - Absence calendars + capacity grid in People pillar
+- [ ] **Phase 17: Coverage Surfaces** - Week-1 allocation screen, to-cover queue, own-coverage, buckets, per-unit report (4a+4b)
+- [ ] **Phase 18: Today + Tickets Surfaces** - Today both shapes + tickets surface in Track/Today (4c)
+- [ ] **Phase 19: Direction Surfaces** - Scheduler calendar + direction queue + coverage read-model (4d)
+- [ ] **Phase 20: Today Polish** - Sketch-driven polish of Today landing, folding 10-UAT + 10-VERIFICATION
+- [ ] **Phase 21: Track Polish (Time Entries + Expenses)** - Sketch-driven polish, folding 06-UAT (14 scenarios)
+- [ ] **Phase 22: Activities Polish** - Sketch-driven polish, folding 09-UAT + 09-VERIFICATION
+- [ ] **Phase 23: Approvals + Working Groups Polish** - Sketch-driven polish, folding 10-UAT scenarios
+- [ ] **Phase 24: Customers + Contracts Polish** - Sketch-driven polish, folding 08-UAT + 08-VERIFICATION
+- [ ] **Phase 25: Exports + People/Org/Admin Polish** - Sketch-driven polish of tail pages
+- [ ] **Phase 26: Auth Pages Polish** - Sketch-driven polish of login/register/reset
 
 ## Phase Details
 
-### Phase 11: UX Foundation — Design Tokens + Shared Components
-**Goal**: The design system is frozen before any page work: semantic status/state tokens in index.css and a shared component set that every new and polished page consumes; the sketch loop contract is established for all page phases.
+### Phase 11: Foundations — Schema + Origins + Tickets Backend
+**Goal**: The three-plane ontology takes its first shape server-side: activities carry origin (type + reference set, FND-01/02/04), contracts carry sold_hours (FND-03), and the ticket entity exists with lifecycle + triage + dismissal guard + immutable event stream (TICK-01..05). ADR-P-003 revision and ADR-P-013 drafted and recorded.
 **Depends on**: Nothing (first phase of v0.2)
-**Requirements**: UXFD-01, UXFD-02
+**Requirements**: FND-01, FND-02, FND-03, FND-04, TICK-01, TICK-02, TICK-03, TICK-04, TICK-05
 **Success Criteria** (what must be TRUE):
-  1. Every status/state color used by ≥2 pages renders from a semantic token in index.css; no page phase introduces ad-hoc hex values (UXFD-01)
-  2. The frozen shared component set (PageHeader, FilterBar, DataTable, StatusBadge variants, EmptyState, ConfirmDialog) exists and new ticket/availability pages use it from day one (UXFD-01)
-  3. A user sees identical status colors and components across all pages — no two pages render the same status differently (UXFD-01)
-  4. Each page polish phase follows the sketch loop: 2–3 gsd-sketch options shown, user agrees on one, UI-only plan, ≤3 sketch rounds (UXFD-02)
+  1. An activity created via the API carries an origin (type + reference set per D-D: assigned_by/assigned_to, proposed_by/reviewed_by, ticket_id); refs are set once at creation and immutable (FND-01)
+  2. An employee can propose an activity; the proposal routes through the activity's approval routing (unit manager for internal/personal, anchored WG manager for contract-linked) and lifecycle events land in activity state/audit — never in origin (FND-02)
+  3. Contracts expose `sold_hours` read/write; the field is recorded for V5 mining (FND-03)
+  4. Ticket CRUD + lifecycle work: open → triage → planned → in_progress → resolved → closed + reopen (resolved → in_progress, requires linked activities terminal); kinds question/bug/change/evolution are a closed set; resolved blocks on non-terminal activities (TICK-01, TICK-02)
+  5. Triage converts a ticket into 1..N activities — the only linkage is ticket → activity; entries reference activities, never tickets (TICK-03)
+  6. `triage → dismissed` is rejected while any linked activity has logged hours (net of compensations); dismissed tickets carry the "dismissed with N h logged" note (TICK-04)
+  7. Ticket events (status changes, comments, resolution notes) are append-only via the BE-012 audit trail — no update/delete endpoints exist (TICK-05)
+  8. Origin refs stored on activities; empty refs fall back to the first direction record on read (additive, Phase 13 landing) (FND-04)
+  9. ADR-P-003 revision + ADR-P-013 recorded in the vault decisions folder; all migrations are append-only per ADR-BE-004 with up/down pairs + cycle tests
 **Plans**: TBD
-**UI hint**: yes
 
-### Phase 12: Ticket Ontology Backend
-**Goal**: The unified ticket entity exists server-side — migration 014 (tickets + ticket_events), ticket domain with per-kind transition matrix, service, repo with derived-customer CTE, and the /tickets/counts endpoint — with TICK-05 assignee rules and TICK-06 auto-approve semantics locked in an ADR.
+### Phase 12: Coverage Backend — The Allocation Loop
+**Goal**: The coverage plane works server-side: funding sources, per-entry coverage allocations with the Σ invariant, to-cover queue, proposals computed on read, one-step manager confirmation, and period-close snapshots (COV-01..05). ADR-P-012 accepted; BE encoding ADR written (incl. D-K polymorphic validation cost).
+**Depends on**: Phase 11 (activities + entries settled, origin refs live)
+**Requirements**: COV-01, COV-02, COV-03, COV-04, COV-05
+**Success Criteria** (what must be TRUE):
+  1. Approved time entries can receive 1..N coverage allocations; the API rejects any state where Σ allocations ≠ entry hours (COV-01)
+  2. All five funding sources work: contract budget (default for billable), support bucket (hours, carry-over, no expiry, overlapping buckets), service request (zero-value contract), internal absorption (mandatory reason WarrantyBug/UnderEstimate/Goodwill + beneficiary unit), cross-project transfer (explicit justification) (COV-02)
+  3. Allocation proposals are computed on read from entry + activity chain + funding config — no proposal table exists; only confirmed allocations are persisted (COV-03)
+  4. A single manager confirmation suffices (no finance chain); every allocation change is audit-logged via BE-012 (COV-03)
+  5. Uncovered entries are queryable through the to-cover queue read-model; allocations remain editable indefinitely (COV-01, COV-04)
+  6. Period close generates a reporting snapshot (billing, bucket levels, per-unit report) from either a frozen snapshot or as-of-close audit replay (F) — a reported period never changes retroactively; no lock on allocations (COV-04)
+  7. Coverage references a polymorphic entry (`entry_type` + `entry_id`); validation rejects non-`time` types in v0.2 (COV-05)
+  8. Beneficiary unit is nullable on activities, inherited downward like contract_id; absorption sources default from it (COV-05)
+**Plans**: TBD
+
+### Phase 13: Direction Backend — The Plan Plane
+**Goal**: The third plane lands: direction entity with per-day storage and derived modes, lifecycle with supersede chaining, WG claim model, org-configurable planning policy, and the direction-coverage read-model (DIR-01..06). ADR-P-015 + BE encoding drafted.
+**Depends on**: Phase 12 (coverage terminology settled — "direction" vs "coverage allocation" convention)
+**Requirements**: DIR-01, DIR-02, DIR-03, DIR-04, DIR-05, DIR-06
+**Success Criteria** (what must be TRUE):
+  1. Direction rows exist per (employee, activity, day, est_hours) — per-day storage always; multiple rows may share a day; no intra-day ordering; mode derived (planned_date set → scheduled, null → queued with priority + due_date) (DIR-01)
+  2. Self-direction is first-class (`directed_by == directed_to`, no approval); managers direct within subtree/WG reach via BE-014 machinery (DIR-01)
+  3. Lifecycle draft → active → superseded/cancelled works; done/lapsed/claimed are derived, never stored; supersedes_id chains replanning with audit-first via BE-012 (DIR-02)
+  4. WG-direction rows are queued-only; a member's claim creates a user-targeted row via origin_direction_id; claimed is derived (DIR-03)
+  5. Org policy is configurable: deadline date, horizon (day/week/month), per-employee mode (manager-planned vs self-planned); soft-policy (block vs nag) configurable for UI (DIR-04)
+  6. Scheduler read path consumes P-008 absence windows + employment validity and returns plan-time warnings; never blocks (DIR-05)
+  7. Direction-coverage read-model returns planned hours vs capacity per employee/period with uncovered days surfaced, per employee / unit / WG (DIR-06)
+  8. Origin fallback active: activities with empty origin refs resolve refs from the first direction record (FND-04 read path, additive)
+**Plans**: TBD
+
+### Phase 14: Availability Backend — Absences + Capacity
+**Goal**: Absence lifecycle works server-side over the shipped availability_windows schema (declare → confirm/reject, HR medical curation), plus derived capacity queries (weekly hours − confirmed absences) with workload from submitted+approved entries (AVAIL-01/02, supports AVAIL-04 and Phase 13's DIR-05).
 **Depends on**: Phase 11 (sequential order; no technical dependency)
-**Requirements**: TICK-01, TICK-03, TICK-04, TICK-05, TICK-06
-**Success Criteria** (what must be TRUE):
-  1. User can create a ticket on any activity via the API — kinds task/helpdesk, priority, assignee, helpdesk customer requester — and invalid activities or missing commercial context are rejected with clear errors (TICK-01; backend half of TICK-02)
-  2. Ticket status transitions follow the per-kind matrix: invalid transitions are rejected, one shared status vocabulary with customer-facing label projection (TICK-03)
-  3. Ticket history is an immutable event stream (comments, resolution notes, status changes) that cannot be edited or deleted (TICK-04)
-  4. Manager can assign/unassign tickets to WG members with assignee rules enforced; tickets are auto-approved tracked work with manager-intervention semantics decided and documented in an ADR (TICK-05, TICK-06)
-  5. API returns per-customer request counts (received/resolved) under the creation-month counting rule (supports TICK-07 in Phase 13)
-**Plans**: TBD
-
-### Phase 13: Ticket Frontend + Today Composition
-**Goal**: Users work tickets in the app: Track pillar list with filter/sort, detail with event timeline, create/assign/transition dialogs, in-app customer helpdesk surface, per-customer request counts with export, and Today's "my open tickets" block.
-**Depends on**: Phase 12
-**Requirements**: TICK-02, TICK-07, TICK-08
-**Success Criteria** (what must be TRUE):
-  1. User can open the Tickets surface under the Track pillar (sidebar entry via navStructure), filter/sort the list, and open a detail showing the full event timeline (TICK-08)
-  2. Customer (external + internal) can open a helpdesk ticket in-app and see a minimal customer-facing status projection — no public portal (TICK-02)
-  3. User can view per-customer request counts (received/resolved) on the customer detail page and export them (TICK-07)
-  4. User can create, assign, and transition tickets from dialogs against the Phase 12 API (UI half of TICK-01/TICK-03/TICK-05)
-  5. Today page shows "my open tickets by priority" block per P-004 rules (TICK-08)
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 14: Staffing Backend — Availability + Capacity
-**Goal**: Absence request lifecycle works server-side over the shipped availability_windows schema (declare → confirm/reject, HR medical curation), plus derived capacity queries (weekly hours − confirmed absences) with workload from submitted+approved entries.
-**Depends on**: Phase 12 (sequential order; no technical dependency)
 **Requirements**: AVAIL-01, AVAIL-02
 **Success Criteria** (what must be TRUE):
   1. Employee can declare an absence with a type and date range via the API; invalid or overlapping windows are rejected (AVAIL-01)
   2. Manager/HR can confirm or reject declared absences via the API — only declared windows are confirmable, rejects carry a reason, HR curates medical absences with certificate_ref (AVAIL-02)
-  3. API returns capacity per activity/WG = weekly hours − confirmed absences, with workload from submitted+approved entries on the activity subtree (supports AVAIL-04 in Phase 15)
+  3. API returns capacity per activity/WG = weekly hours − confirmed absences, with workload from submitted+approved entries on the activity subtree (supports AVAIL-04 in Phase 16)
+  4. Absence windows are consumable by the direction scheduler read path (DIR-05 dependency)
 **Plans**: TBD
 
-### Phase 15: Availability + Capacity Frontend
-**Goal**: Availability and capacity are usable surfaces in the People pillar: absence request/confirm UI, personal + team/org calendars, and a custom date-fns/Tailwind capacity grid per activity/WG.
-**Depends on**: Phase 14
+### Phase 15: UX Foundation — Design Tokens + Shared Components
+**Goal**: The design system is frozen before any surface work: semantic status/state tokens in index.css and a shared component set that every new and polished page consumes; the sketch loop contract is established for all surface/polish phases (UXFD-01, UXFD-02).
+**Depends on**: Nothing technical (can run parallel to Phase 14; UI-only)
+**Requirements**: UXFD-01, UXFD-02
+**Success Criteria** (what must be TRUE):
+  1. Every status/state color used by ≥2 pages renders from a semantic token in index.css; no surface/polish phase introduces ad-hoc hex values (UXFD-01)
+  2. The frozen shared component set (PageHeader, FilterBar, DataTable, StatusBadge variants, EmptyState, ConfirmDialog) exists and new surfaces (allocation screen, tickets, scheduler) use it from day one (UXFD-01)
+  3. Each surface/polish phase follows the sketch loop: 2–3 gsd-sketch options shown, user agrees on one, UI-only plan, ≤3 sketch rounds (UXFD-02)
+  4. Sidebar collapsed-mode quick task triaged here (quick_task 260801-got-investigate-sidebar)
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 16: Availability Frontend
+**Goal**: Availability and capacity are usable surfaces in the People pillar: absence request/confirm UI, personal + team/org calendars, and a custom date-fns/Tailwind capacity grid per activity/WG (AVAIL-03/04/05).
+**Depends on**: Phase 14 (backend), Phase 15 (tokens)
 **Requirements**: AVAIL-03, AVAIL-04, AVAIL-05
 **Success Criteria** (what must be TRUE):
   1. Employee can request an absence from the UI and view personal + team/org absence calendars (AVAIL-03)
   2. Manager/HR can confirm or reject absences from the UI with distinct status badges (declared → confirmed/rejected) (UI half of AVAIL-02)
   3. Manager can view capacity per activity/WG as a capacity-vs-workload grid (custom date-fns + Tailwind, not a calendar library) (AVAIL-04)
   4. Availability and capacity entries appear in the People pillar sidebar with role-scoped visibility (AVAIL-05)
-  5. Non-blocking assignment-time warnings show on WG surfaces (extends AVAIL-04)
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 16: Today Polish
+### Phase 17: Coverage Surfaces — Allocation Screen + Buckets + Reports (4a+4b)
+**Goal**: The coverage plane is usable: week-1 allocation screen with read-computed proposals (Review group), to-cover queue, employee own-coverage read-only view, bucket setup + balance (Economics → Contracts), and the per-unit non-billed report (Reports) (SURF-01..05). D-O IA leans validated here — P-011 revision accumulates.
+**Depends on**: Phase 12 (backend), Phase 15 (tokens)
+**Requirements**: SURF-01, SURF-02, SURF-03, SURF-04, SURF-05
+**Success Criteria** (what must be TRUE):
+  1. Manager opens the week-1 screen and sees allocation proposals computed on read; one click confirms the default; exceptions (split/warranty/transfer) carry mandatory reasons (SURF-01)
+  2. To-cover queue renders uncovered entries as an explicit state; soft mid-month target nudges, never blocks (SURF-02)
+  3. Employee sees own coverage (billed vs absorbed) read-only on own entries (SURF-03)
+  4. Bucket setup + balance visible under Economics → Contracts; overlapping buckets allowed; balance carries over periods (SURF-04)
+  5. Per-unit non-billed report (resoconto) renders in Reports incl. warranty/goodwill cost per customer (SURF-05)
+  6. Allocation work lives in the Review group per the D-O lean — validated or revised during prototyping
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 18: Today + Tickets Surfaces (4c)
+**Goal**: Today view is prototyped in both shapes — v0.2-launch (tickets + assigned activities) and with-direction (plan + queue) — and the tickets surface lands in Track + Today ("my open tickets" per P-004) (SURF-06, TICK-06). P-011 IA reserves the direction slot without shipping it.
+**Depends on**: Phase 13 (direction backend for the with-direction shape), Phase 15 (tokens)
+**Requirements**: SURF-06, TICK-06
+**Success Criteria** (what must be TRUE):
+  1. Today renders the v0.2-launch shape: tickets + assigned activities composition per P-004 rules; locked empty states preserved (SURF-06)
+  2. Today's with-direction prototype shows plan + queue per the D-O lean; direction slot reserved in IA, not shipped (SURF-06)
+  3. Tickets surface in the Track pillar: list with filter/sort by kind/status, detail with immutable event timeline, create/triage/transition dialogs (TICK-06)
+  4. Today shows "my open tickets by priority" block (TICK-06)
+  5. Tickets are auto-approved tracked work; permission control enforced, no approval chain (TICK-06)
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 19: Direction Surfaces (4d)
+**Goal**: The plan plane is usable: scheduler calendar (drag & drop, P-008 absence warnings), direction queue, and the direction-coverage read-model surfacing uncovered capacity (SURF-07, SURF-08).
+**Depends on**: Phase 13 (backend), Phase 15 (tokens), Phase 16 (P-008 absences available for warnings)
+**Requirements**: SURF-07, SURF-08
+**Success Criteria** (what must be TRUE):
+  1. Manager spreads activities across employee-days via a calendar surface; the same surface serves self-planned mode (SURF-07)
+  2. Scheduler shows absence warnings ("away 10–21 Aug") at plan time from P-008 windows; warnings never block (SURF-07)
+  3. Direction queue renders queued rows with priority + due_date, incl. WG rows and claim actions (SURF-08)
+  4. Direction-coverage view shows planned vs capacity per employee/period with uncovered days visible (per employee / unit / WG) (SURF-08)
+  5. Org policy (deadline/horizon/mode) configurable from the UI per D-X; soft-policy block-vs-nag decision made here during prototyping
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 20: Today Polish
 **Goal**: The Today landing is polished through the sketch loop and its v0.1 UAT debt is closed.
-**Depends on**: Phase 13 (Today gained the ticket block), Phase 11 tokens
+**Depends on**: Phase 18 (Today gained ticket + direction shapes), Phase 15 tokens
 **Requirements**: POLS-01
 **Success Criteria** (what must be TRUE):
-  1. Today's sections ("Waiting on you", "Your week", "My open tickets") render consistently on frozen tokens/components per the agreed sketch (POLS-01)
+  1. Today's sections render consistently on frozen tokens/components per the agreed sketch (POLS-01)
   2. Today's 10-UAT scenarios pass verification and 10-VERIFICATION human review items are addressed (POLS-01)
   3. Today remains a read-only composition with locked empty states for new/caught-up users (POLS-01)
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 17: Track Polish — Time Entries + Expenses
+### Phase 21: Track Polish — Time Entries + Expenses
 **Goal**: Time entries and expenses pages are polished through the sketch loop; the 14-scenario 06-UAT debt folds in here.
-**Depends on**: Phase 15 (entry pickers/status badges reflect settled models), Phase 11 tokens
+**Depends on**: Phase 20, Phase 15 tokens (entry pickers/status badges reflect settled models)
 **Requirements**: POLS-02, POLS-03
 **Success Criteria** (what must be TRUE):
   1. Time entries page passes its 06-UAT scenarios (list/calendar/export tabs, entry CRUD, status badges) (POLS-02)
@@ -127,19 +192,19 @@
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 18: Activities Polish
+### Phase 22: Activities Polish
 **Goal**: Activities pages are polished through the sketch loop; 09-UAT + 09-VERIFICATION debt folds in here.
-**Depends on**: Phase 17, Phase 11 tokens
+**Depends on**: Phase 21, Phase 15 tokens
 **Requirements**: POLS-06
 **Success Criteria** (what must be TRUE):
   1. Activities pages (index, detail, create/edit dialogs) pass their 09-UAT scenario and 09-VERIFICATION human review items (POLS-06)
-  2. Activity tree, derived commercial context, and billability display polished per the agreed sketch (POLS-06)
+  2. Activity tree, derived commercial context, origin display, and billability display polished per the agreed sketch (POLS-06)
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 19: Approvals + Working Groups Polish
+### Phase 23: Approvals + Working Groups Polish
 **Goal**: Approvals queue and Working Groups surfaces are polished through the sketch loop; their 10-UAT scenarios fold in here.
-**Depends on**: Phase 18, Phase 11 tokens
+**Depends on**: Phase 22, Phase 15 tokens
 **Requirements**: POLS-04, POLS-05
 **Success Criteria** (what must be TRUE):
   1. Approvals queue passes its 10-UAT scenarios (stage tabs, approve/reject, reason-required reject) (POLS-04)
@@ -148,20 +213,19 @@
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 20: Customers + Contracts Polish
+### Phase 24: Customers + Contracts Polish
 **Goal**: Customers and Contracts pages are polished through the sketch loop; 08-UAT + 08-VERIFICATION debt folds in here.
-**Depends on**: Phase 19, Phase 11 tokens (customer detail gained request counts in Phase 13)
+**Depends on**: Phase 23, Phase 15 tokens
 **Requirements**: POLS-07, POLS-08
 **Success Criteria** (what must be TRUE):
   1. Customers pages (index, detail) pass their 08-UAT scenarios and 08-VERIFICATION human review items (POLS-07)
-  2. Contracts pages polished per the agreed sketch (detail, dialogs, export tabs) (POLS-08)
-  3. Customer detail's per-customer request counts section renders consistently with the ticket surface styling (POLS-07)
+  2. Contracts pages polished per the agreed sketch (detail, dialogs, sold_hours display, export tabs) (POLS-08)
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 21: Exports + People/Org/Admin Polish
+### Phase 25: Exports + People/Org/Admin Polish
 **Goal**: The tail pages — Exports and People/org tree + Admin — are polished through the sketch loop.
-**Depends on**: Phase 20, Phase 11 tokens
+**Depends on**: Phase 24, Phase 15 tokens
 **Requirements**: POLS-09, POLS-10
 **Success Criteria** (what must be TRUE):
   1. Exports page + export tabs polished per the agreed sketch (format switch, date ranges, download states) (POLS-09)
@@ -169,9 +233,9 @@
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 22: Auth Pages Polish
+### Phase 26: Auth Pages Polish
 **Goal**: Login, register, and password-reset pages are polished through the sketch loop.
-**Depends on**: Phase 21, Phase 11 tokens
+**Depends on**: Phase 25, Phase 15 tokens
 **Requirements**: POLS-11
 **Success Criteria** (what must be TRUE):
   1. Login/register/reset pages render on frozen tokens with consistent validation and error states (POLS-11)
@@ -194,18 +258,22 @@
 | 8. Hardening | v0.1 | 4/4 | Complete | 2026-07-31 |
 | 9. Activity Ont. | v0.1 | 8/8 | Complete | 2026-07-31 |
 | 10. IA Impl. | v0.1 | 6/6 | Complete | 2026-08-01 |
-| 11. UX Foundation | v0.2 | 0/TBD | Not started | - |
-| 12. Ticket Backend | v0.2 | 0/TBD | Not started | - |
-| 13. Ticket Frontend | v0.2 | 0/TBD | Not started | - |
-| 14. Staffing Backend | v0.2 | 0/TBD | Not started | - |
-| 15. Avail+Capacity FE | v0.2 | 0/TBD | Not started | - |
-| 16. Today Polish | v0.2 | 0/TBD | Not started | - |
-| 17. Track Polish | v0.2 | 0/TBD | Not started | - |
-| 18. Activities Polish | v0.2 | 0/TBD | Not started | - |
-| 19. Approvals+WG Polish | v0.2 | 0/TBD | Not started | - |
-| 20. Customers+Contracts Polish | v0.2 | 0/TBD | Not started | - |
-| 21. Exports+People Polish | v0.2 | 0/TBD | Not started | - |
-| 22. Auth Polish | v0.2 | 0/TBD | Not started | - |
+| 11. Foundations | v0.2 | 0/TBD | Not started | - |
+| 12. Coverage Backend | v0.2 | 0/TBD | Not started | - |
+| 13. Direction Backend | v0.2 | 0/TBD | Not started | - |
+| 14. Availability Backend | v0.2 | 0/TBD | Not started | - |
+| 15. UX Foundation | v0.2 | 0/TBD | Not started | - |
+| 16. Availability FE | v0.2 | 0/TBD | Not started | - |
+| 17. Coverage Surfaces | v0.2 | 0/TBD | Not started | - |
+| 18. Today+Tickets Surfaces | v0.2 | 0/TBD | Not started | - |
+| 19. Direction Surfaces | v0.2 | 0/TBD | Not started | - |
+| 20. Today Polish | v0.2 | 0/TBD | Not started | - |
+| 21. Track Polish | v0.2 | 0/TBD | Not started | - |
+| 22. Activities Polish | v0.2 | 0/TBD | Not started | - |
+| 23. Approvals+WG Polish | v0.2 | 0/TBD | Not started | - |
+| 24. Customers+Contracts Polish | v0.2 | 0/TBD | Not started | - |
+| 25. Exports+People Polish | v0.2 | 0/TBD | Not started | - |
+| 26. Auth Polish | v0.2 | 0/TBD | Not started | - |
 
 *Full v0.1 phase details: [milestones/v0.1-ROADMAP.md](milestones/v0.1-ROADMAP.md)*
 *Requirements: [REQUIREMENTS.md](REQUIREMENTS.md)*
