@@ -18,17 +18,18 @@ These ADRs record **what we build and why** — the vision made binding. They ar
 
 ## ADRs
 
-| ADR | Decision | Pillar(s) | Status |
-|-----|----------|-----------|--------|
-| [[ADR-P-001 — Units vs Working Groups]] | Units = accountability, working groups = execution | Structure | Accepted |
-| [[ADR-P-002 — Four Pillars & Feature Purposes]] | Ratifies the pillar model + each feature's purpose | All | Proposed |
-| [[ADR-P-003 — Tickets as the Second Capture Layer]] | Demand capture via tickets (not a task board) | Capture | Proposed |
-| [[ADR-P-004 — The Today View]] | First Insight feature: "what should I be working on?" | Insight | Proposed |
-| [[ADR-P-005 — Insight Pillar Roadmap]] | V1–V6 sequenced by data dependency | Insight | Proposed |
-| [[ADR-P-006 — Out-of-Scope Enforcement]] | §8 anchors binding + rejection log | Governance | Proposed |
-| [[ADR-P-007 — Activity Ontology]] | One recursive `activities` entity replaces projects+subprojects; commercial optional & inherited; entries link via one `activity_id`; big-bang into v0.1 | Structure, Capture | Accepted |
-| [[ADR-P-008 — Availability & Employment Validity]] | Declared availability windows + membership validity dates, surfaced at assignment time; `hr` org role as curator/consumer, never approver; leave machinery stays rejected | Structure | Proposed |
-| [[ADR-P-011 — Information Architecture & Role-Scoped Surfaces]] | Sidebar groups are job-language, pillar-mapped; surfaces follow the stakeholder map with role-scoped visibility; Today lands ticketless pre-deploy; `/projects` → `/activities` | All | Proposed |
+| ADR                                                                | Decision                                                                                                                                                                        | Pillar(s)          | Status   |
+|--------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------|----------|
+| [[ADR-P-001 — Units vs Working Groups]]                            | Units = accountability, working groups = execution                                                                                                                              | Structure          | Accepted |
+| [[ADR-P-002 — Four Pillars & Feature Purposes]]                    | Ratifies the pillar model + each feature's purpose                                                                                                                              | All                | Proposed |
+| [[ADR-P-003 — Tickets as the Second Capture Layer]]                | Demand capture via tickets (not a task board)                                                                                                                                   | Capture            | Proposed |
+| [[ADR-P-004 — The Today View]]                                     | First Insight feature: "what should I be working on?"                                                                                                                           | Insight            | Proposed |
+| [[ADR-P-005 — Insight Pillar Roadmap]]                             | V1–V6 sequenced by data dependency                                                                                                                                              | Insight            | Proposed |
+| [[ADR-P-006 — Out-of-Scope Enforcement]]                           | §8 anchors binding + rejection log                                                                                                                                              | Governance         | Proposed |
+| [[ADR-P-007 — Activity Ontology]]                                  | One recursive `activities` entity replaces projects+subprojects; commercial optional & inherited; entries link via one `activity_id`; big-bang into v0.1                        | Structure, Capture | Accepted |
+| [[ADR-P-008 — Availability & Employment Validity]]                 | Declared availability windows + membership validity dates, surfaced at assignment time; `hr` org role as curator/consumer, never approver; leave machinery stays rejected       | Structure          | Proposed |
+| [[ADR-P-011 — Information Architecture & Role-Scoped Surfaces]]    | Sidebar groups are job-language, pillar-mapped; surfaces follow the stakeholder map with role-scoped visibility; Today lands ticketless pre-deploy; `/projects` → `/activities` | All                | Proposed |
+| [[ADR-P-012 — Facts vs Decisions: The Coverage-Allocation Ledger]] | Captured effort is a fact, coverage is a decision — per-entry allocation ledger with Σ-invariant, to-cover queue, manager-confirmed, snapshot-not-lock                          | Structure, Insight | Proposed |
 
 ## Roadmap dependency chain
 
@@ -38,8 +39,8 @@ ADR-P-001 (units/WG) ─┤
 ADR-P-007 (ontology) ─┤
                       ▼
             ADR-P-003 (tickets) ──► ADR-P-004 (today view) ──► ADR-P-005 (V3–V6)
-                      ▲
-            ADR-P-006 (scope gate) guards all
+                      ▲                     ▲
+            ADR-P-006 (scope gate)   ADR-P-012 (coverage ledger) ──► ADR-P-014 (funding sources)
 ```
 
 ## Next candidates (post-v0.1)

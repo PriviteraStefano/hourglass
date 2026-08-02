@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "03-Schema/S04-API-Contracts.md",
+                "file": "decisions/project/ADR-P-012 — Facts vs Decisions: The Coverage-Allocation Ledger.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "S04-API-Contracts"
+              "title": "ADR-P-012 — Facts vs Decisions: The Coverage-Allocation Ledger"
             }
           }
         ]
@@ -183,8 +183,11 @@
       "bases:Create new base": false
     }
   },
-  "active": "93ae6b54a4c60e3b",
+  "active": "4fdfe5fbe4aed023",
   "lastOpenFiles": [
+    "research/2026-08-01 — Origins, Tickets & Coverage — Ontology Extension Research.md",
+    "decisions/project/ADR-P-012 — Facts vs Decisions: The Coverage-Allocation Ledger.md",
+    "03-Schema/S04-API-Contracts.md",
     "decisions/backend/ADR-BE-015 — Demo Environment Topology.md",
     "03-Schema/S03-Ports-Interfaces.md",
     "03-Schema/S02-Domain-Models.md",
@@ -217,9 +220,6 @@
     "research/kotlinllm-learning/reference",
     "research/kotlinllm-learning/learning-records",
     "research/kotlinllm-learning/lessons",
-    "01-Features/F13-Exports.md",
-    "01-Features/F11-Time-Entries.md",
-    "01-Features/F10-Activities.md",
-    "01-Features/F12-Expenses.md"
+    "01-Features/F13-Exports.md"
   ]
 }
