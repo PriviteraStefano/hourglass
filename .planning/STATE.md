@@ -2,11 +2,12 @@
 gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
-status: planning
-last_updated: "2026-08-02T16:54:11.973Z"
-last_activity: 2026-08-02
+status: Defining requirements
+stopped_at: Phase 11 context gathered
+last_updated: "2026-08-03T07:48:57.321Z"
+last_activity: 2026-08-02 — Milestone v0.2 redefined after ontology research (D-A…D-AA); roadmap recreated
 progress:
-  total_phases: 0
+  total_phases: 16
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -90,7 +91,7 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 
 ## Session Continuity
 
-Last session: 2026-08-02 (ontology research round complete — D-A…D-AA; milestone v0.2 redefined)
-Stopped at: v0.2 ROADMAP.md recreated — 16 phases (11-26), 47/47 requirements mapped, traceability updated
-Resume file: None
+Last session: 2026-08-03T07:48:57.309Z
+Stopped at: Phase 11 context gathered
+Resume file: .planning/phases/11-foundations-schema-origins-tickets-backend/11-CONTEXT.md
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
