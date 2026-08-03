@@ -63,7 +63,15 @@
   7. Ticket events (status changes, comments, resolution notes) are append-only via the BE-012 audit trail — no update/delete endpoints exist (TICK-05)
   8. Origin refs stored on activities; empty refs fall back to the first direction record on read (additive, Phase 13 landing) (FND-04)
   9. ADR-P-003 revision + ADR-P-013 recorded in the vault decisions folder; all migrations are append-only per ADR-BE-004 with up/down pairs + cycle tests
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 11-01-PLAN.md — Migration foundation: fix red cycle tests 011/012 + teardown list; migrations 014-017 (tickets, origins, sold_hours, audit_logs) + cycle tests
+- [ ] 11-02-PLAN.md — ADRs: ADR-P-003 revision, ADR-P-013 (origins), ADR-BE-016 (schema encoding) + index updates
+- [ ] 11-03-PLAN.md — BE-014 routing extraction to shared package (proposal approval parity, D-G)
+- [ ] 11-04-PLAN.md — Contract sold_hours read/write (FND-03): domain + validation + repo + handler
+- [ ] 11-05-PLAN.md — Activity origins (FND-01/04): role gates, same-org validation, immutability; proposal approval (FND-02); ticket/audit domain + repos foundation
+- [ ] 11-06-PLAN.md — Ticket lifecycle backend (TICK-01..05): state machine, atomic triage, dismissal guard, comments, append-only history
 
 ### Phase 12: Coverage Backend — The Allocation Loop
 **Goal**: The coverage plane works server-side: funding sources, per-entry coverage allocations with the Σ invariant, to-cover queue, proposals computed on read, one-step manager confirmation, and period-close snapshots (COV-01..05). ADR-P-012 accepted; BE encoding ADR written (incl. D-K polymorphic validation cost).
