@@ -427,42 +427,44 @@ DROP TABLE IF EXISTS tickets CASCADE;
 | A11 | Audit-log history endpoint (GET /tickets/{id}/history) returns rows for `entity_type='ticket'`, ordered by created_at | Discretion area | Shape is the agent's discretion; nothing locks it, but Phase 12/13 consumers will reuse the same read path |
 | A12 | Triage-created activities inherit `is_active=true` (only proposals start inactive per D-12) | Pattern 3 | If triage activities should start inactive pending coverage (Phase 12 semantics), a follow-up migration changes the default |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **`reviewed_by` semantics for employee proposals (A1)**
+> All questions below are resolved by the plan set (11-01..11-06), ADR-P-013, and ADR-BE-016. Each entry records the resolution and where it is pinned.
+
+1. **`reviewed_by` semantics for employee proposals (A1) — RESOLVED**
    - What we know: D-D lists it as an origin ref; D-02 requires only `proposed_by`; D-03 forbids post-creation ref mutation; D-G routes approval via BE-014 machinery.
    - What's unclear: is the reviewer pinned at creation (routing resolution) or left NULL with the approver living only in audit?
-   - Recommendation: pin at creation via the shared routing package; CHECK requires only `proposed_by`. Confirm with user in discuss-phase before locking the CHECK shape.
+   - Resolution: Phase 11 leaves `reviewed_by` NULL at creation — the CHECK requires only `proposed_by` (D-02) — and the actual approver is captured in the `proposal_approved` audit row. Any create carrying a non-nil `reviewed_by` → ErrInvalidRequest. Pinned in ADR-P-013; enforced in 11-05 Task 1; a future phase may pin it at creation.
 
-2. **Definition of "terminal activity" for the resolved transition (TICK-02)**
+2. **Definition of "terminal activity" for the resolved transition (TICK-02) — RESOLVED**
    - What we know: activities have `is_active` only (proposal flag, not progress); entries have statuses (draft…approved/rejected).
    - What's unclear: what makes a linked activity "terminal" — no non-terminal entries? `is_active=false`? Both?
-   - Recommendation: no non-terminal (draft/submitted/pending) time entries on the activity subtree, excluding deleted; present for user confirmation.
+   - Resolution: no non-terminal time entries (status IN draft/submitted/pending_manager/pending_finance, `is_deleted=false`) on the linked-activity subtree, computed via recursive CTE (`HasNonTerminalActivities`). Recorded in ADR-BE-016; implemented in 11-06 Task 2.
 
-3. **Where the "dismissed with N h logged" note lives (TICK-04)**
+3. **Where the "dismissed with N h logged" note lives (TICK-04) — RESOLVED**
    - What we know: the note must be readable from a dismissed ticket; D-13 defines N as raw Σ (submitted+approved) this phase.
    - What's unclear: stored column vs audit-row-only.
-   - Recommendation: nullable column set at dismissal (simple read) + the audit row records the same value; guard method `LoggedHours(ctx, ticketID)` stable for the Phase 12 computation swap.
+   - Resolution: nullable `dismissed_hours` column set at dismissal (migration 014, 11-01 Task 2) + the audit row records the same value; guard method `LoggedHours(ctx, ticketID)` stable for the Phase 12 computation swap. Recorded in ADR-BE-016; implemented in 11-06 Task 2.
 
-4. **Audit write durability for tickets (TICK-05 vs ADR-BE-012)**
+4. **Audit write durability for tickets (TICK-05 vs ADR-BE-012) — RESOLVED**
    - What we know: user deferred the durability upgrade; D-10 requires audit rows in the triage tx; TICK-05 requires the stream to exist.
    - What's unclear: fire-and-forget (ADR-BE-012 parity) vs synchronous in-transaction for ticket events.
-   - Recommendation: synchronous in-transaction for tickets (events are small volume; the stream is the guarantee). Confirm — the plan must pick one and the deferred note says the shape must not preclude the outbox successor.
+   - Resolution: synchronous in-transaction writes for ticket events (Pitfall 2; fire-and-forget stays only for entry approvals). The user-deferred choice is honored by keeping the table shape consumer-neutral so the outbox successor remains possible — both recorded in ADR-BE-016 (11-02 Task 3); implemented in 11-05/11-06.
 
-5. **Pre-triage fast path (urgent work before triage)**
+5. **Pre-triage fast path (urgent work before triage) — RESOLVED**
    - What we know: research Part 4 describes urgent work starting before triage; D-01 requires ticket_id at creation for customer_ticket origin; refs are immutable.
    - What's unclear: is `POST /activities` with `origin_type='customer_ticket'` + `ticket_id` allowed while the ticket is open (pre-triage)? The dismissal guard and resolved check both read linked activities via ticket_id, so it composes.
-   - Recommendation: allow it, manager+ gated (D-04), with the ticket's state open/triage — this satisfies the fast path without extra machinery.
+   - Resolution: allowed — `POST /activities` with origin customer_ticket while the ticket is open/triage, manager+|finance gated (D-04), with the ticket's state open/triage. Recorded in ADR-BE-016; implemented in 11-05 Task 1.
 
-6. **Exact transition matrix confirmation (D-14)**
+6. **Exact transition matrix confirmation (D-14) — RESOLVED**
    - What we know: open→triage→planned→in_progress→resolved→closed + reopen + guarded dismissal per D-A/Part 4.
    - What's unclear: whether reopen (resolved→in_progress) re-requires terminal activities (no — activities already terminal) and whether closed is a true terminal state.
-   - Recommendation: closed and dismissed are terminal; reopen allowed only from resolved; the service rejects any other edge with a sentinel error + audit row attempt (audit row only on success).
+   - Resolution: pinned edges open→triage; triage→planned; triage→dismissed; planned→in_progress; in_progress→resolved; resolved→closed; resolved→in_progress (reopen); open→dismissed (superset of A7). closed and dismissed are terminal; reopen only from resolved; the service rejects any other edge with ErrInvalidTransition (audit row only on success). Enforced via domain `CanTransition` (11-05 Task 2); recorded in ADR-BE-016; implemented in 11-06 Tasks 1-2.
 
-7. **Pre-existing red migration cycle tests (Pitfall 3)**
+7. **Pre-existing red migration cycle tests (Pitfall 3) — RESOLVED (superseded)**
    - What we know: both TestMigration011 and TestMigration012 fail today (verified by running); seed data moved to `scripts/seed_demo.sql`.
    - What's unclear: whether to fix by loading `scripts/seed_demo.sql` in tests or by self-seeding minimal pre-state.
-   - Recommendation: load the demo seed in the cycle-test helper (mirrors `cmd/migrate -all` behavior), fix the two tests, and write 014–017 cycle tests against the fixed helper. This is prerequisite for success criterion 9.
+   - Resolution: supersedes the original recommendation — SELF-SEED minimal pre-state inline in each test (demo data is not a migration fixture; `003_seed.up.sql` stays retired). Executed in 11-01 Task 1; assertions keep their original expected values.
 
 ## Environment Availability
 
@@ -485,38 +487,37 @@ DROP TABLE IF EXISTS tickets CASCADE;
 | Property | Value |
 |----------|-------|
 | Framework | Go 1.26.1 `go test` + testify v1.11.1 + testcontainers-go v0.42.0 (postgres:16-alpine) |
-| Config file | none — Wave 0 (patterns from `.planning/codebase/TESTING.md`) |
+| Config file | none — scaffolding is built in-plan (see 11-VALIDATION.md); patterns from `.planning/codebase/TESTING.md` |
 | Quick run command | `go test ./internal/core/services/ticket/ ./internal/adapters/secondary/postgres/ -count=1` |
 | Full suite command | `make test` (`go test -v ./...`) |
 
 ### Phase Requirements → Test Map
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| FND-01 | Origin refs set at creation, immutability on update, CHECK rejects mixed refs | unit + integration | `go test ./internal/core/services/activity/ ./internal/adapters/secondary/postgres/ -run TestActivityOrigin -count=1` | ❌ Wave 0 |
-| FND-02 | Proposal creation (is_active=false, proposed_by=self) + approval routing flips is_active + audit row | unit + integration | `go test ./internal/core/services/ticket/ ./internal/core/services/activity/ -run TestProposal -count=1` | ❌ Wave 0 |
-| FND-03 | sold_hours/contract_type/sold_period read+write; support requires period; project forbids period | unit + integration | `go test ./internal/core/services/contract/ ./internal/adapters/secondary/postgres/ -run TestContractSold -count=1` | ❌ Wave 0 |
-| FND-04 | Origin refs stored; read returns stored refs (fallback is Phase 13 — no test here) | integration | covered by FND-01 read assertions | ❌ Wave 0 |
-| TICK-01 | Ticket create (any employee), kind closed set, kind CHECK | unit + integration | `go test ./internal/core/services/ticket/ -run TestTicketCreate -count=1` | ❌ Wave 0 |
-| TICK-02 | Full lifecycle incl. reopen; resolved blocked on non-terminal linked activities | unit | `go test ./internal/core/services/ticket/ -run TestTicketLifecycle -count=1` | ❌ Wave 0 |
-| TICK-03 | Atomic triage: ticket→planned, activities created with origin customer_ticket, all-or-nothing | integration | `go test ./internal/adapters/secondary/postgres/ -run TestTicketTriage -count=1` | ❌ Wave 0 |
-| TICK-04 | Dismissal guard: blocked with logged hours (submitted+approved, not deleted), note carries N | unit + integration | `go test ./internal/core/services/ticket/ -run TestDismissalGuard -count=1` | ❌ Wave 0 |
-| TICK-05 | History append-only: comments/transitions logged; no update/delete endpoints exist | integration + API contract | `go test ./internal/core/services/ticket/ -run TestTicketAudit -count=1` | ❌ Wave 0 |
-| SC-9 | Migration up/down pairs + cycle tests for 014–017 | migration cycle | `go test ./internal/adapters/secondary/postgres/ -run TestMigration014 -count=1` (…015/016/017) | ❌ Wave 0 |
+| FND-01 | Origin refs set at creation, immutability on update, CHECK rejects mixed refs | unit + integration | `go test ./internal/core/services/activity/ ./internal/adapters/secondary/postgres/ -run TestActivityOrigin -count=1` | ✅ in-plan (11-05-01) |
+| FND-02 | Proposal creation (is_active=false, proposed_by=self) + approval routing flips is_active + audit row | unit + integration | `go test ./internal/core/services/activity/ -run 'TestProposal\|TestActivityOrigin' -count=1` | ✅ in-plan (11-05-03) |
+| FND-03 | sold_hours/contract_type/sold_period read+write; support requires period; project forbids period | unit + integration | `go test ./internal/adapters/secondary/postgres/ -run TestContract -count=1 && go test ./internal/core/services/contract/ -count=1` | ✅ in-plan (11-04-02) |
+| FND-04 | Origin refs stored; read returns stored refs (fallback is Phase 13 — no test here) | integration | covered by FND-01 read assertions | ✅ in-plan (11-05-01) |
+| TICK-01 | Ticket create (any employee), kind closed set, kind CHECK | unit + integration | `go test ./internal/core/services/ticket/ -run 'TestTicketCreate\|TestTicketLifecycle' -count=1` | ✅ in-plan (11-06-01) |
+| TICK-02 | Full lifecycle incl. reopen; resolved blocked on non-terminal linked activities | unit | `go test ./internal/core/services/ticket/ -run 'TestTicketCreate\|TestTicketLifecycle' -count=1` | ✅ in-plan (11-06-01) |
+| TICK-03 | Atomic triage: ticket→planned, activities created with origin customer_ticket, all-or-nothing (in-tx validation, Pitfall 7) | integration | `go test ./internal/core/services/ticket/ ./internal/adapters/secondary/postgres/ -run 'TestDismissalGuard\|TestTicketTriage\|TestTicketAudit' -count=1` | ✅ in-plan (11-06-02) |
+| TICK-04 | Dismissal guard: blocked with logged hours (submitted+approved, not deleted), note carries N | unit + integration | `go test ./internal/core/services/ticket/ ./internal/adapters/secondary/postgres/ -run 'TestDismissalGuard\|TestTicketTriage\|TestTicketAudit' -count=1` | ✅ in-plan (11-06-02) |
+| TICK-05 | History append-only: comments/transitions logged; no update/delete endpoints exist | integration + API contract | `go test ./internal/adapters/primary/http/ -run TestTicket -count=1` (history stream via 11-06-02 command) | ✅ in-plan (11-06-03) |
+| SC-9 | Migration up/down pairs + cycle tests for 014–017 | migration cycle | `go test ./internal/adapters/secondary/postgres/ -run TestMigration014 -count=1` (…015/016/017) | ✅ in-plan (11-01-03) |
 
 ### Sampling Rate
 - **Per task commit:** `go test ./internal/core/services/<affected>/ ./internal/adapters/secondary/postgres/ -count=1`
-- **Per wave merge:** `make test` (full suite)
+- **Per wave merge:** `make test` (full suite — wave gate only, after the wave completes; mid-wave full-suite false-negatives on the pre-existing red 011/012 tests are fixed by 11-01 Task 1 before the gate)
 - **Phase gate:** Full suite green before `/gsd-verify-work`
 
-### Wave 0 Gaps
-- [ ] `internal/core/domain/ticket/` (ticket.go + errors.go) — domain types, status/kind constants, transition matrix
-- [ ] `internal/core/domain/audit/` — general audit-log entity
-- [ ] `internal/core/services/ticket/ticket_test.go` + `ticket_integration_test.go` — lifecycle/triage/guard/audit coverage
-- [ ] `internal/adapters/secondary/postgres/ticket_repository_test.go` — triage tx, Σ hours, history read
-- [ ] `internal/adapters/secondary/postgres/audit_log_repository_test.go`
-- [ ] Migration cycle tests `TestMigration014..017` in the postgres package
-- [ ] **Fix pre-existing red tests** `TestMigration011_ActivityOntology_UpDownUpCycle` + `TestMigration012_StaffingSchema_UpDownUpCycle` (seed wiring — Pitfall 3)
-- [ ] `exported_test_helpers.go` teardown list extended with `tickets`, `ticket_comments`, `audit_logs`
+### Test Scaffolding (in-plan — no Wave 0)
+This plan set has NO separate Wave 0 — every artifact is created by the plan task that runs its own verify (see 11-VALIDATION.md scaffold map):
+- `internal/core/domain/ticket/` + `internal/core/domain/audit/` → 11-05 Task 2
+- `internal/core/services/ticket/ticket_test.go` + `ticket_integration_test.go` → 11-06 Tasks 1-2
+- `internal/adapters/secondary/postgres/ticket_repository_test.go` + `audit_log_repository.go` (no separate audit test file — covered by ticket repo tests) → 11-05 Task 2 / 11-06 Tasks 1-2
+- Migration cycle tests `TestMigration014..017` → 11-01 Task 3
+- **Fix pre-existing red tests** `TestMigration011_ActivityOntology_UpDownUpCycle` + `TestMigration012_StaffingSchema_UpDownUpCycle` (self-seeded pre-state — Pitfall 3) → 11-01 Task 1
+- `exported_test_helpers.go` teardown list extended with `tickets`, `ticket_comments`, `audit_logs` → 11-01 Task 1
 
 ## Security Domain
 
