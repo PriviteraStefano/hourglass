@@ -190,17 +190,17 @@ hourglass-vault/decisions/              # ADR-P-003 revision, ADR-P-013, BE enco
 internal/adapters/secondary/postgres/exported_test_helpers.go  # EXTEND: teardown table list (tickets, ticket_comments, audit_logs)
 ```
 
-**Suggested migration split (next free number is 014; planner may consolidate):**
-- `014_activity_origins.{up,down}.sql` — origin columns on `activities`, refs-to-type CHECK, FKs to `users(id)`/`tickets(id)`, index on `ticket_id`
-- `015_contract_sold_hours.{up,down}.sql` — `contract_type`/`sold_hours`/`sold_period` + type-consistency CHECK
-- `016_ticket_schema.{up,down}.sql` — `tickets` + `ticket_comments` (kind/status CHECKs, FKs, indexes)
+**Suggested migration split (final numbering per A8 — tickets as 014 so the origins FK resolves):**
+- `014_ticket_schema.{up,down}.sql` — `tickets` + `ticket_comments` (kind/status CHECKs, FKs, indexes)
+- `015_activity_origins.{up,down}.sql` — origin columns on `activities`, refs-to-type CHECK, FKs to `users(id)`/`tickets(id)`, index on `ticket_id`
+- `016_contract_sold_hours.{up,down}.sql` — `contract_type`/`sold_hours`/`sold_period` + type-consistency CHECK
 - `017_audit_logs.{up,down}.sql` — general `audit_logs` table + `(entity_type, entity_id, created_at)` index
 Each with a cycle test (up → down → up) in the postgres package, mirroring `TestMigration012_StaffingSchema_UpDownUpCycle`.
 
 ### Pattern 1: Discriminator + nullable ref columns with a table CHECK (origin refs)
 **What:** one discriminator column + N nullable UUID columns; a table-level CHECK maps each discriminator value to exactly the refs it may carry and forces the others to NULL. Because CHECK is satisfied when the expression evaluates to TRUE **or NULL** (three-valued logic), the constraint must be written as `origin_type IS NULL OR (<per-type rules>)` so legacy rows (NULL discriminator) pass.
 **When to use:** any "one of several reference shapes" fact fixed at creation.
-**Example (shape for 014):**
+**Example (shape for 015):**
 ```sql
 ALTER TABLE activities ADD COLUMN origin_type VARCHAR(50);
 ALTER TABLE activities ADD COLUMN assigned_by  UUID REFERENCES users(id);
@@ -223,7 +223,7 @@ ALTER TABLE activities ADD CONSTRAINT activities_origin_refs_check
   );
 CREATE INDEX idx_activities_ticket_id ON activities(ticket_id);  -- dismissal guard + resolved check
 ```
-Note: `reviewed_by` deliberately NOT required by the CHECK (D-02 requires only `proposed_by`) — see Open Question 1 for its semantics. FKs to `users(id)` are possible because `users` is global; **same-org validation of refs happens at the service level** (membership check), per D-02. FK to `tickets(id)` requires migration 016 to exist before 014 — either order 016 before 014 or add the FK in a later migration. **Planner note:** ordering 016 (tickets) before 014 (origins) avoids a chicken-and-egg FK problem.
+Note: `reviewed_by` deliberately NOT required by the CHECK (D-02 requires only `proposed_by`) — see Open Question 1 for its semantics. FKs to `users(id)` are possible because `users` is global; **same-org validation of refs happens at the service level** (membership check), per D-02. FK to `tickets(id)` requires migration 014 to exist before 015 — resolved by numbering tickets as 014 and origins as 015 (A8). **Planner note:** ordering 014 (tickets) before 015 (origins) avoids a chicken-and-egg FK problem.
 
 ### Pattern 2: DB CHECK vocabulary + service state machine (ticket lifecycle)
 **What:** DB CHECK pins the status/kind vocabulary (house style — same as `governance_model`, entry statuses); the service enforces transition edges, the resolved-blocks-on-non-terminal-activities rule, and the reopen edge, writing one audit row per transition (D-14).
@@ -374,7 +374,7 @@ if res.skipToFinance { /* D-11: approver == owner */ }
 
 ### Common Operation 4: Migration up/down pair skeleton
 ```sql
--- 016_ticket_schema.up.sql — pattern source: 012_staffing_schema
+-- 014_ticket_schema.up.sql — pattern source: 012_staffing_schema
 CREATE TABLE tickets (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id        UUID NOT NULL REFERENCES organizations(id),
@@ -392,7 +392,7 @@ CREATE INDEX idx_tickets_org_id ON tickets(org_id);
 CREATE INDEX idx_tickets_status ON tickets(status);
 ```
 ```sql
--- 016_ticket_schema.down.sql
+-- 014_ticket_schema.down.sql
 DROP TABLE IF EXISTS tickets CASCADE;
 ```
 
@@ -421,7 +421,7 @@ DROP TABLE IF EXISTS tickets CASCADE;
 | A5 | Ticket minimal field set: org_id, title, description, kind, status, requester_id, assignee_id (no priority in v0.2 decisions) | Pattern 4 | If priority is needed for P-004 Today ordering (Phase 18), it is a later additive migration — not fatal |
 | A6 | Pre-triage fast path allowed: `POST /activities` with `origin_type='customer_ticket'` while the ticket is open (manager+ gated) | Summary / Open Q5 | If disallowed, urgent-work-before-triage workflow breaks; if allowed, dismissal guard must count these activities (it does, via ticket_id) |
 | A7 | Transition matrix exactly: open→triage→planned→in_progress→resolved→closed; triage→dismissed (guarded); resolved→in_progress (reopen); no other edges | Pattern 2 / Open Q6 | Missing edge (e.g., open→in_progress for fast path) would be added later; extra edge weakens the guarantee |
-| A8 | Migration split 014–017 with 016 (tickets) before 014 (origins FK to tickets) | Pattern 1 / project structure | Cosmetic; consolidation is planner's call, but the tickets-before-origins ordering avoids FK issues |
+| A8 | Migration split 014–017 with 014 (tickets) before 015 (origins FK to tickets) | Pattern 1 / project structure | Cosmetic; consolidation is planner's call, but the tickets-before-origins ordering avoids FK issues |
 | A9 | `resolveManagerStage` extraction is required for FND-02 (proposal approval routes identically) | Pattern 5 | If not extracted, routing logic is duplicated — drift risk, and D-G parity is weaker |
 | A10 | "manager+" = org roles `manager` OR `finance` (models.RoleManager / RoleFinance) | Patterns (gates) | If 'hr' (added in 012 to membership CHECK) should also pass gates — JWT role claims govern; confirm at plan time |
 | A11 | Audit-log history endpoint (GET /tickets/{id}/history) returns rows for `entity_type='ticket'`, ordered by created_at | Discretion area | Shape is the agent's discretion; nothing locks it, but Phase 12/13 consumers will reuse the same read path |
@@ -434,7 +434,7 @@ DROP TABLE IF EXISTS tickets CASCADE;
 1. **`reviewed_by` semantics for employee proposals (A1) — RESOLVED**
    - What we know: D-D lists it as an origin ref; D-02 requires only `proposed_by`; D-03 forbids post-creation ref mutation; D-G routes approval via BE-014 machinery.
    - What's unclear: is the reviewer pinned at creation (routing resolution) or left NULL with the approver living only in audit?
-   - Resolution: Phase 11 leaves `reviewed_by` NULL at creation — the CHECK requires only `proposed_by` (D-02) — and the actual approver is captured in the `proposal_approved` audit row. Any create carrying a non-nil `reviewed_by` → ErrInvalidRequest. Pinned in ADR-P-013; enforced in 11-05 Task 1; a future phase may pin it at creation.
+   - Resolution: Phase 11 leaves `reviewed_by` NULL at creation — the CHECK requires only `proposed_by` (D-02) — and the actual approver is captured in the `proposal_approved` audit row. Any create carrying a non-nil `reviewed_by` → ErrInvalidRequest. Pinned in ADR-P-013; enforced in 11-05 Task 2; a future phase may pin it at creation.
 
 2. **Definition of "terminal activity" for the resolved transition (TICK-02) — RESOLVED**
    - What we know: activities have `is_active` only (proposal flag, not progress); entries have statuses (draft…approved/rejected).
@@ -454,12 +454,12 @@ DROP TABLE IF EXISTS tickets CASCADE;
 5. **Pre-triage fast path (urgent work before triage) — RESOLVED**
    - What we know: research Part 4 describes urgent work starting before triage; D-01 requires ticket_id at creation for customer_ticket origin; refs are immutable.
    - What's unclear: is `POST /activities` with `origin_type='customer_ticket'` + `ticket_id` allowed while the ticket is open (pre-triage)? The dismissal guard and resolved check both read linked activities via ticket_id, so it composes.
-   - Resolution: allowed — `POST /activities` with origin customer_ticket while the ticket is open/triage, manager+|finance gated (D-04), with the ticket's state open/triage. Recorded in ADR-BE-016; implemented in 11-05 Task 1.
+   - Resolution: allowed — `POST /activities` with origin customer_ticket while the ticket is open/triage, manager+|finance gated (D-04), with the ticket's state open/triage. Recorded in ADR-BE-016; implemented in 11-05 Task 2.
 
 6. **Exact transition matrix confirmation (D-14) — RESOLVED**
    - What we know: open→triage→planned→in_progress→resolved→closed + reopen + guarded dismissal per D-A/Part 4.
    - What's unclear: whether reopen (resolved→in_progress) re-requires terminal activities (no — activities already terminal) and whether closed is a true terminal state.
-   - Resolution: pinned edges open→triage; triage→planned; triage→dismissed; planned→in_progress; in_progress→resolved; resolved→closed; resolved→in_progress (reopen); open→dismissed (superset of A7). closed and dismissed are terminal; reopen only from resolved; the service rejects any other edge with ErrInvalidTransition (audit row only on success). Enforced via domain `CanTransition` (11-05 Task 2); recorded in ADR-BE-016; implemented in 11-06 Tasks 1-2.
+   - Resolution: pinned edges open→triage; triage→planned; triage→dismissed; planned→in_progress; in_progress→resolved; resolved→closed; resolved→in_progress (reopen); open→dismissed (superset of A7). closed and dismissed are terminal; reopen only from resolved; the service rejects any other edge with ErrInvalidTransition (audit row only on success). Enforced via domain `CanTransition` (11-05 Task 1); recorded in ADR-BE-016; implemented in 11-06 Tasks 1-2.
 
 7. **Pre-existing red migration cycle tests (Pitfall 3) — RESOLVED (superseded)**
    - What we know: both TestMigration011 and TestMigration012 fail today (verified by running); seed data moved to `scripts/seed_demo.sql`.
@@ -494,10 +494,10 @@ DROP TABLE IF EXISTS tickets CASCADE;
 ### Phase Requirements → Test Map
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| FND-01 | Origin refs set at creation, immutability on update, CHECK rejects mixed refs | unit + integration | `go test ./internal/core/services/activity/ ./internal/adapters/secondary/postgres/ -run TestActivityOrigin -count=1` | ✅ in-plan (11-05-01) |
+| FND-01 | Origin refs set at creation, immutability on update, CHECK rejects mixed refs | unit + integration | `go test ./internal/core/services/activity/ ./internal/adapters/secondary/postgres/ -run TestActivityOrigin -count=1` | ✅ in-plan (11-05-02) |
 | FND-02 | Proposal creation (is_active=false, proposed_by=self) + approval routing flips is_active + audit row | unit + integration | `go test ./internal/core/services/activity/ -run 'TestProposal\|TestActivityOrigin' -count=1` | ✅ in-plan (11-05-03) |
 | FND-03 | sold_hours/contract_type/sold_period read+write; support requires period; project forbids period | unit + integration | `go test ./internal/adapters/secondary/postgres/ -run TestContract -count=1 && go test ./internal/core/services/contract/ -count=1` | ✅ in-plan (11-04-02) |
-| FND-04 | Origin refs stored; read returns stored refs (fallback is Phase 13 — no test here) | integration | covered by FND-01 read assertions | ✅ in-plan (11-05-01) |
+| FND-04 | Origin refs stored; read returns stored refs (fallback is Phase 13 — no test here) | integration | covered by FND-01 read assertions | ✅ in-plan (11-05-02) |
 | TICK-01 | Ticket create (any employee), kind closed set, kind CHECK | unit + integration | `go test ./internal/core/services/ticket/ -run 'TestTicketCreate\|TestTicketLifecycle' -count=1` | ✅ in-plan (11-06-01) |
 | TICK-02 | Full lifecycle incl. reopen; resolved blocked on non-terminal linked activities | unit | `go test ./internal/core/services/ticket/ -run 'TestTicketCreate\|TestTicketLifecycle' -count=1` | ✅ in-plan (11-06-01) |
 | TICK-03 | Atomic triage: ticket→planned, activities created with origin customer_ticket, all-or-nothing (in-tx validation, Pitfall 7) | integration | `go test ./internal/core/services/ticket/ ./internal/adapters/secondary/postgres/ -run 'TestDismissalGuard\|TestTicketTriage\|TestTicketAudit' -count=1` | ✅ in-plan (11-06-02) |
@@ -512,9 +512,9 @@ DROP TABLE IF EXISTS tickets CASCADE;
 
 ### Test Scaffolding (in-plan — no Wave 0)
 This plan set has NO separate Wave 0 — every artifact is created by the plan task that runs its own verify (see 11-VALIDATION.md scaffold map):
-- `internal/core/domain/ticket/` + `internal/core/domain/audit/` → 11-05 Task 2
+- `internal/core/domain/ticket/` + `internal/core/domain/audit/` → 11-05 Task 1
 - `internal/core/services/ticket/ticket_test.go` + `ticket_integration_test.go` → 11-06 Tasks 1-2
-- `internal/adapters/secondary/postgres/ticket_repository_test.go` + `audit_log_repository.go` (no separate audit test file — covered by ticket repo tests) → 11-05 Task 2 / 11-06 Tasks 1-2
+- `internal/adapters/secondary/postgres/ticket_repository_test.go` + `audit_log_repository.go` (no separate audit test file — covered by ticket repo tests) → 11-05 Task 1 / 11-06 Tasks 1-2
 - Migration cycle tests `TestMigration014..017` → 11-01 Task 3
 - **Fix pre-existing red tests** `TestMigration011_ActivityOntology_UpDownUpCycle` + `TestMigration012_StaffingSchema_UpDownUpCycle` (self-seeded pre-state — Pitfall 3) → 11-01 Task 1
 - `exported_test_helpers.go` teardown list extended with `tickets`, `ticket_comments`, `audit_logs` → 11-01 Task 1

@@ -17,9 +17,9 @@
 | `internal/adapters/primary/http/ticket_handler.go` (NEW) | controller | request-response | `internal/adapters/primary/http/activity_handler.go` (CRUD + sentinel switch) + `time_entry.go` (action endpoints) | exact |
 | `internal/adapters/secondary/postgres/ticket_repository.go` (NEW) | repository | CRUD + transaction | `activity_repository.go` (CRUD/scan) + `refresh_token_repo.go:88-137` (BeginTx) | exact |
 | `internal/adapters/secondary/postgres/audit_log_repository.go` (NEW) | repository | event-driven | `time_entry_repository.go:303-343` (`AuditLogRepository`) | exact (must add tx-aware variant — see note) |
-| `migrations/014_activity_origins.{up,down}.sql` (NEW) | migration | DDL | `migrations/011_activity_ontology.up.sql:46-64` (activities base) + `012_staffing_schema.up.sql` (ALTER pattern) | exact |
-| `migrations/015_contract_sold_hours.{up,down}.sql` (NEW) | migration | DDL | `migrations/012_staffing_schema.up.sql:39-50` (nullable ALTER + CHECK) | exact |
-| `migrations/016_ticket_schema.{up,down}.sql` (NEW) | migration | DDL | `migrations/012_staffing_schema.up.sql:15-34` (CREATE TABLE + CHECK vocab + index) | exact |
+| `migrations/014_ticket_schema.{up,down}.sql` (NEW) | migration | DDL | `migrations/012_staffing_schema.up.sql:15-34` (CREATE TABLE + CHECK vocab + index) | exact |
+| `migrations/015_activity_origins.{up,down}.sql` (NEW) | migration | DDL | `migrations/011_activity_ontology.up.sql:46-64` (activities base) + `012_staffing_schema.up.sql` (ALTER pattern) | exact |
+| `migrations/016_contract_sold_hours.{up,down}.sql` (NEW) | migration | DDL | `migrations/012_staffing_schema.up.sql:39-50` (nullable ALTER + CHECK) | exact |
 | `migrations/017_audit_logs.{up,down}.sql` (NEW) | migration | DDL | `migrations/012_staffing_schema.up.sql` (append-only table + index) | exact |
 | `internal/core/domain/activity/activity.go` (EXTEND) | model | CRUD | itself — add origin fields to struct (L41-57) + `CreateActivityRequest` (L96-106) | self |
 | `internal/core/domain/contract/contract.go` (EXTEND) | model | CRUD | itself — add `contract_type`/`sold_hours`/`sold_period` to struct (L20-31) + requests | self |
@@ -355,7 +355,31 @@ func (r *AuditLogRepository) Create(ctx context.Context, log *time_entry.AuditLo
 
 ---
 
-### `migrations/014_activity_origins.{up,down}.sql` (migration, DDL)
+### `migrations/014_ticket_schema.{up,down}.sql` (migration, DDL)
+
+**Analog:** `012_staffing_schema.up.sql` L15-34 (CREATE TABLE + inline CHECK vocab + index) and 011 L46-64 (FK style). RESEARCH Common Operation 4 (L377-397) gives the skeleton; house-style CHECK vocabulary:
+```sql
+CREATE TABLE tickets (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id        UUID NOT NULL REFERENCES organizations(id),
+    title         VARCHAR(255) NOT NULL,
+    description   TEXT,
+    kind          VARCHAR(50) NOT NULL CHECK (kind IN ('question','bug','change','evolution')),
+    status        VARCHAR(50) NOT NULL DEFAULT 'open'
+                  CHECK (status IN ('open','triage','planned','in_progress','resolved','closed','dismissed')),
+    requester_id  UUID NOT NULL REFERENCES users(id),
+    assignee_id   UUID REFERENCES users(id),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_tickets_org_id ON tickets(org_id);
+CREATE INDEX idx_tickets_status ON tickets(status);
+```
+Plus `ticket_comments` (D-06 first-class comments: id, ticket_id FK, author_id, body, created_at — no update/delete paths, TICK-05). `down.sql`: `DROP TABLE IF EXISTS ... CASCADE` (012 down style).
+
+---
+
+### `migrations/015_activity_origins.{up,down}.sql` (migration, DDL)
 
 **Analog:** `migrations/011_activity_ontology.up.sql:46-64` (activities table being extended) + `012_staffing_schema.up.sql:39-50` (nullable ALTER + CHECK drop/recreate)
 
@@ -382,11 +406,11 @@ ALTER TABLE activities ADD CONSTRAINT activities_origin_refs_check
   );
 CREATE INDEX idx_activities_ticket_id ON activities(ticket_id);
 ```
-**Planner note (A8):** 016 (tickets) must precede 014 so `ticket_id REFERENCES tickets(id)` resolves — order migrations accordingly.
+**Planner note (A8):** 014 (tickets) must precede 015 so `ticket_id REFERENCES tickets(id)` resolves — order migrations accordingly.
 
 ---
 
-### `migrations/015_contract_sold_hours.{up,down}.sql` (migration, DDL)
+### `migrations/016_contract_sold_hours.{up,down}.sql` (migration, DDL)
 
 **Analog:** `012_staffing_schema.up.sql` L39-50 — nullable ALTER + CHECK. D-08/D-09 shape (Pattern 2 in RESEARCH L349-362):
 ```sql
@@ -401,30 +425,6 @@ ALTER TABLE contracts ADD CONSTRAINT contracts_sold_check
   );
 ```
 (Align `sold_hours` scale with `time_entries.hours DECIMAL(8,2)` per FND-03 — planner confirms final precision.)
-
----
-
-### `migrations/016_ticket_schema.{up,down}.sql` (migration, DDL)
-
-**Analog:** `012_staffing_schema.up.sql` L15-34 (CREATE TABLE + inline CHECK vocab + index) and 011 L46-64 (FK style). RESEARCH Common Operation 4 (L377-397) gives the skeleton; house-style CHECK vocabulary:
-```sql
-CREATE TABLE tickets (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id        UUID NOT NULL REFERENCES organizations(id),
-    title         VARCHAR(255) NOT NULL,
-    description   TEXT,
-    kind          VARCHAR(50) NOT NULL CHECK (kind IN ('question','bug','change','evolution')),
-    status        VARCHAR(50) NOT NULL DEFAULT 'open'
-                  CHECK (status IN ('open','triage','planned','in_progress','resolved','closed','dismissed')),
-    requester_id  UUID NOT NULL REFERENCES users(id),
-    assignee_id   UUID REFERENCES users(id),
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_tickets_org_id ON tickets(org_id);
-CREATE INDEX idx_tickets_status ON tickets(status);
-```
-Plus `ticket_comments` (D-06 first-class comments: id, ticket_id FK, author_id, body, created_at — no update/delete paths, TICK-05). `down.sql`: `DROP TABLE IF EXISTS ... CASCADE` (012 down style).
 
 ---
 
