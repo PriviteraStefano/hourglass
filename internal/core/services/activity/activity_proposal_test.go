@@ -38,13 +38,14 @@ func (f *originFixture) seedProposal(orgID, proposer uuid.UUID, overrides ...fun
 
 // seedWGForActivity anchors a working group to the activity with the given
 // manager (BE-014 R-1 approver set = manager + delegates).
-func (f *originFixture) seedWGForActivity(orgID, activityID, managerID uuid.UUID) {
+func (f *originFixture) seedWGForActivity(orgID, activityID, managerID uuid.UUID, delegateIDs ...string) {
 	wg := &wgdomain.WorkingGroup{
 		ID:           uuid.New(),
 		OrgID:        orgID,
 		SubprojectID: activityID,
 		Name:         "Proposal WG",
 		ManagerID:    managerID,
+		DelegateIDs:  delegateIDs,
 		IsActive:     true,
 	}
 	if f.wgRepo.Groups == nil {
@@ -163,6 +164,7 @@ func TestProposal_RoutingModes(t *testing.T) {
 	orgID := uuid.New()
 	proposer := uuid.New()
 	approver := uuid.New()
+	delegateID := uuid.New()
 
 	t.Run("skipToFinance (proposer is the only approver) rejected", func(t *testing.T) {
 		f := setupOrigin(t)
@@ -174,6 +176,23 @@ func TestProposal_RoutingModes(t *testing.T) {
 		assert.ErrorIs(t, err, activitydomain.ErrForbidden)
 		assert.Nil(t, updated)
 		assert.Empty(t, f.auditRepo.Logs)
+	})
+
+	t.Run("skipToFinance with delegate: delegate is a legitimate approver (WR-04)", func(t *testing.T) {
+		f := setupOrigin(t)
+		prop := f.seedProposal(orgID, proposer)
+		// D-11 skip fires (WG manager IS the proposer), but the approver
+		// set is {proposer, delegate} — the delegate must be able to approve
+		// (pre-fix: the skip short-circuited to ErrForbidden before the
+		// membership check, making the proposal unapprovable).
+		f.seedWGForActivity(orgID, prop.ID, proposer, delegateID.String())
+
+		updated, err := f.svc.ApproveProposal(context.Background(), string(models.RoleManager), orgID, delegateID, prop.ID)
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+		assert.True(t, updated.IsActive)
+		require.Len(t, f.auditRepo.Logs, 1)
+		assert.Equal(t, "proposal_approved", f.auditRepo.Logs[0].Action)
 	})
 
 	t.Run("roleGated resolution: manager role passes", func(t *testing.T) {

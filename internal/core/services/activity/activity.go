@@ -254,8 +254,9 @@ func hasOriginFields(req *activitydomain.UpdateActivityRequest) bool {
 //     errors include activity.ErrActivityNotLoggable (commercial proposal
 //     without an anchored WG, R-2)
 //  6. role-gated resolutions require manager|finance; D-11 skips (proposer
-//     in the approver set) are rejected — the only approver would be the
-//     proposer, and routing must never self-approve
+//     in the approver set) are rejected ONLY when the set is exactly
+//     {proposer} — with delegates in the set they are legitimate approvers
+//     (WR-04)
 //  7. otherwise the actor must be in the resolved approver set
 //
 // Persistence flips is_active via the repo Update directly (bypassing the
@@ -308,8 +309,18 @@ func (s *Service) ApproveProposal(ctx context.Context, role string, orgID, actor
 			return nil, activitydomain.ErrForbidden
 		}
 	case res.SkipToFinance:
-		// D-11: the proposer IS the only approver — routing cannot approve.
-		return nil, activitydomain.ErrForbidden
+		// WR-04: the skip short-circuit must NOT reject before the
+		// approver-set check. SkipToFinance means the proposer IS in the
+		// approver set — only when the set is exactly {proposer} (no
+		// delegates) is the proposal unapprovable (routing cannot
+		// self-approve). With delegates, the delegate is a legitimate
+		// approver and falls through to the membership check below.
+		if len(res.ApproverIDs) == 1 { // set == {proposer}
+			return nil, activitydomain.ErrForbidden
+		}
+		if !contains(res.ApproverIDs, actorID) {
+			return nil, activitydomain.ErrForbidden
+		}
 	default:
 		if !contains(res.ApproverIDs, actorID) {
 			return nil, activitydomain.ErrForbidden
