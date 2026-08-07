@@ -8,7 +8,9 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,6 +90,106 @@ func assertConstraintExists(t *testing.T, pool *pgxpool.Pool, ctx context.Contex
 	assert.Equal(t, 1, n, "constraint %s should exist", conname)
 }
 
+// seedOrgID is the historical MVP seed organization UUID (003_seed.up.sql).
+// Migration 011 seeds the four canonical activity_kinds ONLY for this org
+// (011_activity_ontology.up.sql line 40), and the activities INSERT inherits
+// the (org_id, kind) catalog FK — the pre-state org MUST use this exact id.
+var seedOrgID = uuid.MustParse("019df8b0-0001-7000-8000-000000000001")
+
+// seedLegacyMVPPrestate seeds the two-level model rows the 011 data migration
+// rewrites, mirroring the historical MVP seed shapes the test asserts
+// (6 projects / 6 subprojects / 6 working groups / 12 time entries / 6
+// expenses with 4 project-linked and 2 NULL-project). The historical
+// 003_seed.up.sql is no longer a migration (seed data moved to
+// scripts/seed_demo.sql, which tests must not load), so the pre-state is
+// seeded inline with helpers where they cover the table and direct SQL for
+// the rows helpers don't cover. Assertions keep their original expected
+// values — only the seeding strategy changes (ADR-BE-004: migrations
+// untouched).
+func seedLegacyMVPPrestate(t *testing.T, pool *pgxpool.Pool, ctx context.Context, now time.Time) {
+	t.Helper()
+
+	// Organization — fixed UUID so 011's kind-catalog seed row targets it.
+	_, err := pool.Exec(ctx,
+		`INSERT INTO organizations (id, name, slug, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		seedOrgID, "Tech Consulting Group", "tc-group-"+uuid.New().String()[:8], now, now)
+	require.NoError(t, err)
+
+	// Users (manager + entry author) and one unit (time_entries/expenses FKs).
+	userID := seedUser(t, pool, now)
+	unitID := seedUnit(t, pool, seedOrgID, now)
+
+	// 6 projects (4 billable + 2 internal).
+	projectIDs := make([]uuid.UUID, 6)
+	for i := range projectIDs {
+		id := uuid.New()
+		projectIDs[i] = id
+		projectType := "billable"
+		if i >= 4 {
+			projectType = "internal"
+		}
+		_, err = pool.Exec(ctx,
+			`INSERT INTO projects (id, org_id, name, description, project_type, type,
+			                      governance_model, created_by_org_id, is_shared, is_active, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $5, 'creator_controlled', $2, FALSE, TRUE, $6, $6)`,
+			id, seedOrgID, "Project "+id.String()[:8], "Seed project", projectType, now)
+		require.NoError(t, err)
+	}
+
+	// 6 subprojects (one per project).
+	subprojectIDs := make([]uuid.UUID, 6)
+	for i := range subprojectIDs {
+		id := uuid.New()
+		subprojectIDs[i] = id
+		_, err = pool.Exec(ctx,
+			`INSERT INTO subprojects (id, project_id, name, description, sequence_order, is_active, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, TRUE, $6, $6)`,
+			id, projectIDs[i], "Subproject "+id.String()[:8], "Seed subproject", i+1, now)
+		require.NoError(t, err)
+	}
+
+	// 6 working groups (one per subproject, same manager).
+	wgIDs := make([]uuid.UUID, 6)
+	for i := range wgIDs {
+		id := uuid.New()
+		wgIDs[i] = id
+		_, err = pool.Exec(ctx,
+			`INSERT INTO working_groups (id, org_id, subproject_id, name, description, unit_ids,
+			                             enforce_unit_tuple, manager_id, delegate_ids, is_active, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, ARRAY[$6]::UUID[], TRUE, $7, ARRAY[]::UUID[], TRUE, $8, $8)`,
+			id, seedOrgID, subprojectIDs[i], "WG "+id.String()[:8], "Seed working group", unitID, userID, now)
+		require.NoError(t, err)
+	}
+
+	// 12 time entries (2 per subproject).
+	for i := range subprojectIDs {
+		for j := 0; j < 2; j++ {
+			_, err = pool.Exec(ctx,
+				`INSERT INTO time_entries (org_id, user_id, project_id, subproject_id, wg_id, unit_id,
+				                           hours, description, entry_date, status, is_deleted, created_at, updated_at)
+				 VALUES ($1, $2, $3, $4, $5, $6, 7.5, $7, $8, 'submitted', FALSE, $9, $9)`,
+				seedOrgID, userID, projectIDs[i], subprojectIDs[i], wgIDs[i], unitID,
+				"Seed time entry", now, now)
+			require.NoError(t, err)
+		}
+	}
+
+	// 6 expenses: 4 project-linked, 2 with project_id NULL (internal spend).
+	for i := 0; i < 6; i++ {
+		var projectID any // nil for the last two
+		if i < 4 {
+			projectID = projectIDs[i]
+		}
+		_, err = pool.Exec(ctx,
+			`INSERT INTO expenses (org_id, user_id, project_id, unit_id, category, amount,
+			                       currency, description, expense_date, status, is_deleted, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, 'mileage', 15.00, 'EUR', $5, $6, 'submitted', FALSE, $7, $7)`,
+			seedOrgID, userID, projectID, unitID, "Seed expense", now, now)
+		require.NoError(t, err)
+	}
+}
+
 // TestMigration011_ActivityOntology_UpDownUpCycle verifies migration 011
 // (activity ontology) against the MVP seed data:
 //   - up applies cleanly, rewrites the schema exactly per ADR-P-007, and
@@ -108,6 +210,12 @@ func TestMigration011_ActivityOntology_UpDownUpCycle(t *testing.T) {
 	// 013 is skipped in pre-state: it UPDATEs the activities table that only
 	// exists after 011 — applied before 011 it would fail with SQLSTATE 42P01.
 	applyMigrations(t, pool, true, "011_activity_ontology.up.sql", "013_activity_kind_phase_fix.up.sql")
+	// The historical MVP seed (003_seed.up.sql) is no longer a migration
+	// fixture — seed data lives in scripts/seed_demo.sql which applyMigrations
+	// never loads. Self-seed the two-level pre-state the 011 data migration
+	// asserts against (6 projects / 6 subprojects / 12 time entries / 6
+	// expenses / 6 working groups).
+	seedLegacyMVPPrestate(t, pool, ctx, time.Now())
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM projects", 6)
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM subprojects", 6)
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM time_entries", 12)

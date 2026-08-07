@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,6 +33,19 @@ func TestMigration012_StaffingSchema_UpDownUpCycle(t *testing.T) {
 	// activities table exists), and its kind relabel is a no-op for this
 	// test's assertions.
 	applyMigrations(t, pool, true, "012_staffing_schema.up.sql")
+	// The historical MVP seed (003_seed.up.sql) is no longer a migration
+	// fixture — seed data lives in scripts/seed_demo.sql which applyMigrations
+	// never loads. Self-seed the membership pre-state: 6 memberships across
+	// one org (helpers don't cover organization_memberships, so direct SQL).
+	now := time.Now()
+	orgID := seedOrg(t, pool, now)
+	for i := 0; i < 6; i++ {
+		userID := seedUser(t, pool, now)
+		_, err := pool.Exec(ctx,
+			`INSERT INTO organization_memberships (user_id, organization_id, role, is_active, created_at, updated_at)
+			 VALUES ($1, $2, 'employee', TRUE, $3, $3)`, userID, orgID, now)
+		require.NoError(t, err)
+	}
 	assertCount(t, pool, ctx, "SELECT COUNT(*) FROM organization_memberships", 6)
 
 	// --- UP ------------------------------------------------------------------
