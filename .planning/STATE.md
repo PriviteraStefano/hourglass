@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
-current_phase: 11
-current_phase_name: foundations-schema-origins-tickets-backend
-status: executing
+current_phase: 12
+current_phase_name: Coverage Backend — The Allocation Loop
+status: planning
 stopped_at: Completed 11-08-PLAN.md
-last_updated: "2026-08-07T18:21:54.494Z"
+last_updated: "2026-08-07T18:35:42.004Z"
 last_activity: 2026-08-07
-last_activity_desc: Phase 11 execution started
+last_activity_desc: Phase 11 complete, transitioned to Phase 12
 progress:
   total_phases: 16
   completed_phases: 1
-  total_plans: 8
+  total_plans: 10
   completed_plans: 8
   percent: 6
 ---
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 ## Current Position
 
-Phase: 11 (foundations-schema-origins-tickets-backend) — EXECUTING
-Plan: 8 of 8 complete (11-08 done — dismissal note server-rendered IN-02 + title validation WR-04/IN-01; all 8 phase plans landed)
-Status: Phase 11 plans complete — ready for phase verification (11-VERIFICATION.md gaps closed)
-Last activity: 2026-08-07 — Phase 11 execution started
+Phase: 12 — Coverage Backend — The Allocation Loop
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-07 — Phase 11 complete, transitioned to Phase 12
 
 ## Accumulated Context
 

@@ -30,7 +30,7 @@
 
 **Build order (research Part 15, agreed):** Foundations (schema + origins + tickets) → Coverage backend → Direction backend → Availability (kept from original scope) → UX Foundation → UI-last prototype-driven surfaces → trailing per-page polish. Backend planes land before any new UI so prototype sessions run against the complete backend with real data. ADRs are drafted as phases land (P-003 rev + P-013 in Phase 11, P-012 + BE in Phase 12, P-015 + BE in Phase 13); ADR-P-012 draft already exists in the vault.
 
-- [ ] **Phase 11: Foundations** - Schema + origins + tickets backend: activity origin refs, sold_hours, ticket lifecycle with triage + dismissal guard; ADR-P-003 rev + P-013
+- [x] **Phase 11: Foundations** - Schema + origins + tickets backend: activity origin refs, sold_hours, ticket lifecycle with triage + dismissal guard; ADR-P-003 rev + P-013 (completed 2026-08-07)
 - [ ] **Phase 12: Coverage Backend** - Allocation ledger, funding sources, to-cover queue, proposals-on-read, one-step confirm, snapshot mechanics; ADR-P-012 + BE encoding
 - [ ] **Phase 13: Direction Backend** - Plan plane: direction entity, lifecycle, claim model, org policy, coverage read-model; ADR-P-015 + BE encoding
 - [ ] **Phase 14: Availability Backend** - Absence declare/confirm/reject + capacity queries over availability_windows
@@ -329,7 +329,7 @@ Plans:
 | 8. Hardening | v0.1 | 4/4 | Complete | 2026-07-31 |
 | 9. Activity Ont. | v0.1 | 8/8 | Complete | 2026-07-31 |
 | 10. IA Impl. | v0.1 | 6/6 | Complete | 2026-08-01 |
-| 11. Foundations | v0.2 | 8/8 | In Progress|  |
+| 11. Foundations | v0.2 | 8/8 | Complete    | 2026-08-07 |
 | 12. Coverage Backend | v0.2 | 0/TBD | Not started | - |
 | 13. Direction Backend | v0.2 | 0/TBD | Not started | - |
 | 14. Availability Backend | v0.2 | 0/TBD | Not started | - |
