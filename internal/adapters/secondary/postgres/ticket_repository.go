@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +40,11 @@ const ticketColumns = `id, org_id, title, description, kind, status, requester_i
 	assignee_id, dismissed_hours, created_at, updated_at`
 
 // scanTicketRow scans a pgx.Row into a Ticket, normalizing nullable columns.
+// The DismissedNote is DERIVED here (IN-02): when the row is a dismissed
+// ticket carrying dismissed_hours, the note "dismissed with {N} h logged"
+// renders from that value (D-13 raw Σ, precision -1 trims trailing zeros:
+// 5.00 → "5", 7.50 → "7.5"). It is never selected — ticketColumns stays
+// column-only.
 func scanTicketRow(row pgx.Row) (*ticketdomain.Ticket, error) {
 	var t ticketdomain.Ticket
 	var assigneeID *uuid.UUID
@@ -50,6 +56,11 @@ func scanTicketRow(row pgx.Row) (*ticketdomain.Ticket, error) {
 	}
 	t.AssigneeID = assigneeID
 	t.DismissedHours = dismissedHours
+	if t.Status == ticketdomain.StatusDismissed && dismissedHours != nil {
+		note := fmt.Sprintf("dismissed with %s h logged",
+			strconv.FormatFloat(*dismissedHours, 'f', -1, 64))
+		t.DismissedNote = &note
+	}
 	return &t, nil
 }
 

@@ -199,6 +199,34 @@ func TestTicketAPI(t *testing.T) {
 	dismissed := env["data"].(map[string]any)
 	require.Equal(t, "dismissed", dismissed["status"])
 	require.Equal(t, float64(0), dismissed["dismissed_hours"])
+	// IN-02: the note is server-derived (TICK-04) — the dismiss response
+	// carries "dismissed with N h logged" rendered from dismissed_hours.
+	require.Equal(t, "dismissed with 0 h logged", dismissed["dismissed_note"],
+		"dismiss response must carry the derived note")
+
+	// The note must also render on the detail read (GET /tickets/{id}).
+	status, env = h.doJSON(t, http.MethodGet, "/tickets/"+ticket3, "")
+	require.Equal(t, http.StatusOK, status)
+	detail3 := env["data"].(map[string]any)["ticket"].(map[string]any)
+	require.Equal(t, "dismissed with 0 h logged", detail3["dismissed_note"],
+		"GET /tickets/{id} must carry the derived note")
+
+	// ... and on the list read (GET /tickets) — every read of a dismissed
+	// ticket carries the note (TICK-04, IN-02).
+	status, env = h.doJSON(t, http.MethodGet, "/tickets", "")
+	require.Equal(t, http.StatusOK, status)
+	list := env["data"].([]any)
+	require.GreaterOrEqual(t, len(list), 1)
+	found := false
+	for _, item := range list {
+		it, ok := item.(map[string]any)
+		if ok && it["id"] == ticket3 {
+			require.Equal(t, "dismissed with 0 h logged", it["dismissed_note"],
+				"GET /tickets list must carry the derived note for dismissed tickets")
+			found = true
+		}
+	}
+	require.True(t, found, "dismissed ticket must appear in the GET /tickets list")
 
 	status, env = h.doJSON(t, http.MethodGet, "/tickets/"+ticket3+"/history", "")
 	require.Equal(t, http.StatusOK, status)

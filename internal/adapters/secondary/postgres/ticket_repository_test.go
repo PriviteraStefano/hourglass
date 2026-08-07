@@ -45,8 +45,8 @@ func TestTicketRepository_Get(t *testing.T) {
 	require.Equal(t, "bug", got.Kind)
 	require.Equal(t, "open", got.Status)
 	require.Equal(t, requesterID, got.RequesterID)
-	require.Nil(t, got.AssigneeID)      // nullable column handled as nil
-	require.Nil(t, got.DismissedHours)  // nullable column handled as nil
+	require.Nil(t, got.AssigneeID)     // nullable column handled as nil
+	require.Nil(t, got.DismissedHours) // nullable column handled as nil
 
 	// same ticket id from another org → not found (same-org, D-02)
 	_, err = repo.Get(context.Background(), uuid.New(), ticketID)
@@ -82,6 +82,80 @@ func TestTicketRepository_Get_WithAssignee(t *testing.T) {
 	require.NotNil(t, got)
 	require.NotNil(t, got.AssigneeID)
 	require.Equal(t, assigneeID, *got.AssigneeID)
+}
+
+// TestTicketRepository_DismissedNote covers the IN-02 derived note: every
+// read of a dismissed ticket carries DismissedNote == "dismissed with {N} h
+// logged" rendered from dismissed_hours (TICK-04, D-13 raw Σ), while a
+// dismissed ticket with NULL hours and a non-dismissed ticket both read back
+// with a nil note. The note is derived at scan time — never persisted.
+func TestTicketRepository_DismissedNote(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewTicketRepository(pool)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	requesterID := seedUser(t, pool, now)
+
+	// insertTicket seeds a ticket row with the given status and
+	// dismissed_hours (nil means the column stays NULL).
+	insertTicket := func(title, status string, hours *float64) uuid.UUID {
+		t.Helper()
+		id := uuid.New()
+		var err error
+		if hours != nil {
+			_, err = pool.Exec(context.Background(),
+				`INSERT INTO tickets (id, org_id, title, description, kind, status, requester_id, dismissed_hours, created_at, updated_at)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
+				id, orgID, title, "", "bug", status, requesterID, *hours, now)
+		} else {
+			_, err = pool.Exec(context.Background(),
+				`INSERT INTO tickets (id, org_id, title, description, kind, status, requester_id, created_at, updated_at)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+				id, orgID, title, "", "bug", status, requesterID, now)
+		}
+		require.NoError(t, err)
+		return id
+	}
+
+	// 1. Dismissed with 5h logged → note "dismissed with 5 h logged"
+	//    (FormatFloat precision -1 trims the trailing zeros of DECIMAL 5.00).
+	five := 5.0
+	dismissedID := insertTicket("Dismissed ticket", ticketdomain.StatusDismissed, &five)
+	got, err := repo.Get(context.Background(), orgID, dismissedID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.NotNil(t, got.DismissedNote)
+	require.Equal(t, "dismissed with 5 h logged", *got.DismissedNote)
+
+	// 2. Dismissed with NULL dismissed_hours → no note.
+	nullID := insertTicket("Dismissed without hours", ticketdomain.StatusDismissed, nil)
+	got, err = repo.Get(context.Background(), orgID, nullID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Nil(t, got.DismissedNote)
+
+	// 3. Non-dismissed ('planned') ticket → no note.
+	plannedID := insertTicket("Planned ticket", ticketdomain.StatusPlanned, nil)
+	got, err = repo.Get(context.Background(), orgID, plannedID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Nil(t, got.DismissedNote)
+
+	// The note also rides the list read (same scanTicketRow funnel).
+	all, err := repo.ListByOrg(context.Background(), orgID, "", "")
+	require.NoError(t, err)
+	var listed *ticketdomain.Ticket
+	for i := range all {
+		if all[i].ID == dismissedID {
+			listed = &all[i]
+		}
+	}
+	require.NotNil(t, listed, "dismissed ticket must appear in the list")
+	require.NotNil(t, listed.DismissedNote)
+	require.Equal(t, "dismissed with 5 h logged", *listed.DismissedNote)
 }
 
 // TestTicketAudit_AuditLogRoundTrip covers the general audit_logs Create:

@@ -22,8 +22,14 @@ type Ticket struct {
 	RequesterID    uuid.UUID  `json:"requester_id"`
 	AssigneeID     *uuid.UUID `json:"assignee_id,omitempty"`
 	DismissedHours *float64   `json:"dismissed_hours,omitempty"` // TICK-04: hours logged before dismissal (D-13 raw Σ)
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	// DismissedNote is DERIVED on read (IN-02, TICK-04): rendered as
+	// "dismissed with {N} h logged" by the repository's scanTicketRow when
+	// status == 'dismissed' && dismissed_hours != nil (OQ3/A4, D-13 — the
+	// note carries the raw Σ). Never persisted: no column, no migration —
+	// it renders from the existing dismissed_hours column at scan time.
+	DismissedNote *string   `json:"dismissed_note,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // TicketComment is an append-only comment on a ticket (CASCADE on ticket
@@ -96,8 +102,8 @@ var transitionMatrix = map[string]map[string]bool{
 		StatusResolved: true,
 	},
 	StatusResolved: {
-		StatusClosed:      true,
-		StatusInProgress:  true, // reopen
+		StatusClosed:     true,
+		StatusInProgress: true, // reopen
 	},
 }
 
