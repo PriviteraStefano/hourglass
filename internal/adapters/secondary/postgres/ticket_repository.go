@@ -266,6 +266,13 @@ func (r *TicketRepository) UpdateState(ctx context.Context, orgID, ticketID uuid
 	// The resolved edge additionally requires the linked-activity subtree
 	// terminal (OQ2) — re-checked inside this tx, never check-then-act.
 	if to == ticketdomain.StatusResolved {
+		// WR-01: serialize with the entry-submit path exactly like Dismiss —
+		// an in-flight time_entries INSERT holds a FK KEY SHARE on the linked
+		// activity row, so this FOR UPDATE blocks until that tx commits and
+		// the OQ2 check that follows sees its row (or its rollback).
+		if err := r.lockTicketActivitySubtree(ctx, tx, ticketID); err != nil {
+			return nil, err
+		}
 		nonTerminal, err := r.hasNonTerminalActivitiesTx(ctx, tx, ticketID)
 		if err != nil {
 			return nil, err
@@ -295,6 +302,45 @@ func (r *TicketRepository) UpdateState(ctx context.Context, orgID, ticketID uuid
 		return nil, fmt.Errorf("commit ticket state update: %w", err)
 	}
 	return r.Get(ctx, orgID, ticketID)
+}
+
+// lockTicketActivitySubtree locks the ticket's linked-activity subtree FOR
+// UPDATE inside the given tx — the serialization point against the
+// entry-submit path (CR-01, WR-01/WR-02): an in-flight time_entries INSERT
+// holds a FK KEY SHARE on the activity row it references (direct OR
+// descendant), so this lock blocks until that tx commits and the in-tx
+// checks that follow see its row (or its rollback).
+//
+// The subtree matches the recursive CTE used by the OQ2 / D-13 checks —
+// customer_ticket-origin activities linked via ticket_id plus every
+// descendant. The lock is applied to the BASE activities table via the JOIN:
+// a locking clause on a plain CTE reference would not lock the underlying
+// rows (PostgreSQL locks only tables in the primary query's FROM).
+func (r *TicketRepository) lockTicketActivitySubtree(ctx context.Context, tx pgx.Tx, ticketID uuid.UUID) error {
+	rows, err := tx.Query(ctx,
+		`WITH RECURSIVE subtree AS (
+			SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket'
+			UNION ALL
+			SELECT a.id FROM activities a JOIN subtree s ON a.parent_id = s.id
+		 )
+		 SELECT a.id FROM activities a JOIN subtree s ON a.id = s.id FOR UPDATE`,
+		ticketID)
+	if err != nil {
+		return wrapPGError(err, "lock ticket activity subtree")
+	}
+	var activityID uuid.UUID
+	for rows.Next() {
+		if err := rows.Scan(&activityID); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan activity subtree lock: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate activity subtree locks: %w", err)
+	}
+	rows.Close()
+	return nil
 }
 
 // Dismiss sets status='dismissed' + dismissed_hours (TICK-04, D-13 raw Σ)
@@ -340,25 +386,12 @@ func (r *TicketRepository) Dismiss(ctx context.Context, orgID, ticketID uuid.UUI
 	// Serialize with the entry-submit path: an in-flight time_entries INSERT
 	// holds a FK KEY SHARE on the linked activity row, so this FOR UPDATE
 	// blocks until that tx commits — the Σ that follows sees its row (or its
-	// rollback). Deterministic guard, never check-then-act (T-11-07).
-	activityRows, err := tx.Query(ctx,
-		`SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket' FOR UPDATE`,
-		ticketID)
-	if err != nil {
-		return nil, wrapPGError(err, "lock linked activities for dismissal")
+	// rollback). Deterministic guard, never check-then-act (T-11-07). The
+	// lock covers the whole linked-activity subtree (WR-02): hours logged on
+	// a descendant activity serialize too.
+	if err := r.lockTicketActivitySubtree(ctx, tx, ticketID); err != nil {
+		return nil, err
 	}
-	var activityID uuid.UUID
-	for activityRows.Next() {
-		if err := activityRows.Scan(&activityID); err != nil {
-			activityRows.Close()
-			return nil, fmt.Errorf("scan linked activity lock: %w", err)
-		}
-	}
-	if err := activityRows.Err(); err != nil {
-		activityRows.Close()
-		return nil, fmt.Errorf("iterate linked activity locks: %w", err)
-	}
-	activityRows.Close()
 
 	// Authoritative in-tx Σ re-check (D-13, T-11-07): the service's pool-level
 	// hours value is superseded by the Σ computed under the locks — if any
@@ -678,9 +711,12 @@ func (r *TicketRepository) ListHistory(ctx context.Context, orgID, ticketID uuid
 }
 
 // LoggedHours computes the raw Σ of logged hours across the ticket's linked
-// activities (D-13): submitted + approved, is_deleted excluded, linked via
-// ticket_id + origin_type='customer_ticket'. Stable signature — Phase 12
-// swaps the computation to net-of-compensations without changing it (D-13).
+// activity SUBTREE (D-13): submitted + approved, is_deleted excluded, linked
+// via ticket_id + origin_type='customer_ticket' AND every descendant — the
+// same recursive "linked" definition as HasNonTerminalActivities (WR-02), so
+// hours logged on a child activity count toward the guard exactly like hours
+// on the direct ticket activity. Stable signature — Phase 12 swaps the
+// computation to net-of-compensations without changing it (D-13).
 //
 // This pool-level read is the service's FAST-FAIL UX check only; the
 // authoritative gate is loggedHoursTx, re-run inside the dismiss tx under
@@ -688,9 +724,14 @@ func (r *TicketRepository) ListHistory(ctx context.Context, orgID, ticketID uuid
 func (r *TicketRepository) LoggedHours(ctx context.Context, ticketID uuid.UUID) (float64, error) {
 	var hours float64
 	err := r.pool.QueryRow(ctx,
-		`SELECT COALESCE(SUM(hours),0) FROM time_entries
+		`WITH RECURSIVE subtree AS (
+			SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket'
+			UNION ALL
+			SELECT a.id FROM activities a JOIN subtree s ON a.parent_id = s.id
+		 )
+		 SELECT COALESCE(SUM(hours),0) FROM time_entries
 		 WHERE is_deleted = false AND status IN ('submitted','approved')
-		   AND activity_id IN (SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket')`,
+		   AND activity_id IN (SELECT id FROM subtree)`,
 		ticketID).Scan(&hours)
 	if err != nil {
 		return 0, wrapPGError(err, "compute ticket logged hours")
@@ -700,15 +741,21 @@ func (r *TicketRepository) LoggedHours(ctx context.Context, ticketID uuid.UUID) 
 
 // loggedHoursTx is LoggedHours executed against an open transaction — the
 // AUTHORITATIVE D-13/T-11-07 gate inside the dismiss tx (see Dismiss): the Σ
-// is re-computed after the ticket row + linked-activity FOR UPDATE locks, so
-// a submitted/approved entry that committed before the check is always seen.
+// is re-computed after the ticket row + linked-activity-subtree FOR UPDATE
+// locks, so a submitted/approved entry that committed before the check is
+// always seen — on a direct OR descendant activity (WR-02).
 // The WHERE shape is byte-identical to LoggedHours.
 func (r *TicketRepository) loggedHoursTx(ctx context.Context, tx pgx.Tx, ticketID uuid.UUID) (float64, error) {
 	var hours float64
 	err := tx.QueryRow(ctx,
-		`SELECT COALESCE(SUM(hours),0) FROM time_entries
+		`WITH RECURSIVE subtree AS (
+			SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket'
+			UNION ALL
+			SELECT a.id FROM activities a JOIN subtree s ON a.parent_id = s.id
+		 )
+		 SELECT COALESCE(SUM(hours),0) FROM time_entries
 		 WHERE is_deleted = false AND status IN ('submitted','approved')
-		   AND activity_id IN (SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket')`,
+		   AND activity_id IN (SELECT id FROM subtree)`,
 		ticketID).Scan(&hours)
 	if err != nil {
 		return 0, wrapPGError(err, "compute ticket logged hours")

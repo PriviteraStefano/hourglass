@@ -842,3 +842,144 @@ func TestUpdateState_ResolvedBlocked(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ticketdomain.StatusResolved, updated.Status)
 }
+
+// TestUpdateState_Resolved_RaceWithPendingSubmit is the deterministic 2-tx
+// pin for WR-01 (the resolved sibling of TestDismissalGuard_RaceWithPendingSubmit):
+// the OQ2 gate must serialize with the entry-submit path via the
+// linked-activity FOR UPDATE lock, exactly like Dismiss. An uncommitted
+// draft time-entry INSERT on a linked activity must BLOCK
+// UpdateState(to='resolved'); after that entry tx commits, UpdateState must
+// observe the non-terminal entry and refuse with ErrActivityNotTerminal —
+// never commit a resolved ticket with non-terminal entries.
+//
+// RED on the pre-fix code: the lock-free in-tx check reads the pre-insert
+// snapshot and resolves immediately while the submit is still in flight
+// (check-then-act bypass — WR-01).
+func TestUpdateState_Resolved_RaceWithPendingSubmit(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewTicketRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	requesterID := seedUser(t, pool, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	ticketID := insertTicketWithStatus(t, pool, orgID, requesterID, "in_progress", now)
+	activityID := insertCustomerTicketActivity(t, pool, orgID, ticketID, now)
+
+	// Uncommitted draft entry on the linked activity — the pending submit
+	// the resolved gate must serialize against (FK KEY SHARE on the
+	// activity row).
+	entryTx, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = entryTx.Rollback(ctx) }()
+	_, err = entryTx.Exec(ctx,
+		`INSERT INTO time_entries (id, org_id, user_id, activity_id, unit_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, 4.0, 'pending draft', $6, 'draft', false, $6, $6)`,
+		uuid.New(), orgID, requesterID, activityID, unitID, now)
+	require.NoError(t, err)
+
+	// UpdateState(to='resolved') must BLOCK until the entry tx commits —
+	// the in-tx OQ2 check serializes behind the linked-activity FOR UPDATE.
+	actor := requesterID
+	audit := &auditdomain.AuditLog{
+		OrgID: orgID, EntityType: "ticket", EntityID: ticketID, Action: "status_changed",
+		ActorID: &actor, Payload: map[string]any{"from": "in_progress", "to": "resolved"}, CreatedAt: now,
+	}
+	resolveDone := make(chan error, 1)
+	go func() {
+		_, err := repo.UpdateState(ctx, orgID, ticketID, ticketdomain.StatusResolved, nil, audit)
+		resolveDone <- err
+	}()
+
+	select {
+	case err := <-resolveDone:
+		t.Fatalf("resolve returned while a submit was pending (err=%v): the guard must serialize", err)
+	case <-time.After(500 * time.Millisecond):
+		// blocked as expected — the submit holds the activity lock
+	}
+
+	// Commit the submit; UpdateState must now see the non-terminal entry.
+	require.NoError(t, entryTx.Commit(ctx))
+
+	select {
+	case err := <-resolveDone:
+		require.ErrorIs(t, err, ticketdomain.ErrActivityNotTerminal)
+	case <-time.After(15 * time.Second):
+		t.Fatal("resolve did not complete after the pending submit committed")
+	}
+
+	// Ticket unchanged: still in_progress, no status_changed audit.
+	var status string
+	err = pool.QueryRow(ctx, `SELECT status FROM tickets WHERE id = $1`, ticketID).Scan(&status)
+	require.NoError(t, err)
+	require.Equal(t, "in_progress", status)
+
+	var changedAudits int
+	err = pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM audit_logs WHERE entity_type = 'ticket' AND entity_id = $1 AND action = 'status_changed'`,
+		ticketID).Scan(&changedAudits)
+	require.NoError(t, err)
+	require.Zero(t, changedAudits)
+}
+
+// TestLoggedHours_IncludesDescendants pins WR-02: the D-13 Σ (and the
+// dismissal lock) cover the linked-activity SUBTREE, not just the direct
+// customer_ticket-origin activities. Hours logged on a descendant activity
+// must count toward LoggedHours and must block Dismiss — the same "linked"
+// definition as the resolved gate's recursive OQ2 check.
+//
+// RED on the pre-fix code: LoggedHours sums direct activities only (0), and
+// Dismiss succeeds with real logged hours on the descendant.
+func TestLoggedHours_IncludesDescendants(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewTicketRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	requesterID := seedUser(t, pool, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	ticketID := insertTicketWithStatus(t, pool, orgID, requesterID, "triage", now)
+	activityID := insertCustomerTicketActivity(t, pool, orgID, ticketID, now)
+
+	// A CHILD activity under the linked activity — hours logged here are in
+	// the ticket's subtree but not on the direct customer_ticket row.
+	childID := uuid.New()
+	_, err := pool.Exec(ctx,
+		`INSERT INTO activities (id, org_id, parent_id, name, description, kind,
+			governance_model, created_by_org_id, is_shared, is_active, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, '', 'engagement', 'creator_controlled', $2, false, true, $5, $5)`,
+		childID, orgID, activityID, "Child activity", now)
+	require.NoError(t, err)
+
+	// Committed submitted entry on the CHILD.
+	_, err = pool.Exec(ctx,
+		`INSERT INTO time_entries (id, org_id, user_id, activity_id, unit_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, 6.0, 'descendant hours', $6, 'submitted', false, $6, $6)`,
+		uuid.New(), orgID, requesterID, childID, unitID, now)
+	require.NoError(t, err)
+
+	// Pool-level Σ must include the descendant hours (WR-02).
+	hours, err := repo.LoggedHours(ctx, ticketID)
+	require.NoError(t, err)
+	require.Equal(t, 6.0, hours, "LoggedHours must recurse the linked-activity subtree")
+
+	// Dismiss must be blocked by the descendant hours.
+	_, err = repo.Dismiss(ctx, orgID, ticketID, 0, dismissAudit(orgID, ticketID, requesterID, now))
+	require.ErrorIs(t, err, ticketdomain.ErrDismissalBlocked)
+
+	// Ticket unchanged: still triage, no dismissal side effects.
+	var status string
+	err = pool.QueryRow(ctx, `SELECT status FROM tickets WHERE id = $1`, ticketID).Scan(&status)
+	require.NoError(t, err)
+	require.Equal(t, "triage", status)
+}
