@@ -21,6 +21,7 @@ import (
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
+	ticketsvc "github.com/stefanoprivitera/hourglass/internal/core/services/ticket"
 	unitsvc "github.com/stefanoprivitera/hourglass/internal/core/services/unit"
 	wgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/working_group"
 	"github.com/stefanoprivitera/hourglass/internal/db"
@@ -145,6 +146,12 @@ func main() {
 	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, ticketRepo, auditRepo, routingSvc)
 	activityHandler := http.NewActivityHandler(activityService, activityRepo)
 
+	// Tickets — the second capture layer (ADR-P-003 rev). The service takes
+	// the ticket repo + the activity/contract/org repos (triage fast-fails
+	// and validates plans against the org context; D-02 membership checks).
+	ticketService := ticketsvc.NewService(ticketRepo, activityRepo, contractRepo, orgRepo)
+	ticketHandler := http.NewTicketHandler(ticketService)
+
 	expenseService := expsvc.NewService(expenseRepo, wgRepo, activityRepo, unitRepo)
 	expenseHandler := http.NewExpenseHandler(expenseService)
 
@@ -206,6 +213,19 @@ func main() {
 	mux.HandleFunc("GET /activities/{id}/children", middleware.Auth(authService, activityHandler.ListChildren))
 	mux.HandleFunc("POST /activities/{id}/approve-proposal", middleware.Auth(authService, activityHandler.ApproveProposal))
 	mux.HandleFunc("GET /activity-kinds", middleware.Auth(authService, activityHandler.ListKinds))
+
+	// Tickets — 9 routes, all auth-gated (D-15/D-11 gates live in the
+	// service). Deliberately NO DELETE /tickets and no update/delete paths
+	// on comments or history (TICK-05 — append-only stream).
+	mux.HandleFunc("POST /tickets", middleware.Auth(authService, ticketHandler.Create))
+	mux.HandleFunc("GET /tickets", middleware.Auth(authService, ticketHandler.List))
+	mux.HandleFunc("GET /tickets/{id}", middleware.Auth(authService, ticketHandler.Get))
+	mux.HandleFunc("PUT /tickets/{id}", middleware.Auth(authService, ticketHandler.Update))
+	mux.HandleFunc("POST /tickets/{id}/triage", middleware.Auth(authService, ticketHandler.Triage))
+	mux.HandleFunc("POST /tickets/{id}/dismiss", middleware.Auth(authService, ticketHandler.Dismiss))
+	mux.HandleFunc("POST /tickets/{id}/transition", middleware.Auth(authService, ticketHandler.Transition))
+	mux.HandleFunc("POST /tickets/{id}/comments", middleware.Auth(authService, ticketHandler.AddComment))
+	mux.HandleFunc("GET /tickets/{id}/history", middleware.Auth(authService, ticketHandler.History))
 
 	mux.HandleFunc("GET /contracts", middleware.Auth(authService, contractHandler.List))
 	mux.HandleFunc("POST /contracts", middleware.Auth(authService, contractHandler.Create))

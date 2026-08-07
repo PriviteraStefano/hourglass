@@ -21,6 +21,7 @@ import (
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
+	ticketsvc "github.com/stefanoprivitera/hourglass/internal/core/services/ticket"
 	unitsvc "github.com/stefanoprivitera/hourglass/internal/core/services/unit"
 	wgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/working_group"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
@@ -84,6 +85,7 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	contractService := contractsvc.NewService(contractRepo)
 	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo, routingSvc)
 	exportService := exportsvc.NewService(exportRepo)
+	ticketService := ticketsvc.NewService(postgres.NewTicketRepository(pool), activityRepo, contractRepo, orgRepo)
 
 	// Handlers
 	authHandler := NewAuthHandler(hexAuthService, invitationService)
@@ -96,6 +98,7 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	contractHandler := NewContractHandler(contractService)
 	teHandler := NewTimeEntryHandler(teService)
 	exportHandler := NewExportHandler(exportService)
+	ticketHandler := NewTicketHandler(ticketService)
 
 	// ---- Unauthenticated routes ----
 	mux.HandleFunc("POST /auth/register", authHandler.Register)
@@ -190,6 +193,17 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	mux.HandleFunc("POST /time-entries/{id}/approve", middleware.Auth(authSvc, teHandler.Approve))
 	mux.HandleFunc("POST /time-entries/{id}/reject", middleware.Auth(authSvc, teHandler.Reject))
 	mux.HandleFunc("GET /time-entries/pending", middleware.Auth(authSvc, teHandler.ListPending))
+
+	// Tickets — the 9 registered routes (TICK-05: no DELETE route exists).
+	mux.HandleFunc("POST /tickets", middleware.Auth(authSvc, ticketHandler.Create))
+	mux.HandleFunc("GET /tickets", middleware.Auth(authSvc, ticketHandler.List))
+	mux.HandleFunc("GET /tickets/{id}", middleware.Auth(authSvc, ticketHandler.Get))
+	mux.HandleFunc("PUT /tickets/{id}", middleware.Auth(authSvc, ticketHandler.Update))
+	mux.HandleFunc("POST /tickets/{id}/triage", middleware.Auth(authSvc, ticketHandler.Triage))
+	mux.HandleFunc("POST /tickets/{id}/dismiss", middleware.Auth(authSvc, ticketHandler.Dismiss))
+	mux.HandleFunc("POST /tickets/{id}/transition", middleware.Auth(authSvc, ticketHandler.Transition))
+	mux.HandleFunc("POST /tickets/{id}/comments", middleware.Auth(authSvc, ticketHandler.AddComment))
+	mux.HandleFunc("GET /tickets/{id}/history", middleware.Auth(authSvc, ticketHandler.History))
 
 	server := httptest.NewServer(mux)
 
