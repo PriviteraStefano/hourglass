@@ -1,0 +1,117 @@
+{
+  "phase": "13",
+  "phase_name": "Direction Backend — The Plan Plane",
+  "timestamp": "2026-08-07",
+  "areas_completed": [
+    "Schema & est_hours semantics",
+    "Lifecycle & supersede chaining"
+  ],
+  "areas_remaining": [
+    "WG claim model",
+    "Org policy storage & mode",
+    "Coverage read-model & capacity",
+    "Absence warnings & origin fallback"
+  ],
+  "decisions": {
+    "Schema & est_hours semantics": [
+      {
+        "question": "Schema shape — one table with mode derived from planned_date, or split tables?",
+        "answer": "Single direction table (mode derived from planned_date, CHECK-constrained)",
+        "options_presented": [
+          "Single direction table (Recommended)",
+          "Split scheduled/queued tables"
+        ]
+      },
+      {
+        "question": "est_hours semantics: required on scheduled, optional on queued?",
+        "answer": "Required scheduled / optional queued (queued = optional total budget)",
+        "options_presented": [
+          "Required scheduled / optional queued (Recommended)",
+          "Required on both",
+          "Scheduled only"
+        ]
+      },
+      {
+        "question": "Validation: hard reject vs soft warn?",
+        "answer": "Hard per-row (est_hours > 0), soft per-day (Σ over capacity = warning, never block)",
+        "options_presented": [
+          "Hard per-row, soft per-day (Recommended)",
+          "Hard per-day too",
+          "Read-side only"
+        ]
+      },
+      {
+        "question": "Write semantics: in-place edit vs supersede-only?",
+        "answer": "Immutable rows + supersede — replanning creates superseding row (supersedes_id), never edits; audit-first BE-012",
+        "options_presented": [
+          "Immutable rows + supersede (Recommended)",
+          "Editable while draft",
+          "In-place edits + audit"
+        ]
+      },
+      {
+        "question": "Queued rows: what does 'optional total budget' mean?",
+        "answer": "Budget = total estimate for the activity; scheduler pre-fills per-day from remaining capacity (D-AA)",
+        "options_presented": [
+          "Budget = total estimate (Recommended)",
+          "Priority/due_date only"
+        ]
+      },
+      {
+        "question": "Target user XOR WG — DB CHECK or service-only?",
+        "answer": "DB CHECK XOR (house style, mirrors D-01 origin refs)",
+        "options_presented": [
+          "DB CHECK XOR (Recommended)",
+          "Service-level only"
+        ]
+      },
+      {
+        "question": "Queued ordering: priority + due_date shape?",
+        "answer": "priority INT (lower = higher) + due_date DATE, both nullable; ordering priority then due_date",
+        "options_presented": [
+          "INT + due_date, both nullable (Recommended)",
+          "Enum priority",
+          "due_date only"
+        ]
+      }
+    ],
+    "Lifecycle & supersede chaining": [
+      {
+        "question": "Lifecycle transitions — ticket-style matrix, and does draft actually get created?",
+        "answer": "4 transitions + derived states: draft → active → superseded/cancelled (matrix style, audit rows per transition); done/lapsed/claimed derived on read, never stored, no jobs (D-V)",
+        "options_presented": [
+          "4 transitions + derived states (Recommended)",
+          "Create = active",
+          "Ticket-parity state machine"
+        ]
+      },
+      {
+        "question": "Supersede mechanics — implicit via create or explicit endpoint?",
+        "answer": "Implicit via create: creating a new row with supersedes_id flips the old row to superseded in the same transaction; old row keeps audit trail",
+        "options_presented": [
+          "Implicit via create (Recommended)",
+          "Explicit endpoint"
+        ]
+      },
+      {
+        "question": "Derived states — computed on read or materialized?",
+        "answer": "Computed on read in service/read-model (activity terminal → done; past date without hours → lapsed; claim row exists → claimed)",
+        "options_presented": [
+          "Computed on read (Recommended)",
+          "Materialized"
+        ]
+      },
+      {
+        "question": "Cancellation rules — who can cancel, reason required?",
+        "answer": "Reason required (mirroring reject-with-reason); draft and active rows cancellable; cancelled is terminal with audit trail",
+        "options_presented": [
+          "Reason required, both states (Recommended)",
+          "Active-only cancel",
+          "Draft delete + cancel"
+        ]
+      }
+    ]
+  },
+  "deferred_ideas": [],
+  "canonical_refs": []
+}
