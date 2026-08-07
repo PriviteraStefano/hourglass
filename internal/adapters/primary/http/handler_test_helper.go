@@ -19,6 +19,7 @@ import (
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
 	orgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/organization"
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
+	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
 	unitsvc "github.com/stefanoprivitera/hourglass/internal/core/services/unit"
 	wgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/working_group"
@@ -80,7 +81,8 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	orgMgmtService := orgsvc.NewService(orgMgmtRepo, customerService)
 	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo)
 	contractService := contractsvc.NewService(contractRepo)
-	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo)
+	routingSvc := routing.NewService(wgRepo, activityRepo, unitRepo)
+	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo, routingSvc)
 	exportService := exportsvc.NewService(exportRepo)
 
 	// Handlers

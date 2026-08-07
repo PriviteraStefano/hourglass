@@ -20,6 +20,7 @@ import (
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
 	orgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/organization"
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
+	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
 	unitsvc "github.com/stefanoprivitera/hourglass/internal/core/services/unit"
 	wgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/working_group"
@@ -141,7 +142,8 @@ func TestSmoke(t *testing.T) {
 
 	// Entry services — routing resolves through activity → WG chain
 	// (ADR-BE-014 R-1/R-2).
-	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo)
+	routingSvc := routing.NewService(wgRepo, activityRepo, unitRepo)
+	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo, routingSvc)
 	hexTEHandler := http.NewTimeEntryHandler(teService)
 
 	// Register protected routes

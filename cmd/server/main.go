@@ -19,6 +19,7 @@ import (
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
 	orgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/organization"
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
+	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
 	unitsvc "github.com/stefanoprivitera/hourglass/internal/core/services/unit"
 	wgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/working_group"
@@ -131,8 +132,11 @@ func main() {
 
 	// Entry services — routing resolves through activity → WG chain
 	// (ADR-BE-014 R-1/R-2), so they take the working-group + activity + unit
-	// repos.
-	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo)
+	// repos. The routing service is shared: proposal approval (plan 05)
+	// consumes the same resolution so entry and proposal routing cannot drift
+	// (D-G).
+	routingSvc := routing.NewService(wgRepo, activityRepo, unitRepo)
+	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo, routingSvc)
 	hexTEHandler := http.NewTimeEntryHandler(teService)
 
 	expenseService := expsvc.NewService(expenseRepo, wgRepo, activityRepo, unitRepo)

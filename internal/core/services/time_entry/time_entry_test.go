@@ -11,6 +11,7 @@ import (
 	unitdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/unit"
 	wgdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/working_group"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
+	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/testdata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,7 @@ func setupService(t *testing.T) *serviceFixture {
 		activityRepo: &testdata.MockActivityRepo{},
 		unitRepo:     &testdata.MockUnitRepo{},
 	}
-	f.svc = NewService(f.repo, f.approvalRepo, f.wgRepo, f.activityRepo, f.unitRepo)
+	f.svc = NewService(f.repo, f.approvalRepo, f.wgRepo, f.activityRepo, f.unitRepo, routing.NewService(f.wgRepo, f.activityRepo, f.unitRepo))
 	return f
 }
 
