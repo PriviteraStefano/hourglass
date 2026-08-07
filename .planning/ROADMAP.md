@@ -84,7 +84,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 11-06-PLAN.md — Ticket lifecycle backend (TICK-01..05): state machine, atomic triage, dismissal guard, comments, append-only history
+- [x] 11-06-PLAN.md — Ticket lifecycle backend (TICK-01..05): state machine, atomic triage, dismissal guard, comments, append-only history
 
 ### Phase 12: Coverage Backend — The Allocation Loop
 

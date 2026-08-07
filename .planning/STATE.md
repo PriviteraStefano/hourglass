@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
-status: executing
-stopped_at: Completed 11-05-PLAN.md
-last_updated: "2026-08-07T10:40:07.794Z"
+status: verifying
+stopped_at: Completed 11-06-PLAN.md
+last_updated: "2026-08-07T11:45:44.261Z"
 last_activity: 2026-08-07 -- Phase 11 execution started
 progress:
   total_phases: 16
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 5
-  percent: 0
+  completed_plans: 6
+  percent: 6
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 Phase: 11 (foundations-schema-origins-tickets-backend) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-07 -- Phase 11 execution started
 
 ## Accumulated Context
@@ -72,6 +72,9 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase ?]: Dead entry-scoped MockAuditLogRepo in testdata renamed MockTimeEntryAuditLogRepo; the MockAuditLogRepo name now serves the general audit.AuditLog port (zero usages before)
 - [Phase ?]: ApproveProposal flips is_active via the repo Update directly (bypassing the service Update finance gate) — the routing approver check IS the gate; self-approval checked before routing so no-self-approval is deterministic even on D-11 skipToFinance paths
 - [Phase ?]: Proposer primary-unit lookup degrades to uuid.Nil on malformed unit IDs (no panic); routing then falls to the terminal role-gated resolution
+- [Phase 11-foundations-schema-origins-tickets-backend]: Transition rejects to==dismissed: the pinned matrix's dismissal edges (open/triage -> dismissed) are consumed ONLY by Dismiss — the guarded path with the D-11 role gate + D-13 hours guard + dismissed_hours snapshot. Allowing them in Transition would let an owner/assignee bypass the guard (T-11-07) — Security fix (Rule 2): without the block, an owner/assignee could dismiss a ticket with logged hours via the transition endpoint, bypassing the D-13 guard that TICK-04 mandates
+- [Phase 11-foundations-schema-origins-tickets-backend]: Triage implements the service-level fast-fail (KindExists/parent/contract same-org) as optional UX exactly as planned — the repo's in-tx SELECT EXISTS checks remain the correctness guarantee with DB FK/CHECK constraints as the third line (Pitfall 7, T-11-06) — Plan said the service MAY fast-fail; unit tests exercise the fast-fail, the contract test proves the in-tx gate
+- [Phase 11-foundations-schema-origins-tickets-backend]: Dismissal-guard contract test links the activity via the OQ5 customer_ticket path on an open ticket (the exact shape the guard must catch) rather than via triage — triage moves the ticket to planned, from which dismissal is illegal per the matrix — Test correctness: the 409 scenario must hold while the ticket is open|triage
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -117,8 +120,8 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 
 ## Session Continuity
 
-Last session: 2026-08-07T10:40:07.788Z
-Stopped at: Completed 11-05-PLAN.md
+Last session: 2026-08-07T11:45:44.253Z
+Stopped at: Completed 11-06-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
@@ -131,3 +134,4 @@ Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets b
 | Phase 11-foundations-schema-origins-tickets-backend P02 | 12min | 3 tasks | 5 files |
 | Phase 11-foundations-schema-origins-tickets-backend P04 | 7min | 2 tasks | 6 files |
 | Phase 11-foundations-schema-origins-tickets-backend P05 | 10min | 3 tasks | 21 files |
+| Phase 11-foundations-schema-origins-tickets-backend P06 | 44min | 3 tasks | 11 files |
