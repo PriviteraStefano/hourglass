@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
 	auditdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
 	ticketdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/ticket"
@@ -334,4 +335,274 @@ func TestTicketRepository_NoAuditMutation(t *testing.T) {
 	} {
 		require.NotContains(t, string(src), forbidden, "repo must not mutate the append-only stream")
 	}
+}
+
+// ---------------------------------------------------------------------------
+// CR-01 gap-closure battery (11-07) — concurrency invariants for the ticket
+// state machine + dismissal guard (VERIFICATION.md gaps 1+2).
+//
+// These tests are RED on the pre-fix code (pool-level checks, no FOR UPDATE
+// on Dismiss/UpdateState, no status precondition) and GREEN after the in-tx
+// re-validation lands. The goroutine races replicate the house pattern from
+// TestRefreshTokenRepository_Rotate_ConcurrentRace: a start channel + a
+// buffered results channel, asserting the deterministic outcome set — no
+// wall-clock timing decides anything, only the FOR UPDATE row lock.
+// ---------------------------------------------------------------------------
+
+// insertTicketWithStatus is a raw seeding helper for the battery (mirrors
+// TestTicketRepository_TriageAuditRows' seeding shape).
+func insertTicketWithStatus(t *testing.T, pool *pgxpool.Pool, orgID, requesterID uuid.UUID, status string, now time.Time) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO tickets (id, org_id, title, description, kind, status, requester_id, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+		id, orgID, "Race ticket", "", "bug", status, requesterID, now)
+	require.NoError(t, err)
+	return id
+}
+
+// insertCustomerTicketActivity seeds a linked activity with the
+// customer_ticket origin — the shape Triage produces (D-10, TICK-03).
+func insertCustomerTicketActivity(t *testing.T, pool *pgxpool.Pool, orgID, ticketID uuid.UUID, now time.Time) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO activities (id, org_id, parent_id, name, description, kind,
+			governance_model, created_by_org_id, is_shared, is_active,
+			origin_type, ticket_id, created_at, updated_at)
+		 VALUES ($1, $2, NULL, $3, '', 'engagement', 'creator_controlled', $2, false, true,
+			'customer_ticket', $4, $5, $5)`,
+		id, orgID, "Linked activity", ticketID, now)
+	require.NoError(t, err)
+	return id
+}
+
+// dismissAudit builds the 'dismissed' audit row the service would pass.
+func dismissAudit(orgID, ticketID, actorID uuid.UUID, now time.Time) *auditdomain.AuditLog {
+	return &auditdomain.AuditLog{
+		OrgID:      orgID,
+		EntityType: "ticket",
+		EntityID:   ticketID,
+		Action:     "dismissed",
+		ActorID:    &actorID,
+		Payload:    map[string]any{"hours": float64(0)},
+		CreatedAt:  now,
+	}
+}
+
+// TestDismissalGuard_RaceWithPendingSubmit is the deterministic 2-tx pin for
+// CR-01 race 3 (TICK-04, T-11-07): the dismissal Σ must be re-computed inside
+// the dismiss tx, serialized against the entry-submit path by the linked-
+// activity FOR UPDATE lock. An uncommitted submitted time-entry INSERT on a
+// linked activity must BLOCK Dismiss; after that entry tx commits, Dismiss
+// must observe the Σ and refuse with ErrDismissalBlocked — never commit a
+// dismissal with dismissed_hours=0 while committed logged hours exist.
+//
+// RED on the pre-fix code: the lock-free Dismiss returns success immediately
+// while the submit is still in flight (check-then-act bypass).
+func TestDismissalGuard_RaceWithPendingSubmit(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewTicketRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	requesterID := seedUser(t, pool, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	ticketID := insertTicketWithStatus(t, pool, orgID, requesterID, "triage", now)
+	activityID := insertCustomerTicketActivity(t, pool, orgID, ticketID, now)
+
+	// Uncommitted submitted entry on the linked activity — the pending submit
+	// the guard must serialize against (FK KEY SHARE on the activity row).
+	entryTx, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = entryTx.Rollback(ctx) }()
+	_, err = entryTx.Exec(ctx,
+		`INSERT INTO time_entries (id, org_id, user_id, activity_id, unit_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, 5.0, 'pending submit', $6, 'submitted', false, $6, $6)`,
+		uuid.New(), orgID, requesterID, activityID, unitID, now)
+	require.NoError(t, err)
+
+	// Dismiss must BLOCK until the entry tx commits — the in-tx Σ serializes
+	// behind the linked-activity FOR UPDATE. If it returns while the submit
+	// is still pending, the guard has been bypassed (the pre-fix bug).
+	dismissDone := make(chan error, 1)
+	go func() {
+		_, err := repo.Dismiss(ctx, orgID, ticketID, 0, dismissAudit(orgID, ticketID, requesterID, now))
+		dismissDone <- err
+	}()
+
+	select {
+	case err := <-dismissDone:
+		t.Fatalf("dismiss returned while a submit was pending (err=%v): the guard must serialize", err)
+	case <-time.After(500 * time.Millisecond):
+		// blocked as expected — the submit holds the activity lock
+	}
+
+	// Commit the submit; Dismiss must now see the Σ and refuse.
+	require.NoError(t, entryTx.Commit(ctx))
+
+	select {
+	case err := <-dismissDone:
+		require.ErrorIs(t, err, ticketdomain.ErrDismissalBlocked)
+	case <-time.After(15 * time.Second):
+		t.Fatal("dismiss did not complete after the pending submit committed")
+	}
+
+	// Ticket unchanged: still 'triage', dismissed_hours NULL, no dismissed audit.
+	var status string
+	var dismissedHours *float64
+	err = pool.QueryRow(ctx,
+		`SELECT status, dismissed_hours FROM tickets WHERE id = $1`, ticketID).Scan(&status, &dismissedHours)
+	require.NoError(t, err)
+	require.Equal(t, "triage", status)
+	require.Nil(t, dismissedHours, "dismissal must not commit dismissed_hours when blocked")
+
+	var dismissedAudits int
+	err = pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM audit_logs WHERE entity_type = 'ticket' AND entity_id = $1 AND action = 'dismissed'`,
+		ticketID).Scan(&dismissedAudits)
+	require.NoError(t, err)
+	require.Zero(t, dismissedAudits)
+}
+
+// TestDismissalRace_VsTriage fires repo.Triage and repo.Dismiss concurrently
+// on a 'triage' ticket and asserts the deterministic outcome set (CR-01 race
+// 1 + 2): EXACTLY ONE succeeds and the loser gets ErrInvalidTransition, with
+// the final state consistent with the winner — a dismissed (terminal) ticket
+// can never be resurrected to 'planned', and 'planned → dismissed' never
+// lands.
+//
+// RED on the pre-fix code: both goroutines succeed today (Triage never
+// validates currentStatus; Dismiss writes lock-free).
+func TestDismissalRace_VsTriage(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewTicketRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	requesterID := seedUser(t, pool, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	ticketID := insertTicketWithStatus(t, pool, orgID, requesterID, "triage", now)
+	actor := requesterID
+
+	kind := ticketdomain.KindBug
+	plans := []*activitydomain.CreateActivityRequest{
+		{
+			Name:            "Race activity",
+			Kind:            activitydomain.ActivityKind("engagement"),
+			GovernanceModel: models.GovernanceCreatorControlled,
+		},
+	}
+	audits := []*auditdomain.AuditLog{
+		{OrgID: orgID, EntityType: "ticket", EntityID: ticketID, Action: "triaged", ActorID: &actor, CreatedAt: now},
+		{OrgID: orgID, EntityType: "ticket", EntityID: ticketID, Action: "activities_created", ActorID: &actor, CreatedAt: now},
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	go func() {
+		<-start
+		_, _, err := repo.Triage(ctx, orgID, ticketID, &kind, plans, audits)
+		results <- err
+	}()
+	go func() {
+		<-start
+		_, err := repo.Dismiss(ctx, orgID, ticketID, 0, dismissAudit(orgID, ticketID, requesterID, now))
+		results <- err
+	}()
+	close(start)
+
+	successes := 0
+	var loserErr error
+	for i := 0; i < 2; i++ {
+		err := <-results
+		if err == nil {
+			successes++
+		} else {
+			loserErr = err
+		}
+	}
+	require.Equal(t, 1, successes, "exactly one of triage/dismiss must win the race")
+	require.ErrorIs(t, loserErr, ticketdomain.ErrInvalidTransition, "the race loser must fail with the matrix error")
+
+	// Winner-consistent final state.
+	var status string
+	err := pool.QueryRow(ctx, `SELECT status FROM tickets WHERE id = $1`, ticketID).Scan(&status)
+	require.NoError(t, err)
+
+	var activityCount int
+	err = pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket'`,
+		ticketID).Scan(&activityCount)
+	require.NoError(t, err)
+
+	if status == ticketdomain.StatusDismissed {
+		require.Zero(t, activityCount, "dismiss winner leaves zero customer_ticket activities")
+		var triagedAudits int
+		err = pool.QueryRow(ctx,
+			`SELECT COUNT(*) FROM audit_logs WHERE entity_type = 'ticket' AND entity_id = $1 AND action = 'triaged'`,
+			ticketID).Scan(&triagedAudits)
+		require.NoError(t, err)
+		require.Zero(t, triagedAudits, "dismiss winner leaves zero 'triaged' audit rows")
+	} else {
+		require.Equal(t, ticketdomain.StatusPlanned, status, "triage winner flips the ticket to 'planned'")
+		require.Equal(t, 1, activityCount, "triage winner creates exactly one customer_ticket activity")
+		var triagedAudits, activitiesCreatedAudits int
+		err = pool.QueryRow(ctx,
+			`SELECT COUNT(*) FROM audit_logs WHERE entity_type = 'ticket' AND entity_id = $1 AND action = 'triaged'`,
+			ticketID).Scan(&triagedAudits)
+		require.NoError(t, err)
+		err = pool.QueryRow(ctx,
+			`SELECT COUNT(*) FROM audit_logs WHERE entity_type = 'ticket' AND entity_id = $1 AND action = 'activities_created'`,
+			ticketID).Scan(&activitiesCreatedAudits)
+		require.NoError(t, err)
+		require.Equal(t, 1, triagedAudits)
+		require.Equal(t, 1, activitiesCreatedAudits)
+	}
+}
+
+// TestDismiss_RejectsPlanned pins race 2's illegal edge sequentially: a
+// 'planned' ticket can never be dismissed (the matrix has no
+// planned → dismissed edge) — the in-tx re-check must reject it even though
+// the pool-level service check was bypassed (direct repo call).
+//
+// RED on the pre-fix code: Dismiss has no matrix re-check at all.
+func TestDismiss_RejectsPlanned(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewTicketRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	requesterID := seedUser(t, pool, now)
+
+	ticketID := insertTicketWithStatus(t, pool, orgID, requesterID, "planned", now)
+
+	_, err := repo.Dismiss(ctx, orgID, ticketID, 0, dismissAudit(orgID, ticketID, requesterID, now))
+	require.ErrorIs(t, err, ticketdomain.ErrInvalidTransition, "planned → dismissed is illegal per the locked matrix")
+
+	// The ticket stays 'planned' with no dismissal side effects.
+	var status string
+	err = pool.QueryRow(ctx, `SELECT status FROM tickets WHERE id = $1`, ticketID).Scan(&status)
+	require.NoError(t, err)
+	require.Equal(t, "planned", status)
+
+	var dismissedAudits int
+	err = pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM audit_logs WHERE entity_type = 'ticket' AND entity_id = $1 AND action = 'dismissed'`,
+		ticketID).Scan(&dismissedAudits)
+	require.NoError(t, err)
+	require.Zero(t, dismissedAudits)
 }
