@@ -79,9 +79,9 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	wgService := wgsvc.NewService(wgRepo)
 	customerService := customersvc.NewService(customerRepo)
 	orgMgmtService := orgsvc.NewService(orgMgmtRepo, customerService)
-	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo)
-	contractService := contractsvc.NewService(contractRepo)
 	routingSvc := routing.NewService(wgRepo, activityRepo, unitRepo)
+	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, postgres.NewTicketRepository(pool), postgres.NewGeneralAuditLogRepository(pool), routingSvc)
+	contractService := contractsvc.NewService(contractRepo)
 	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo, routingSvc)
 	exportService := exportsvc.NewService(exportRepo)
 

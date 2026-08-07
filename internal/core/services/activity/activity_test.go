@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
 	contractdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/contract"
+	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/testdata"
 	"github.com/stefanoprivitera/hourglass/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +19,11 @@ func setupService(t *testing.T) (*Service, *testdata.MockActivityRepo, *testdata
 	activityRepo := &testdata.MockActivityRepo{}
 	contractRepo := &testdata.MockContractRepo{}
 	unitRepo := &testdata.MockUnitRepo{}
-	svc := NewService(activityRepo, contractRepo, unitRepo)
+	orgRepo := &testdata.MockOrgRepo{}
+	ticketRepo := &testdata.MockTicketRepo{}
+	auditRepo := &testdata.MockAuditLogRepo{}
+	routingSvc := routing.NewService(&testdata.MockWorkingGroupRepo{}, activityRepo, unitRepo)
+	svc := NewService(activityRepo, contractRepo, unitRepo, orgRepo, ticketRepo, auditRepo, routingSvc)
 	return svc, activityRepo, contractRepo, unitRepo
 }
 
@@ -50,7 +55,7 @@ func TestService_Create(t *testing.T) {
 		svc, repo, _, _ := setupService(t)
 		repo.Kinds = map[string]bool{orgID.String() + ":engagement": true}
 
-		created, err := svc.Create(context.Background(), orgID, validCreateReq())
+		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), validCreateReq())
 		require.NoError(t, err)
 		require.NotNil(t, created)
 		assert.Equal(t, "Engagement Alpha", created.Name)
@@ -62,7 +67,7 @@ func TestService_Create(t *testing.T) {
 		svc, _, _, _ := setupService(t)
 		req := validCreateReq()
 		req.Name = ""
-		created, err := svc.Create(context.Background(), orgID, req)
+		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), req)
 		assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)
 		assert.Nil(t, created)
 	})
@@ -71,7 +76,7 @@ func TestService_Create(t *testing.T) {
 		svc, _, _, _ := setupService(t)
 		req := validCreateReq()
 		req.GovernanceModel = "anarchy"
-		created, err := svc.Create(context.Background(), orgID, req)
+		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), req)
 		assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)
 		assert.Nil(t, created)
 	})
@@ -83,7 +88,7 @@ func TestService_Create(t *testing.T) {
 		req := validCreateReq()
 		req.Kind = "phase"
 
-		created, err := svc.Create(context.Background(), orgID, req)
+		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), req)
 		assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)
 		assert.Nil(t, created)
 	})
@@ -98,7 +103,7 @@ func TestService_Create(t *testing.T) {
 
 		req := validCreateReq()
 		req.ParentID = &parent.ID
-		created, err := svc.Create(context.Background(), orgID, req)
+		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), req)
 		assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)
 		assert.Nil(t, created)
 	})
@@ -109,7 +114,7 @@ func TestService_Create(t *testing.T) {
 
 		req := validCreateReq()
 		req.ParentID = ptr(uuid.New())
-		created, err := svc.Create(context.Background(), orgID, req)
+		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), req)
 		assert.ErrorIs(t, err, activitydomain.ErrActivityNotFound)
 		assert.Nil(t, created)
 	})
@@ -121,7 +126,7 @@ func TestService_Create(t *testing.T) {
 
 		req := validCreateReq()
 		req.ParentID = &parent.ID
-		created, err := svc.Create(context.Background(), orgID, req)
+		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), req)
 		require.NoError(t, err)
 		require.NotNil(t, created)
 		assert.Equal(t, parent.ID, *created.ParentID)
@@ -133,7 +138,7 @@ func TestService_Create(t *testing.T) {
 
 		req := validCreateReq()
 		req.ContractID = ptr(uuid.New())
-		created, err := svc.Create(context.Background(), orgID, req)
+		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), req)
 		assert.ErrorIs(t, err, contractdomain.ErrContractNotFound)
 		assert.Nil(t, created)
 	})
@@ -148,7 +153,7 @@ func TestService_Create(t *testing.T) {
 
 		req := validCreateReq()
 		req.ContractID = &cid
-		created, err := svc.Create(context.Background(), orgID, req)
+		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), req)
 		require.NoError(t, err)
 		require.NotNil(t, created)
 		assert.Equal(t, cid, *created.ContractID)
@@ -163,7 +168,7 @@ func TestService_Create(t *testing.T) {
 			Kind:            "internal",
 			GovernanceModel: models.GovernanceCreatorControlled,
 		}
-		created, err := svc.Create(context.Background(), orgID, req)
+		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), req)
 		require.NoError(t, err)
 		require.NotNil(t, created)
 		assert.Nil(t, created.ContractID)

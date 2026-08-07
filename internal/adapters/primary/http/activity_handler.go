@@ -43,6 +43,15 @@ type CreateActivityRequest struct {
 	IsShared        bool                   `json:"is_shared"`
 	Billable        *bool                  `json:"billable"`
 	BudgetAmount    *float64               `json:"budget_amount"`
+	IsActive        *bool                  `json:"is_active"`
+
+	// Origin axis (ADR-P-013): strings parsed to pointers; empty → nil.
+	OriginType string `json:"origin_type"`
+	AssignedBy string `json:"assigned_by"`
+	AssignedTo string `json:"assigned_to"`
+	ProposedBy string `json:"proposed_by"`
+	ReviewedBy string `json:"reviewed_by"`
+	TicketID   string `json:"ticket_id"`
 }
 
 type UpdateActivityRequest struct {
@@ -56,6 +65,28 @@ type UpdateActivityRequest struct {
 	Billable        *bool                   `json:"billable,omitempty"`
 	BudgetAmount    *float64                `json:"budget_amount,omitempty"`
 	IsActive        *bool                   `json:"is_active,omitempty"`
+
+	// Origin fields present so the service immutability guard can reject
+	// them (D-03); the repo UPDATE never touches origin columns.
+	OriginType *string `json:"origin_type,omitempty"`
+	AssignedBy *string `json:"assigned_by,omitempty"`
+	AssignedTo *string `json:"assigned_to,omitempty"`
+	ProposedBy *string `json:"proposed_by,omitempty"`
+	ReviewedBy *string `json:"reviewed_by,omitempty"`
+	TicketID   *string `json:"ticket_id,omitempty"`
+}
+
+// parseOptionalUUID parses an ID string into a pointer, returning nil for
+// empty strings and surfacing malformed UUIDs to the caller.
+func parseOptionalUUID(s string) (*uuid.UUID, error) {
+	if s == "" {
+		return nil, nil
+	}
+	id, err := uuid.Parse(s)
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
 }
 
 // ActivityDetailResponse is the GET /api/activities/:id payload: the activity
@@ -122,6 +153,7 @@ func (h *ActivityHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var err error
 	svcReq := &activitydomain.CreateActivityRequest{
 		Name:            req.Name,
 		Description:     req.Description,
@@ -130,6 +162,7 @@ func (h *ActivityHandler) Create(w http.ResponseWriter, r *http.Request) {
 		IsShared:        req.IsShared,
 		Billable:        req.Billable,
 		BudgetAmount:    req.BudgetAmount,
+		IsActive:        req.IsActive,
 	}
 	if req.ParentID != "" {
 		pid, err := uuid.Parse(req.ParentID)
@@ -148,11 +181,44 @@ func (h *ActivityHandler) Create(w http.ResponseWriter, r *http.Request) {
 		svcReq.ContractID = &cid
 	}
 
-	activity, err := h.service.Create(r.Context(), orgID, svcReq)
+	// Origin payload (ADR-P-013): empty strings parse to nil; malformed
+	// UUIDs are rejected at the boundary.
+	if req.OriginType != "" {
+		svcReq.OriginType = &req.OriginType
+	}
+	svcReq.AssignedBy, err = parseOptionalUUID(req.AssignedBy)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid assigned_by")
+		return
+	}
+	svcReq.AssignedTo, err = parseOptionalUUID(req.AssignedTo)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid assigned_to")
+		return
+	}
+	svcReq.ProposedBy, err = parseOptionalUUID(req.ProposedBy)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid proposed_by")
+		return
+	}
+	svcReq.ReviewedBy, err = parseOptionalUUID(req.ReviewedBy)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid reviewed_by")
+		return
+	}
+	svcReq.TicketID, err = parseOptionalUUID(req.TicketID)
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid ticket_id")
+		return
+	}
+
+	activity, err := h.service.Create(r.Context(), middleware.GetRole(r.Context()), orgID, middleware.GetUserID(r.Context()), svcReq)
 	if err != nil {
 		switch {
 		case errors.Is(err, activitydomain.ErrInvalidRequest):
 			api.RespondWithError(w, http.StatusBadRequest, "invalid activity payload")
+		case errors.Is(err, activitydomain.ErrForbidden):
+			api.RespondWithError(w, http.StatusForbidden, "not allowed to create this activity")
 		case errors.Is(err, activitydomain.ErrActivityNotFound):
 			api.RespondWithError(w, http.StatusBadRequest, "parent activity not found")
 		default:
@@ -279,6 +345,34 @@ func (h *ActivityHandler) Update(w http.ResponseWriter, r *http.Request) {
 		svcReq.IsActive = req.IsActive
 	}
 
+	// Origin fields pass through so the service immutability guard rejects
+	// them with ErrOriginImmutable (D-03) — malformed UUIDs are boundary 400s.
+	originFields := []struct {
+		src  *string
+		dst  **uuid.UUID
+		name string
+	}{
+		{req.AssignedBy, &svcReq.AssignedBy, "assigned_by"},
+		{req.AssignedTo, &svcReq.AssignedTo, "assigned_to"},
+		{req.ProposedBy, &svcReq.ProposedBy, "proposed_by"},
+		{req.ReviewedBy, &svcReq.ReviewedBy, "reviewed_by"},
+		{req.TicketID, &svcReq.TicketID, "ticket_id"},
+	}
+	if req.OriginType != nil {
+		svcReq.OriginType = req.OriginType
+	}
+	for _, f := range originFields {
+		if f.src == nil {
+			continue
+		}
+		parsed, err := parseOptionalUUID(*f.src)
+		if err != nil {
+			api.RespondWithError(w, http.StatusBadRequest, "invalid "+f.name)
+			return
+		}
+		*f.dst = parsed
+	}
+
 	updated, err := h.service.Update(r.Context(), middleware.GetRole(r.Context()), orgID, activityID, svcReq)
 	if err != nil {
 		switch {
@@ -286,6 +380,8 @@ func (h *ActivityHandler) Update(w http.ResponseWriter, r *http.Request) {
 			api.RespondWithError(w, http.StatusForbidden, "only finance users can update activities")
 		case errors.Is(err, activitydomain.ErrActivityNotFound):
 			api.RespondWithError(w, http.StatusNotFound, "activity not found")
+		case errors.Is(err, activitydomain.ErrOriginImmutable):
+			api.RespondWithError(w, http.StatusConflict, "origin refs are immutable after creation")
 		case errors.Is(err, activitydomain.ErrInvalidRequest):
 			api.RespondWithError(w, http.StatusBadRequest, "invalid activity payload")
 		case errors.Is(err, activitydomain.ErrActivityCycle):

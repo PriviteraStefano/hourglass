@@ -29,6 +29,22 @@ var (
 	// the repository's GetAncestry of the proposed parent and rejects when the
 	// chain contains the activity's own id (ADR-BE-001 sentinel pattern).
 	ErrActivityCycle = errors.New("activity parent would create a cycle")
+	// ErrOriginImmutable rejects any update request carrying origin fields
+	// (D-03): the origin discriminator and its reference set are fixed at
+	// creation and never mutate (T-11-10).
+	ErrOriginImmutable = errors.New("origin refs are immutable after creation")
+)
+
+// Origin type vocabulary (ADR-P-013, D-D) — mirrors the DB CHECK on
+// activities.origin_type:
+//   - manager_assignment → assigned_by/assigned_to (D-01)
+//   - employee_proposal → proposed_by (reviewed_by stays NULL — OQ1; the
+//     approver lives in the proposal_approved audit row, D-12)
+//   - customer_ticket → ticket_id (D-02)
+const (
+	OriginTypeManagerAssignment = "manager_assignment"
+	OriginTypeEmployeeProposal  = "employee_proposal"
+	OriginTypeCustomerTicket    = "customer_ticket"
 )
 
 // ActivityKind is a free label from the org-level activity_kinds catalog (D-2).
@@ -54,6 +70,15 @@ type Activity struct {
 	IsActive        bool                   `json:"is_active"`
 	CreatedAt       time.Time              `json:"created_at"`
 	UpdatedAt       time.Time              `json:"updated_at"`
+
+	// Origin axis (ADR-P-013, D-D): the discriminator + reference set, set
+	// once at creation and immutable afterwards (D-03). Null on legacy rows.
+	OriginType *string    `json:"origin_type,omitempty"`
+	AssignedBy *uuid.UUID `json:"assigned_by,omitempty"`
+	AssignedTo *uuid.UUID `json:"assigned_to,omitempty"`
+	ProposedBy *uuid.UUID `json:"proposed_by,omitempty"`
+	ReviewedBy *uuid.UUID `json:"reviewed_by,omitempty"` // stays NULL at create (OQ1)
+	TicketID   *uuid.UUID `json:"ticket_id,omitempty"`
 }
 
 // ActivityResponse decorates an Activity with joined display fields.
@@ -103,6 +128,15 @@ type CreateActivityRequest struct {
 	IsShared        bool                   `json:"is_shared"`
 	Billable        *bool                  `json:"billable,omitempty"`
 	BudgetAmount    *float64               `json:"budget_amount,omitempty"`
+	IsActive        *bool                  `json:"is_active,omitempty"` // nil → true; employee proposals are forced false (D-12)
+
+	// Origin axis (ADR-P-013): validated per type in the service. Set-once.
+	OriginType *string    `json:"origin_type,omitempty"`
+	AssignedBy *uuid.UUID `json:"assigned_by,omitempty"`
+	AssignedTo *uuid.UUID `json:"assigned_to,omitempty"`
+	ProposedBy *uuid.UUID `json:"proposed_by,omitempty"`
+	ReviewedBy *uuid.UUID `json:"reviewed_by,omitempty"`
+	TicketID   *uuid.UUID `json:"ticket_id,omitempty"`
 }
 
 // UpdateActivityRequest is the DTO for updating an activity.
@@ -117,6 +151,15 @@ type UpdateActivityRequest struct {
 	Billable        *bool                  `json:"billable,omitempty"`
 	BudgetAmount    *float64               `json:"budget_amount,omitempty"`
 	IsActive        *bool                  `json:"is_active,omitempty"`
+
+	// Origin fields are present so the service immutability guard can reject
+	// them (D-03, T-11-10); the repo UPDATE never touches origin columns.
+	OriginType *string    `json:"origin_type,omitempty"`
+	AssignedBy *uuid.UUID `json:"assigned_by,omitempty"`
+	AssignedTo *uuid.UUID `json:"assigned_to,omitempty"`
+	ProposedBy *uuid.UUID `json:"proposed_by,omitempty"`
+	ReviewedBy *uuid.UUID `json:"reviewed_by,omitempty"`
+	TicketID   *uuid.UUID `json:"ticket_id,omitempty"`
 }
 
 // ActivityFilter filters the List query.

@@ -451,3 +451,129 @@ func TestActivityRepository_HasActiveExpenses(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, has)
 }
+
+// ---------------------------------------------------------------------------
+// TestActivityOrigin* — origin axis persistence (ADR-P-013, D-D)
+// ---------------------------------------------------------------------------
+
+// TestActivityOrigin_CreateReadBack covers a manager-assignment origin
+// created through the repo and read back with its refs intact.
+func TestActivityOrigin_CreateReadBack(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewActivityRepository(pool)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	assignedBy := seedUser(t, pool, now)
+	assignedTo := seedUser(t, pool, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	ot := activitydomain.OriginTypeManagerAssignment
+	req := &activitydomain.CreateActivityRequest{
+		Name:            "Assigned Work",
+		Kind:            "engagement",
+		GovernanceModel: "creator_controlled",
+		OriginType:      &ot,
+		AssignedBy:      &assignedBy,
+		AssignedTo:      &assignedTo,
+	}
+	created, err := repo.Create(context.Background(), orgID, req)
+	require.NoError(t, err)
+	require.NotNil(t, created.OriginType)
+	require.Equal(t, activitydomain.OriginTypeManagerAssignment, *created.OriginType)
+	require.NotNil(t, created.AssignedBy)
+	require.Equal(t, assignedBy, *created.AssignedBy)
+	require.NotNil(t, created.AssignedTo)
+	require.Equal(t, assignedTo, *created.AssignedTo)
+	require.Nil(t, created.ProposedBy)
+	require.Nil(t, created.TicketID)
+
+	// Get reads the same origin back
+	got, err := repo.Get(context.Background(), orgID, created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.OriginType)
+	require.Equal(t, activitydomain.OriginTypeManagerAssignment, *got.OriginType)
+	require.NotNil(t, got.AssignedBy)
+	require.Equal(t, assignedBy, *got.AssignedBy)
+}
+
+// TestActivityOrigin_UpdateKeepsOrigin covers the D-03 immutability through
+// the repo: the UPDATE path never touches origin columns, so a name update
+// leaves the stored origin untouched.
+func TestActivityOrigin_UpdateKeepsOrigin(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewActivityRepository(pool)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	proposer := seedUser(t, pool, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	ot := activitydomain.OriginTypeEmployeeProposal
+	falseVal := false
+	req := &activitydomain.CreateActivityRequest{
+		Name:            "Proposal Work",
+		Kind:            "engagement",
+		GovernanceModel: "creator_controlled",
+		OriginType:      &ot,
+		ProposedBy:      &proposer,
+		IsActive:        &falseVal,
+	}
+	created, err := repo.Create(context.Background(), orgID, req)
+	require.NoError(t, err)
+	require.False(t, created.IsActive)
+
+	// rename via Update — the origin columns are absent from the SET clause
+	updated, err := repo.Update(context.Background(), orgID, created.ID, &activitydomain.UpdateActivityRequest{Name: "Renamed"})
+	require.NoError(t, err)
+	require.Equal(t, "Renamed", updated.Name)
+	require.NotNil(t, updated.OriginType)
+	require.Equal(t, activitydomain.OriginTypeEmployeeProposal, *updated.OriginType)
+	require.NotNil(t, updated.ProposedBy)
+	require.Equal(t, proposer, *updated.ProposedBy)
+	require.False(t, updated.IsActive)
+}
+
+// TestActivityOrigin_ProposalCreateReadBack covers the employee-proposal
+// persistence path end-to-end: is_active=false at create (D-12), proposed_by
+// stored, reviewed_by NULL.
+func TestActivityOrigin_ProposalCreateReadBack(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewActivityRepository(pool)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	proposer := seedUser(t, pool, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	ot := activitydomain.OriginTypeEmployeeProposal
+	falseVal := false
+	created, err := repo.Create(context.Background(), orgID, &activitydomain.CreateActivityRequest{
+		Name:            "Proposal",
+		Kind:            "engagement",
+		GovernanceModel: "creator_controlled",
+		OriginType:      &ot,
+		ProposedBy:      &proposer,
+		IsActive:        &falseVal,
+	})
+	require.NoError(t, err)
+	require.False(t, created.IsActive)
+	require.NotNil(t, created.ProposedBy)
+	require.Equal(t, proposer, *created.ProposedBy)
+	require.Nil(t, created.ReviewedBy)
+
+	// legacy path: nil IsActive still defaults to true
+	legacy, err := repo.Create(context.Background(), orgID, &activitydomain.CreateActivityRequest{
+		Name:            "Legacy",
+		Kind:            "engagement",
+		GovernanceModel: "creator_controlled",
+	})
+	require.NoError(t, err)
+	require.True(t, legacy.IsActive)
+}

@@ -530,6 +530,15 @@ func (m *MockActivityRepo) Create(ctx context.Context, orgID uuid.UUID, req *act
 	a.Billable = req.Billable
 	a.BudgetAmount = req.BudgetAmount
 	a.IsActive = true
+	if req.IsActive != nil {
+		a.IsActive = *req.IsActive
+	}
+	a.OriginType = req.OriginType
+	a.AssignedBy = req.AssignedBy
+	a.AssignedTo = req.AssignedTo
+	a.ProposedBy = req.ProposedBy
+	a.ReviewedBy = req.ReviewedBy
+	a.TicketID = req.TicketID
 	m.Activities[a.ID] = a
 	return a, nil
 }

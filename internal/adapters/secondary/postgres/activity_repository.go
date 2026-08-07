@@ -33,6 +33,7 @@ func baseActivityQuery() string {
 	return `SELECT a.id, a.org_id, a.parent_id, a.name, a.description, a.kind, a.contract_id,
 		a.governance_model, a.created_by_org_id, a.is_shared, a.billable, a.budget_amount,
 		a.is_active, a.created_at, a.updated_at,
+		a.origin_type, a.assigned_by, a.assigned_to, a.proposed_by, a.reviewed_by, a.ticket_id,
 		COALESCE(p.name, '') AS parent_name,
 		COALESCE(c.name, '') AS contract_name,
 		COALESCE(o.name, '') AS created_by_org_name,
@@ -117,16 +118,22 @@ func (r *ActivityRepository) Get(ctx context.Context, orgID, activityID uuid.UUI
 	return res, nil
 }
 
-// Create inserts a new activity and returns the full response.
+// Create inserts a new activity and returns the full response. is_active
+// defaults to true when the request leaves it nil (COALESCE(req.IsActive,
+// true) — legacy behavior unchanged); employee proposals are forced false
+// by the service before this point (D-12).
 func (r *ActivityRepository) Create(ctx context.Context, orgID uuid.UUID, req *activitydomain.CreateActivityRequest) (*activitydomain.ActivityResponse, error) {
 	id := uuid.New()
 
 	_, err := r.pool.Exec(ctx, `INSERT INTO activities (id, org_id, parent_id, name, description, kind,
 		contract_id, governance_model, created_by_org_id, is_shared, billable, budget_amount,
+		origin_type, assigned_by, assigned_to, proposed_by, reviewed_by, ticket_id,
 		is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true, NOW(), NOW())`,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, COALESCE($19, true), NOW(), NOW())`,
 		id, orgID, req.ParentID, req.Name, req.Description, req.Kind,
-		req.ContractID, req.GovernanceModel, orgID, req.IsShared, req.Billable, req.BudgetAmount)
+		req.ContractID, req.GovernanceModel, orgID, req.IsShared, req.Billable, req.BudgetAmount,
+		req.OriginType, req.AssignedBy, req.AssignedTo, req.ProposedBy, req.ReviewedBy, req.TicketID,
+		req.IsActive)
 	if err != nil {
 		return nil, wrapPGError(err, "create activity")
 	}
@@ -187,17 +194,20 @@ func (r *ActivityRepository) ListByContract(ctx context.Context, contractID uuid
 func (r *ActivityRepository) GetAncestry(ctx context.Context, id uuid.UUID) ([]activitydomain.Activity, error) {
 	query := `WITH RECURSIVE ancestry AS (
 		SELECT id, org_id, parent_id, name, description, kind, contract_id, governance_model,
-			created_by_org_id, is_shared, billable, budget_amount, is_active, created_at, updated_at
+			created_by_org_id, is_shared, billable, budget_amount, is_active, created_at, updated_at,
+			origin_type, assigned_by, assigned_to, proposed_by, reviewed_by, ticket_id
 		FROM activities WHERE id = $1
 		UNION ALL
 		SELECT a.id, a.org_id, a.parent_id, a.name, a.description, a.kind, a.contract_id,
 			a.governance_model, a.created_by_org_id, a.is_shared, a.billable, a.budget_amount,
-			a.is_active, a.created_at, a.updated_at
+			a.is_active, a.created_at, a.updated_at,
+			a.origin_type, a.assigned_by, a.assigned_to, a.proposed_by, a.reviewed_by, a.ticket_id
 		FROM activities a
 		INNER JOIN ancestry anc ON a.id = anc.parent_id
 	)
 	SELECT id, org_id, parent_id, name, description, kind, contract_id, governance_model,
-		created_by_org_id, is_shared, billable, budget_amount, is_active, created_at, updated_at
+		created_by_org_id, is_shared, billable, budget_amount, is_active, created_at, updated_at,
+		origin_type, assigned_by, assigned_to, proposed_by, reviewed_by, ticket_id
 	FROM ancestry`
 
 	rows, err := r.pool.Query(ctx, query, id)
@@ -590,18 +600,22 @@ type activityScanner interface {
 }
 
 // scanActivity scans a single activities row into the domain type.
-// parent_id, contract_id, billable, budget_amount are nullable.
+// parent_id, contract_id, billable, budget_amount and the six origin
+// columns are nullable.
 func scanActivity(s activityScanner) (*activitydomain.Activity, error) {
 	var a activitydomain.Activity
 	var parentID *uuid.UUID
 	var contractID *uuid.UUID
 	var billable *bool
 	var budgetAmount *float64
+	var originType *string
+	var assignedBy, assignedTo, proposedBy, reviewedBy, ticketID *uuid.UUID
 
 	err := s.Scan(
 		&a.ID, &a.OrgID, &parentID, &a.Name, &a.Description, &a.Kind, &contractID,
 		&a.GovernanceModel, &a.CreatedByOrgID, &a.IsShared, &billable, &budgetAmount,
 		&a.IsActive, &a.CreatedAt, &a.UpdatedAt,
+		&originType, &assignedBy, &assignedTo, &proposedBy, &reviewedBy, &ticketID,
 	)
 	if err != nil {
 		return nil, err
@@ -610,6 +624,12 @@ func scanActivity(s activityScanner) (*activitydomain.Activity, error) {
 	a.ContractID = contractID
 	a.Billable = billable
 	a.BudgetAmount = budgetAmount
+	a.OriginType = originType
+	a.AssignedBy = assignedBy
+	a.AssignedTo = assignedTo
+	a.ProposedBy = proposedBy
+	a.ReviewedBy = reviewedBy
+	a.TicketID = ticketID
 	return &a, nil
 }
 
@@ -619,11 +639,14 @@ func scanActivityResponse(s activityScanner) (*activitydomain.ActivityResponse, 
 	var contractID *uuid.UUID
 	var billable *bool
 	var budgetAmount *float64
+	var originType *string
+	var assignedBy, assignedTo, proposedBy, reviewedBy, ticketID *uuid.UUID
 
 	err := s.Scan(
 		&a.ID, &a.OrgID, &parentID, &a.Name, &a.Description, &a.Kind, &contractID,
 		&a.GovernanceModel, &a.CreatedByOrgID, &a.IsShared, &billable, &budgetAmount,
 		&a.IsActive, &a.CreatedAt, &a.UpdatedAt,
+		&originType, &assignedBy, &assignedTo, &proposedBy, &reviewedBy, &ticketID,
 		&a.ParentName, &a.ContractName, &a.CreatedByOrgName,
 		&a.AdoptionCount, &a.IsAdopted,
 	)
@@ -634,6 +657,12 @@ func scanActivityResponse(s activityScanner) (*activitydomain.ActivityResponse, 
 	a.ContractID = contractID
 	a.Billable = billable
 	a.BudgetAmount = budgetAmount
+	a.OriginType = originType
+	a.AssignedBy = assignedBy
+	a.AssignedTo = assignedTo
+	a.ProposedBy = proposedBy
+	a.ReviewedBy = reviewedBy
+	a.TicketID = ticketID
 	return &a, nil
 }
 
