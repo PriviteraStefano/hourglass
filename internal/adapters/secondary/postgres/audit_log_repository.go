@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	auditdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
@@ -34,6 +35,19 @@ func NewGeneralAuditLogRepository(pool *pgxpool.Pool) *GeneralAuditLogRepository
 // nil actor and empty comment/payload are written as SQL NULL. All values
 // are parameterized (ADR-BE-003, T-11-09).
 func (r *GeneralAuditLogRepository) Create(ctx context.Context, log *auditdomain.AuditLog) error {
+	return insertAuditLogTx(ctx, r.pool, log)
+}
+
+// insertAuditLogTx writes one audit_logs row through an executor (the pool
+// or an open tx). Shared by GeneralAuditLogRepository.Create and the
+// same-tx state+audit writes (ActivityRepository.ApproveProposal — Pitfall 2,
+// ADR-BE-016): the caller keeps the audit row in the same transaction as the
+// state write, so a failure rolls back both. actor_id/comment/payload are
+// nullable: nil actor and empty comment/payload are written as SQL NULL.
+// All values are parameterized (ADR-BE-003, T-11-09).
+func insertAuditLogTx(ctx context.Context, exec interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}, log *auditdomain.AuditLog) error {
 	id := uuid.New()
 
 	var payload any
@@ -50,7 +64,7 @@ func (r *GeneralAuditLogRepository) Create(ctx context.Context, log *auditdomain
 		comment = log.Comment
 	}
 
-	_, err := r.pool.Exec(ctx,
+	_, err := exec.Exec(ctx,
 		`INSERT INTO audit_logs (id, org_id, entity_type, entity_id, action, actor_id, comment, payload, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		id, log.OrgID, log.EntityType, log.EntityID, log.Action, log.ActorID, comment, payload, log.CreatedAt)

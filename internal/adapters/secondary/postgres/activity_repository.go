@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
+	auditdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
 )
 
@@ -498,6 +499,41 @@ func (r *ActivityRepository) Update(ctx context.Context, orgID, activityID uuid.
 	}
 	if cmd.RowsAffected() == 0 {
 		return nil, activitydomain.ErrActivityNotFound
+	}
+	return r.Get(ctx, orgID, activityID)
+}
+
+// ApproveProposal flips is_active=true and writes the proposal_approved
+// audit row IN THE SAME TRANSACTION (Pitfall 2, ADR-BE-016, T-11-08): the
+// state write is not durable without its event — if the audit insert fails,
+// the whole tx rolls back and the proposal stays inactive (WR-05). Mirrors
+// TicketRepository.UpdateState. The service's approver-set check is the
+// gate; this method only persists the approved state + its audit row.
+func (r *ActivityRepository) ApproveProposal(ctx context.Context, orgID, activityID uuid.UUID, auditLog *auditdomain.AuditLog) (*activitydomain.ActivityResponse, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin proposal approval: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	cmd, err := tx.Exec(ctx,
+		`UPDATE activities SET is_active = true, updated_at = NOW() WHERE id = $1 AND created_by_org_id = $2`,
+		activityID, orgID)
+	if err != nil {
+		return nil, wrapPGError(err, "approve proposal")
+	}
+	if cmd.RowsAffected() == 0 {
+		return nil, activitydomain.ErrActivityNotFound
+	}
+
+	if auditLog != nil {
+		if err := insertAuditLogTx(ctx, tx, auditLog); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit proposal approval: %w", err)
 	}
 	return r.Get(ctx, orgID, activityID)
 }

@@ -133,7 +133,7 @@ func TestSmoke(t *testing.T) {
 	// Activities
 	activityRepo := postgres.NewActivityRepository(pool)
 	routingSvc := routing.NewService(wgRepo, activityRepo, unitRepo)
-	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, postgres.NewTicketRepository(pool), postgres.NewGeneralAuditLogRepository(pool), routingSvc)
+	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, postgres.NewTicketRepository(pool), routingSvc)
 	activityHandler := http.NewActivityHandler(activityService, activityRepo)
 
 	// Export

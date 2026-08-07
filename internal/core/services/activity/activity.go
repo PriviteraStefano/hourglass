@@ -24,27 +24,26 @@ import (
 //
 // Origin dependencies (ADR-P-013): orgRepo validates origin refs are org
 // members (D-02), ticketRepo validates customer_ticket refs exist in-org and
-// checks the ticket-state precondition (OQ5/ADR-BE-016), auditRepo records
-// proposal approvals (D-12, T-11-08), and routing resolves the proposal
-// approver set (D-G parity with entry approval).
+// checks the ticket-state precondition (OQ5/ADR-BE-016), and routing
+// resolves the proposal approver set (D-G parity with entry approval). The
+// proposal_approved audit row is written by the activity repo IN THE SAME
+// TRANSACTION as the is_active flip (Pitfall 2, ADR-BE-016, T-11-08).
 type Service struct {
 	activityRepo ports.ActivityRepository
 	contractRepo ports.ContractRepository
 	unitRepo     ports.UnitRepository
 	orgRepo      ports.OrganizationRepository
 	ticketRepo   ports.TicketRepository
-	auditRepo    ports.GeneralAuditLogRepository
 	routing      *routing.Service
 }
 
-func NewService(activityRepo ports.ActivityRepository, contractRepo ports.ContractRepository, unitRepo ports.UnitRepository, orgRepo ports.OrganizationRepository, ticketRepo ports.TicketRepository, auditRepo ports.GeneralAuditLogRepository, routing *routing.Service) *Service {
+func NewService(activityRepo ports.ActivityRepository, contractRepo ports.ContractRepository, unitRepo ports.UnitRepository, orgRepo ports.OrganizationRepository, ticketRepo ports.TicketRepository, routing *routing.Service) *Service {
 	return &Service{
 		activityRepo: activityRepo,
 		contractRepo: contractRepo,
 		unitRepo:     unitRepo,
 		orgRepo:      orgRepo,
 		ticketRepo:   ticketRepo,
-		auditRepo:    auditRepo,
 		routing:      routing,
 	}
 }
@@ -327,21 +326,20 @@ func (s *Service) ApproveProposal(ctx context.Context, role string, orgID, actor
 		}
 	}
 
-	trueVal := true
-	updated, err := s.activityRepo.Update(ctx, orgID, activityID, &activitydomain.UpdateActivityRequest{IsActive: &trueVal})
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.auditRepo.Create(ctx, &audit.AuditLog{
+	// Persistence flips is_active AND writes the proposal_approved audit row
+	// IN THE SAME TRANSACTION (Pitfall 2, ADR-BE-016, T-11-08, WR-05): the
+	// state write is not durable without its event — a failure rolls back
+	// both, never a partial commit. Mirrors the ticket repo's UpdateState.
+	updated, err := s.activityRepo.ApproveProposal(ctx, orgID, activityID, &audit.AuditLog{
 		OrgID:      orgID,
 		EntityType: "activity",
 		EntityID:   activityID,
 		Action:     "proposal_approved",
 		ActorID:    &actorID,
 		Payload:    map[string]any{"approver": actorID.String()},
-		CreatedAt:  time.Now(),
-	}); err != nil {
+		CreatedAt:  time.Now().UTC(),
+	})
+	if err != nil {
 		return nil, err
 	}
 

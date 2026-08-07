@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
+	auditdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
 	"github.com/stretchr/testify/require"
 )
 
@@ -576,4 +577,81 @@ func TestActivityOrigin_ProposalCreateReadBack(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.True(t, legacy.IsActive)
+}
+
+// TestActivityRepository_ApproveProposal pins WR-05 (Pitfall 2, ADR-BE-016):
+// ApproveProposal flips is_active=true AND writes the proposal_approved
+// audit row IN THE SAME TRANSACTION. When the audit insert fails (payload
+// that cannot marshal), the whole tx rolls back — the activity stays
+// inactive and NO audit row is written: never a partial commit.
+func TestActivityRepository_ApproveProposal(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewActivityRepository(pool)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	actorID := seedUser(t, pool, now)
+	proposalID := seedActivity(t, pool, orgID, "engagement", nil, now)
+	_, err := pool.Exec(context.Background(),
+		`UPDATE activities SET is_active = false, origin_type = 'employee_proposal', proposed_by = $2 WHERE id = $1`,
+		proposalID, actorID)
+	require.NoError(t, err)
+	auditLog := &auditdomain.AuditLog{
+		OrgID:      orgID,
+		EntityType: "activity",
+		EntityID:   proposalID,
+		Action:     "proposal_approved",
+		ActorID:    &actorID,
+		Payload:    map[string]any{"approver": actorID.String()},
+		CreatedAt:  now,
+	}
+
+	// Happy path: is_active flips AND the audit row lands in the same tx.
+	approved, err := repo.ApproveProposal(context.Background(), orgID, proposalID, auditLog)
+	require.NoError(t, err)
+	require.NotNil(t, approved)
+	require.True(t, approved.IsActive)
+
+	var auditCount int
+	err = pool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM audit_logs WHERE entity_type = 'activity' AND entity_id = $1 AND action = 'proposal_approved'`,
+		proposalID).Scan(&auditCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, auditCount)
+
+	// Failure path: an unmarshalable payload makes the audit insert fail —
+	// the tx rolls back and is_active stays false (no partial commit).
+	brokenID := seedActivity(t, pool, orgID, "engagement", nil, now)
+	_, err = pool.Exec(context.Background(),
+		`UPDATE activities SET is_active = false, origin_type = 'employee_proposal', proposed_by = $2 WHERE id = $1`,
+		brokenID, actorID)
+	require.NoError(t, err)
+
+	badAudit := &auditdomain.AuditLog{
+		OrgID:      orgID,
+		EntityType: "activity",
+		EntityID:   brokenID,
+		Action:     "proposal_approved",
+		ActorID:    &actorID,
+		Payload:    map[string]any{"bad": make(chan int)}, // json.Marshal fails
+		CreatedAt:  now,
+	}
+	_, err = repo.ApproveProposal(context.Background(), orgID, brokenID, badAudit)
+	require.Error(t, err, "unmarshalable audit payload must fail the approval")
+
+	var isActive bool
+	err = pool.QueryRow(context.Background(),
+		`SELECT is_active FROM activities WHERE id = $1`, brokenID).Scan(&isActive)
+	require.NoError(t, err)
+	require.False(t, isActive, "failed audit insert must roll back the is_active flip")
+
+	err = pool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM audit_logs WHERE entity_type = 'activity' AND entity_id = $1 AND action = 'proposal_approved'`,
+		brokenID).Scan(&auditCount)
+	require.NoError(t, err)
+	require.Zero(t, auditCount, "failed tx must not leave a partial audit row")
 }

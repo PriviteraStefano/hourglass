@@ -22,7 +22,6 @@ type originFixture struct {
 	activityRepo *testdata.MockActivityRepo
 	orgRepo      *testdata.MockOrgRepo
 	ticketRepo   *testdata.MockTicketRepo
-	auditRepo    *testdata.MockAuditLogRepo
 	unitRepo     *testdata.MockUnitRepo
 	wgRepo       *testdata.MockWorkingGroupRepo
 	routingSvc    *routing.Service
@@ -34,12 +33,11 @@ func setupOrigin(t *testing.T) *originFixture {
 		activityRepo: &testdata.MockActivityRepo{},
 		orgRepo:      &testdata.MockOrgRepo{},
 		ticketRepo:   &testdata.MockTicketRepo{},
-		auditRepo:    &testdata.MockAuditLogRepo{},
 		unitRepo:     &testdata.MockUnitRepo{},
 		wgRepo:       &testdata.MockWorkingGroupRepo{},
 	}
 	f.routingSvc = routing.NewService(f.wgRepo, f.activityRepo, f.unitRepo)
-	f.svc = NewService(f.activityRepo, &testdata.MockContractRepo{}, f.unitRepo, f.orgRepo, f.ticketRepo, f.auditRepo, f.routingSvc)
+	f.svc = NewService(f.activityRepo, &testdata.MockContractRepo{}, f.unitRepo, f.orgRepo, f.ticketRepo, f.routingSvc)
 	return f
 }
 

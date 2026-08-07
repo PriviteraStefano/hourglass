@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
+	auditdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
 	contractdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/contract"
 	customerdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/customer"
@@ -481,6 +482,7 @@ type MockActivityRepo struct {
 	mu                         sync.Mutex
 	Activities                 map[uuid.UUID]*activitydomain.ActivityResponse
 	Kinds                      map[string]bool
+	ProposalAudits             []*auditdomain.AuditLog // captured by ApproveProposal (WR-05)
 	HasChildrenFn              func(ctx context.Context, activityID uuid.UUID) (bool, error)
 	HasActiveTimeEntriesFn     func(ctx context.Context, activityID uuid.UUID) (bool, bool, error)
 	HasActiveExpensesFn        func(ctx context.Context, activityID uuid.UUID) (bool, error)
@@ -558,6 +560,23 @@ func (m *MockActivityRepo) Update(ctx context.Context, orgID, activityID uuid.UU
 	}
 	if req.IsActive != nil {
 		a.IsActive = *req.IsActive
+	}
+	return a, nil
+}
+
+// ApproveProposal flips is_active=true and captures the proposal_approved
+// audit row (the same-tx guarantee is the postgres repo's concern; the mock
+// records the audit for service-level assertions, WR-05).
+func (m *MockActivityRepo) ApproveProposal(ctx context.Context, orgID, activityID uuid.UUID, log *auditdomain.AuditLog) (*activitydomain.ActivityResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	a, ok := m.Activities[activityID]
+	if !ok {
+		return nil, activitydomain.ErrActivityNotFound
+	}
+	a.IsActive = true
+	if log != nil {
+		m.ProposalAudits = append(m.ProposalAudits, log)
 	}
 	return a, nil
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
+	"github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
 )
 
 // ActivityRepository is the single repository port replacing the collapsed
@@ -46,4 +47,11 @@ type ActivityRepository interface {
 	HasChildren(ctx context.Context, activityID uuid.UUID) (bool, error)
 	HasActiveTimeEntries(ctx context.Context, activityID uuid.UUID) (bool, bool, error)
 	HasActiveExpenses(ctx context.Context, activityID uuid.UUID) (bool, error)
+
+	// ApproveProposal flips is_active=true and writes the
+	// proposal_approved audit row IN THE SAME TRANSACTION (Pitfall 2,
+	// ADR-BE-016, T-11-08): the state write is not durable without its
+	// event — a failure rolls back both, never a partial commit. Mirrors
+	// TicketRepository.UpdateState.
+	ApproveProposal(ctx context.Context, orgID, activityID uuid.UUID, auditLog *audit.AuditLog) (*activitydomain.ActivityResponse, error)
 }

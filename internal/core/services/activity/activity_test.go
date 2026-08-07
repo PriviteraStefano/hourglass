@@ -21,9 +21,8 @@ func setupService(t *testing.T) (*Service, *testdata.MockActivityRepo, *testdata
 	unitRepo := &testdata.MockUnitRepo{}
 	orgRepo := &testdata.MockOrgRepo{}
 	ticketRepo := &testdata.MockTicketRepo{}
-	auditRepo := &testdata.MockAuditLogRepo{}
 	routingSvc := routing.NewService(&testdata.MockWorkingGroupRepo{}, activityRepo, unitRepo)
-	svc := NewService(activityRepo, contractRepo, unitRepo, orgRepo, ticketRepo, auditRepo, routingSvc)
+	svc := NewService(activityRepo, contractRepo, unitRepo, orgRepo, ticketRepo, routingSvc)
 	return svc, activityRepo, contractRepo, unitRepo
 }
 

@@ -141,9 +141,8 @@ func main() {
 	// (ADR-P-013): org membership checks, customer_ticket validation, and
 	// proposal approval routed through the shared BE-014 machinery with a
 	// synchronous audit_logs write.
-	auditRepo := postgres.NewGeneralAuditLogRepository(pool)
 	ticketRepo := postgres.NewTicketRepository(pool)
-	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, ticketRepo, auditRepo, routingSvc)
+	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, ticketRepo, routingSvc)
 	activityHandler := http.NewActivityHandler(activityService, activityRepo)
 
 	// Tickets — the second capture layer (ADR-P-003 rev). The service takes

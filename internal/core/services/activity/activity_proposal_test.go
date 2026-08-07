@@ -84,8 +84,8 @@ func TestProposal_Approve(t *testing.T) {
 		require.NotNil(t, updated)
 		assert.True(t, updated.IsActive)
 
-		require.Len(t, f.auditRepo.Logs, 1)
-		log := f.auditRepo.Logs[0]
+		require.Len(t, f.activityRepo.ProposalAudits, 1)
+		log := f.activityRepo.ProposalAudits[0]
 		assert.Equal(t, "proposal_approved", log.Action)
 		assert.Equal(t, orgID, log.OrgID)
 		assert.Equal(t, prop.ID, log.EntityID)
@@ -105,7 +105,7 @@ func TestProposal_Approve(t *testing.T) {
 		updated, err := f.svc.ApproveProposal(context.Background(), string(models.RoleManager), orgID, outsider, prop.ID)
 		assert.ErrorIs(t, err, activitydomain.ErrForbidden)
 		assert.Nil(t, updated)
-		assert.Empty(t, f.auditRepo.Logs)
+		assert.Empty(t, f.activityRepo.ProposalAudits)
 	})
 
 	t.Run("actor == proposer forbidden (no self-approval)", func(t *testing.T) {
@@ -116,7 +116,7 @@ func TestProposal_Approve(t *testing.T) {
 		updated, err := f.svc.ApproveProposal(context.Background(), string(models.RoleManager), orgID, proposer, prop.ID)
 		assert.ErrorIs(t, err, activitydomain.ErrForbidden)
 		assert.Nil(t, updated)
-		assert.Empty(t, f.auditRepo.Logs)
+		assert.Empty(t, f.activityRepo.ProposalAudits)
 	})
 
 	t.Run("wrong origin not approvable", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestProposal_RoutingModes(t *testing.T) {
 		updated, err := f.svc.ApproveProposal(context.Background(), string(models.RoleManager), orgID, approver, prop.ID)
 		assert.ErrorIs(t, err, activitydomain.ErrForbidden)
 		assert.Nil(t, updated)
-		assert.Empty(t, f.auditRepo.Logs)
+		assert.Empty(t, f.activityRepo.ProposalAudits)
 	})
 
 	t.Run("skipToFinance with delegate: delegate is a legitimate approver (WR-04)", func(t *testing.T) {
@@ -191,8 +191,8 @@ func TestProposal_RoutingModes(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, updated)
 		assert.True(t, updated.IsActive)
-		require.Len(t, f.auditRepo.Logs, 1)
-		assert.Equal(t, "proposal_approved", f.auditRepo.Logs[0].Action)
+		require.Len(t, f.activityRepo.ProposalAudits, 1)
+		assert.Equal(t, "proposal_approved", f.activityRepo.ProposalAudits[0].Action)
 	})
 
 	t.Run("roleGated resolution: manager role passes", func(t *testing.T) {
@@ -204,8 +204,8 @@ func TestProposal_RoutingModes(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, updated)
 		assert.True(t, updated.IsActive)
-		require.Len(t, f.auditRepo.Logs, 1)
-		assert.Equal(t, "proposal_approved", f.auditRepo.Logs[0].Action)
+		require.Len(t, f.activityRepo.ProposalAudits, 1)
+		assert.Equal(t, "proposal_approved", f.activityRepo.ProposalAudits[0].Action)
 	})
 
 	t.Run("roleGated resolution: employee role fails", func(t *testing.T) {
@@ -215,7 +215,7 @@ func TestProposal_RoutingModes(t *testing.T) {
 		updated, err := f.svc.ApproveProposal(context.Background(), string(models.RoleEmployee), orgID, approver, prop.ID)
 		assert.ErrorIs(t, err, activitydomain.ErrForbidden)
 		assert.Nil(t, updated)
-		assert.Empty(t, f.auditRepo.Logs)
+		assert.Empty(t, f.activityRepo.ProposalAudits)
 	})
 
 	t.Run("unit-manager fallback path (R-2) resolves through primary unit", func(t *testing.T) {
@@ -231,7 +231,7 @@ func TestProposal_RoutingModes(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, updated)
 		assert.True(t, updated.IsActive)
-		require.Len(t, f.auditRepo.Logs, 1)
+		require.Len(t, f.activityRepo.ProposalAudits, 1)
 	})
 }
 
@@ -268,8 +268,8 @@ func TestProposal_EndToEnd(t *testing.T) {
 	require.NotNil(t, updated)
 	assert.True(t, updated.IsActive, "approval flips is_active")
 
-	require.Len(t, f.auditRepo.Logs, 1)
-	require.IsType(t, &auditdomain.AuditLog{}, f.auditRepo.Logs[0])
-	assert.Equal(t, "proposal_approved", f.auditRepo.Logs[0].Action)
-	assert.Equal(t, created.ID, f.auditRepo.Logs[0].EntityID)
+	require.Len(t, f.activityRepo.ProposalAudits, 1)
+	require.IsType(t, &auditdomain.AuditLog{}, f.activityRepo.ProposalAudits[0])
+	assert.Equal(t, "proposal_approved", f.activityRepo.ProposalAudits[0].Action)
+	assert.Equal(t, created.ID, f.activityRepo.ProposalAudits[0].EntityID)
 }
