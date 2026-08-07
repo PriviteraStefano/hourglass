@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	contractdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/contract"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/testdata"
 	"github.com/stefanoprivitera/hourglass/internal/models"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setupService(t *testing.T) (*Service, *testdata.MockContractRepo) {
@@ -84,6 +84,87 @@ func TestService_Create(t *testing.T) {
 			},
 			wantErr: contractdomain.ErrInvalidRequest,
 		},
+		{
+			name: "support contract without sold period",
+			req: &contractdomain.CreateContractRequest{
+				Name:            "Support No Period",
+				GovernanceModel: models.GovernanceCreatorControlled,
+				ContractType:    strPtr(contractdomain.ContractTypeSupport),
+				SoldHours:       f64Ptr(100),
+			},
+			wantErr: contractdomain.ErrInvalidSoldConfig,
+		},
+		{
+			name: "support contract without sold hours",
+			req: &contractdomain.CreateContractRequest{
+				Name:            "Support No Hours",
+				GovernanceModel: models.GovernanceCreatorControlled,
+				ContractType:    strPtr(contractdomain.ContractTypeSupport),
+				SoldPeriod:      strPtr(contractdomain.SoldPeriodMonth),
+			},
+			wantErr: contractdomain.ErrInvalidSoldConfig,
+		},
+		{
+			name: "project contract with sold period",
+			req: &contractdomain.CreateContractRequest{
+				Name:            "Project With Period",
+				GovernanceModel: models.GovernanceCreatorControlled,
+				ContractType:    strPtr(contractdomain.ContractTypeProject),
+				SoldHours:       f64Ptr(100),
+				SoldPeriod:      strPtr(contractdomain.SoldPeriodMonth),
+			},
+			wantErr: contractdomain.ErrInvalidSoldConfig,
+		},
+		{
+			name: "unknown contract type",
+			req: &contractdomain.CreateContractRequest{
+				Name:            "Unknown Type",
+				GovernanceModel: models.GovernanceCreatorControlled,
+				ContractType:    strPtr("subscription"),
+			},
+			wantErr: contractdomain.ErrInvalidSoldConfig,
+		},
+		{
+			name: "invalid sold period value",
+			req: &contractdomain.CreateContractRequest{
+				Name:            "Bad Period",
+				GovernanceModel: models.GovernanceCreatorControlled,
+				ContractType:    strPtr(contractdomain.ContractTypeSupport),
+				SoldHours:       f64Ptr(100),
+				SoldPeriod:      strPtr("decade"),
+			},
+			wantErr: contractdomain.ErrInvalidSoldConfig,
+		},
+		{
+			name: "legacy contract with sold hours only",
+			req: &contractdomain.CreateContractRequest{
+				Name:            "Legacy Sold Hours",
+				GovernanceModel: models.GovernanceCreatorControlled,
+				SoldHours:       f64Ptr(250),
+			},
+			wantErr: nil,
+		},
+		{
+			name: "valid support contract",
+			req: &contractdomain.CreateContractRequest{
+				Name:            "Valid Support",
+				GovernanceModel: models.GovernanceCreatorControlled,
+				ContractType:    strPtr(contractdomain.ContractTypeSupport),
+				SoldHours:       f64Ptr(100),
+				SoldPeriod:      strPtr(contractdomain.SoldPeriodMonth),
+			},
+			wantErr: nil,
+		},
+		{
+			name: "valid project contract",
+			req: &contractdomain.CreateContractRequest{
+				Name:            "Valid Project",
+				GovernanceModel: models.GovernanceCreatorControlled,
+				ContractType:    strPtr(contractdomain.ContractTypeProject),
+				SoldHours:       f64Ptr(1200),
+			},
+			wantErr: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -145,6 +226,7 @@ func TestService_Update(t *testing.T) {
 	tests := []struct {
 		name    string
 		role    string
+		req     *contractdomain.UpdateContractRequest
 		wantErr error
 	}{
 		{
@@ -157,6 +239,44 @@ func TestService_Update(t *testing.T) {
 			role:    string(models.RoleEmployee),
 			wantErr: contractdomain.ErrForbidden,
 		},
+		{
+			name: "finance sets support without sold period",
+			role: string(models.RoleFinance),
+			req: &contractdomain.UpdateContractRequest{
+				ContractType: strPtr(contractdomain.ContractTypeSupport),
+				SoldHours:    f64Ptr(100),
+			},
+			wantErr: contractdomain.ErrInvalidSoldConfig,
+		},
+		{
+			name: "finance sets project with sold period",
+			role: string(models.RoleFinance),
+			req: &contractdomain.UpdateContractRequest{
+				ContractType: strPtr(contractdomain.ContractTypeProject),
+				SoldPeriod:   strPtr(contractdomain.SoldPeriodQuarter),
+			},
+			wantErr: contractdomain.ErrInvalidSoldConfig,
+		},
+		{
+			name: "finance sets invalid sold period",
+			role: string(models.RoleFinance),
+			req: &contractdomain.UpdateContractRequest{
+				ContractType: strPtr(contractdomain.ContractTypeSupport),
+				SoldHours:    f64Ptr(100),
+				SoldPeriod:   strPtr("decade"),
+			},
+			wantErr: contractdomain.ErrInvalidSoldConfig,
+		},
+		{
+			name: "finance sets valid support config",
+			role: string(models.RoleFinance),
+			req: &contractdomain.UpdateContractRequest{
+				ContractType: strPtr(contractdomain.ContractTypeSupport),
+				SoldHours:    f64Ptr(100),
+				SoldPeriod:   strPtr(contractdomain.SoldPeriodYear),
+			},
+			wantErr: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -164,9 +284,11 @@ func TestService_Update(t *testing.T) {
 			svc, repo := setupService(t)
 			orgID := uuid.New()
 			seeded := seedContract(repo, func(c *contractdomain.ContractResponse) { c.CreatedByOrgID = orgID })
-			result, _, err := svc.Update(context.Background(), tt.role, orgID, seeded.ID, &contractdomain.UpdateContractRequest{
-				Name: "Updated Contract",
-			})
+			req := tt.req
+			if req == nil {
+				req = &contractdomain.UpdateContractRequest{Name: "Updated Contract"}
+			}
+			result, _, err := svc.Update(context.Background(), tt.role, orgID, seeded.ID, req)
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 				assert.Nil(t, result)
@@ -213,4 +335,12 @@ func TestService_Delete(t *testing.T) {
 		err := svc.Delete(context.Background(), string(models.RoleFinance), orgID, seeded.ID)
 		assert.ErrorIs(t, err, contractdomain.ErrHasActiveProjects)
 	})
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
+func f64Ptr(v float64) *float64 {
+	return &v
 }
