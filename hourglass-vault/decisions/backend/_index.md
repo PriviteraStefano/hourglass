@@ -36,6 +36,7 @@ These ADRs record **how we build in this repo** — Go/backend decisions **speci
 | [[ADR-BE-013 — Password Reset Out-of-Band Codes]] | Codes never in responses, 6+ char entropy, attempt limits | T8 (P0-6) | Accepted |
 | [[ADR-BE-014 — Approval-Routing Precedence & Activity-Chain Resolution]] | Routing via activity → anchored WG manager/delegate; no fallback; D-11 skip incl. delegates; unit-subtree visibility; `enforce_unit_tuple` drop | P-001 Q1–Q4, P-007 | Accepted |
 | [[ADR-BE-015 — Demo Environment Topology]] | Compose + Caddy + cloudflared (named tunnel + Access); zero published ports; seed via `scripts/seed_demo.sql`; VPS as portable escalation path; k8s deferred | Phase 11 demo | Accepted |
+| [[ADR-BE-016 — Origins Tickets & Audit Schema Encoding]] | Origins/tickets/audit schema: migrations 014–017 shapes, 3VL CHECK guard rule, three-layer ticket model (state/comments/audit), synchronous in-tx ticket audit writes (BE-012 scope extended), terminal-activity definition, `LoggedHours` guard signature, transition matrix, sold_hours semantics | Phase 11 semantic resolutions (OQ1–OQ6, D-05/06/10/13/14) | Proposed |
 
 ## Coverage vs. the audit
 
