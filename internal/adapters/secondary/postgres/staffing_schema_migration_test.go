@@ -31,8 +31,11 @@ func TestMigration012_StaffingSchema_UpDownUpCycle(t *testing.T) {
 	// --- Pre-state: schema 000-011 + MVP seed -------------------------------
 	// 013 is not skipped here: it applies in sorted order AFTER 011 (the
 	// activities table exists), and its kind relabel is a no-op for this
-	// test's assertions.
-	applyMigrations(t, pool, true, "012_staffing_schema.up.sql")
+	// test's assertions. 014-017 are skipped so the pre-state stays exactly
+	// at 000-013 (this test predates those migrations).
+	applyMigrations(t, pool, true, "012_staffing_schema.up.sql",
+		"014_ticket_schema.up.sql", "015_activity_origins.up.sql",
+		"016_contract_sold_hours.up.sql", "017_audit_logs.up.sql")
 	// The historical MVP seed (003_seed.up.sql) is no longer a migration
 	// fixture — seed data lives in scripts/seed_demo.sql which applyMigrations
 	// never loads. Self-seed the membership pre-state: 6 memberships across
