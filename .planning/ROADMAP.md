@@ -107,7 +107,26 @@ Plans:
   7. Coverage references a polymorphic entry (`entry_type` + `entry_id`); validation rejects non-`time` types in v0.2 (COV-05)
   8. Beneficiary unit is nullable on activities, inherited downward like contract_id; absorption sources default from it (COV-05)
 
-**Plans**: TBD
+**Plans**: 7/7 plans
+Plans:
+**Wave 1**
+
+- [ ] 12-01-PLAN.md — Migrations 018-020 (beneficiary unit, allocation ledger, snapshots) + teardown + cycle tests (3VL + mandatory-field CHECK assertions)
+- [ ] 12-02-PLAN.md — ADRs: ADR-P-012 accepted + ADR-BE-017 coverage encoding (D-K cost, pinned OQ resolutions) + index updates
+- [ ] 12-04-PLAN.md — Coverage domain + ports.CoverageRepository + MockCoverageRepo (contracts all plans compile against)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 12-03-PLAN.md — Beneficiary unit vertical (COV-05, phase tracer): activity field + GetAncestry/scan/Update + ResolveBeneficiaryUnit + ResolveFundingContext CTEs + service/handler + tests
+- [ ] 12-06-PLAN.md — Coverage repo: replace-set tx (FOR UPDATE + in-tx Σ + audit), queue, bucket balance, close snapshot, history + CR-01 concurrency battery
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 12-05-PLAN.md — Coverage service: D-04 proposal decision fn, replace-set (Σ + D-08 gate + D-K), queue enrichment, close orchestration + unit tests
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 12-07-PLAN.md — Coverage HTTP surface: 8 routes + sentinel map + permission-matrix tests + cmd/server wiring
 
 ### Phase 13: Direction Backend — The Plan Plane
 
