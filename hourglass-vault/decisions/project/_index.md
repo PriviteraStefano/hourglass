@@ -30,6 +30,7 @@ These ADRs record **what we build and why** — the vision made binding. They ar
 | [[ADR-P-008 — Availability & Employment Validity]]                 | Declared availability windows + membership validity dates, surfaced at assignment time; `hr` org role as curator/consumer, never approver; leave machinery stays rejected       | Structure          | Proposed |
 | [[ADR-P-011 — Information Architecture & Role-Scoped Surfaces]]    | Sidebar groups are job-language, pillar-mapped; surfaces follow the stakeholder map with role-scoped visibility; Today lands ticketless pre-deploy; `/projects` → `/activities` | All                | Proposed |
 | [[ADR-P-012 — Facts vs Decisions: The Coverage-Allocation Ledger]] | Captured effort is a fact, coverage is a decision — per-entry allocation ledger with Σ-invariant, to-cover queue, manager-confirmed, snapshot-not-lock                          | Structure, Insight | Proposed |
+| [[ADR-P-013 — Origins]]                                           | Origin axis: activities carry a type + reference set set once at creation (manager-assignment / employee-proposal / customer-ticket), immutable (`ErrOriginImmutable`), same-org validated, proposal approval routed via BE-014 | Structure, Capture | Proposed |
 
 ## Roadmap dependency chain
 
