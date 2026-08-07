@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
 	ticketdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/ticket"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
@@ -198,6 +199,13 @@ func (s *Service) Transition(ctx context.Context, orgID, actorID uuid.UUID, role
 	if !ticketdomain.CanTransition(t.Status, to) {
 		return nil, ticketdomain.ErrInvalidTransition
 	}
+	// The matrix pins open→dismissed / triage→dismissed, but those edges are
+	// consumed ONLY by Dismiss — the guarded path (D-11 gate + D-13 hours
+	// guard + dismissed_hours snapshot, T-11-07). Allowing them here would
+	// let an owner/assignee bypass the guard, so Transition rejects them.
+	if to == ticketdomain.StatusDismissed {
+		return nil, ticketdomain.ErrInvalidTransition
+	}
 	if to == ticketdomain.StatusResolved {
 		nonTerminal, err := s.repo.HasNonTerminalActivities(ctx, ticketID)
 		if err != nil {
@@ -233,6 +241,189 @@ func (s *Service) canUpdate(role string, actorID uuid.UUID, t *ticketdomain.Tick
 	return t.IsOwner(actorID) || t.IsAssignee(actorID)
 }
 
+// ---------------------------------------------------------------------------
+// Dismiss — the guarded dismissal path (TICK-04, D-13, T-11-07)
+// ---------------------------------------------------------------------------
+
+// Dismiss permanently closes the ticket via the guarded path: role ∈
+// {manager, finance} (D-11); the pinned matrix must allow the current →
+// 'dismissed' edge (open|triage); and the guard blocks dismissal while any
+// linked activity carries logged hours (D-13 raw Σ from time_entries —
+// computed server-side by the repo, NEVER client-supplied, T-11-07). The
+// hours snapshot is persisted in dismissed_hours and rendered as the note
+// "dismissed with N h logged" on read (TICK-04).
+//
+// Dismissal is intentionally NOT reachable through Transition: that path has
+// no hours guard and would bypass T-11-07, so Transition rejects
+// to == "dismissed" (ErrInvalidTransition) — Dismiss is the only door.
+func (s *Service) Dismiss(ctx context.Context, orgID, actorID uuid.UUID, role string, ticketID uuid.UUID) (*ticketdomain.Ticket, error) {
+	if role != string(models.RoleManager) && role != string(models.RoleFinance) {
+		return nil, ticketdomain.ErrForbidden
+	}
+	t, err := s.repo.Get(ctx, orgID, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	if !ticketdomain.CanTransition(t.Status, ticketdomain.StatusDismissed) {
+		return nil, ticketdomain.ErrInvalidTransition
+	}
+	hours, err := s.repo.LoggedHours(ctx, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	if hours > 0 {
+		return nil, ticketdomain.ErrDismissalBlocked
+	}
+	actor := actorID
+	return s.repo.Dismiss(ctx, orgID, ticketID, hours, &audit.AuditLog{
+		OrgID:      orgID,
+		EntityType: "ticket",
+		EntityID:   ticketID,
+		Action:     "dismissed",
+		ActorID:    &actor,
+		Payload:    map[string]any{"hours": hours},
+		CreatedAt:  time.Now().UTC(),
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Triage — atomic kind reclassification + 1..N customer_ticket activities
+// ---------------------------------------------------------------------------
+
+// TriageActivityPlan is the service-level plan for one activity created
+// during triage (D-10, TICK-03). Mirrors activitydomain.CreateActivityRequest
+// minus the origin axis — the origin is forced to customer_ticket by the
+// repo inside the triage tx.
+type TriageActivityPlan struct {
+	Name            string
+	Description     string
+	Kind            string
+	ParentID        *uuid.UUID
+	ContractID      *uuid.UUID
+	GovernanceModel models.GovernanceModel
+	IsShared        bool
+	Billable        *bool
+	BudgetAmount    *float64
+}
+
+// Triage atomically converts the ticket into 1..N customer_ticket-origin
+// activities and flips it to 'planned' (D-10, TICK-03). Gates: role ∈
+// {manager, finance} (D-11); the matrix must allow current → 'planned'
+// (triage → planned); an optional kind override must stay in the closed
+// four-kind set; at least one plan is required.
+//
+// Structural plan checks run here (pure string/pointer validation — no DB
+// reads): name non-empty, kind non-empty, governance model valid. The
+// DB-read validations (kind in the org catalog, parent same-org, contract
+// same-org) are AUTHORITATIVE inside the repo's tx (Pitfall 7, T-11-06) —
+// the service additionally fast-fails on the same rules via pool-level
+// reads (kindExists/parent/contract) as optional UX only; the in-tx checks
+// and the DB FK/CHECK constraints are the correctness guarantee.
+//
+// Both audit rows ('triaged' + 'activities_created') are written in the same
+// tx as the state write and the activity inserts (TICK-03, ADR-BE-016).
+func (s *Service) Triage(ctx context.Context, orgID, actorID uuid.UUID, role string, ticketID uuid.UUID, kind *string, plans []*TriageActivityPlan) (*ticketdomain.Ticket, []*activitydomain.ActivityResponse, error) {
+	if role != string(models.RoleManager) && role != string(models.RoleFinance) {
+		return nil, nil, ticketdomain.ErrForbidden
+	}
+	t, err := s.repo.Get(ctx, orgID, ticketID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !ticketdomain.CanTransition(t.Status, ticketdomain.StatusPlanned) {
+		return nil, nil, ticketdomain.ErrInvalidTransition
+	}
+	if kind != nil && !isValidKind(*kind) {
+		return nil, nil, ticketdomain.ErrInvalidRequest
+	}
+	if len(plans) == 0 {
+		return nil, nil, ticketdomain.ErrInvalidRequest
+	}
+
+	converted := make([]*activitydomain.CreateActivityRequest, 0, len(plans))
+	for _, p := range plans {
+		if p.Name == "" || p.Kind == "" || !p.GovernanceModel.IsValid() {
+			return nil, nil, ticketdomain.ErrInvalidRequest
+		}
+		// Optional fast-fail (UX only — the repo's in-tx checks are the
+		// authoritative gate, Pitfall 7).
+		if !s.activityKindExists(ctx, orgID, p.Kind) {
+			return nil, nil, ticketdomain.ErrInvalidRequest
+		}
+		if p.ParentID != nil && !s.activityExists(ctx, orgID, *p.ParentID) {
+			return nil, nil, ticketdomain.ErrInvalidRequest
+		}
+		if p.ContractID != nil && !s.contractExists(ctx, orgID, *p.ContractID) {
+			return nil, nil, ticketdomain.ErrInvalidRequest
+		}
+		converted = append(converted, &activitydomain.CreateActivityRequest{
+			ParentID:        p.ParentID,
+			Name:            p.Name,
+			Description:     p.Description,
+			Kind:            activitydomain.ActivityKind(p.Kind),
+			ContractID:      p.ContractID,
+			GovernanceModel: p.GovernanceModel,
+			IsShared:        p.IsShared,
+			Billable:        p.Billable,
+			BudgetAmount:    p.BudgetAmount,
+		})
+	}
+
+	actor := actorID
+	now := time.Now().UTC()
+	audits := []*audit.AuditLog{
+		{OrgID: orgID, EntityType: "ticket", EntityID: ticketID, Action: "triaged", ActorID: &actor, CreatedAt: now},
+		{OrgID: orgID, EntityType: "ticket", EntityID: ticketID, Action: "activities_created", ActorID: &actor, CreatedAt: now},
+	}
+	return s.repo.Triage(ctx, orgID, ticketID, kind, converted, audits)
+}
+
+// ---------------------------------------------------------------------------
+// AddComment / ListHistory — the append-only conversation + event stream
+// ---------------------------------------------------------------------------
+
+// AddComment appends a first-class comment (D-06) with its 'comment_added'
+// audit row written in the same tx (TICK-05). Gate: owner/assignee/manager+
+// (D-15). Body must be non-empty.
+func (s *Service) AddComment(ctx context.Context, orgID, actorID uuid.UUID, role string, ticketID uuid.UUID, body string) (*ticketdomain.TicketComment, error) {
+	t, err := s.repo.Get(ctx, orgID, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	if !s.canUpdate(role, actorID, t) {
+		return nil, ticketdomain.ErrForbidden
+	}
+	if body == "" {
+		return nil, ticketdomain.ErrInvalidRequest
+	}
+	now := time.Now().UTC()
+	c := &ticketdomain.TicketComment{
+		ID:        uuid.New(),
+		TicketID:  ticketID,
+		AuthorID:  actorID,
+		Body:      body,
+		CreatedAt: now,
+	}
+	actor := actorID
+	return s.repo.AddComment(ctx, orgID, ticketID, c, &audit.AuditLog{
+		OrgID:      orgID,
+		EntityType: "ticket",
+		EntityID:   ticketID,
+		Action:     "comment_added",
+		ActorID:    &actor,
+		CreatedAt:  now,
+	})
+}
+
+// ListHistory returns the ticket's append-only audit stream (TICK-05) for
+// any internal member; the customer role is rejected (internal-only, D-E).
+func (s *Service) ListHistory(ctx context.Context, orgID uuid.UUID, role string, ticketID uuid.UUID) ([]audit.AuditLog, error) {
+	if role == string(models.RoleCustomer) {
+		return nil, ticketdomain.ErrForbidden
+	}
+	return s.repo.ListHistory(ctx, orgID, ticketID)
+}
+
 // isOrgMember reports whether the user has an active membership row in the
 // org (D-02 — origin refs must be org members).
 func (s *Service) isOrgMember(ctx context.Context, orgID, userID uuid.UUID) bool {
@@ -241,4 +432,25 @@ func (s *Service) isOrgMember(ctx context.Context, orgID, userID uuid.UUID) bool
 		return false
 	}
 	return m.IsActive
+}
+
+// activityKindExists is the optional fast-fail for triage plans: kind label
+// present in the org's activity_kinds catalog.
+func (s *Service) activityKindExists(ctx context.Context, orgID uuid.UUID, kind string) bool {
+	exists, err := s.activityRepo.KindExists(ctx, orgID, kind)
+	return err == nil && exists
+}
+
+// activityExists is the optional fast-fail for triage plans: parent activity
+// exists and belongs to the org.
+func (s *Service) activityExists(ctx context.Context, orgID, activityID uuid.UUID) bool {
+	a, err := s.activityRepo.Get(ctx, orgID, activityID)
+	return err == nil && a != nil && a.OrgID == orgID
+}
+
+// contractExists is the optional fast-fail for triage plans: contract exists
+// and belongs to the org.
+func (s *Service) contractExists(ctx context.Context, orgID, contractID uuid.UUID) bool {
+	c, err := s.contractRepo.Get(ctx, orgID, contractID)
+	return err == nil && c != nil && c.CreatedByOrgID == orgID
 }
