@@ -217,6 +217,14 @@ func (r *TicketRepository) UpdateDetails(ctx context.Context, orgID, ticketID uu
 // UpdateState sets the ticket status, bumps updated_at, and writes the
 // 'status_changed' audit row in the same tx (TICK-05 — the transition is not
 // durable without its event).
+//
+// Validation is AUTHORITATIVE inside this tx (Pitfall 7, ADR-BE-016,
+// CR-01): the service's pool-level CanTransition / HasNonTerminalActivities
+// checks are fast-fail UX only; UpdateState re-locks the ticket row FOR
+// UPDATE, re-checks the matrix against the locked status, and for the
+// 'resolved' edge re-runs the non-terminal-activities check
+// (hasNonTerminalActivitiesTx) before writing. The UPDATE carries a status
+// precondition as the SQL backstop.
 func (r *TicketRepository) UpdateState(ctx context.Context, orgID, ticketID uuid.UUID, to string, note *string, auditLog *audit.AuditLog) (*ticketdomain.Ticket, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -224,9 +232,41 @@ func (r *TicketRepository) UpdateState(ctx context.Context, orgID, ticketID uuid
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	// Lock the ticket row in-org so concurrent state changes serialize; the
+	// locked status is the commit-order truth for the matrix re-check.
+	var currentStatus string
+	err = tx.QueryRow(ctx,
+		`SELECT status FROM tickets WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+		ticketID, orgID).Scan(&currentStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ticketdomain.ErrTicketNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock ticket for state update: %w", err)
+	}
+
+	// Authoritative in-tx matrix re-check (D-14, CR-01): a transition that
+	// acquires the lock after another mutator committed reads the committed
+	// status — terminal states can no longer be flipped.
+	if !ticketdomain.CanTransition(currentStatus, to) {
+		return nil, ticketdomain.ErrInvalidTransition
+	}
+
+	// The resolved edge additionally requires the linked-activity subtree
+	// terminal (OQ2) — re-checked inside this tx, never check-then-act.
+	if to == ticketdomain.StatusResolved {
+		nonTerminal, err := r.hasNonTerminalActivitiesTx(ctx, tx, ticketID)
+		if err != nil {
+			return nil, err
+		}
+		if nonTerminal {
+			return nil, ticketdomain.ErrActivityNotTerminal
+		}
+	}
+
 	ct, err := tx.Exec(ctx,
-		`UPDATE tickets SET status = $1, updated_at = $2 WHERE id = $3 AND org_id = $4`,
-		to, time.Now().UTC(), ticketID, orgID)
+		`UPDATE tickets SET status = $1, updated_at = $2 WHERE id = $3 AND org_id = $4 AND status = $5`,
+		to, time.Now().UTC(), ticketID, orgID, currentStatus)
 	if err != nil {
 		return nil, wrapPGError(err, "update ticket status")
 	}
@@ -377,6 +417,14 @@ func (r *TicketRepository) Triage(ctx context.Context, orgID, ticketID uuid.UUID
 		return nil, nil, fmt.Errorf("lock ticket for triage: %w", err)
 	}
 
+	// Authoritative in-tx matrix re-check (D-10/D-14, CR-01 race 1): a triage
+	// that acquires the lock after a dismiss committed reads 'dismissed' and
+	// is rejected — a terminal ticket can never be resurrected to 'planned'.
+	// (The service's pool-level CanTransition is fast-fail UX only.)
+	if !ticketdomain.CanTransition(currentStatus, ticketdomain.StatusPlanned) {
+		return nil, nil, ticketdomain.ErrInvalidTransition
+	}
+
 	// Authoritative in-tx plan validation (Pitfall 7) — no TOCTOU window.
 	for i, p := range plans {
 		var kindOK bool
@@ -418,15 +466,17 @@ func (r *TicketRepository) Triage(ctx context.Context, orgID, ticketID uuid.UUID
 	}
 
 	// Ticket reclassification: optional kind override + status='planned'.
+	// The status precondition (AND status = currentStatus) is the SQL
+	// backstop on the in-tx matrix re-check above (CR-01).
 	sets := []string{"status = 'planned'", "updated_at = $1"}
 	args := []any{time.Now().UTC()}
 	if kind != nil {
 		args = append(args, *kind)
 		sets = append(sets, fmt.Sprintf("kind = $%d", len(args)))
 	}
-	args = append(args, ticketID, orgID)
-	query := fmt.Sprintf("UPDATE tickets SET %s WHERE id = $%d AND org_id = $%d",
-		strings.Join(sets, ", "), len(args)-1, len(args))
+	args = append(args, ticketID, orgID, currentStatus)
+	query := fmt.Sprintf("UPDATE tickets SET %s WHERE id = $%d AND org_id = $%d AND status = $%d",
+		strings.Join(sets, ", "), len(args)-2, len(args)-1, len(args))
 	if _, err := tx.Exec(ctx, query, args...); err != nil {
 		return nil, nil, wrapPGError(err, "update ticket on triage")
 	}
@@ -660,9 +710,39 @@ func (r *TicketRepository) loggedHoursTx(ctx context.Context, tx pgx.Tx, ticketI
 // pending_manager/pending_finance, is_deleted=false, on the ticket's linked
 // activities OR any of their descendants (recursive CTE). Blocks the
 // 'resolved' transition until the subtree is terminal.
+//
+// This pool-level read is the service's FAST-FAIL UX check only; the
+// authoritative gate is hasNonTerminalActivitiesTx, re-run inside the
+// UpdateState tx under the FOR UPDATE lock (Pitfall 7, CR-01).
 func (r *TicketRepository) HasNonTerminalActivities(ctx context.Context, ticketID uuid.UUID) (bool, error) {
 	var has bool
 	err := r.pool.QueryRow(ctx,
+		`WITH RECURSIVE subtree AS (
+			SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket'
+			UNION ALL
+			SELECT a.id FROM activities a JOIN subtree s ON a.parent_id = s.id
+		 )
+		 SELECT EXISTS (
+			SELECT 1 FROM time_entries te
+			WHERE te.is_deleted = false
+			  AND te.status IN ('draft','submitted','pending_manager','pending_finance')
+			  AND te.activity_id IN (SELECT id FROM subtree)
+		 )`,
+		ticketID).Scan(&has)
+	if err != nil {
+		return false, wrapPGError(err, "check non-terminal activities")
+	}
+	return has, nil
+}
+
+// hasNonTerminalActivitiesTx is HasNonTerminalActivities executed against an
+// open transaction — the AUTHORITATIVE OQ2 gate inside the UpdateState tx
+// (see UpdateState): the recursive-CTE check re-runs after the ticket row
+// FOR UPDATE lock, so the resolved-block is commit-adjacent, never
+// check-then-act. The SQL is the same recursive CTE as the pool-level read.
+func (r *TicketRepository) hasNonTerminalActivitiesTx(ctx context.Context, tx pgx.Tx, ticketID uuid.UUID) (bool, error) {
+	var has bool
+	err := tx.QueryRow(ctx,
 		`WITH RECURSIVE subtree AS (
 			SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket'
 			UNION ALL

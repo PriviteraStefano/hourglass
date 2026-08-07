@@ -188,6 +188,11 @@ func (s *Service) UpdateDetails(ctx context.Context, orgID, actorID uuid.UUID, r
 // requires every linked activity terminal (OQ2) else ErrActivityNotTerminal.
 // The 'status_changed' audit row lands in the same tx as the state write
 // (TICK-05).
+//
+// The pool-level CanTransition / HasNonTerminalActivities checks here are
+// FAST-FAIL UX only (Pitfall 7, CR-01): the repo re-validates the matrix and
+// the resolved-block authoritatively inside the mutator tx under the
+// FOR UPDATE ticket row lock — never check-then-act across the tx boundary.
 func (s *Service) Transition(ctx context.Context, orgID, actorID uuid.UUID, role string, ticketID uuid.UUID, to string, note *string) (*ticketdomain.Ticket, error) {
 	t, err := s.repo.Get(ctx, orgID, ticketID)
 	if err != nil {
@@ -252,6 +257,11 @@ func (s *Service) canUpdate(role string, actorID uuid.UUID, t *ticketdomain.Tick
 // computed server-side by the repo, NEVER client-supplied, T-11-07). The
 // hours snapshot is persisted in dismissed_hours and rendered as the note
 // "dismissed with N h logged" on read (TICK-04).
+//
+// The pool-level CanTransition / LoggedHours checks here are FAST-FAIL UX
+// only (Pitfall 7, CR-01): the repo re-locks the ticket row + linked
+// activities FOR UPDATE and re-computes the Σ inside the dismiss tx
+// (loggedHoursTx) — the authoritative T-11-07 gate, check-and-act in one tx.
 //
 // Dismissal is intentionally NOT reachable through Transition: that path has
 // no hours guard and would bypass T-11-07, so Transition rejects
@@ -318,7 +328,11 @@ type TriageActivityPlan struct {
 // same-org) are AUTHORITATIVE inside the repo's tx (Pitfall 7, T-11-06) —
 // the service additionally fast-fails on the same rules via pool-level
 // reads (kindExists/parent/contract) as optional UX only; the in-tx checks
-// and the DB FK/CHECK constraints are the correctness guarantee.
+// and the DB FK/CHECK constraints are the correctness guarantee. Likewise
+// the pool-level CanTransition(current → 'planned') check here is FAST-FAIL
+// UX only: the repo re-validates the matrix against the status it reads
+// under the FOR UPDATE lock inside the triage tx (CR-01 — a dismissed
+// ticket can never be resurrected).
 //
 // Both audit rows ('triaged' + 'activities_created') are written in the same
 // tx as the state write and the activity inserts (TICK-03, ADR-BE-016).
