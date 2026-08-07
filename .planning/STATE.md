@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 status: executing
-stopped_at: Completed 11-04-PLAN.md
-last_updated: "2026-08-07T10:22:50.778Z"
+stopped_at: Completed 11-05-PLAN.md
+last_updated: "2026-08-07T10:40:07.794Z"
 last_activity: 2026-08-07 -- Phase 11 execution started
 progress:
   total_phases: 16
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 ## Current Position
 
 Phase: 11 (foundations-schema-origins-tickets-backend) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-08-07 -- Phase 11 execution started
 
@@ -68,6 +68,10 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase ?]: Sold-period clear uses the empty-string sentinel (sold_period: empty string) mirroring the existing customer_id nullable-clear pattern; absent field never emits NULL
 - [Phase ?]: Update validates only fields present in the request; support-without-period surfaces ErrInvalidSoldConfig before the DB CHECK fires (house style sentinel-first)
 - [Phase ?]: sold_hours has no update-clear branch — only sold_period can be cleared (plan-scoped nullable-clear)
+- [Phase ?]: General audit types named GeneralAuditLogRepository (port + postgres): ports.AuditLogRepository and postgres.AuditLogRepository already exist for the entry-scoped BE-012 audit (time_entry_approvals); renaming the new D-05 types is the minimal collision-free path preserving both behaviors
+- [Phase ?]: Dead entry-scoped MockAuditLogRepo in testdata renamed MockTimeEntryAuditLogRepo; the MockAuditLogRepo name now serves the general audit.AuditLog port (zero usages before)
+- [Phase ?]: ApproveProposal flips is_active via the repo Update directly (bypassing the service Update finance gate) — the routing approver check IS the gate; self-approval checked before routing so no-self-approval is deterministic even on D-11 skipToFinance paths
+- [Phase ?]: Proposer primary-unit lookup degrades to uuid.Nil on malformed unit IDs (no panic); routing then falls to the terminal role-gated resolution
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -113,8 +117,8 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 
 ## Session Continuity
 
-Last session: 2026-08-07T10:22:23.402Z
-Stopped at: Completed 11-04-PLAN.md
+Last session: 2026-08-07T10:40:07.788Z
+Stopped at: Completed 11-05-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
@@ -126,3 +130,4 @@ Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets b
 | Phase 11-foundations-schema-origins-tickets-backend P03 | 6min | 2 tasks | 8 files |
 | Phase 11-foundations-schema-origins-tickets-backend P02 | 12min | 3 tasks | 5 files |
 | Phase 11-foundations-schema-origins-tickets-backend P04 | 7min | 2 tasks | 6 files |
+| Phase 11-foundations-schema-origins-tickets-backend P05 | 10min | 3 tasks | 21 files |

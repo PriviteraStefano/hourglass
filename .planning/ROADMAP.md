@@ -80,7 +80,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 11-05-PLAN.md — Activity origins (FND-01/04): role gates, same-org validation, immutability; proposal approval (FND-02); ticket/audit domain + repos foundation
+- [x] 11-05-PLAN.md — Activity origins (FND-01/04): role gates, same-org validation, immutability; proposal approval (FND-02); ticket/audit domain + repos foundation
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
