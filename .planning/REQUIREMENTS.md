@@ -18,7 +18,7 @@ Requirements for milestone v0.2 — Ontology Extension (Origins, Tickets & Cover
 
 - [x] **TICK-01**: User can create an internal ticket with a closed-set kind (question · bug · change · evolution); kinds drive funding-eligibility rules (Q2, D-H)
 - [x] **TICK-02**: Ticket lifecycle: open → triage → planned → in_progress → resolved → closed, with reopen (`resolved → in_progress`); `resolved` requires all linked activities terminal; one demand thread per real-world request (D-A)
-- [ ] **TICK-03**: Triage classifies a ticket (kind + eligible funding sources) and converts it into 1..N activities; chain is ticket → activity → entries — tickets never reference entries directly (revised P-003)
+- [x] **TICK-03**: Triage classifies a ticket (kind + eligible funding sources) and converts it into 1..N activities; chain is ticket → activity → entries — tickets never reference entries directly (revised P-003)
 - [x] **TICK-04**: Dismissal guard: `triage → dismissed` is blocked while any linked activity carries logged hours (net of compensating corrections); a dismissed ticket keeps a "dismissed with N h logged" note (D-M)
 - [x] **TICK-05**: Ticket history is an immutable event stream (comments, resolution notes, status changes) via the BE-012 audit trail — never editable or deletable
 - [ ] **TICK-06**: User can view tickets and their status (Track pillar + Today "my open tickets" per P-004); tickets are tracked work, auto-approved with permission control
@@ -131,7 +131,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FND-04 | Phase 11 | Complete |
 | TICK-01 | Phase 11 | Complete |
 | TICK-02 | Phase 11 | Complete |
-| TICK-03 | Phase 11 | Pending |
+| TICK-03 | Phase 11 | Complete |
 | TICK-04 | Phase 11 | Complete |
 | TICK-05 | Phase 11 | Complete |
 | COV-01 | Phase 12 | Pending |

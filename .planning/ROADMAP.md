@@ -75,7 +75,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 11-02-PLAN.md — ADRs: ADR-P-003 revision, ADR-P-013 (origins), ADR-BE-016 (schema encoding) + index updates
+- [x] 11-02-PLAN.md — ADRs: ADR-P-003 revision, ADR-P-013 (origins), ADR-BE-016 (schema encoding) + index updates
 - [ ] 11-04-PLAN.md — Contract sold_hours read/write (FND-03): domain + validation + repo + handler
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -324,7 +324,7 @@ Plans:
 | 8. Hardening | v0.1 | 4/4 | Complete | 2026-07-31 |
 | 9. Activity Ont. | v0.1 | 8/8 | Complete | 2026-07-31 |
 | 10. IA Impl. | v0.1 | 6/6 | Complete | 2026-08-01 |
-| 11. Foundations | v0.2 | 0/TBD | Not started | - |
+| 11. Foundations | v0.2 | 3/6 | In Progress|  |
 | 12. Coverage Backend | v0.2 | 0/TBD | Not started | - |
 | 13. Direction Backend | v0.2 | 0/TBD | Not started | - |
 | 14. Availability Backend | v0.2 | 0/TBD | Not started | - |
