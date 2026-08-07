@@ -2,6 +2,7 @@ package ticket
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -90,6 +91,24 @@ func TestTicketCreate(t *testing.T) {
 			&CreateTicketRequest{Title: "", Kind: ticketdomain.KindBug})
 		assert.ErrorIs(t, err, ticketdomain.ErrInvalidRequest)
 		assert.Nil(t, created)
+	})
+
+	t.Run("256-char title rejected (WR-04)", func(t *testing.T) {
+		f := setupTicket(t)
+		created, err := f.svc.Create(context.Background(), orgID, actorID, string(models.RoleEmployee),
+			&CreateTicketRequest{Title: strings.Repeat("a", 256), Kind: ticketdomain.KindBug})
+		assert.ErrorIs(t, err, ticketdomain.ErrInvalidRequest)
+		assert.Nil(t, created)
+	})
+
+	t.Run("255-char title accepted (WR-04 boundary)", func(t *testing.T) {
+		f := setupTicket(t)
+		long := strings.Repeat("a", 255)
+		created, err := f.svc.Create(context.Background(), orgID, actorID, string(models.RoleEmployee),
+			&CreateTicketRequest{Title: long, Kind: ticketdomain.KindBug})
+		require.NoError(t, err)
+		require.NotNil(t, created)
+		assert.Equal(t, long, created.Title)
 	})
 
 	t.Run("kind outside the closed set rejected (TICK-01)", func(t *testing.T) {
@@ -316,6 +335,42 @@ func TestTicketUpdateDetails(t *testing.T) {
 		assert.Equal(t, "updated", a.Action)
 		assert.Equal(t, "New title", a.Payload["title"])
 		assert.Equal(t, "New description", a.Payload["description"])
+	})
+
+	t.Run("empty title update rejected (IN-01)", func(t *testing.T) {
+		f := setupTicket(t)
+		tkt := f.seedTicket(orgID, ticketdomain.StatusOpen)
+
+		got, err := f.svc.UpdateDetails(context.Background(), orgID, uuid.New(), string(models.RoleManager),
+			tkt.ID, strPtr(""), nil, nil)
+		assert.ErrorIs(t, err, ticketdomain.ErrInvalidRequest)
+		assert.Nil(t, got)
+		// The payload map and repo call must not execute for rejected titles.
+		assert.Empty(t, f.ticketRepo.Audits)
+		assert.Equal(t, "Seeded ticket", tkt.Title)
+	})
+
+	t.Run("256-char title update rejected (WR-04)", func(t *testing.T) {
+		f := setupTicket(t)
+		tkt := f.seedTicket(orgID, ticketdomain.StatusOpen)
+
+		got, err := f.svc.UpdateDetails(context.Background(), orgID, uuid.New(), string(models.RoleManager),
+			tkt.ID, strPtr(strings.Repeat("a", 256)), nil, nil)
+		assert.ErrorIs(t, err, ticketdomain.ErrInvalidRequest)
+		assert.Nil(t, got)
+		assert.Empty(t, f.ticketRepo.Audits)
+		assert.Equal(t, "Seeded ticket", tkt.Title)
+	})
+
+	t.Run("255-char title update accepted (WR-04 boundary)", func(t *testing.T) {
+		f := setupTicket(t)
+		tkt := f.seedTicket(orgID, ticketdomain.StatusOpen)
+
+		long := strings.Repeat("a", 255)
+		got, err := f.svc.UpdateDetails(context.Background(), orgID, uuid.New(), string(models.RoleManager),
+			tkt.ID, strPtr(long), nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, long, got.Title)
 	})
 
 	t.Run("non-owner employee forbidden (T-11-05)", func(t *testing.T) {
