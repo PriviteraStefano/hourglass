@@ -2,9 +2,11 @@ package activity
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
+	"github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/ticket"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
@@ -236,6 +238,114 @@ func hasOriginFields(req *activitydomain.UpdateActivityRequest) bool {
 		req.ProposedBy != nil ||
 		req.ReviewedBy != nil ||
 		req.TicketID != nil
+}
+
+// ApproveProposal approves an employee proposal (D-12, T-11-02). Proposals
+// are is_active=false activities whose approval routes through the shared
+// BE-014 machinery (D-G parity with entry approval) and lands in the general
+// audit_logs — never in origin refs (ADR-P-013: reviewed_by stays NULL).
+//
+// Gate sequence:
+//  1. the activity must exist in-org and be an employee_proposal
+//  2. it must not already be approved (is_active)
+//  3. no self-approval (actor != proposer)
+//  4. the proposer's primary unit anchors the routing walk
+//  5. routing.ResolveManagerStage resolves the approver set — propagated
+//     errors include activity.ErrActivityNotLoggable (commercial proposal
+//     without an anchored WG, R-2)
+//  6. role-gated resolutions require manager|finance; D-11 skips (proposer
+//     in the approver set) are rejected — the only approver would be the
+//     proposer, and routing must never self-approve
+//  7. otherwise the actor must be in the resolved approver set
+//
+// Persistence flips is_active via the repo Update directly (bypassing the
+// service Update's finance gate — the approver check above IS the gate) and
+// writes a synchronous proposal_approved audit row (T-11-08).
+func (s *Service) ApproveProposal(ctx context.Context, role string, orgID, actorID, activityID uuid.UUID) (*activitydomain.ActivityResponse, error) {
+	existing, err := s.activityRepo.Get(ctx, orgID, activityID)
+	if err != nil {
+		return nil, err
+	}
+
+	if existing.OriginType == nil || *existing.OriginType != activitydomain.OriginTypeEmployeeProposal {
+		return nil, activitydomain.ErrInvalidRequest
+	}
+	if existing.IsActive {
+		return nil, activitydomain.ErrInvalidRequest
+	}
+	if existing.ProposedBy == nil {
+		return nil, activitydomain.ErrInvalidRequest
+	}
+	if actorID == *existing.ProposedBy {
+		return nil, activitydomain.ErrForbidden
+	}
+
+	// Resolve the proposer's primary unit — uuid.Nil when they have no
+	// primary membership (routing walks from the unit tree; nil short-circuits
+	// to the terminal role-gated resolution).
+	unitID := uuid.Nil
+	memberships, err := s.unitRepo.ListMembershipsForUser(ctx, *existing.ProposedBy)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range memberships {
+		if m.IsPrimary {
+			if id, err := uuid.Parse(m.UnitID); err == nil {
+				unitID = id
+			}
+			break
+		}
+	}
+
+	res, err := s.routing.ResolveManagerStage(ctx, orgID, activityID, unitID, *existing.ProposedBy)
+	if err != nil {
+		return nil, err
+	}
+
+	switch {
+	case res.RoleGated:
+		if role != string(models.RoleManager) && role != string(models.RoleFinance) {
+			return nil, activitydomain.ErrForbidden
+		}
+	case res.SkipToFinance:
+		// D-11: the proposer IS the only approver — routing cannot approve.
+		return nil, activitydomain.ErrForbidden
+	default:
+		if !contains(res.ApproverIDs, actorID) {
+			return nil, activitydomain.ErrForbidden
+		}
+	}
+
+	trueVal := true
+	updated, err := s.activityRepo.Update(ctx, orgID, activityID, &activitydomain.UpdateActivityRequest{IsActive: &trueVal})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.auditRepo.Create(ctx, &audit.AuditLog{
+		OrgID:      orgID,
+		EntityType: "activity",
+		EntityID:   activityID,
+		Action:     "proposal_approved",
+		ActorID:    &actorID,
+		Payload:    map[string]any{"approver": actorID.String()},
+		CreatedAt:  time.Now(),
+	}); err != nil {
+		return nil, err
+	}
+
+	return updated, nil
+}
+
+// contains reports whether id is in ids (mirrors the time_entry service
+// helper for routing approver sets).
+func contains(ids []uuid.UUID, id uuid.UUID) bool {
+	for _, i := range ids {
+		if i == id {
+			return true
+		}
+	}
+	return false
 }
 
 // validateParent is the single parent-validation point shared by Create and

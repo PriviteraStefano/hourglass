@@ -122,13 +122,7 @@ func main() {
 	contractService := contractsvc.NewService(contractRepo)
 	contractHandler := http.NewContractHandler(contractService)
 
-	// Activities — the single recursive work entity replacing projects +
-	// subprojects (ADR-P-007, ADR-BE-014 R-6). The handler holds the repo for
-	// the detail endpoint's derived reads (ancestry / commercial context /
-	// billability); the service owns the CRUD surface.
 	activityRepo := postgres.NewActivityRepository(pool)
-	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo)
-	activityHandler := http.NewActivityHandler(activityService, activityRepo)
 
 	// Entry services — routing resolves through activity → WG chain
 	// (ADR-BE-014 R-1/R-2), so they take the working-group + activity + unit
@@ -138,6 +132,18 @@ func main() {
 	routingSvc := routing.NewService(wgRepo, activityRepo, unitRepo)
 	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo, routingSvc)
 	hexTEHandler := http.NewTimeEntryHandler(teService)
+
+	// Activities — the single recursive work entity replacing projects +
+	// subprojects (ADR-P-007, ADR-BE-014 R-6). The handler holds the repo for
+	// the detail endpoint's derived reads (ancestry / commercial context /
+	// billability); the service owns the CRUD surface plus the origin axis
+	// (ADR-P-013): org membership checks, customer_ticket validation, and
+	// proposal approval routed through the shared BE-014 machinery with a
+	// synchronous audit_logs write.
+	auditRepo := postgres.NewGeneralAuditLogRepository(pool)
+	ticketRepo := postgres.NewTicketRepository(pool)
+	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, ticketRepo, auditRepo, routingSvc)
+	activityHandler := http.NewActivityHandler(activityService, activityRepo)
 
 	expenseService := expsvc.NewService(expenseRepo, wgRepo, activityRepo, unitRepo)
 	expenseHandler := http.NewExpenseHandler(expenseService)
@@ -198,6 +204,7 @@ func main() {
 	mux.HandleFunc("PUT /activities/{id}", middleware.Auth(authService, activityHandler.Update))
 	mux.HandleFunc("DELETE /activities/{id}", middleware.Auth(authService, activityHandler.Delete))
 	mux.HandleFunc("GET /activities/{id}/children", middleware.Auth(authService, activityHandler.ListChildren))
+	mux.HandleFunc("POST /activities/{id}/approve-proposal", middleware.Auth(authService, activityHandler.ApproveProposal))
 	mux.HandleFunc("GET /activity-kinds", middleware.Auth(authService, activityHandler.ListKinds))
 
 	mux.HandleFunc("GET /contracts", middleware.Auth(authService, contractHandler.List))

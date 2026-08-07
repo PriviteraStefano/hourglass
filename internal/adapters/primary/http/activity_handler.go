@@ -425,6 +425,36 @@ func (h *ActivityHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	api.RespondWithJSON(w, http.StatusOK, map[string]interface{}{"message": "activity deleted"})
 }
 
+// ApproveProposal approves an employee proposal (D-12): the service resolves
+// the approver set via the shared BE-014 routing (D-G parity), flips
+// is_active, and writes a synchronous proposal_approved audit row.
+// Sentinel mapping: not-found/invalid-request/not-loggable → 400,
+// forbidden → 403 (ADR-BE-001).
+func (h *ActivityHandler) ApproveProposal(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrganizationID(r.Context())
+	activityID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid activity id")
+		return
+	}
+
+	updated, err := h.service.ApproveProposal(r.Context(), middleware.GetRole(r.Context()), orgID, middleware.GetUserID(r.Context()), activityID)
+	if err != nil {
+		switch {
+		case errors.Is(err, activitydomain.ErrForbidden):
+			api.RespondWithError(w, http.StatusForbidden, "not allowed to approve this proposal")
+		case errors.Is(err, activitydomain.ErrActivityNotLoggable):
+			api.RespondWithError(w, http.StatusBadRequest, "proposal cannot be approved: commercial activities must anchor a working group")
+		case errors.Is(err, activitydomain.ErrInvalidRequest), errors.Is(err, activitydomain.ErrActivityNotFound):
+			api.RespondWithError(w, http.StatusBadRequest, "invalid proposal")
+		default:
+			api.RespondWithError(w, http.StatusInternalServerError, "failed to approve proposal")
+		}
+		return
+	}
+	api.RespondWithJSON(w, http.StatusOK, updated)
+}
+
 // ListChildren returns the direct children of an activity (the old
 // ListSubprojects replacement — subprojects are now task-kind children).
 func (h *ActivityHandler) ListChildren(w http.ResponseWriter, r *http.Request) {

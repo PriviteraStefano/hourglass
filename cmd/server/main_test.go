@@ -132,7 +132,8 @@ func TestSmoke(t *testing.T) {
 
 	// Activities
 	activityRepo := postgres.NewActivityRepository(pool)
-	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo)
+	routingSvc := routing.NewService(wgRepo, activityRepo, unitRepo)
+	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, postgres.NewTicketRepository(pool), postgres.NewGeneralAuditLogRepository(pool), routingSvc)
 	activityHandler := http.NewActivityHandler(activityService, activityRepo)
 
 	// Export
@@ -140,9 +141,6 @@ func TestSmoke(t *testing.T) {
 	exportService := export.NewService(exportRepo)
 	exportHandler := http.NewExportHandler(exportService)
 
-	// Entry services — routing resolves through activity → WG chain
-	// (ADR-BE-014 R-1/R-2).
-	routingSvc := routing.NewService(wgRepo, activityRepo, unitRepo)
 	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo, routingSvc)
 	hexTEHandler := http.NewTimeEntryHandler(teService)
 
