@@ -94,12 +94,15 @@ func (m *MockTimeEntryRepo) ListPending(ctx context.Context, orgID uuid.UUID, ro
 	return result, nil
 }
 
-type MockAuditLogRepo struct {
+// MockTimeEntryAuditLogRepo records entry-scoped audit rows (time_entry
+// domain type). Named TimeEntry* to distinguish it from the general
+// MockAuditLogRepo (audit.AuditLog, D-05) in mock_audit_log_repo.go.
+type MockTimeEntryAuditLogRepo struct {
 	mu        sync.Mutex
 	AuditLogs []*time_entry.AuditLog
 }
 
-func (m *MockAuditLogRepo) Create(ctx context.Context, log *time_entry.AuditLog) error {
+func (m *MockTimeEntryAuditLogRepo) Create(ctx context.Context, log *time_entry.AuditLog) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.AuditLogs = append(m.AuditLogs, log)
