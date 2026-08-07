@@ -66,7 +66,7 @@
   8. Origin refs stored on activities; empty refs fall back to the first direction record on read (additive, Phase 13 landing) (FND-04)
   9. ADR-P-003 revision + ADR-P-013 recorded in the vault decisions folder; all migrations are append-only per ADR-BE-004 with up/down pairs + cycle tests
 
-**Plans**: 6 plans
+**Plans**: 8 plans
 Plans:
 **Wave 1**
 
@@ -85,6 +85,11 @@ Plans:
 **Wave 4** *(blocked on Wave 3 completion)*
 
 - [x] 11-06-PLAN.md — Ticket lifecycle backend (TICK-01..05): state machine, atomic triage, dismissal guard, comments, append-only history
+
+**Wave 5 (gap closure)** *(blocked on Wave 4 completion)*
+
+- [ ] 11-07-PLAN.md — CR-01 TOCTOU fix (TICK-02/TICK-04): matrix + hours Σ re-validated inside the mutator tx under FOR UPDATE locks + race test battery
+- [ ] 11-08-PLAN.md — Dismissal note rendered on read (TICK-04/IN-02) + title validation ride-alongs (WR-04/IN-01)
 
 ### Phase 12: Coverage Backend — The Allocation Loop
 
