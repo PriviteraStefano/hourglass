@@ -250,6 +250,15 @@ func (r *TicketRepository) UpdateState(ctx context.Context, orgID, ticketID uuid
 // and writes the 'dismissed' audit row in the same tx. The hours value is
 // computed server-side by the service via LoggedHours — never client-supplied
 // (T-11-07).
+//
+// Validation is AUTHORITATIVE inside this tx (Pitfall 7, ADR-BE-016,
+// CR-01): the service's pool-level CanTransition / LoggedHours checks are
+// fast-fail UX only; Dismiss re-locks the ticket row FOR UPDATE, re-checks
+// the matrix against the locked status, serializes with the entry-submit
+// path by locking the linked activities, and re-computes the D-13 hours Σ
+// (loggedHoursTx) before writing — the guard is check-and-act in one tx,
+// never check-then-act. The UPDATE additionally carries a status
+// precondition as the SQL backstop.
 func (r *TicketRepository) Dismiss(ctx context.Context, orgID, ticketID uuid.UUID, hours float64, auditLog *audit.AuditLog) (*ticketdomain.Ticket, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -257,10 +266,65 @@ func (r *TicketRepository) Dismiss(ctx context.Context, orgID, ticketID uuid.UUI
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	// Lock the ticket row in-org so concurrent state changes serialize; the
+	// locked status is the commit-order truth for the matrix re-check.
+	var currentStatus string
+	err = tx.QueryRow(ctx,
+		`SELECT status FROM tickets WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+		ticketID, orgID).Scan(&currentStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ticketdomain.ErrTicketNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock ticket for dismissal: %w", err)
+	}
+
+	// Authoritative in-tx matrix re-check (D-14, CR-01 race 2): a dismissal
+	// that acquires the lock after another transition committed reads the
+	// committed status — illegal planned→dismissed lands here.
+	if !ticketdomain.CanTransition(currentStatus, ticketdomain.StatusDismissed) {
+		return nil, ticketdomain.ErrInvalidTransition
+	}
+
+	// Serialize with the entry-submit path: an in-flight time_entries INSERT
+	// holds a FK KEY SHARE on the linked activity row, so this FOR UPDATE
+	// blocks until that tx commits — the Σ that follows sees its row (or its
+	// rollback). Deterministic guard, never check-then-act (T-11-07).
+	activityRows, err := tx.Query(ctx,
+		`SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket' FOR UPDATE`,
+		ticketID)
+	if err != nil {
+		return nil, wrapPGError(err, "lock linked activities for dismissal")
+	}
+	var activityID uuid.UUID
+	for activityRows.Next() {
+		if err := activityRows.Scan(&activityID); err != nil {
+			activityRows.Close()
+			return nil, fmt.Errorf("scan linked activity lock: %w", err)
+		}
+	}
+	if err := activityRows.Err(); err != nil {
+		activityRows.Close()
+		return nil, fmt.Errorf("iterate linked activity locks: %w", err)
+	}
+	activityRows.Close()
+
+	// Authoritative in-tx Σ re-check (D-13, T-11-07): the service's pool-level
+	// hours value is superseded by the Σ computed under the locks — if any
+	// submitted/approved entry committed before this point, dismissal is
+	// blocked.
+	sum, err := r.loggedHoursTx(ctx, tx, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	if sum > 0 {
+		return nil, ticketdomain.ErrDismissalBlocked
+	}
+
 	ct, err := tx.Exec(ctx,
 		`UPDATE tickets SET status = 'dismissed', dismissed_hours = $1, updated_at = $2
-		 WHERE id = $3 AND org_id = $4`,
-		hours, time.Now().UTC(), ticketID, orgID)
+		 WHERE id = $3 AND org_id = $4 AND status = $5`,
+		sum, time.Now().UTC(), ticketID, orgID, currentStatus)
 	if err != nil {
 		return nil, wrapPGError(err, "dismiss ticket")
 	}
@@ -556,9 +620,31 @@ func (r *TicketRepository) ListHistory(ctx context.Context, orgID, ticketID uuid
 // activities (D-13): submitted + approved, is_deleted excluded, linked via
 // ticket_id + origin_type='customer_ticket'. Stable signature — Phase 12
 // swaps the computation to net-of-compensations without changing it (D-13).
+//
+// This pool-level read is the service's FAST-FAIL UX check only; the
+// authoritative gate is loggedHoursTx, re-run inside the dismiss tx under
+// the FOR UPDATE locks (Pitfall 7, T-11-07, CR-01).
 func (r *TicketRepository) LoggedHours(ctx context.Context, ticketID uuid.UUID) (float64, error) {
 	var hours float64
 	err := r.pool.QueryRow(ctx,
+		`SELECT COALESCE(SUM(hours),0) FROM time_entries
+		 WHERE is_deleted = false AND status IN ('submitted','approved')
+		   AND activity_id IN (SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket')`,
+		ticketID).Scan(&hours)
+	if err != nil {
+		return 0, wrapPGError(err, "compute ticket logged hours")
+	}
+	return hours, nil
+}
+
+// loggedHoursTx is LoggedHours executed against an open transaction — the
+// AUTHORITATIVE D-13/T-11-07 gate inside the dismiss tx (see Dismiss): the Σ
+// is re-computed after the ticket row + linked-activity FOR UPDATE locks, so
+// a submitted/approved entry that committed before the check is always seen.
+// The WHERE shape is byte-identical to LoggedHours.
+func (r *TicketRepository) loggedHoursTx(ctx context.Context, tx pgx.Tx, ticketID uuid.UUID) (float64, error) {
+	var hours float64
+	err := tx.QueryRow(ctx,
 		`SELECT COALESCE(SUM(hours),0) FROM time_entries
 		 WHERE is_deleted = false AND status IN ('submitted','approved')
 		   AND activity_id IN (SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket')`,
