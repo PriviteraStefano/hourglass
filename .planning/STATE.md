@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 status: executing
-stopped_at: Completed 11-02-PLAN.md
-last_updated: "2026-08-07T10:13:59.073Z"
+stopped_at: Completed 11-04-PLAN.md
+last_updated: "2026-08-07T10:22:50.778Z"
 last_activity: 2026-08-07 -- Phase 11 execution started
 progress:
   total_phases: 16
   completed_phases: 0
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 ## Current Position
 
 Phase: 11 (foundations-schema-origins-tickets-backend) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-08-07 -- Phase 11 execution started
 
@@ -65,6 +65,9 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 11-foundations-schema-origins-tickets-backend]: Dismissal guard signature pinned as LoggedHours(ctx, ticketID) (float64, error) on raw Σ (submitted+approved, not deleted) — Phase 12 swaps computation to net-of-compensations without signature change (D-13)
 - [Phase 11-foundations-schema-origins-tickets-backend]: Terminal activity defined as: no non-terminal time entries (draft/submitted/pending_manager/pending_finance, is_deleted=false) on the linked-activity subtree via recursive CTE (OQ2)
 - [Phase 11-foundations-schema-origins-tickets-backend]: Transition matrix pinned (A7/OQ6): open→triage, triage→planned, triage→dismissed, planned→in_progress, in_progress→resolved, resolved→closed, resolved→in_progress (reopen), open→dismissed; closed/dismissed terminal; else ErrInvalidTransition
+- [Phase ?]: Sold-period clear uses the empty-string sentinel (sold_period: empty string) mirroring the existing customer_id nullable-clear pattern; absent field never emits NULL
+- [Phase ?]: Update validates only fields present in the request; support-without-period surfaces ErrInvalidSoldConfig before the DB CHECK fires (house style sentinel-first)
+- [Phase ?]: sold_hours has no update-clear branch — only sold_period can be cleared (plan-scoped nullable-clear)
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -110,8 +113,8 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 
 ## Session Continuity
 
-Last session: 2026-08-07T10:13:22.038Z
-Stopped at: Completed 11-02-PLAN.md
+Last session: 2026-08-07T10:22:23.402Z
+Stopped at: Completed 11-04-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
@@ -122,3 +125,4 @@ Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets b
 | Phase 11-foundations-schema-origins-tickets-backend P01 | 6 | 3 tasks | 11 files |
 | Phase 11-foundations-schema-origins-tickets-backend P03 | 6min | 2 tasks | 8 files |
 | Phase 11-foundations-schema-origins-tickets-backend P02 | 12min | 3 tasks | 5 files |
+| Phase 11-foundations-schema-origins-tickets-backend P04 | 7min | 2 tasks | 6 files |
