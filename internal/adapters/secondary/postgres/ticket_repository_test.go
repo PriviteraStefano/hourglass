@@ -606,3 +606,165 @@ func TestDismiss_RejectsPlanned(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, dismissedAudits)
 }
+
+// TestTransitionRace_VsDismiss fires repo.UpdateState(to='planned') and
+// repo.Dismiss concurrently on a 'triage' ticket and asserts EXACTLY ONE
+// winner (CR-01 race 2): the loser returns ErrInvalidTransition and the final
+// status is the winner's — 'dismissed' XOR 'planned', never both effects.
+//
+// RED on the pre-fix code: UpdateState's lock-free UPDATE lands even after
+// Dismiss committed, resurrecting/flipping the terminal state.
+func TestTransitionRace_VsDismiss(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewTicketRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	requesterID := seedUser(t, pool, now)
+
+	ticketID := insertTicketWithStatus(t, pool, orgID, requesterID, "triage", now)
+	actor := requesterID
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	go func() {
+		<-start
+		_, err := repo.UpdateState(ctx, orgID, ticketID, ticketdomain.StatusPlanned, nil, &auditdomain.AuditLog{
+			OrgID: orgID, EntityType: "ticket", EntityID: ticketID, Action: "status_changed",
+			ActorID: &actor, Payload: map[string]any{"from": "triage", "to": "planned"}, CreatedAt: now,
+		})
+		results <- err
+	}()
+	go func() {
+		<-start
+		_, err := repo.Dismiss(ctx, orgID, ticketID, 0, dismissAudit(orgID, ticketID, requesterID, now))
+		results <- err
+	}()
+	close(start)
+
+	successes := 0
+	var loserErr error
+	for i := 0; i < 2; i++ {
+		err := <-results
+		if err == nil {
+			successes++
+		} else {
+			loserErr = err
+		}
+	}
+	require.Equal(t, 1, successes, "exactly one of transition/dismiss must win the race")
+	require.ErrorIs(t, loserErr, ticketdomain.ErrInvalidTransition, "the race loser must fail with the matrix error")
+
+	// The final status is exactly the winner's — no mixed effects.
+	var status string
+	err := pool.QueryRow(ctx, `SELECT status FROM tickets WHERE id = $1`, ticketID).Scan(&status)
+	require.NoError(t, err)
+	require.True(t, status == ticketdomain.StatusPlanned || status == ticketdomain.StatusDismissed,
+		"final status must be the winner's (planned XOR dismissed), got %q", status)
+}
+
+// TestTriage_RejectsDismissed pins race 1 sequentially (CR-01): a dismissed
+// (terminal) ticket can never be resurrected to 'planned' — Triage must
+// re-validate currentStatus against the matrix under its FOR UPDATE lock.
+//
+// RED on the pre-fix code: Triage never validates the scanned currentStatus.
+func TestTriage_RejectsDismissed(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewTicketRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	requesterID := seedUser(t, pool, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	ticketID := insertTicketWithStatus(t, pool, orgID, requesterID, "triage", now)
+
+	// Dismiss first — the ticket is now terminal.
+	_, err := repo.Dismiss(ctx, orgID, ticketID, 0, dismissAudit(orgID, ticketID, requesterID, now))
+	require.NoError(t, err)
+
+	// Triage on the dismissed ticket must be rejected.
+	kind := ticketdomain.KindBug
+	plans := []*activitydomain.CreateActivityRequest{
+		{
+			Name:            "Resurrect me",
+			Kind:            activitydomain.ActivityKind("engagement"),
+			GovernanceModel: models.GovernanceCreatorControlled,
+		},
+	}
+	audits := []*auditdomain.AuditLog{
+		{OrgID: orgID, EntityType: "ticket", EntityID: ticketID, Action: "triaged", ActorID: &requesterID, CreatedAt: now},
+		{OrgID: orgID, EntityType: "ticket", EntityID: ticketID, Action: "activities_created", ActorID: &requesterID, CreatedAt: now},
+	}
+	_, _, err = repo.Triage(ctx, orgID, ticketID, &kind, plans, audits)
+	require.ErrorIs(t, err, ticketdomain.ErrInvalidTransition, "a dismissed ticket can never be triaged back to 'planned'")
+
+	// The ticket stays 'dismissed' with zero activities created.
+	var status string
+	err = pool.QueryRow(ctx, `SELECT status FROM tickets WHERE id = $1`, ticketID).Scan(&status)
+	require.NoError(t, err)
+	require.Equal(t, ticketdomain.StatusDismissed, status)
+
+	var activityCount int
+	err = pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket'`,
+		ticketID).Scan(&activityCount)
+	require.NoError(t, err)
+	require.Zero(t, activityCount)
+}
+
+// TestUpdateState_ResolvedBlocked pins the resolved-block re-checked inside
+// the mutator tx (CR-01, OQ2): UpdateState(to='resolved') must reject while a
+// non-terminal (draft) entry exists on the linked-activity subtree — even
+// when the pool-level fast-fail was bypassed (direct repo call) — and must
+// succeed once the entry is deleted.
+//
+// RED on the pre-fix code: UpdateState has no in-tx
+// HasNonTerminalActivities re-check at all.
+func TestUpdateState_ResolvedBlocked(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewTicketRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	requesterID := seedUser(t, pool, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	ticketID := insertTicketWithStatus(t, pool, orgID, requesterID, "in_progress", now)
+	activityID := insertCustomerTicketActivity(t, pool, orgID, ticketID, now)
+
+	// Committed draft entry on the linked activity — non-terminal (OQ2).
+	_, err := pool.Exec(ctx,
+		`INSERT INTO time_entries (id, org_id, user_id, activity_id, unit_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, 4.0, 'still drafting', $6, 'draft', false, $6, $6)`,
+		uuid.New(), orgID, requesterID, activityID, unitID, now)
+	require.NoError(t, err)
+
+	actor := requesterID
+	audit := &auditdomain.AuditLog{
+		OrgID: orgID, EntityType: "ticket", EntityID: ticketID, Action: "status_changed",
+		ActorID: &actor, Payload: map[string]any{"from": "in_progress", "to": "resolved"}, CreatedAt: now,
+	}
+
+	// Blocked while the draft entry exists.
+	_, err = repo.UpdateState(ctx, orgID, ticketID, ticketdomain.StatusResolved, nil, audit)
+	require.ErrorIs(t, err, ticketdomain.ErrActivityNotTerminal)
+
+	// Mark the entry deleted — the subtree is terminal, resolve succeeds.
+	_, err = pool.Exec(ctx, `UPDATE time_entries SET is_deleted = true WHERE activity_id = $1`, activityID)
+	require.NoError(t, err)
+
+	updated, err := repo.UpdateState(ctx, orgID, ticketID, ticketdomain.StatusResolved, nil, audit)
+	require.NoError(t, err)
+	require.Equal(t, ticketdomain.StatusResolved, updated.Status)
+}
