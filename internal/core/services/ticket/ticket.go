@@ -79,7 +79,9 @@ func (s *Service) Create(ctx context.Context, orgID, actorID uuid.UUID, role str
 	if role == string(models.RoleCustomer) {
 		return nil, ticketdomain.ErrForbidden
 	}
-	if req.Title == "" || !isValidKind(req.Kind) {
+	// Title length mirrors the VARCHAR(255) column (migration 014): an
+	// oversized title would otherwise surface as a 500 from the DB (WR-04).
+	if req.Title == "" || len(req.Title) > 255 || !isValidKind(req.Kind) {
 		return nil, ticketdomain.ErrInvalidRequest
 	}
 	if req.AssigneeID != nil && !s.isOrgMember(ctx, orgID, *req.AssigneeID) {
@@ -161,6 +163,12 @@ func (s *Service) UpdateDetails(ctx context.Context, orgID, actorID uuid.UUID, r
 
 	payload := map[string]any{}
 	if title != nil {
+		// Empty titles (IN-01) and titles beyond the VARCHAR(255) column
+		// (WR-04) are rejected here — the payload map and repo call must not
+		// execute for invalid titles.
+		if *title == "" || len(*title) > 255 {
+			return nil, ticketdomain.ErrInvalidRequest
+		}
 		payload["title"] = *title
 	}
 	if description != nil {
