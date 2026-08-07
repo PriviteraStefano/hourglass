@@ -537,42 +537,44 @@ func TestMigration018_ActivityBeneficiaryUnit_UpDownUpCycle(t *testing.T) {
 | A9 | The manager gate rejects the entry owner (structural self-barrier mirroring `Approve`) and re-resolves routing at write time | Pattern 6 | If the owner may allocate own coverage (self-direction territory, Phase 13), the gate loosens later — additive |
 | A10 | Proposal = single allocation of the full entry hours to the default source (the "one click" default); splits are manager edits at confirm time | Pattern 2 | If proposals must pre-split (e.g. contract + absorption for over-budget work), the proposal shape gains complexity — D-04's wording supports the single-default reading |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All seven open questions were resolved during planning — resolutions are pinned in plans 12-01/12-02/12-05/12-06 and recorded in ADR-BE-017.
 
 1. **`source_type` vocabulary: 3 values (derived five sources) vs 5 explicit values (A1)**
    - What we know: D-01 requires `source_type` + `contract_id`/`unit_id` refs; D-04 maps the five funding sources to contract-type-driven draws; the discretion area says "How `source_type` vocabulary is CHECK-enforced (house style)".
    - What's unclear: whether the row carries the *draw kind* (`contract`/`absorption`/`transfer` — five sources derived from the referenced contract) or five explicit values.
-   - Recommendation: **3 values, derived semantics** — matches D-04's decision function exactly ("zero-value contract drawn as `source_type='contract'`" — D-01 wording confirms 'contract' is the row-level value for all three contract-based sources), keeps the CHECK small, and the derivation (JOIN contracts) is where reports already go.
+   - **Resolution: 3 values, derived semantics** — matches D-04's decision function exactly ("zero-value contract drawn as `source_type='contract'`" — D-01 wording confirms 'contract' is the row-level value for all three contract-based sources), keeps the CHECK small, and the derivation (JOIN contracts) is where reports already go. Pinned in 12-01 Task 1 (`coverage_allocations_source_type_check`) and 12-04 Task 1 (`SourceTypeContract`/`SourceTypeAbsorption`/`SourceTypeTransfer` constants).
 
 2. **Proposal read-path exposure: per-entry endpoint vs queue-with-proposals (discretion)**
    - What we know: D-06 requires one queue read-model including flagged no-source rows; SURF-01 (Phase 17) needs per-entry proposals.
    - What's unclear: one combined read (queue rows embed the computed proposal) vs separate `GET /coverage/proposals/{entry_id}`.
-   - Recommendation: **both, sharing the service decision function** — a per-entry proposal endpoint (cheap, used by the future allocation screen) and the queue read-model that embeds the proposal when derivable (D-06 self-explaining rows). The planner may fold them into one combined read if the per-entry endpoint is considered redundant with the queue.
+   - **Resolution: both, sharing one decision function** — the queue read-model embeds the computed proposal when derivable (D-06 self-explaining rows) and the service's `Propose` method serves the per-entry proposal for the future allocation screen; both call the same pure `DefaultSource` helper (12-05 Task 1).
 
 3. **Zero-value contract detection predicate (A3)**
    - What we know: contracts have no value column (verified 000:125-137); 016 added `contract_type`/`sold_hours`/`sold_period`; D-J = service requests are zero-value contracts.
    - What's unclear: what makes a contract "zero-value" in the schema.
-   - Recommendation: `contract_type='project' AND sold_hours IS NOT DISTINCT FROM 0` — needs user confirmation in discuss/plan (A3).
+   - **Resolution: `contract_type='project' AND sold_hours IS NOT DISTINCT FROM 0`** — pinned in 12-05 (`flagged_assumptions` A3) and proven by the `DefaultSource` table tests (sold=0 and sold=nil both draw contract).
 
 4. **Does the close endpoint return the snapshot data in one call? (D-12 discretion)**
    - What we know: "D-12 'new close endpoint' implies close + report in one call — confirm during planning" (CONTEXT).
    - What's unclear: response = just the close id, or the full frozen snapshot rows.
-   - Recommendation: **return the snapshot rows in the close response** (one round trip; Phase 17 prototypes can drop it later). Idempotency semantics per A6.
+   - **Resolution: return the snapshot rows in the close response** — `ClosePeriod` returns the full `PeriodClose` incl. rows in one call (OQ4); pinned in 12-05 Task 2 and 12-06 Task 2.
 
 5. **Bucket balance: raw sold_hours vs period-scaled (A8)**
    - What we know: D-02 wording is "Σ sold_hours on the support contract − Σ allocations drawn from it"; `sold_period` (month/quarter/year) exists on support contracts; D-P carry-over/no-expiry.
    - What's unclear: whether a 12-month support contract with sold_hours=8/month has balance 8h (raw) or 96h (scaled).
-   - Recommendation: **raw per D-02 for v0.2**, documented in the BE ADR; period-scaling, if wanted, lands with the Phase 17 bucket surface (a read-model change, not a migration).
+   - **Resolution: raw per D-02** — balance = `sold_hours − Σ drawn`, negatives allowed (D-03); documented in ADR-BE-017 (A8); period-scaling, if wanted, lands with the Phase 17 bucket surface (12-05/12-06 `flagged_assumptions`).
 
 6. **Close idempotency and snapshot shape (A5/A6)**
    - What we know: D-11 entry-level rows, no aggregates; a new close endpoint scoped to org + period.
    - What's unclear: second close of the same period — reject, overwrite, or append?
-   - Recommendation: **reject overlapping close with 409** (a reported period is immutable — D-10's guarantee argues against overwrite); snapshot read returns the close header + rows.
+   - **Resolution: reject overlapping close with `coverage.ErrPeriodAlreadyClosed` → 409** — the repo's in-tx overlap check is authoritative (12-06 Task 2 step 1, A6); snapshot read returns the close header + rows.
 
 7. **How `coverage/close` relates to `financial_cutoff_periods` (D-12 discretion)**
    - What we know: the existing table (000:410-419) is facts-only per the Q10 amendment; user chose a separate close endpoint.
    - What's unclear: whether the coverage close should *also* write a `financial_cutoff_periods` row (join the mechanisms) or stay fully separate.
-   - Recommendation: **stay separate this phase** — the coverage close is org + period-scoped; `financial_cutoff_periods` is per-activity and facts-oriented. Revisit when entry cutoff semantics land.
+   - **Resolution: stay fully separate this phase** — the coverage close is org + period-scoped; `financial_cutoff_periods` stays facts-only (pinned in 12-01/12-06 `prohibitions`); revisit when entry cutoff semantics land.
 
 ## Environment Availability
 
