@@ -46,7 +46,17 @@ func (s *Service) Update(ctx context.Context, role string, orgID, contractID uui
 	if role != string(models.RoleFinance) {
 		return nil, 0, contractdomain.ErrForbidden
 	}
-	if err := validateSoldConfig(req.ContractType, req.SoldHours, req.SoldPeriod); err != nil {
+	// WR-03: validate the MERGED sold config (current row + request deltas)
+	// before delegating — the DB CHECK contracts_sold_check backstops the
+	// ROW, not the request. A support→project conversion that leaves
+	// sold_period set would pass request-only validation and then 500 on the
+	// CHECK; `sold_period: ""` is the explicit clear that makes the
+	// conversion legal (the repo's nullable-clear branch).
+	existing, err := s.repo.Get(ctx, orgID, contractID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := validateMergedSoldConfig(existing, req); err != nil {
 		return nil, 0, err
 	}
 	return s.repo.Update(ctx, orgID, contractID, req)
@@ -125,4 +135,30 @@ func validateSoldConfig(contractType *string, soldHours *float64, soldPeriod *st
 		}
 	}
 	return nil
+}
+
+// validateMergedSoldConfig validates the sold config the ROW will have after
+// the update is applied — the current row merged with the request deltas
+// (WR-03). The DB CHECK contracts_sold_check backstops the row, not the
+// request, so a support→project conversion must be validated against the
+// merged state: `sold_period: ""` is the explicit clear (the repo maps it to
+// NULL), making the conversion legal without tripping the CHECK.
+func validateMergedSoldConfig(existing *contractdomain.ContractResponse, req *contractdomain.UpdateContractRequest) error {
+	mergedType := existing.ContractType
+	if req.ContractType != nil {
+		mergedType = req.ContractType
+	}
+	mergedHours := existing.SoldHours
+	if req.SoldHours != nil {
+		mergedHours = req.SoldHours
+	}
+	mergedPeriod := existing.SoldPeriod
+	if req.SoldPeriod != nil {
+		if *req.SoldPeriod == "" {
+			mergedPeriod = nil // explicit clear → NULL
+		} else {
+			mergedPeriod = req.SoldPeriod
+		}
+	}
+	return validateSoldConfig(mergedType, mergedHours, mergedPeriod)
 }

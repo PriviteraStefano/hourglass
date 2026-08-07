@@ -300,6 +300,60 @@ func TestService_Update(t *testing.T) {
 	}
 }
 
+func TestService_Update_SupportToProjectConversion(t *testing.T) {
+	// WR-03: a support→project conversion must validate the MERGED config
+	// (current row + request deltas) and accept sold_period: "" as the
+	// explicit clear — otherwise the conversion 500s on the DB CHECK
+	// (contracts_sold_check) because sold_period stays set in the row.
+	svc, repo := setupService(t)
+	orgID := uuid.New()
+	support := strPtr(contractdomain.ContractTypeSupport)
+	month := strPtr(contractdomain.SoldPeriodMonth)
+	hours := f64Ptr(100)
+	seeded := seedContract(repo, func(c *contractdomain.ContractResponse) {
+		c.CreatedByOrgID = orgID
+		c.ContractType = support
+		c.SoldHours = hours
+		c.SoldPeriod = month
+	})
+
+	t.Run("conversion clears sold_period in the same request", func(t *testing.T) {
+		project := strPtr(contractdomain.ContractTypeProject)
+		clear := ""
+		result, _, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, seeded.ID, &contractdomain.UpdateContractRequest{
+			ContractType: project,
+			SoldPeriod:   &clear,
+		})
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("conversion without clearing sold_period rejected", func(t *testing.T) {
+		project := strPtr(contractdomain.ContractTypeProject)
+		result, _, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, seeded.ID, &contractdomain.UpdateContractRequest{
+			ContractType: project,
+		})
+		assert.ErrorIs(t, err, contractdomain.ErrInvalidSoldConfig)
+		assert.Nil(t, result)
+	})
+
+	t.Run("merged validation keeps untouched sold config valid", func(t *testing.T) {
+		// Name-only update on a support contract: the merged row keeps
+		// support + hours + month → still valid.
+		result, _, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, seeded.ID, &contractdomain.UpdateContractRequest{
+			Name: "Renamed support",
+		})
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("missing contract surfaces ErrContractNotFound", func(t *testing.T) {
+		result, _, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, uuid.New(), &contractdomain.UpdateContractRequest{Name: "Ghost"})
+		assert.ErrorIs(t, err, contractdomain.ErrContractNotFound)
+		assert.Nil(t, result)
+	})
+}
+
 func TestService_Delete(t *testing.T) {
 	t.Parallel()
 

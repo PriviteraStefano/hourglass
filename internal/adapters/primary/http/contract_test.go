@@ -7,7 +7,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	contractdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/contract"
+	contractsvc "github.com/stefanoprivitera/hourglass/internal/core/services/contract"
+	"github.com/stefanoprivitera/hourglass/internal/core/services/testdata"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
+	"github.com/stefanoprivitera/hourglass/internal/models"
 )
 
 func TestContractHandler_Create_InvalidBody(t *testing.T) {
@@ -154,5 +158,88 @@ func TestContractHandler_Adopt_InvalidID(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestContractHandler_Update_InvalidSoldConfig(t *testing.T) {
+	// WR-03: converting a support contract to project WITHOUT clearing
+	// sold_period is a client-side sold-config error → 422, never a 500.
+	repo := &testdata.MockContractRepo{}
+	support := "support"
+	month := "month"
+	hours := 100.0
+	contractID := uuid.New()
+	repo.Contracts = map[uuid.UUID]*contractdomain.ContractResponse{
+		contractID: {
+			Contract: contractdomain.Contract{
+				ID:              contractID,
+				Name:            "Support contract",
+				GovernanceModel: models.GovernanceCreatorControlled,
+				CreatedByOrgID:  uuid.New(),
+				IsActive:        true,
+				ContractType:    &support,
+				SoldHours:       &hours,
+				SoldPeriod:      &month,
+			},
+		},
+	}
+	svc := contractsvc.NewService(repo)
+	h := NewContractHandler(svc)
+
+	req := httptest.NewRequest(http.MethodPut, "/contracts/"+contractID.String(), strings.NewReader(`{"contract_type":"project"}`))
+	req.SetPathValue("id", contractID.String())
+	rec := httptest.NewRecorder()
+
+	ctx := middleware.SetUserID(req.Context(), uuid.New())
+	ctx = middleware.SetOrganizationID(ctx, uuid.New())
+	ctx = middleware.SetRole(ctx, "finance")
+	req = req.WithContext(ctx)
+
+	h.Update(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected %d, got %d", http.StatusUnprocessableEntity, rec.Code)
+	}
+}
+
+func TestContractHandler_Update_ValidConversion(t *testing.T) {
+	// WR-03: support→project WITH sold_period:"" clear passes the merged
+	// validation and reaches the repo (the conversion is no longer a
+	// dead-end). The mock repo applies the update and returns the contract.
+	repo := &testdata.MockContractRepo{}
+	support := "support"
+	month := "month"
+	hours := 100.0
+	contractID := uuid.New()
+	repo.Contracts = map[uuid.UUID]*contractdomain.ContractResponse{
+		contractID: {
+			Contract: contractdomain.Contract{
+				ID:              contractID,
+				Name:            "Support contract",
+				GovernanceModel: models.GovernanceCreatorControlled,
+				CreatedByOrgID:  uuid.New(),
+				IsActive:        true,
+				ContractType:    &support,
+				SoldHours:       &hours,
+				SoldPeriod:      &month,
+			},
+		},
+	}
+	svc := contractsvc.NewService(repo)
+	h := NewContractHandler(svc)
+
+	req := httptest.NewRequest(http.MethodPut, "/contracts/"+contractID.String(), strings.NewReader(`{"contract_type":"project","sold_period":""}`))
+	req.SetPathValue("id", contractID.String())
+	rec := httptest.NewRecorder()
+
+	ctx := middleware.SetUserID(req.Context(), uuid.New())
+	ctx = middleware.SetOrganizationID(ctx, uuid.New())
+	ctx = middleware.SetRole(ctx, "finance")
+	req = req.WithContext(ctx)
+
+	h.Update(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected %d, got %d", http.StatusOK, rec.Code)
 	}
 }

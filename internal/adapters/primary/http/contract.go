@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -178,11 +179,16 @@ func (h *ContractHandler) Update(w http.ResponseWriter, r *http.Request) {
 		SoldPeriod:      req.SoldPeriod,
 	})
 	if err != nil {
-		switch err {
-		case contractdomain.ErrForbidden:
+		switch {
+		case errors.Is(err, contractdomain.ErrForbidden):
 			api.RespondWithError(w, http.StatusForbidden, "only finance users can update contracts")
-		case contractdomain.ErrContractNotFound:
+		case errors.Is(err, contractdomain.ErrContractNotFound):
 			api.RespondWithError(w, http.StatusNotFound, "contract not found")
+		case errors.Is(err, contractdomain.ErrInvalidSoldConfig):
+			// WR-03: a sold-config validation failure (e.g. converting a
+			// support contract to project without clearing sold_period) is a
+			// client error, not a 500.
+			api.RespondWithError(w, http.StatusUnprocessableEntity, "invalid sold hours configuration")
 		default:
 			api.RespondWithError(w, http.StatusInternalServerError, "failed to update contract")
 		}
