@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 status: executing
-stopped_at: Phase 11 context gathered
-last_updated: "2026-08-03T09:30:04.759Z"
-last_activity: 2026-08-02 — Milestone v0.2 redefined after ontology research (D-A…D-AA); roadmap recreated
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-08-07T09:55:29.391Z"
+last_activity: 2026-08-07 -- Phase 11 execution started
 progress:
   total_phases: 16
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 6
+  completed_plans: 1
   percent: 0
 ---
 
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 **Core value:** Role-based approval workflows (employee → manager → finance) with hierarchical organization structures, contract/activity management, and export capabilities.
 
-**Current focus:** v0.2 — Ontology Extension (Origins, Tickets & Coverage + Direction). Roadmap created (Phases 11-26, 16 phases, 47/47 requirements mapped). Ready to plan Phase 11 (Foundations).
+**Current focus:** Phase 11 — foundations-schema-origins-tickets-backend
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
+Phase: 11 (foundations-schema-origins-tickets-backend) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-08-02 — Milestone v0.2 redefined after ontology research (D-A…D-AA); roadmap recreated
+Last activity: 2026-08-07 -- Phase 11 execution started
 
 ## Accumulated Context
 
@@ -46,6 +46,16 @@ Full log in PROJECT.md Key Decisions table. Decisions from the 2026-08-02 ontolo
 - **Sold hours**: contracts carry `sold_hours` in v0.2 (D-N); V5 mines sold vs Σ actual. Budget machinery (rates/money/estimates) stays with P-010 at V4.
 - **ADRs deferred to phase landing** (Stefano's call): formal P-003 rev / P-013 / P-014 / P-015 written as phases land; P-012 drafted now (exists in vault). Each backend phase drafts its ADR + BE encoding ADR.
 - **Requirement mapping rule (v0.1 house style, kept)**: backend-deliverable requirements map to backend phases; user-visible requirements (SURF-*, TICK-06, AVAIL-03/04/05) map to frontend/surface phases.
+- [Phase 11-foundations-schema-origins-tickets-backend]: Cycle tests self-seed their pre-state inline (helpers + direct SQL) — 003_seed.up.sql is retired; scripts/seed_demo.sql is demo data, not a test fixture
+
+011 test pre-state org MUST reuse the fixed MVP seed UUID 019df8b0-0001-7000-8000-000000000001 because migration 011 seeds activity_kinds only for that org
+014 numbered before 015 so activities.ticket_id FK resolves at apply time (A8 ordering)
+CHECK constraints follow `origin_type IS NULL OR (...)` / `contract_type IS NULL OR (...)` so legacy NULL-discriminator rows pass (D-01/Pitfall 1)
+reviewed_by deliberately unconstrained on employee_proposal origins (D-02, research OQ1) — Seed fixtures retired with the MVP seed; tests must not load demo data (plan 11-01 Task 1)
+Migration 011's kind catalog seed targets the exact seed org; the activities (org_id, kind) FK depends on it
+PostgreSQL resolves FKs at apply time; 015 references tickets
+Three-valued logic: NULL passes CHECK; guard keeps legacy rows valid (D-16)
+Only proposed_by is required for employee proposals (research OQ1)
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -91,7 +101,13 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 
 ## Session Continuity
 
-Last session: 2026-08-03T07:48:57.309Z
-Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-foundations-schema-origins-tickets-backend/11-CONTEXT.md
+Last session: 2026-08-07T09:55:11.802Z
+Stopped at: Completed 11-01-PLAN.md
+Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
+
+## Performance Metrics
+
+| Phase | Plan | Duration | Notes |
+|-------|------|----------|-------|
+| Phase 11-foundations-schema-origins-tickets-backend P01 | 6 | 3 tasks | 11 files |

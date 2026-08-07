@@ -9,18 +9,18 @@ Requirements for milestone v0.2 — Ontology Extension (Origins, Tickets & Cover
 
 ### Foundations / Origins
 
-- [ ] **FND-01**: Activity carries an origin (type + reference set) set once at creation: manager-assignment → `assigned_by` + `assigned_to`, employee-proposal → `proposed_by` + `reviewed_by`, customer-ticket → `ticket_id` (D-D)
+- [x] **FND-01**: Activity carries an origin (type + reference set) set once at creation: manager-assignment → `assigned_by` + `assigned_to`, employee-proposal → `proposed_by` + `reviewed_by`, customer-ticket → `ticket_id` (D-D)
 - [ ] **FND-02**: Employee can propose an activity; proposal approval routes via the activity's approval routing (internal/personal → proposer's unit manager, contract-linked → anchored WG's manager); lifecycle events live in activity state/audit, not origin (D-G, D-D)
-- [ ] **FND-03**: Contract carries `sold_hours`; V5 mines sold vs Σ actual hours (D-N)
-- [ ] **FND-04**: Origin refs are stored directly on activities; when empty, the read path falls back to the first direction record — additive enhancement, no migration (R4 resolution, Part 15)
+- [x] **FND-03**: Contract carries `sold_hours`; V5 mines sold vs Σ actual hours (D-N)
+- [x] **FND-04**: Origin refs are stored directly on activities; when empty, the read path falls back to the first direction record — additive enhancement, no migration (R4 resolution, Part 15)
 
 ### Tickets
 
-- [ ] **TICK-01**: User can create an internal ticket with a closed-set kind (question · bug · change · evolution); kinds drive funding-eligibility rules (Q2, D-H)
-- [ ] **TICK-02**: Ticket lifecycle: open → triage → planned → in_progress → resolved → closed, with reopen (`resolved → in_progress`); `resolved` requires all linked activities terminal; one demand thread per real-world request (D-A)
+- [x] **TICK-01**: User can create an internal ticket with a closed-set kind (question · bug · change · evolution); kinds drive funding-eligibility rules (Q2, D-H)
+- [x] **TICK-02**: Ticket lifecycle: open → triage → planned → in_progress → resolved → closed, with reopen (`resolved → in_progress`); `resolved` requires all linked activities terminal; one demand thread per real-world request (D-A)
 - [ ] **TICK-03**: Triage classifies a ticket (kind + eligible funding sources) and converts it into 1..N activities; chain is ticket → activity → entries — tickets never reference entries directly (revised P-003)
-- [ ] **TICK-04**: Dismissal guard: `triage → dismissed` is blocked while any linked activity carries logged hours (net of compensating corrections); a dismissed ticket keeps a "dismissed with N h logged" note (D-M)
-- [ ] **TICK-05**: Ticket history is an immutable event stream (comments, resolution notes, status changes) via the BE-012 audit trail — never editable or deletable
+- [x] **TICK-04**: Dismissal guard: `triage → dismissed` is blocked while any linked activity carries logged hours (net of compensating corrections); a dismissed ticket keeps a "dismissed with N h logged" note (D-M)
+- [x] **TICK-05**: Ticket history is an immutable event stream (comments, resolution notes, status changes) via the BE-012 audit trail — never editable or deletable
 - [ ] **TICK-06**: User can view tickets and their status (Track pillar + Today "my open tickets" per P-004); tickets are tracked work, auto-approved with permission control
 
 ### Coverage
@@ -125,15 +125,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FND-01 | Phase 11 | Pending |
+| FND-01 | Phase 11 | Complete |
 | FND-02 | Phase 11 | Pending |
-| FND-03 | Phase 11 | Pending |
-| FND-04 | Phase 11 | Pending |
-| TICK-01 | Phase 11 | Pending |
-| TICK-02 | Phase 11 | Pending |
+| FND-03 | Phase 11 | Complete |
+| FND-04 | Phase 11 | Complete |
+| TICK-01 | Phase 11 | Complete |
+| TICK-02 | Phase 11 | Complete |
 | TICK-03 | Phase 11 | Pending |
-| TICK-04 | Phase 11 | Pending |
-| TICK-05 | Phase 11 | Pending |
+| TICK-04 | Phase 11 | Complete |
+| TICK-05 | Phase 11 | Complete |
 | COV-01 | Phase 12 | Pending |
 | COV-02 | Phase 12 | Pending |
 | COV-03 | Phase 12 | Pending |
@@ -174,6 +174,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | POLS-11 | Phase 26 | Pending |
 
 **Coverage:**
+
 - v0.2 requirements: 47 total
 - Mapped to phases: 47
 - Unmapped: 0 ✓ (all requirements mapped during roadmap creation)
