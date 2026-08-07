@@ -4,15 +4,15 @@ milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 12
 current_phase_name: Coverage Backend — The Allocation Loop
-status: planning
+status: executing
 stopped_at: Completed 11-08-PLAN.md
-last_updated: "2026-08-07T18:35:42.004Z"
+last_updated: "2026-08-07T19:20:58.152Z"
 last_activity: 2026-08-07
 last_activity_desc: Phase 11 complete, transitioned to Phase 12
 progress:
   total_phases: 16
   completed_phases: 1
-  total_plans: 10
+  total_plans: 15
   completed_plans: 8
   percent: 6
 ---
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 Phase: 12 — Coverage Backend — The Allocation Loop
 Plan: Not started
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-08-07 — Phase 11 complete, transitioned to Phase 12
 
 ## Accumulated Context
