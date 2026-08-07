@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/time_entry"
 	wgdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/working_group"
+	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/testdata"
 	"github.com/stefanoprivitera/hourglass/internal/middleware"
@@ -245,7 +246,7 @@ func newTEService(t *testing.T, override func(*teServiceFixture)) *tesvc.Service
 	if override != nil {
 		override(f)
 	}
-	f.svc = tesvc.NewService(f.repo, f.approvalRepo, f.wgRepo, f.activityRepo, f.unitRepo)
+	f.svc = tesvc.NewService(f.repo, f.approvalRepo, f.wgRepo, f.activityRepo, f.unitRepo, routing.NewService(f.wgRepo, f.activityRepo, f.unitRepo))
 	return f.svc
 }
 
