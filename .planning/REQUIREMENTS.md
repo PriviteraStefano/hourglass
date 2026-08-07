@@ -10,7 +10,7 @@ Requirements for milestone v0.2 — Ontology Extension (Origins, Tickets & Cover
 ### Foundations / Origins
 
 - [x] **FND-01**: Activity carries an origin (type + reference set) set once at creation: manager-assignment → `assigned_by` + `assigned_to`, employee-proposal → `proposed_by` + `reviewed_by`, customer-ticket → `ticket_id` (D-D)
-- [ ] **FND-02**: Employee can propose an activity; proposal approval routes via the activity's approval routing (internal/personal → proposer's unit manager, contract-linked → anchored WG's manager); lifecycle events live in activity state/audit, not origin (D-G, D-D)
+- [x] **FND-02**: Employee can propose an activity; proposal approval routes via the activity's approval routing (internal/personal → proposer's unit manager, contract-linked → anchored WG's manager); lifecycle events live in activity state/audit, not origin (D-G, D-D)
 - [x] **FND-03**: Contract carries `sold_hours`; V5 mines sold vs Σ actual hours (D-N)
 - [x] **FND-04**: Origin refs are stored directly on activities; when empty, the read path falls back to the first direction record — additive enhancement, no migration (R4 resolution, Part 15)
 
@@ -126,7 +126,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | FND-01 | Phase 11 | Complete |
-| FND-02 | Phase 11 | Pending |
+| FND-02 | Phase 11 | Complete |
 | FND-03 | Phase 11 | Complete |
 | FND-04 | Phase 11 | Complete |
 | TICK-01 | Phase 11 | Complete |

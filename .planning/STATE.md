@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 status: executing
-stopped_at: Completed 11-01-PLAN.md
-last_updated: "2026-08-07T09:55:29.391Z"
+stopped_at: Completed 11-03-PLAN.md
+last_updated: "2026-08-07T10:05:22.655Z"
 last_activity: 2026-08-07 -- Phase 11 execution started
 progress:
   total_phases: 16
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 ## Current Position
 
 Phase: 11 (foundations-schema-origins-tickets-backend) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-08-07 -- Phase 11 execution started
 
@@ -56,6 +56,9 @@ Migration 011's kind catalog seed targets the exact seed org; the activities (or
 PostgreSQL resolves FKs at apply time; 015 references tickets
 Three-valued logic: NULL passes CHECK; guard keeps legacy rows valid (D-16)
 Only proposed_by is required for employee proposals (research OQ1)
+
+- [Phase 11-foundations-schema-origins-tickets-backend]: managerResolution fields exported (ApproverIDs/RoleGated/SkipToFinance) so cross-package callers can consume the resolution; the struct type stays unexported — Go visibility rule blocks unexported field reads across packages — Plan required unexported fields consumed cross-package, which cannot compile; exporting the three fields preserves the plan's intent (type = implementation detail) with identical call-site semantics
+- [Phase 11-foundations-schema-origins-tickets-backend]: routing.Service constructed once in cmd/server wiring and shared: time_entry now, proposal approval (plan 05) later — single instance, single repo set (D-G parity) — Extraction Pattern 5: shared package prevents entry/proposal routing drift; cmd/server builds the service once next to the other services
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -101,8 +104,8 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 
 ## Session Continuity
 
-Last session: 2026-08-07T09:55:11.802Z
-Stopped at: Completed 11-01-PLAN.md
+Last session: 2026-08-07T10:05:22.649Z
+Stopped at: Completed 11-03-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
@@ -111,3 +114,4 @@ Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets b
 | Phase | Plan | Duration | Notes |
 |-------|------|----------|-------|
 | Phase 11-foundations-schema-origins-tickets-backend P01 | 6 | 3 tasks | 11 files |
+| Phase 11-foundations-schema-origins-tickets-backend P03 | 6min | 2 tasks | 8 files |

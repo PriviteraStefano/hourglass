@@ -71,7 +71,7 @@ Plans:
 **Wave 1**
 
 - [x] 11-01-PLAN.md — Migration foundation: fix red cycle tests 011/012 + teardown list; migrations 014-017 (tickets, origins, sold_hours, audit_logs) + cycle tests
-- [ ] 11-03-PLAN.md — BE-014 routing extraction to shared package (proposal approval parity, D-G)
+- [x] 11-03-PLAN.md — BE-014 routing extraction to shared package (proposal approval parity, D-G)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
