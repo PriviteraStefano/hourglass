@@ -393,10 +393,10 @@ func (r *TicketRepository) Dismiss(ctx context.Context, orgID, ticketID uuid.UUI
 		return nil, err
 	}
 
-	// Authoritative in-tx Σ re-check (D-13, T-11-07): the service's pool-level
-	// hours value is superseded by the Σ computed under the locks — if any
-	// submitted/approved entry committed before this point, dismissal is
-	// blocked.
+	// Authoritative in-tx guard Σ re-check (D-13, T-11-07): the service's
+	// pool-level hours value is superseded by the Σ computed under the locks —
+	// if any submitted/approved (in-flight/submittable) entry committed before
+	// this point, dismissal is blocked.
 	sum, err := r.loggedHoursTx(ctx, tx, ticketID)
 	if err != nil {
 		return nil, err
@@ -405,10 +405,27 @@ func (r *TicketRepository) Dismiss(ctx context.Context, orgID, ticketID uuid.UUI
 		return nil, ticketdomain.ErrDismissalBlocked
 	}
 
+	// WR-06 (TICK-04): the SNAPSHOT is the dismissal-time total across ALL
+	// non-deleted entries on the subtree (drafts included) — the guard above
+	// blocks only in-flight/submittable hours, so the persisted value is the
+	// real total the ticket carried at dismissal, and the derived note
+	// "dismissed with N h logged" is meaningful instead of always 0.
+	snapshot, err := r.totalHoursTx(ctx, tx, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	// The audit payload is corrected to the same authoritative value — the
+	// service's pool-level hours (0 on a successful dismissal) is superseded
+	// by the in-tx snapshot, keeping the event stream consistent with the
+	// note (ADR-BE-016: the dismissal audit row records the same value).
+	if auditLog != nil && auditLog.Payload != nil {
+		auditLog.Payload["hours"] = snapshot
+	}
+
 	ct, err := tx.Exec(ctx,
 		`UPDATE tickets SET status = 'dismissed', dismissed_hours = $1, updated_at = $2
 		 WHERE id = $3 AND org_id = $4 AND status = $5`,
-		sum, time.Now().UTC(), ticketID, orgID, currentStatus)
+		snapshot, time.Now().UTC(), ticketID, orgID, currentStatus)
 	if err != nil {
 		return nil, wrapPGError(err, "dismiss ticket")
 	}
@@ -759,6 +776,30 @@ func (r *TicketRepository) loggedHoursTx(ctx context.Context, tx pgx.Tx, ticketI
 		ticketID).Scan(&hours)
 	if err != nil {
 		return 0, wrapPGError(err, "compute ticket logged hours")
+	}
+	return hours, nil
+}
+
+// totalHoursTx is the WR-06/TICK-04 dismissal-time SNAPSHOT: Σ across ALL
+// non-deleted entries on the linked subtree (drafts included), computed
+// under the same FOR UPDATE locks as the guard. The D-13 guard blocks only
+// in-flight/submittable hours (submitted+approved), so the snapshot is the
+// real total the ticket carried at dismissal — the value persisted as
+// dismissed_hours and rendered by the derived note, instead of always 0.
+func (r *TicketRepository) totalHoursTx(ctx context.Context, tx pgx.Tx, ticketID uuid.UUID) (float64, error) {
+	var hours float64
+	err := tx.QueryRow(ctx,
+		`WITH RECURSIVE subtree AS (
+			SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket'
+			UNION ALL
+			SELECT a.id FROM activities a JOIN subtree s ON a.parent_id = s.id
+		 )
+		 SELECT COALESCE(SUM(hours),0) FROM time_entries
+		 WHERE is_deleted = false
+		   AND activity_id IN (SELECT id FROM subtree)`,
+		ticketID).Scan(&hours)
+	if err != nil {
+		return 0, wrapPGError(err, "compute ticket dismissal snapshot")
 	}
 	return hours, nil
 }

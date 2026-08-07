@@ -139,6 +139,20 @@ func (s *Service) Submit(ctx context.Context, id, userID uuid.UUID) (*time_entry
 		return nil, time_entry.ErrNotOwner
 	}
 
+	// WR-06: a draft entry on an activity linked to a DISMISSED customer
+	// ticket can never be submitted — the ticket is terminal and must not
+	// acquire new logged hours after the fact. The check walks the
+	// activity's ancestry (repo-side) so entries on descendant activities of
+	// a dismissed ticket are blocked too, matching the ticket repo's subtree
+	// "linked" semantics.
+	dismissed, err := s.activityRepo.IsLinkedTicketDismissed(ctx, e.ActivityID)
+	if err != nil {
+		return nil, err
+	}
+	if dismissed {
+		return nil, time_entry.ErrTicketDismissed
+	}
+
 	// R-1/R-2: resolve the manager stage from the activity chain (or reject
 	// commercial activities with no anchored WG — ErrActivityNotLoggable).
 	res, err := s.routing.ResolveManagerStage(ctx, e.OrgID, e.ActivityID, e.UnitID, e.UserID)

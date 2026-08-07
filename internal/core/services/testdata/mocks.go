@@ -483,6 +483,7 @@ type MockActivityRepo struct {
 	Activities                 map[uuid.UUID]*activitydomain.ActivityResponse
 	Kinds                      map[string]bool
 	ProposalAudits             []*auditdomain.AuditLog // captured by ApproveProposal (WR-05)
+	LinkedTicketDismissed      bool                    // IsLinkedTicketDismissed result (WR-06)
 	HasChildrenFn              func(ctx context.Context, activityID uuid.UUID) (bool, error)
 	HasActiveTimeEntriesFn     func(ctx context.Context, activityID uuid.UUID) (bool, bool, error)
 	HasActiveExpensesFn        func(ctx context.Context, activityID uuid.UUID) (bool, error)
@@ -736,6 +737,15 @@ func (m *MockActivityRepo) HasActiveExpenses(ctx context.Context, activityID uui
 		return m.HasActiveExpensesFn(ctx, activityID)
 	}
 	return false, nil
+}
+
+// IsLinkedTicketDismissed reports the configured LinkedTicketDismissed flag
+// (WR-06). Default false — the ticket-state gate only fires when a test
+// opts in.
+func (m *MockActivityRepo) IsLinkedTicketDismissed(ctx context.Context, activityID uuid.UUID) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.LinkedTicketDismissed, nil
 }
 
 type MockUnitRepo struct {

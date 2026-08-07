@@ -626,6 +626,33 @@ func (r *ActivityRepository) HasActiveExpenses(ctx context.Context, activityID u
 	return exists, nil
 }
 
+// IsLinkedTicketDismissed reports whether the activity — or any of its
+// ancestors — is a customer_ticket-origin activity whose linked ticket is
+// in the dismissed state (WR-06). The ancestry walk keeps the check
+// consistent with the ticket repo's subtree "linked" definition (hours on a
+// descendant activity belong to the ticket), so a draft entry under a
+// dismissed ticket's activity subtree can never be submitted afterwards.
+func (r *ActivityRepository) IsLinkedTicketDismissed(ctx context.Context, activityID uuid.UUID) (bool, error) {
+	query := `WITH RECURSIVE ancestry AS (
+		SELECT id, parent_id FROM activities WHERE id = $1
+		UNION ALL
+		SELECT a.id, a.parent_id FROM activities a
+		INNER JOIN ancestry an ON a.id = an.parent_id
+	)
+	SELECT EXISTS(
+		SELECT 1 FROM ancestry an
+		INNER JOIN activities a ON a.id = an.id
+		INNER JOIN tickets t ON t.id = a.ticket_id
+		WHERE a.origin_type = 'customer_ticket' AND t.status = 'dismissed'
+	)`
+	var dismissed bool
+	err := r.pool.QueryRow(ctx, query, activityID).Scan(&dismissed)
+	if err != nil {
+		return false, fmt.Errorf("check linked ticket dismissed: %w", err)
+	}
+	return dismissed, nil
+}
+
 // ---------------------------------------------------------------------------
 // Scan helpers
 // ---------------------------------------------------------------------------

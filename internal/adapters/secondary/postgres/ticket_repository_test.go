@@ -983,3 +983,123 @@ func TestLoggedHours_IncludesDescendants(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "triage", status)
 }
+
+// TestDismiss_SnapshotsDismissalTimeTotal pins WR-06 (TICK-04): the
+// persisted dismissed_hours is the dismissal-time total across ALL
+// non-deleted entries (drafts included), NOT the guard Σ — the guard blocks
+// only in-flight/submittable hours (submitted+approved), so a ticket with
+// draft hours can be dismissed and the note renders the real total instead
+// of always 0. The audit payload is corrected to the same value.
+//
+// RED on the pre-fix code: dismissed_hours = the guard Σ = 0 by
+// construction, and the note always read "dismissed with 0 h logged".
+func TestDismiss_SnapshotsDismissalTimeTotal(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewTicketRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	requesterID := seedUser(t, pool, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	ticketID := insertTicketWithStatus(t, pool, orgID, requesterID, "triage", now)
+	activityID := insertCustomerTicketActivity(t, pool, orgID, ticketID, now)
+
+	// A child activity under the linked activity — draft hours on the
+	// descendant are part of the ticket's subtree snapshot.
+	childID := uuid.New()
+	_, err := pool.Exec(ctx,
+		`INSERT INTO activities (id, org_id, parent_id, name, description, kind,
+			governance_model, created_by_org_id, is_shared, is_active, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, '', 'engagement', 'creator_controlled', $2, false, true, $5, $5)`,
+		childID, orgID, activityID, "Child activity", now)
+	require.NoError(t, err)
+
+	// Committed DRAFT entry on the child — non-terminal but NOT in the guard
+	// Σ (submitted+approved), so dismissal is legal and the snapshot must
+	// record its hours.
+	_, err = pool.Exec(ctx,
+		`INSERT INTO time_entries (id, org_id, user_id, activity_id, unit_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, 6.5, 'draft on child', $6, 'draft', false, $6, $6)`,
+		uuid.New(), orgID, requesterID, childID, unitID, now)
+	require.NoError(t, err)
+
+	audit := dismissAudit(orgID, ticketID, requesterID, now)
+	dismissed, err := repo.Dismiss(ctx, orgID, ticketID, 0, audit)
+	require.NoError(t, err)
+	require.NotNil(t, dismissed.DismissedHours)
+	require.Equal(t, 6.5, *dismissed.DismissedHours, "snapshot must count draft hours at dismissal")
+	require.NotNil(t, dismissed.DismissedNote)
+	require.Equal(t, "dismissed with 6.5 h logged", *dismissed.DismissedNote)
+
+	// The audit payload was corrected to the in-tx snapshot (same value as
+	// the note, ADR-BE-016).
+	var payloadJSON []byte
+	err = pool.QueryRow(ctx,
+		`SELECT payload FROM audit_logs WHERE entity_type = 'ticket' AND entity_id = $1 AND action = 'dismissed'`,
+		ticketID).Scan(&payloadJSON)
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(payloadJSON, &payload))
+	require.Equal(t, 6.5, payload["hours"], "dismissal audit must record the snapshot, not the pool-level 0")
+}
+
+// TestActivityRepository_IsLinkedTicketDismissed pins the WR-06 Submit gate
+// predicate: an activity linked (directly or via ancestry) to a dismissed
+// customer ticket reports true; an open-ticket link or no link reports
+// false.
+func TestActivityRepository_IsLinkedTicketDismissed(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewActivityRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	requesterID := seedUser(t, pool, now)
+	seedActivityKind(t, pool, orgID, "engagement")
+
+	// Dismissed ticket + linked activity.
+	dismissedTicketID := insertTicketWithStatus(t, pool, orgID, requesterID, "open", now)
+	_, err := pool.Exec(ctx, `UPDATE tickets SET status = 'dismissed' WHERE id = $1`, dismissedTicketID)
+	require.NoError(t, err)
+	dismissedActivityID := insertCustomerTicketActivity(t, pool, orgID, dismissedTicketID, now)
+
+	// A child under the dismissed ticket's activity — ancestry walk must
+	// catch it too.
+	childID := uuid.New()
+	_, err = pool.Exec(ctx,
+		`INSERT INTO activities (id, org_id, parent_id, name, description, kind,
+			governance_model, created_by_org_id, is_shared, is_active, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, '', 'engagement', 'creator_controlled', $2, false, true, $5, $5)`,
+		childID, orgID, dismissedActivityID, "Child of dismissed", now)
+	require.NoError(t, err)
+
+	// Open ticket + linked activity.
+	openTicketID := insertTicketWithStatus(t, pool, orgID, requesterID, "open", now)
+	openActivityID := insertCustomerTicketActivity(t, pool, orgID, openTicketID, now)
+
+	// Unlinked activity.
+	plainID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	dismissed, err := repo.IsLinkedTicketDismissed(ctx, dismissedActivityID)
+	require.NoError(t, err)
+	require.True(t, dismissed, "directly linked dismissed ticket must be caught")
+
+	dismissed, err = repo.IsLinkedTicketDismissed(ctx, childID)
+	require.NoError(t, err)
+	require.True(t, dismissed, "descendant of a dismissed-ticket activity must be caught (subtree semantics)")
+
+	dismissed, err = repo.IsLinkedTicketDismissed(ctx, openActivityID)
+	require.NoError(t, err)
+	require.False(t, dismissed, "open-ticket link must not block")
+
+	dismissed, err = repo.IsLinkedTicketDismissed(ctx, plainID)
+	require.NoError(t, err)
+	require.False(t, dismissed, "unlinked activity must not block")
+}

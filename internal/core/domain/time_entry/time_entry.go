@@ -15,6 +15,7 @@ var (
 	ErrPeriodLocked         = errors.New("cannot modify entry for locked period")
 	ErrNotOwner             = errors.New("can only modify own entries")
 	ErrForbidden            = errors.New("forbidden")
+	ErrTicketDismissed      = errors.New("cannot submit entry on a dismissed ticket")
 )
 
 const (

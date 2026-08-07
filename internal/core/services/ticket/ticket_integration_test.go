@@ -242,7 +242,7 @@ func TestDismissalGuard(t *testing.T) {
 		assert.Nil(t, got.DismissedHours)
 	})
 
-	t.Run("only draft entries allow dismissal (raw Σ excludes draft)", func(t *testing.T) {
+	t.Run("only draft entries allow dismissal (raw Σ excludes draft, snapshot counts them)", func(t *testing.T) {
 		svc, _, orgID, userID, unitID := realRepoFixtureWithUnit(t, pool)
 		now := time.Now().UTC()
 
@@ -255,8 +255,14 @@ func TestDismissalGuard(t *testing.T) {
 		dismissed, err := svc.Dismiss(context.Background(), orgID, userID, string(models.RoleManager), tkt.ID)
 		require.NoError(t, err)
 		assert.Equal(t, ticketdomain.StatusDismissed, dismissed.Status)
+		// WR-06 (TICK-04): the guard blocks only submitted/approved, so the
+		// dismissal succeeds — but the snapshot is the dismissal-time total
+		// across ALL non-deleted entries (drafts included), so the note is
+		// meaningful instead of always 0.
 		require.NotNil(t, dismissed.DismissedHours)
-		assert.Equal(t, 0.0, *dismissed.DismissedHours)
+		assert.Equal(t, 8.0, *dismissed.DismissedHours)
+		require.NotNil(t, dismissed.DismissedNote)
+		assert.Equal(t, "dismissed with 8 h logged", *dismissed.DismissedNote)
 	})
 
 	t.Run("deleted submitted entry does not block (is_deleted=false only)", func(t *testing.T) {

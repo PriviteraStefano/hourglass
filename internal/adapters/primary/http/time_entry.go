@@ -327,6 +327,10 @@ func (h *TimeEntryHandler) Submit(w http.ResponseWriter, r *http.Request) {
 			api.RespondWithError(w, http.StatusForbidden, "can only submit own entries")
 			return
 		}
+		if errors.Is(err, time_entry.ErrTicketDismissed) {
+			api.RespondWithError(w, http.StatusConflict, "cannot submit entries for a dismissed ticket")
+			return
+		}
 		if errors.Is(err, activitydomain.ErrActivityNotLoggable) {
 			api.RespondWithError(w, http.StatusConflict, "this activity requires a working group before entries can be logged")
 			return

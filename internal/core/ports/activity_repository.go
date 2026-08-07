@@ -44,9 +44,18 @@ type ActivityRepository interface {
 	AddManager(ctx context.Context, activityID, userID uuid.UUID) (*activitydomain.ActivityManager, error)
 	RemoveManager(ctx context.Context, activityID, userID uuid.UUID) error
 
+	// HasChildren reports whether the activity has at least one child.
 	HasChildren(ctx context.Context, activityID uuid.UUID) (bool, error)
 	HasActiveTimeEntries(ctx context.Context, activityID uuid.UUID) (bool, bool, error)
 	HasActiveExpenses(ctx context.Context, activityID uuid.UUID) (bool, error)
+
+	// IsLinkedTicketDismissed reports whether the activity — or any of its
+	// ancestors — is a customer_ticket-origin activity whose linked ticket
+	// is in the dismissed state (WR-06). Backs the entry Submit gate: a
+	// dismissed ticket is terminal, so drafts on its activities must never
+	// be submitted afterwards (hours logged on a dismissed ticket after the
+	// fact). Consistent with the ticket repo's subtree "linked" definition.
+	IsLinkedTicketDismissed(ctx context.Context, activityID uuid.UUID) (bool, error)
 
 	// ApproveProposal flips is_active=true and writes the
 	// proposal_approved audit row IN THE SAME TRANSACTION (Pitfall 2,

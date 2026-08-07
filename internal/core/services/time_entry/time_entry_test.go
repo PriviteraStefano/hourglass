@@ -803,3 +803,43 @@ func TestService_Delete(t *testing.T) {
 		assert.ErrorIs(t, err, time_entry.ErrEntryNotDraft)
 	})
 }
+
+func TestService_Submit_DismissedTicketGate(t *testing.T) {
+	// WR-06: a draft entry on an activity linked to a dismissed customer
+	// ticket can never be submitted — the ticket is terminal.
+	orgID := uuid.New()
+	ownerID := uuid.New()
+
+	t.Run("submit blocked when the linked ticket is dismissed", func(t *testing.T) {
+		f := setupService(t)
+		activityID := uuid.New()
+		f.seedActivity(orgID, func(a *activitydomain.ActivityResponse) { a.ID = activityID })
+		f.activityRepo.LinkedTicketDismissed = true
+		entry := f.seedEntry(func(e *time_entry.TimeEntry) {
+			e.OrgID = orgID
+			e.UserID = ownerID
+			e.ActivityID = activityID
+			e.Status = time_entry.StatusDraft
+		})
+
+		updated, err := f.svc.Submit(context.Background(), entry.ID, ownerID)
+		assert.ErrorIs(t, err, time_entry.ErrTicketDismissed)
+		assert.Nil(t, updated)
+	})
+
+	t.Run("submit proceeds when the ticket is not dismissed", func(t *testing.T) {
+		f := setupService(t)
+		activityID := uuid.New()
+		f.seedActivity(orgID, func(a *activitydomain.ActivityResponse) { a.ID = activityID })
+		entry := f.seedEntry(func(e *time_entry.TimeEntry) {
+			e.OrgID = orgID
+			e.UserID = ownerID
+			e.ActivityID = activityID
+			e.Status = time_entry.StatusDraft
+		})
+
+		updated, err := f.svc.Submit(context.Background(), entry.ID, ownerID)
+		require.NoError(t, err)
+		assert.Equal(t, time_entry.StatusSubmitted, updated.Status)
+	})
+}
