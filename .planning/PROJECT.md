@@ -10,7 +10,7 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 
 ## Current State
 
-**Shipped:** v0.1 MVP Consolidation (2026-08-01) — 16 phases, 62 plans, 138 tasks
+**Shipped:** v0.1 MVP Consolidation (2026-08-01) — 16 phases, 62 plans, 138 tasks + **Phase 11 v0.2 foundations** (2026-08-07) — 8 plans: origins + sold_hours + tickets backend
 
 - Full PostgreSQL stack: 24-table schema, 18 repos, testcontainers-go integration tests, ~30 Go package suites green
 - Auth: JWT HttpOnly cookies, refresh-token rotation with reuse detection + family revocation, rate limiting, password reset hardening
@@ -33,13 +33,13 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 - ✓ Filterable list views, `/customers` index, route error boundaries (P0-2/3/4) — v0.1
 - ✓ Working Groups surface (list/search/create/edit/members) — v0.1
 - ✓ Today landing + Approvals queue (stage-filtered Manager/Finance) — v0.1
+- ✓ Origins on activities — type + reference set (manager-assignment / employee-proposal / customer-ticket), proposal approval via activity routing (FND-01..04) — Validated in Phase 11: Foundations — Schema + Origins + Tickets backend
+- ✓ Tickets — first-class, internal-only: lifecycle + triage + reopen, kinds question/bug/change/evolution, ticket→activity→entries chain, concurrency-safe dismissal guard + server-rendered hours note (TICK-01..05) — Validated in Phase 11: Foundations — Schema + Origins + Tickets backend
 
 ### Active
 
 <!-- Current scope: v0.2 Ontology Extension — Origins, Tickets & Coverage + Direction. Detailed REQ-IDs in REQUIREMENTS.md. -->
 
-- [ ] Origins on activities — type + reference set (manager-assignment / employee-proposal / customer-ticket), proposal approval via activity routing (FND-01..04)
-- [ ] Tickets — first-class, internal-only: lifecycle + triage + reopen, kinds question/bug/change/evolution, ticket→activity→entries chain, dismissal guard (TICK-01..06)
 - [ ] Coverage — allocation ledger per entry, funding sources (contract budget / support bucket / service request / internal absorption / cross-project transfer), to-cover queue, monthly rhythm, snapshot-not-lock (COV-01..05)
 - [ ] Direction — the plan plane: scheduled/queued modes, claim model, lifecycle, org policy, direction-coverage read-model (DIR-01..06)
 - [ ] Availability — employee absences UI + capacity views per activity/WG (AVAIL-01..05)
@@ -140,4 +140,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-08-02 after v0.2 milestone redefined (ontology research round)*
+*Last updated: 2026-08-07 after Phase 11 completion (Origins + Tickets backend foundations)*
