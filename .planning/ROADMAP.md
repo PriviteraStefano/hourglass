@@ -66,7 +66,7 @@
   8. Origin refs stored on activities; empty refs fall back to the first direction record on read (additive, Phase 13 landing) (FND-04)
   9. ADR-P-003 revision + ADR-P-013 recorded in the vault decisions folder; all migrations are append-only per ADR-BE-004 with up/down pairs + cycle tests
 
-**Plans**: 8 plans
+**Plans**: 7/8 plans executed
 Plans:
 **Wave 1**
 
@@ -88,7 +88,7 @@ Plans:
 
 **Wave 5 (gap closure)** *(blocked on Wave 4 completion)*
 
-- [ ] 11-07-PLAN.md — CR-01 TOCTOU fix (TICK-02/TICK-04): matrix + hours Σ re-validated inside the mutator tx under FOR UPDATE locks + race test battery
+- [x] 11-07-PLAN.md — CR-01 TOCTOU fix (TICK-02/TICK-04): matrix + hours Σ re-validated inside the mutator tx under FOR UPDATE locks + race test battery
 - [ ] 11-08-PLAN.md — Dismissal note rendered on read (TICK-04/IN-02) + title validation ride-alongs (WR-04/IN-01)
 
 ### Phase 12: Coverage Backend — The Allocation Loop
@@ -329,7 +329,7 @@ Plans:
 | 8. Hardening | v0.1 | 4/4 | Complete | 2026-07-31 |
 | 9. Activity Ont. | v0.1 | 8/8 | Complete | 2026-07-31 |
 | 10. IA Impl. | v0.1 | 6/6 | Complete | 2026-08-01 |
-| 11. Foundations | v0.2 | 4/6 | In Progress|  |
+| 11. Foundations | v0.2 | 7/8 | In Progress|  |
 | 12. Coverage Backend | v0.2 | 0/TBD | Not started | - |
 | 13. Direction Backend | v0.2 | 0/TBD | Not started | - |
 | 14. Availability Backend | v0.2 | 0/TBD | Not started | - |

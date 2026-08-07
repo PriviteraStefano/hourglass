@@ -147,6 +147,12 @@ None - no external service configuration required.
 - VERIFICATION.md gap 1 (TICK-02 lifecycle integrity under concurrency) and gap 2 (TICK-04 dismissal-guard Σ authoritative in-tx) are closed; 11-VERIFICATION.md gap-closure table for these items can be updated by phase verification.
 - Ready for 11-08 (dismissal note rendering on read, TICK-04/IN-02 + title validation ride-alongs WR-04/IN-01), which depends on the hardened guard semantics (dismissed tickets carry `dismissed_hours` written by the in-tx Σ).
 
+## Self-Check: PASSED
+
+- All key files exist on disk: ticket_repository.go, ticket_repository_test.go, services/ticket/ticket.go, 11-07-SUMMARY.md
+- All commits found in git history: 7cfabfb (test), ca02d0d (feat), f034075 (test), 446d9e7 (feat), dff6773 (docs summary)
+- Final verification suite green: race battery `-race` (5.6s), `TestTicket` (4.4s), ticket service (6.1s), `go build ./...`
+
 ---
 *Phase: 11-foundations-schema-origins-tickets-backend*
 *Completed: 2026-08-07*

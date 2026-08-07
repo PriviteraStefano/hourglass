@@ -5,16 +5,16 @@ milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 11
 current_phase_name: foundations-schema-origins-tickets-backend
 status: executing
-stopped_at: Completed 11-06-PLAN.md
-last_updated: "2026-08-07T13:22:01.852Z"
+stopped_at: Completed 11-07-PLAN.md
+last_updated: "2026-08-07T14:15:59.180Z"
 last_activity: 2026-08-07
 last_activity_desc: Phase 11 execution started
 progress:
   total_phases: 16
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 8
-  completed_plans: 6
-  percent: 6
+  completed_plans: 7
+  percent: 0
 ---
 
 # Project State
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 ## Current Position
 
 Phase: 11 (foundations-schema-origins-tickets-backend) — EXECUTING
-Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-08-07 -- Phase 11 execution started
+Plan: 7 of 8 (11-07 complete — CR-01 concurrency hardening; 11-08 pending)
+Status: Executing Phase 11
+Last activity: 2026-08-07 — Phase 11 execution started
 
 ## Accumulated Context
 
@@ -78,6 +78,7 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 11-foundations-schema-origins-tickets-backend]: Transition rejects to==dismissed: the pinned matrix's dismissal edges (open/triage -> dismissed) are consumed ONLY by Dismiss — the guarded path with the D-11 role gate + D-13 hours guard + dismissed_hours snapshot. Allowing them in Transition would let an owner/assignee bypass the guard (T-11-07) — Security fix (Rule 2): without the block, an owner/assignee could dismiss a ticket with logged hours via the transition endpoint, bypassing the D-13 guard that TICK-04 mandates
 - [Phase 11-foundations-schema-origins-tickets-backend]: Triage implements the service-level fast-fail (KindExists/parent/contract same-org) as optional UX exactly as planned — the repo's in-tx SELECT EXISTS checks remain the correctness guarantee with DB FK/CHECK constraints as the third line (Pitfall 7, T-11-06) — Plan said the service MAY fast-fail; unit tests exercise the fast-fail, the contract test proves the in-tx gate
 - [Phase 11-foundations-schema-origins-tickets-backend]: Dismissal-guard contract test links the activity via the OQ5 customer_ticket path on an open ticket (the exact shape the guard must catch) rather than via triage — triage moves the ticket to planned, from which dismissal is illegal per the matrix — Test correctness: the 409 scenario must hold while the ticket is open|triage
+- [Phase 11-foundations-schema-origins-tickets-backend]: Repo layer is authoritative for ticket state-machine and dismissal-guard decisions: every matrix/guard check re-validated inside the mutator tx under the FOR UPDATE row lock (Pitfall 7, ADR-BE-016); service pool-level checks are fast-fail UX only (CR-01 closure) — CR-01 TOCTOU root cause: pool-level checks before the mutator tx left a check-then-act window. In-tx lock + re-check + status-precondition UPDATE backstop closes it; pool signatures stay Phase-12-stable (loggedHoursTx/hasNonTerminalActivitiesTx are private tx-executed helpers)
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -120,11 +121,16 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 **Velocity:** 62 plans completed in v0.1 (avg ~26 min across measured plans; P08-04 longest at 176 min, P10-06 at 453 min).
 
 **Trend:** Stable — execution consistently lands 2-4 task plans per session day; verification debt accumulated at close (25 UAT + 3 human reviews) is the v0.2 folding target.
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 11-foundations-schema-origins-tickets-backend P07 | 15min | 3 tasks | 3 files |
 
 ## Session Continuity
 
-Last session: 2026-08-07T11:45:44.253Z
-Stopped at: Completed 11-06-PLAN.md
+Last session: 2026-08-07T14:15:59.169Z
+Stopped at: Completed 11-07-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
