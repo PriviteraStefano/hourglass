@@ -27,6 +27,9 @@ type CreateContractRequest struct {
 	GovernanceModel models.GovernanceModel `json:"governance_model"`
 	IsShared        bool                   `json:"is_shared"`
 	CustomerID      *string                `json:"customer_id,omitempty"`
+	ContractType    *string                `json:"contract_type,omitempty"`
+	SoldHours       *float64               `json:"sold_hours,omitempty"`
+	SoldPeriod      *string                `json:"sold_period,omitempty"`
 }
 
 func (h *ContractHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -84,6 +87,9 @@ func (h *ContractHandler) Create(w http.ResponseWriter, r *http.Request) {
 		GovernanceModel: req.GovernanceModel,
 		IsShared:        req.IsShared,
 		CustomerID:      parsedCustomerID,
+		ContractType:    req.ContractType,
+		SoldHours:       req.SoldHours,
+		SoldPeriod:      req.SoldPeriod,
 	})
 	if err != nil {
 		api.RespondWithError(w, http.StatusBadRequest, "invalid contract payload")
@@ -134,6 +140,9 @@ type UpdateContractRequest struct {
 	IsShared        *bool                  `json:"is_shared,omitempty"`
 	IsActive        *bool                  `json:"is_active,omitempty"`
 	CustomerID      *string                `json:"customer_id,omitempty"`
+	ContractType    *string                `json:"contract_type,omitempty"`
+	SoldHours       *float64               `json:"sold_hours,omitempty"`
+	SoldPeriod      *string                `json:"sold_period,omitempty"`
 }
 
 func (h *ContractHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -164,6 +173,9 @@ func (h *ContractHandler) Update(w http.ResponseWriter, r *http.Request) {
 		IsShared:        req.IsShared,
 		IsActive:        req.IsActive,
 		CustomerID:      req.CustomerID,
+		ContractType:    req.ContractType,
+		SoldHours:       req.SoldHours,
+		SoldPeriod:      req.SoldPeriod,
 	})
 	if err != nil {
 		switch err {

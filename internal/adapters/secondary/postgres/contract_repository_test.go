@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	contractdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/contract"
 	"github.com/stretchr/testify/require"
 )
@@ -286,6 +287,138 @@ func TestContractRepository_Delete_WrongOrg(t *testing.T) {
 	err = repo.Delete(context.Background(), wrongOrgID, created.ID)
 	require.Error(t, err)
 	require.ErrorIs(t, err, contractdomain.ErrContractNotFound)
+}
+
+func TestContractRepository_CreateSoldConfig_RoundTrip(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewContractRepository(pool)
+	orgID := seedOrg(t, pool, time.Now().UTC())
+
+	support := "support"
+	month := "month"
+	hours := 100.00
+	req := &contractdomain.CreateContractRequest{
+		Name:            "Support Contract",
+		KmRate:          0.35,
+		Currency:        "EUR",
+		GovernanceModel: "creator_controlled",
+		IsShared:        false,
+		ContractType:    &support,
+		SoldHours:       &hours,
+		SoldPeriod:      &month,
+	}
+
+	created, err := repo.Create(context.Background(), orgID, req)
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	require.NotNil(t, created.ContractType)
+	require.Equal(t, "support", *created.ContractType)
+	require.NotNil(t, created.SoldHours)
+	require.Equal(t, 100.00, *created.SoldHours)
+	require.NotNil(t, created.SoldPeriod)
+	require.Equal(t, "month", *created.SoldPeriod)
+
+	// Read back through Get — persisted, not just echoed from the INSERT.
+	got, err := repo.Get(context.Background(), orgID, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, "support", *got.ContractType)
+	require.Equal(t, 100.00, *got.SoldHours)
+	require.Equal(t, "month", *got.SoldPeriod)
+}
+
+func TestContractRepository_UpdateSoldConfig(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewContractRepository(pool)
+	orgID := seedOrg(t, pool, time.Now().UTC())
+
+	// Create a legacy contract (contract_type NULL) with no sold config.
+	req := &contractdomain.CreateContractRequest{
+		Name:            "Upgradeable Contract",
+		KmRate:          0.25,
+		Currency:        "EUR",
+		GovernanceModel: "creator_controlled",
+		IsShared:        false,
+	}
+	created, err := repo.Create(context.Background(), orgID, req)
+	require.NoError(t, err)
+	require.Nil(t, created.ContractType)
+	require.Nil(t, created.SoldHours)
+	require.Nil(t, created.SoldPeriod)
+
+	// (2) Set NULL → support in ONE update (type + hours + period together).
+	support := "support"
+	quarter := "quarter"
+	hours := 50.00
+	updated, _, err := repo.Update(context.Background(), orgID, created.ID, &contractdomain.UpdateContractRequest{
+		ContractType: &support,
+		SoldHours:    &hours,
+		SoldPeriod:   &quarter,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.NotNil(t, updated.ContractType)
+	require.Equal(t, "support", *updated.ContractType)
+	require.NotNil(t, updated.SoldHours)
+	require.Equal(t, 50.00, *updated.SoldHours)
+	require.NotNil(t, updated.SoldPeriod)
+	require.Equal(t, "quarter", *updated.SoldPeriod)
+
+	got, err := repo.Get(context.Background(), orgID, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, "support", *got.ContractType)
+	require.Equal(t, 50.00, *got.SoldHours)
+	require.Equal(t, "quarter", *got.SoldPeriod)
+
+	// (3) Transition support → project, explicitly clearing sold_period in the
+	// same update (nullable-clear branch); sold_hours is preserved.
+	project := "project"
+	clearPeriod := ""
+	updated2, _, err := repo.Update(context.Background(), orgID, created.ID, &contractdomain.UpdateContractRequest{
+		ContractType: &project,
+		SoldPeriod:   &clearPeriod,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "project", *updated2.ContractType)
+	require.Nil(t, updated2.SoldPeriod)
+	require.NotNil(t, updated2.SoldHours)
+
+	got2, err := repo.Get(context.Background(), orgID, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, "project", *got2.ContractType)
+	require.Nil(t, got2.SoldPeriod)
+	require.NotNil(t, got2.SoldHours)
+	require.Equal(t, 50.00, *got2.SoldHours)
+}
+
+func TestContractRepository_DBRejectsSupportWithoutPeriod(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	orgID := seedOrg(t, pool, time.Now().UTC())
+
+	// Raw insert bypassing the service: the DB CHECK contracts_sold_check must
+	// reject support-without-period (the service backstop, T-11-03).
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO contracts (id, name, km_rate, currency, governance_model, created_by_org_id, is_active, contract_type, sold_hours, sold_period, created_at, updated_at)
+		 VALUES ($1, 'Broken support', 0, 'EUR', 'creator_controlled', $2, TRUE, 'support', 100.00, NULL, NOW(), NOW())`,
+		uuid.New(), orgID)
+	require.Error(t, err)
+	var pgErr *pgconn.PgError
+	require.ErrorAs(t, err, &pgErr)
+	require.Equal(t, "23514", pgErr.Code)
+	require.Equal(t, "contracts_sold_check", pgErr.ConstraintName)
+
+	// wrapPGError surfaces the raw violation (unknown SQLSTATE passes through).
+	wrapped := wrapPGError(err, "create contract")
+	require.Error(t, wrapped)
+	require.Contains(t, wrapped.Error(), "contracts_sold_check")
 }
 
 // ---------------------------------------------------------------------------

@@ -29,6 +29,7 @@ func NewContractRepository(pool *pgxpool.Pool) *ContractRepository {
 func baseContractQuery() string {
 	return `SELECT c.id, c.name, c.km_rate, c.currency, c.customer_id, c.governance_model,
 		c.created_by_org_id, c.is_shared, c.is_active, c.created_at,
+		c.contract_type, c.sold_hours, c.sold_period,
 		COALESCE(o.name, '') AS created_by_org_name,
 		(SELECT COUNT(*) FROM contract_adoptions ca WHERE ca.contract_id = c.id) AS adoption_count,
 		EXISTS(SELECT 1 FROM contract_adoptions ca2 WHERE ca2.contract_id = c.id AND ca2.organization_id = $1) AS is_adopted,
@@ -87,9 +88,10 @@ func (r *ContractRepository) Create(ctx context.Context, orgID uuid.UUID, req *c
 	id := uuid.New()
 
 	_, err := r.pool.Exec(ctx, `INSERT INTO contracts (id, name, km_rate, currency, customer_id, governance_model,
-		created_by_org_id, is_shared, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW(), NOW())`,
-		id, req.Name, req.KmRate, req.Currency, req.CustomerID, req.GovernanceModel, orgID, req.IsShared)
+		created_by_org_id, is_shared, is_active, contract_type, sold_hours, sold_period, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, $10, $11, NOW(), NOW())`,
+		id, req.Name, req.KmRate, req.Currency, req.CustomerID, req.GovernanceModel, orgID, req.IsShared,
+		req.ContractType, req.SoldHours, req.SoldPeriod)
 	if err != nil {
 		return nil, wrapPGError(err, "create contract")
 	}
@@ -183,6 +185,29 @@ func (r *ContractRepository) Update(ctx context.Context, orgID, contractID uuid.
 			}
 			sets = append(sets, fmt.Sprintf("customer_id = $%d", argIdx))
 			args = append(args, cid)
+		}
+		argIdx++
+	}
+	// contract_type is set once and preserved: never emitted as NULL from an
+	// absent field — only written when the request sends a value.
+	if req.ContractType != nil {
+		sets = append(sets, fmt.Sprintf("contract_type = $%d", argIdx))
+		args = append(args, *req.ContractType)
+		argIdx++
+	}
+	if req.SoldHours != nil {
+		sets = append(sets, fmt.Sprintf("sold_hours = $%d", argIdx))
+		args = append(args, *req.SoldHours)
+		argIdx++
+	}
+	if req.SoldPeriod != nil {
+		if *req.SoldPeriod == "" {
+			// explicit clear (nullable-clear pattern): request sent sold_period: ""
+			sets = append(sets, fmt.Sprintf("sold_period = $%d", argIdx))
+			args = append(args, nil)
+		} else {
+			sets = append(sets, fmt.Sprintf("sold_period = $%d", argIdx))
+			args = append(args, *req.SoldPeriod)
 		}
 		argIdx++
 	}
@@ -314,15 +339,23 @@ type contractResponseScanner interface {
 
 func scanContractResponse(s contractResponseScanner) (*contractdomain.ContractResponse, error) {
 	var c contractdomain.ContractResponse
+	var contractType *string
+	var soldHours *float64
+	var soldPeriod *string
+
 	err := s.Scan(
 		&c.ID, &c.Name, &c.KmRate, &c.Currency, &c.CustomerID, &c.GovernanceModel,
 		&c.CreatedByOrgID, &c.IsShared, &c.IsActive, &c.CreatedAt,
+		&contractType, &soldHours, &soldPeriod,
 		&c.CreatedByOrgName, &c.AdoptionCount, &c.IsAdopted,
 		&c.CustomerName, &c.TimeEntriesCount,
 	)
 	if err != nil {
 		return nil, err
 	}
+	c.ContractType = contractType
+	c.SoldHours = soldHours
+	c.SoldPeriod = soldPeriod
 	return &c, nil
 }
 
