@@ -178,8 +178,9 @@ None - no external service configuration required.
 ## Self-Check: PASSED
 
 - Created files verified on disk: ticket.go, audit.go, both new port files, both new postgres repos, both new mocks, ticket_repository_test.go, activity_origin_test.go, activity_proposal_test.go, 11-05-SUMMARY.md
-- Commits verified in git log: c6c478e (Task 1), 53c27ac (Task 2), 4e1a9d2 (Task 3)
+- Commits verified in git log: c6c478e (Task 1), 53c27ac (Task 2), 4e1a9d2 (Task 3), e1b6f52/e2d58b5 (docs), 905748c (metadata)
 - Verification commands: `go test ./internal/adapters/secondary/postgres/ -run 'TestTicket' -count=1` ok; `go test ./internal/core/services/activity/ -run 'TestProposal|TestActivityOrigin' -count=1` ok; `go build ./...` ok; `go test ./internal/core/services/... ./internal/adapters/secondary/postgres/ -count=1` all ok; `make test` 0 failures; `go vet ./...` exit 0
+- STATE.md advanced to Plan 6 of 6 (83% phase progress); ROADMAP.md row updated (5/6, In Progress); REQUIREMENTS.md FND-01/FND-02/FND-04/TICK-01/TICK-05 already complete (no-op); working tree clean
 
 ---
 *Phase: 11-foundations-schema-origins-tickets-backend*
