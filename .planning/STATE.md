@@ -5,8 +5,8 @@ milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 12
 current_phase_name: Coverage Backend — The Allocation Loop
 status: executing
-stopped_at: Completed 11-08-PLAN.md
-last_updated: "2026-08-07T19:20:58.152Z"
+stopped_at: Phase 13 context gathered
+last_updated: "2026-08-07T19:40:08.802Z"
 last_activity: 2026-08-07
 last_activity_desc: Phase 11 complete, transitioned to Phase 12
 progress:
@@ -132,9 +132,9 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 
 ## Session Continuity
 
-Last session: 2026-08-07T18:21:43.929Z
-Stopped at: Completed 11-08-PLAN.md
-Resume file: None
+Last session: 2026-08-07T19:40:08.782Z
+Stopped at: Phase 13 context gathered
+Resume file: .planning/phases/13-direction-backend-the-plan-plane/13-CONTEXT.md
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
 ## Performance Metrics
