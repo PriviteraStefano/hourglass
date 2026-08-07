@@ -1,174 +1,153 @@
 ---
-status: needs-work
+status: issues_found
 phase: 11-foundations-schema-origins-tickets-backend
 generated: 2026-08-07
 depth: standard
-files_reviewed: 43
+files_reviewed: 57
+files_reviewed_list:
+  - cmd/server/main.go
+  - cmd/server/main_test.go
+  - hourglass-vault/decisions/backend/_index.md
+  - hourglass-vault/decisions/project/_index.md
+  - internal/adapters/primary/http/activity_handler.go
+  - internal/adapters/primary/http/contract.go
+  - internal/adapters/primary/http/handler_test_helper.go
+  - internal/adapters/primary/http/ticket_handler.go
+  - internal/adapters/primary/http/ticket_handler_test.go
+  - internal/adapters/primary/http/time_entry_test.go
+  - internal/adapters/secondary/postgres/activity_ontology_migration_test.go
+  - internal/adapters/secondary/postgres/activity_repository.go
+  - internal/adapters/secondary/postgres/activity_repository_test.go
+  - internal/adapters/secondary/postgres/audit_log_repository.go
+  - internal/adapters/secondary/postgres/contract_repository.go
+  - internal/adapters/secondary/postgres/contract_repository_test.go
+  - internal/adapters/secondary/postgres/exported_test_helpers.go
+  - internal/adapters/secondary/postgres/ontology_extension_migrations_test.go
+  - internal/adapters/secondary/postgres/staffing_schema_migration_test.go
+  - internal/adapters/secondary/postgres/ticket_repository.go
+  - internal/adapters/secondary/postgres/ticket_repository_test.go
+  - internal/core/domain/activity/activity.go
+  - internal/core/domain/audit/audit.go
+  - internal/core/domain/contract/contract.go
+  - internal/core/domain/ticket/ticket.go
+  - internal/core/ports/audit_log_repository.go
+  - internal/core/ports/ticket_repository.go
+  - internal/core/services/activity/activity.go
+  - internal/core/services/activity/activity_origin_test.go
+  - internal/core/services/activity/activity_proposal_test.go
+  - internal/core/services/activity/activity_test.go
+  - internal/core/services/contract/contract.go
+  - internal/core/services/contract/contract_test.go
+  - internal/core/services/routing/routing.go
+  - internal/core/services/routing/routing_test.go
+  - internal/core/services/testdata/mock_audit_log_repo.go
+  - internal/core/services/testdata/mock_ticket_repo.go
+  - internal/core/services/testdata/mocks.go
+  - internal/core/services/ticket/ticket.go
+  - internal/core/services/ticket/ticket_integration_test.go
+  - internal/core/services/ticket/ticket_test.go
+  - internal/core/services/time_entry/time_entry.go
+  - internal/core/services/time_entry/time_entry_test.go
+  - migrations/014_ticket_schema.down.sql
+  - migrations/014_ticket_schema.up.sql
+  - migrations/015_activity_origins.down.sql
+  - migrations/015_activity_origins.up.sql
+  - migrations/016_contract_sold_hours.down.sql
+  - migrations/016_contract_sold_hours.up.sql
+  - migrations/017_audit_logs.down.sql
+  - migrations/017_audit_logs.up.sql
 findings:
-  critical: 1
-  warning: 5
-  info: 7
-  total: 13
+  critical: 0
+  warning: 3
+  info: 1
+  total: 4
 ---
 
-# Phase 11 Code Review Report — Foundations: Schema, Origins, Tickets (Backend)
+# Phase 11 Code Review Report — RE-review (CR-01 / 11-07 / 11-08 verification)
 
 **Reviewed:** 2026-08-07
 **Depth:** standard
-**Files Reviewed:** 43 (migrations 014–017, ticket/activity/contract/audit domain + services + repos, routing package, HTTP handlers, tests, vault index docs)
-**Status:** needs-work
+**Files Reviewed:** 57
+**Status:** issues_found
 
 ## Summary
 
-The phase delivers four clean additive migrations with up/down symmetry and three-valued-logic CHECK guards, a faithful verbatim extraction of the BE-014 routing package, a well-tested origin axis on activities (role gates, same-org validation, service+repo immutability double-enforcement), contract sold-hours wiring, and a ticket lifecycle whose audit-in-tx discipline (Pitfall 2) and atomic triage with in-tx plan validation (Pitfall 7) are genuinely well executed. Tests are strong: the transition matrix, dismissal guard (submitted/draft/deleted variants), triage rollback atomicity, and the no-DELETE contract test all assert real acceptance criteria.
+This is the re-review of phase 11 after the two gap-closure plans landed (11-07 = CR-01 hardening, 11-08 = note rendering + title validation). **Both gap-closure plans are verified complete and correct:**
 
-The dominant defect is a **check-then-act TOCTOU across the ticket state machine**: every matrix/guard decision (CanTransition, LoggedHours, HasNonTerminalActivities) is evaluated at pool level *outside* the mutator transaction, and the mutators neither lock nor re-validate inside the tx (except triage, which locks with `FOR UPDATE` but never re-checks status). Concurrent legitimate requests can therefore violate the pinned matrix (dismissed ticket resurrected to `planned`, `planned` ticket dismissed) and bypass the T-11-07 dismissal guard (entry submitted between the Σ and the write). Secondary issues: proposal approval is not atomic with its audit row, several validation errors surface as 500 (contract sold config, mixed origin refs, oversized titles), and `ErrInvalidSoldConfig` is never mapped in the contract Update handler.
+- **CR-01 (11-07) — closed as scoped.** `repo.UpdateState` (ticket_repository.go:239-298), `repo.Dismiss` (:313-396) and `repo.Triage` (:412-565) now all re-validate inside the mutator transaction under a `FOR UPDATE` ticket row lock: in-tx `CanTransition` on the locked status (dismissed-resurrection and planned→dismissed are closed), the resolved-edge re-check via the in-tx recursive-CTE helper `hasNonTerminalActivitiesTx`, the dismissal Σ re-check via `loggedHoursTx` under linked-activity `FOR UPDATE` locks (serializing the entry-INSERT path), and every UPDATE carries the `AND status = currentStatus` SQL backstop. The six new race/pin tests (TestDismissalGuard_RaceWithPendingSubmit, TestDismissalRace_VsTriage, TestDismiss_RejectsPlanned, TestTransitionRace_VsDismiss, TestTriage_RejectsDismissed, TestUpdateState_ResolvedBlocked) are well-constructed and pass under `go test -race`. No port signature changes.
+- **11-08 — closed.** `DismissedNote` is a derived field rendered in `scanTicketRow` (ticket_repository.go:59-63) with `strconv.FormatFloat` precision -1, asserted at repo level and across the dismiss response / GET detail / GET list in the handler contract test. Title validation (Create `len > 255`, UpdateDetails empty + `len > 255` → `ErrInvalidRequest` → 400) landed in the service with 255/256 boundary tests.
+- **Known warnings WR-02 (contract sold-config) and WR-03 (forbidden origin refs) remain open** — verified untouched by the gap-closure commits (git diff 7713072..HEAD touches only ticket-subsystem files), per scope.
+- Full build green; service/http/postgres ticket suites green, race battery green.
 
-## Critical Issues
+**New findings (this review):** the dismissal guard still has **one deterministic hole** and **one residual race window**, plus a latent guard-by-convention gap in the repo authority layer:
 
-### CR-01: State-machine and dismissal-guard checks run outside the transaction — concurrent requests break the matrix and bypass the guard
-
-**Files:**
-- `internal/core/services/ticket/ticket.go:191-233` (Transition), `:259-287` (Dismiss), `:325-379` (Triage)
-- `internal/adapters/secondary/postgres/ticket_repository.go:220-247` (UpdateState), `:253-281` (Dismiss), `:297-440` (Triage)
-
-**Issue:** `CanTransition`, `LoggedHours` and `HasNonTerminalActivities` are all read from the pool *before* the mutator tx opens. The mutators then write status without any locking (UpdateState, Dismiss) and without re-validating the matrix inside the tx. Triage is the exception that proves the gap: it takes `SELECT … FOR UPDATE` on the ticket row (ticket_repository.go:305-314) but never re-checks the captured `currentStatus` against the matrix before flipping to `planned`. Three concrete race outcomes:
-
-1. **Dismissed-ticket resurrection (terminal-state invariant broken, D-14):** ticket is in `triage`. T1 (Triage) passes `CanTransition(triage, planned)`; T2 (Dismiss) passes `CanTransition(triage, dismissed)` and commits first (no lock on Dismiss's path). T1's `FOR UPDATE` then reads status `dismissed` — a terminal state — and proceeds to set `planned` and insert activities.
-2. **Illegal `planned → dismissed`:** the mirror image — Triage commits first, then Dismiss's lock-free `UPDATE … SET status='dismissed'` lands on a `planned` ticket (dismissal is only legal from `open|triage` per the pinned matrix).
-3. **Dismissal-guard bypass (T-11-07):** `LoggedHours` reads 0 at pool level; an employee submits an entry on a linked activity (the time-entry path shares no lock with the ticket); `repo.Dismiss` then commits with `dismissed_hours=0` while logged hours > 0 exist. The server-side Σ guard — the phase's headline security control — is check-then-act.
-
-The resolved-block has the same shape: `HasNonTerminalActivities` is checked before `UpdateState`, so `resolved` can land while a draft entry is concurrently created on the subtree (OQ2).
-
-**Fix:** Move the authoritative checks inside the tx, under a ticket row lock, mirroring the triage pattern everywhere:
-
-```go
-// UpdateState (and Dismiss):
-tx, _ := r.pool.BeginTx(ctx, pgx.TxOptions{})
-defer tx.Rollback(ctx)
-var currentStatus string
-err := tx.QueryRow(ctx, `SELECT status FROM tickets WHERE id=$1 AND org_id=$2 FOR UPDATE`, ticketID, orgID).Scan(&currentStatus)
-// …re-validate the matrix (service passes expected-from, or the service
-// passes a re-validate callback) and — for Dismiss — re-run the Σ inside
-// the tx (`SELECT COALESCE(SUM(hours),0) FROM time_entries …` via tx),
-// then UPDATE + audit INSERT + Commit.
-```
-
-Triage additionally needs `if !ticketdomain.CanTransition(currentStatus, ticketdomain.StatusPlanned) { return ErrInvalidTransition }` right after the `FOR UPDATE` read. Alternatively, gate the writes with a status precondition in the SQL: `UPDATE tickets SET status=$1 WHERE id=$2 AND org_id=$3 AND status=$4` and map 0 rows-affected to `ErrInvalidTransition` — a cheap belt-and-braces that makes the matrix race-proof even without the lock.
+1. **WR-06 (deterministic):** the dismissal Σ (`LoggedHours`/`loggedHoursTx`) counts only `status IN ('submitted','approved')` — an entry at `pending_manager`/`pending_finance` (already submitted and mid-approval) **stops blocking dismissal the moment the manager approves it**. The more committed the logged hours, the weaker the guard. No concurrency required.
+2. **WR-07 (race):** the linked-activity `FOR UPDATE` serialization blocks only entry **INSERTs** (FK KEY SHARE); the real submit flow is a `draft → submitted` **UPDATE** on `time_entries`, which takes no activity-row lock — it can commit in the window between the in-tx Σ read and the dismissal commit, landing submitted hours on a ticket dismissed with `dismissed_hours=0`.
+3. **WR-08 (latent):** `repo.UpdateState` still accepts the matrix-legal dismissal edges (`open|triage → dismissed`) with no Σ check and no `dismissed_hours` write — the "repo is authoritative" layer can dismiss without the guard; only the service's ad-hoc rejection protects the invariant.
 
 ## Warnings
 
-### WR-01: Proposal approval is not atomic — is_active flip and `proposal_approved` audit row commit in separate transactions
+### WR-06: Dismissal-guard Σ excludes `pending_manager`/`pending_finance` — an entry mid-approval stops blocking dismissal (deterministic T-11-07 bypass)
 
-**File:** `internal/core/services/activity/activity.go:319-335`
+**File:** `internal/adapters/secondary/postgres/ticket_repository.go:691-693` (LoggedHours) and `:709-711` (loggedHoursTx)
 
-**Issue:** `ApproveProposal` calls `s.activityRepo.Update(...)` (own tx, commits) and then `s.auditRepo.Create(...)` (second tx). If the audit insert fails after the flip committed (transient DB error), the proposal is approved with no `proposal_approved` row — exactly the repudiation the phase's own T-11-08 mitigation exists to prevent, and inconsistent with the ticket path's in-tx discipline (Pitfall 2, ADR-BE-016). The ticket service got the in-tx treatment; the proposal path is the same invariant and should get it too.
+**Issue:** Both Σ queries filter `status IN ('submitted','approved')`. The time_entry lifecycle is `draft → submitted → pending_manager → pending_finance → approved` (time_entry domain constants, time_entry.go:21-26). A linked entry therefore **blocks dismissal while it is `submitted`, but stops blocking the moment the manager approves it (`submitted → pending_finance`)** — and finance approval later lands `approved` hours on a ticket dismissed with `dismissed_hours=0` and the false note "dismissed with 0 h logged". This is a deterministic, sequential bypass of T-11-07 — no race involved — and it contradicts the guard's own sibling check: `HasNonTerminalActivities`/`hasNonTerminalActivitiesTx` (ticket_repository.go:739, 765) *do* treat `pending_manager`/`pending_finance` as non-terminal for the resolved-block. D-13's letter ("submitted + approved") matches the code, so the gap is in the pinned status set vs. the guard's documented purpose ("dismissal can never commit with `dismissed_hours=0` while committed logged hours exist"). Nothing in the 11-07 race battery exercises an entry past `submitted`.
 
-**Fix:** Either (a) add an audit row to the activity `Update` tx (extend `UpdateActivityRequest`/repo with an optional audit param written in the same tx), or (b) flip `is_active` and insert the audit in a single dedicated tx inside the repo (e.g., `ApproveProposal(ctx, orgID, activityID, actorID)` on the repo), so the flip is not durable without its event.
+**Fix:** Include the in-pipeline statuses in both Σ queries (and pin the corrected set in ADR-BE-016 D-13):
+```sql
+WHERE is_deleted = false AND status IN ('submitted','pending_manager','pending_finance','approved')
+  AND activity_id IN (SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket')
+```
+(or `status <> 'draft' AND status <> 'rejected'`). Add a repo test: entry at `pending_finance` → `Dismiss` returns `ErrDismissalBlocked`.
 
-### WR-02: Contract sold-config validation gaps surface as 500s — `ErrInvalidSoldConfig` never mapped; `sold_period` vocabulary bypassed when `contract_type` absent
+### WR-07: Residual check-then-act window — the `draft → submitted` UPDATE is not serialized by the dismissal locks
 
-**Files:**
-- `internal/adapters/primary/http/contract.go:180-189` (Update switch)
-- `internal/core/services/contract/contract.go:104-127` (validateSoldConfig)
+**File:** `internal/adapters/secondary/postgres/ticket_repository.go:344-361` (Dismiss activity-lock section) and `:367-373` (Σ re-check)
 
-**Issue:** Two related defects. (1) The new `ErrInvalidSoldConfig` sentinel (this phase's addition) falls through the Update handler's `switch err` to the default → **500 Internal Server Error** for a plain client validation error (`support` without hours, `project` with period, bogus period). (2) `validateSoldConfig` returns early when `contractType == nil`, so the `sold_period` closed-set check is skipped — `{sold_period: "bogus"}` with no `contract_type` passes service validation and is persisted (the 016 CHECK's 3VL guard lets `contract_type IS NULL` rows pass). Additionally, clearing `sold_period: ""` on an existing `support` contract (without switching to `project` in the same request) sails through the service and then hits `contracts_sold_check` (23514), which `wrapPGError` does not map → 500.
+**Issue:** The 11-07 serialization relies on "an in-flight time_entries INSERT holds a FK KEY SHARE on the activity row, so FOR UPDATE blocks until it commits". That is true for **INSERTs only**. The actual submit flow is `UPDATE time_entries SET status='submitted' WHERE id=$1` (services/time_entry/time_entry.go:162, repo Update) — an UPDATE that does not touch FK columns takes **no lock on the activity row**. A draft entry committed *before* the dismiss tx (the realistic case) can transition to `submitted` in the window between `loggedHoursTx` and the dismissal COMMIT: the Σ (fresh READ COMMITTED snapshot) sees 0, dismissal commits with `dismissed_hours=0`, and a submitted entry exists on the dismissed ticket. The deterministic 2-tx test (TestDismissalGuard_RaceWithPendingSubmit) only covers the INSERT-in-flight case (raw INSERT with status 'submitted'), not the real draft→submitted UPDATE path — so the guard remains check-then-act for the exact flow CR-01 race 3 described.
 
-**Fix:**
+**Fix:** Lock the counted entry rows inside the dismiss tx so a concurrent status UPDATE blocks until dismissal commits — e.g., replace the aggregate in `loggedHoursTx` with a locking read:
 ```go
-// handler: add the missing case
-case errors.Is(err, contractdomain.ErrInvalidSoldConfig):
-    api.RespondWithError(w, http.StatusBadRequest, "invalid sold hours configuration")
-// service: hoist the period vocabulary check out of the contractType branch
-if soldPeriod != nil {
-    switch *soldPeriod { /* month|quarter|year else ErrInvalidSoldConfig */ }
+rows, err := tx.Query(ctx, `SELECT hours FROM time_entries
+    WHERE is_deleted = false AND status IN ('submitted','pending_manager','pending_finance','approved')
+      AND activity_id IN (SELECT id FROM activities WHERE ticket_id = $1 AND origin_type = 'customer_ticket')
+    FOR UPDATE`, ticketID)
+// aggregate in Go
+```
+(Alternatively: reject `Submit` on entries whose activity's ticket is dismissed, service-side.) Add a test mirroring TestDismissalGuard_RaceWithPendingSubmit but with the *submit UPDATE* (draft committed, then `UPDATE ... SET status='submitted'`) in the racing tx.
+
+### WR-08: `repo.UpdateState` still permits the dismissal edges without the T-11-07 guard — guard-by-convention at the authoritative layer
+
+**File:** `internal/adapters/secondary/postgres/ticket_repository.go:262-264` (UpdateState matrix re-check)
+
+**Issue:** The transition matrix (domain/ticket/ticket.go:89-108) legally allows `open → dismissed` and `triage → dismissed`, and the CR-01 layering made the repo the authoritative matrix enforcer. `UpdateState` therefore **succeeds for `to == 'dismissed'`** — no Σ re-check, no `dismissed_hours` write, audit action `status_changed` — producing a dismissed ticket with `dismissed_hours IS NULL` and no note, bypassing T-11-07 entirely. Today only the service's ad-hoc rejection (services/ticket/ticket.go:219-221) protects the invariant; the repo — the layer the phase now calls authoritative — does not. A future caller (Phase 12+ code) using `UpdateState` for dismissal would silently skip the guard, and nothing in the race battery pins this (all tests route dismissal through `repo.Dismiss`).
+
+**Fix:** In `UpdateState`, reject the dismissal edges explicitly (mirroring the service guard), or require `dismissed_hours` to be set and run `loggedHoursTx` when `to == StatusDismissed`:
+```go
+if to == ticketdomain.StatusDismissed {
+    return nil, ticketdomain.ErrInvalidTransition // Dismiss is the only sanctioned path (T-11-07)
 }
-if contractType == nil { return nil }
 ```
-And in `Update`, when the request clears `sold_period`, reject unless the persisted `contract_type` is `project`/NULL (load the row before validating, or let the service check `contract_type` from the DB state).
-
-### WR-03: Origin ref-set exclusivity is not validated in the service — mixed-ref requests hit the DB CHECK and surface as 500
-
-**File:** `internal/core/services/activity/activity.go:130-194` (validateOrigin)
-
-**Issue:** For each origin type the service validates the *required* refs but never the *forbidden* ones: e.g. `origin_type=employee_proposal` with `assigned_by` set, or `manager_assignment` with `proposed_by` set, passes `validateOrigin` and reaches the repo, where `activities_origin_refs_check` (migration 015) rejects with SQLSTATE 23514. `wrapPGError` (postgres.go:16-33) maps only 23505/23503/ErrNoRows, so the client gets a **500** for malformed input instead of the clean `ErrInvalidRequest` → 400 the phase's sentinel style promises. The DB backstop works (integrity holds), but the boundary contract is broken and the error is indistinguishable from an internal fault.
-
-**Fix:** In `validateOrigin`, reject any ref outside the type's set, e.g. for `manager_assignment` add `if req.ProposedBy != nil || req.ReviewedBy != nil || req.TicketID != nil { return ErrInvalidRequest }` (and the analogous exclusions for the other two types), so the CHECK never fires on well-formed requests. Optionally extend `wrapPGError` with a 23514 → `ErrInvalidRequest` mapping as a second line.
-
-### WR-04: Ticket Create/Update handlers lack string-length validation — oversized titles surface as 500
-
-**File:** `internal/adapters/primary/http/ticket_handler.go:96-125, 162-192`
-
-**Issue:** `tickets.title` is `VARCHAR(255)`, but neither `Create` nor `Update` runs the house `validateStringLengths` check used by the activity and contract handlers. A title > 255 chars raises `pgconn.PgError` 22001 (string_data_right_truncation), which `wrapPGError` does not map → 500. Same class of boundary gap the phase fixed elsewhere; the ticket handler is the odd one out.
-
-**Fix:** In `Create`/`Update`, mirror `activity_handler.go:137-141`:
-```go
-if !validateStringLengths(w,
-    lengthField("title", req.Title, MaxNameLength),
-    lengthField("description", req.Description, MaxDescriptionLength),
-) { return }
-```
-
-### WR-05: `ApproveProposal` authorization reads through a non-org-scoped `ActivityRepository.Get`
-
-**Files:**
-- `internal/core/services/activity/activity.go:264-281` (ApproveProposal gates)
-- `internal/adapters/secondary/postgres/activity_repository.go:108-119` (Get — `WHERE a.id = $2`, orgID used only for the `is_adopted` subquery)
-
-**Issue:** The phase's new proposal-approval path makes authorization decisions (origin type, is_active, proposed_by, self-approval) on a row fetched without an org predicate. A caller of org A passing org B's activity ID gets org B's row back; the gates evaluate against it, and only the final `repo.Update`'s `created_by_org_id = $2` predicate stops the write (surfacing as `ErrActivityNotFound`). So there is no exploit today — but the authorization chain is one repo-query tweak away from being exploitable, and the cross-org read (also via `GET /activities/{id}`, pre-existing since phase 09) leaks other-org rows. Phase 11 built the most security-sensitive handler on top of this read without scoping it. Note the ticket service defensively checks `a.OrgID == orgID` after the same call (ticket.go:446-449) — the activity service should do the same or fix `Get`.
-
-**Fix:** Scope `Get` to the org: `WHERE a.id = $2 AND (a.org_id = $3 OR a.is_shared = true)` (shared activities are legitimately visible cross-org), or at minimum add `if existing.OrgID != orgID { return nil, activitydomain.ErrActivityNotFound }` before the gates in `ApproveProposal` (and validate in `validateOrigin`/`validateParent` call sites that rely on the same read).
+Add a pin test: `repo.UpdateState(orgID, ticketID, 'dismissed', ...)` on an `open` ticket → `ErrInvalidTransition`, no status change.
 
 ## Info
 
-### IN-01: `UpdateDetails` accepts an empty title
+### IN-08: A ticket's assignee can never be unassigned — `assignee_id: ""` silently no-ops
 
-**File:** `internal/core/services/ticket/ticket.go:150-183`
+**File:** `internal/adapters/primary/http/ticket_handler.go:368-377` (parseOptionalUUIDPtr)
 
-`Create` rejects empty titles (TICK-01), but `UpdateDetails` has no non-empty check — `PUT /tickets/{id}` with `{"title": ""}` renames the ticket to an empty string. Add the same `title == ""` rejection in Update.
+**Issue:** `parseOptionalUUIDPtr` maps `nil` **and `""`** to `nil`, and the service treats `nil` as "field untouched" — so `PUT /tickets/{id}` with `{"assignee_id": ""}` neither clears the assignee nor errors; it is silently ignored. Once assigned, a ticket can only be re-assigned, never unassigned (a plausible ops need — the ticket moves back to the unassigned queue). The contract test doesn't cover the clear path.
 
-### IN-02: The "dismissed with N h logged" note is never rendered
-
-**File:** `internal/core/services/ticket/ticket.go:254`
-
-The TICK-04 note is described in comments and the plan ("the note renders from DismissedHours on read") but no code produces it — only `dismissed_hours` is exposed in the JSON. Harmless if the frontend renders it, but the phase's own acceptance text implies server-side rendering. Either render it (e.g., a derived field in the response) or drop the claim from the doc comments.
-
-### IN-03: `ListHistory` ordering is unstable for same-timestamp rows
-
-**File:** `internal/adapters/secondary/postgres/ticket_repository.go:514-520`
-
-`ORDER BY created_at` alone leaves the relative order of same-ms rows (e.g., the triage pair `triaged`/`activities_created` written with the same `now`, or rapid transitions) unspecified. `ORDER BY created_at, id` would make the append-only stream deterministic.
-
-### IN-04: Triage `RETURNING` scans the same variable twice
-
-**File:** `internal/adapters/secondary/postgres/ticket_repository.go:393-395`
-
-`org_id` and `created_by_org_id` both scan into `orgIDOut`. It works (both equal `orgID`) but is fragile — a future column reorder silently corrupts the response. Scan into two locals.
-
-### IN-05: `MockTicketRepo.ListComments` always returns nil
-
-**File:** `internal/core/services/testdata/mock_ticket_repo.go:168-170`
-
-`Get`'s comment list can never be exercised in unit tests; the mock returns `nil, nil` unconditionally (and `Get` never returns comments either). Add a `Comments map[uuid.UUID][]ticketdomain.TicketComment` field so `Get`/`ListComments` can be configured — the missing behavior silently passes tests that would otherwise catch a broken `Get`-with-comments path.
-
-### IN-06: Migration 014 header comment misdescribes the reopen edge
-
-**File:** `migrations/014_ticket_schema.up.sql:4`
-
-Comment says "reopen via 'open'", but the pinned matrix reopens `resolved → in_progress` (domain/ticket/ticket.go:98-101). Fix the comment to match the matrix.
-
-### IN-07: `contracts_sold_check` allows `project` contracts with NULL `sold_hours`
-
-**File:** `migrations/016_contract_sold_hours.up.sql:25-29`
-
-Per D-08/D-09 the project commitment is the total sold hours, but both the CHECK and `validateSoldConfig` accept `contract_type='project'` with `sold_hours` NULL — indistinguishable from a legacy row. If a project contract is *supposed* to carry hours, require `sold_hours IS NOT NULL` for `project` in the CHECK and the service; otherwise document that NULL hours is a valid project state.
+**Fix:** Distinguish "absent" from "explicit clear" (e.g., a `*string` in the service that can be dereferenced to an empty UUID-pointer sentinel, or a dedicated `assignee_id: null` → NULL branch in `UpdateDetails`), and write `assignee_id = NULL` when the request explicitly clears it.
 
 ---
 
-## Verdict
+## Prior-review verification appendix
 
-**Needs work before ship.** The phase is architecturally sound and unusually well tested for its size — migrations, routing extraction, origin axis, and the in-tx audit discipline are all high quality. But the ticket state machine's core guarantee (the pinned matrix + the D-13 dismissal guard, T-11-07) is enforced check-then-act across a transaction boundary, which a modestly timed concurrent request can violate: a dismissed terminal ticket can be resurrected to `planned`, a `planned` ticket can be dismissed, and a dismissal can commit with `dismissed_hours=0` while logged hours exist. That single defect (CR-01) is the reason for the verdict; the warnings (proposal audit atomicity, 500-mapped validation errors, un-scoped authorization reads) are all cheap to fix and should ride along. Once CR-01 is closed (in-tx re-validation under `FOR UPDATE`, plus the SQL status-precondition as backstop), the phase is ready.
+- **CR-01 closed:** in-tx `FOR UPDATE` re-validation + `CanTransition` on locked status in UpdateState/Dismiss/Triage (ticket_repository.go:248-264, 322-338, 420-437); `AND status = current` backstops on all three UPDATEs (:278-280, :375-378, :488-490); in-tx Σ re-check writing the authoritative value (:367-373); in-tx recursive-CTE resolved-block (:268-276). Race battery green under `-race` (6 tests, run this review).
+- **11-08 closed:** `DismissedNote` derived in `scanTicketRow` (:59-63), asserted in the dismiss response, GET detail and GET list (ticket_handler_test.go); title length/emptiness validation in service Create/UpdateDetails (services/ticket/ticket.go:84, :169-171) with 255/256 boundary tests.
+- **WR-02 / WR-03 (contract sold-config mapping + sold_period vocab; forbidden origin refs):** remain open by design — out of scope for the gap-closure plans, confirmed untouched.
 
 _Reviewed: 2026-08-07_
-_Reviewer: gsd-code-reviewer (adversarial)_
+_Reviewer: gsd-code-reviewer (adversarial, re-review)_
 _Depth: standard_
