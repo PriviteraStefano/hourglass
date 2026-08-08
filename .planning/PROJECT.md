@@ -10,7 +10,7 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 
 ## Current State
 
-**Shipped:** v0.1 MVP Consolidation (2026-08-01) — 16 phases, 62 plans, 138 tasks + **Phase 11 v0.2 foundations** (2026-08-07) — 8 plans: origins + sold_hours + tickets backend
+**Shipped:** v0.1 MVP Consolidation (2026-08-01) — 16 phases, 62 plans, 138 tasks + **Phase 11 v0.2 foundations** (2026-08-07) — 8 plans: origins + sold_hours + tickets backend + **Phase 12 coverage backend** (2026-08-08) — 7 plans: allocation ledger + **Phase 13 direction backend** (2026-08-08) — 10 plans: the plan plane
 
 - Full PostgreSQL stack: 24-table schema, 18 repos, testcontainers-go integration tests, ~30 Go package suites green
 - Auth: JWT HttpOnly cookies, refresh-token rotation with reuse detection + family revocation, rate limiting, password reset hardening
@@ -41,7 +41,7 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 <!-- Current scope: v0.2 Ontology Extension — Origins, Tickets & Coverage + Direction. Detailed REQ-IDs in REQUIREMENTS.md. -->
 
 - [ ] Coverage — allocation ledger per entry, funding sources (contract budget / support bucket / service request / internal absorption / cross-project transfer), to-cover queue, monthly rhythm, snapshot-not-lock (COV-01..05)
-- [ ] Direction — the plan plane: scheduled/queued modes, claim model, lifecycle, org policy, direction-coverage read-model (DIR-01..06)
+- [x] Direction — the plan plane: scheduled/queued modes, claim model, lifecycle, org policy, direction-coverage read-model (DIR-01..06) — Validated in Phase 13: Direction Backend — The Plan Plane
 - [ ] Availability — employee absences UI + capacity views per activity/WG (AVAIL-01..05)
 - [ ] Surfaces — prototype-driven: allocation screen + to-cover queue, buckets + per-unit report, Today both shapes, direction scheduler (SURF-01..08)
 - [ ] Per-page UX polish — one phase per page, gsd-sketch-driven, folding v0.1 UAT debt (POLS-01..11)
@@ -140,4 +140,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-08-07 after Phase 11 completion (Origins + Tickets backend foundations)*
+*Last updated: 2026-08-08 after Phase 13 completion (Direction backend — the plan plane)*
