@@ -171,7 +171,7 @@ Plans:
 
 **Wave 6 (gap closure)** *(blocked on Wave 5 completion — 13-VERIFICATION.md, 5 gaps)*
 
-- [ ] 13-09-PLAN.md — Service boundary hardening: superseded audit row on supersede-on-create (CR-02/DIR-02), Claim nil-WgID guard 404-no-panic (CR-01/DIR-03), wholeCent DECIMAL(8,2) ceiling 400-not-500 (WR-02/D-13-03)
+- [x] 13-09-PLAN.md — Service boundary hardening: superseded audit row on supersede-on-create (CR-02/DIR-02), Claim nil-WgID guard 404-no-panic (CR-01/DIR-03), wholeCent DECIMAL(8,2) ceiling 400-not-500 (WR-02/D-13-03)
 - [ ] 13-10-PLAN.md — ADR-BE-018 alignment: directed_to same-org active-membership gate (WR-01 §Security) + Unclaim writes 'unclaimed' audit action (WR-03 §3)
 
 ### Phase 14: Availability Backend — Absences + Capacity
