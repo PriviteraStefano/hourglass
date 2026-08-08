@@ -5,15 +5,15 @@ milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 12
 current_phase_name: Coverage Backend — The Allocation Loop
 status: executing
-stopped_at: Phase 13 context gathered
-last_updated: "2026-08-07T19:40:08.802Z"
-last_activity: 2026-08-07
-last_activity_desc: Phase 11 complete, transitioned to Phase 12
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-08-08T08:59:22.089Z"
+last_activity: 2026-08-08
+last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 16
   completed_phases: 1
   total_plans: 15
-  completed_plans: 8
+  completed_plans: 9
   percent: 6
 ---
 
@@ -25,14 +25,14 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 **Core value:** Role-based approval workflows (employee → manager → finance) with hierarchical organization structures, contract/activity management, and export capabilities.
 
-**Current focus:** Phase 11 — foundations-schema-origins-tickets-backend
+**Current focus:** Phase 12 — Coverage Backend — The Allocation Loop
 
 ## Current Position
 
-Phase: 12 — Coverage Backend — The Allocation Loop
-Plan: Not started
+Phase: 12 (Coverage Backend — The Allocation Loop) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-08-07 — Phase 11 complete, transitioned to Phase 12
+Last activity: 2026-08-08 — Phase 12 execution started
 
 ## Accumulated Context
 
@@ -81,6 +81,9 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 11-foundations-schema-origins-tickets-backend]: Repo layer is authoritative for ticket state-machine and dismissal-guard decisions: every matrix/guard check re-validated inside the mutator tx under the FOR UPDATE row lock (Pitfall 7, ADR-BE-016); service pool-level checks are fast-fail UX only (CR-01 closure) — CR-01 TOCTOU root cause: pool-level checks before the mutator tx left a check-then-act window. In-tx lock + re-check + status-precondition UPDATE backstop closes it; pool signatures stay Phase-12-stable (loggedHoursTx/hasNonTerminalActivitiesTx are private tx-executed helpers)
 - [Phase 11]: DismissedNote is a derived read-model field, not a column: computed in scanTicketRow only when Status == 'dismissed' && DismissedHours != nil — OQ3/A4, D-13, no migration; note number formatted with FormatFloat precision -1 so the raw Σ reads naturally (5.00 -> '5', 7.50 -> '7.5') — IN-02 closure: the TICK-04 note claim is observable at the API boundary, rendered server-side on every ticket read
 - [Phase 11]: Title validation mirrors migration 014's VARCHAR(255) column exactly: Create/UpdateDetails reject >255-char titles (WR-04) and empty-title updates (IN-01) with ErrInvalidRequest -> 400 — validation precedes side effects (payload map / repo call), no 500 path remains for title input — T-11-16/T-11-17 mitigated at the service boundary; the oversized-input 500 path from the column is eliminated
+- [Phase 12]: source_type stays nullable: the 3VL guard CHECK (source_type IS NULL OR ...) is the enforcement, not a NOT NULL clause — legacy all-NULL rows pass (mirrors 015 origin_type / 016 contract_type) — source_type stays nullable: the 3VL guard CHECK (source_type IS NULL OR ...) is the enforcement, not a NOT NULL clause — legacy all-NULL rows pass (mirrors 015 origin_type / 016 contract_type)
+- [Phase 12]: coverage_allocations.entry_id has no FK (polymorphic D-K); entry_type CHECK ('time') + 12-04 service branch are the costed belt-and-braces pair — coverage_allocations.entry_id has no FK (polymorphic D-K); entry_type CHECK ('time') + 12-04 service branch are the costed belt-and-braces pair
+- [Phase 12]: 020 has no UNIQUE(org_id, period_start, period_end): duplicate-close rejection is a repo-level in-tx check returning 409 (A6) — 020 has no UNIQUE(org_id, period_start, period_end): duplicate-close rejection is a repo-level in-tx check returning 409 (A6)
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -129,12 +132,13 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 |------|----------|-------|-------|
 | Phase 11-foundations-schema-origins-tickets-backend P07 | 15min | 3 tasks | 3 files |
 | Phase 11 P08 | 3h 50m | 2 tasks | 6 files |
+| Phase 12 P01 | 6min | 2 tasks | 11 files |
 
 ## Session Continuity
 
-Last session: 2026-08-07T19:40:08.782Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-direction-backend-the-plan-plane/13-CONTEXT.md
+Last session: 2026-08-08T08:59:15.224Z
+Stopped at: Completed 12-01-PLAN.md
+Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
 ## Performance Metrics
