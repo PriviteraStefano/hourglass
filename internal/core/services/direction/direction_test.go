@@ -817,7 +817,7 @@ func TestService_Unclaim(t *testing.T) {
 
 		require.Len(t, f.dirRepo.Audits, 1)
 		a := f.dirRepo.Audits[0]
-		assert.Equal(t, directiondomain.AuditActionCancelled, a.Action)
+		assert.Equal(t, directiondomain.AuditActionUnclaimed, a.Action)
 		assert.Equal(t, id, a.EntityID)
 		require.NotNil(t, a.Payload)
 		assert.Equal(t, "no longer wanted", a.Payload["reason"])

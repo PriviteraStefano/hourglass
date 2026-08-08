@@ -850,12 +850,12 @@ func TestDirectionRepository_Unclaim(t *testing.T) {
 
 	// Unclaim with a reason — the hours return (Σ-derived, D-13-16).
 	unclaimed, err := repo.Unclaim(ctx, orgID, claim.ID, "no longer wanted",
-		directionAudit(orgID, claim.ID, memberID, directiondomain.AuditActionCancelled,
+		directionAudit(orgID, claim.ID, memberID, directiondomain.AuditActionUnclaimed,
 			map[string]any{"reason": "no longer wanted"}, now))
 	require.NoError(t, err)
 	require.Equal(t, directiondomain.StatusCancelled, unclaimed.Status)
 	require.Equal(t, 0.0, claimSum(t, pool, wgRowID), "unclaim frees the claimed hours (Σ-derived)")
-	require.Equal(t, 1, countDirectionAudits(t, pool, claim.ID, directiondomain.AuditActionCancelled))
+	require.Equal(t, 1, countDirectionAudits(t, pool, claim.ID, directiondomain.AuditActionUnclaimed))
 
 	// Re-claim the freed hours.
 	reclaim, err := repo.Claim(ctx, orgID, wgRowID, memberID, 8.0,
