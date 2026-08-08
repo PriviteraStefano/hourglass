@@ -488,6 +488,197 @@ func (s *Service) Claim(ctx context.Context, orgID, actorID uuid.UUID, role stri
 	})
 }
 
+// PlanResponse is the plan read-model response (D-13-27): the rows with the
+// derived-on-read states plus the warnings overlay (D-13-28) — the Phase 19
+// contract from 13-UI-SPEC.
+type PlanResponse struct {
+	Rows     []directiondomain.PlanRow `json:"rows"`
+	Warnings []directiondomain.Warning `json:"warnings"`
+}
+
+// CoverageTotals is the per-employee period aggregate of the coverage
+// read-model (D-Z, D-13-25): Σ planned, Σ capacity and Σ gap over the
+// queried period (including fully-absent days — the away day contributes its
+// zero capacity, so the totals stay truthful).
+type CoverageTotals struct {
+	EmployeeID uuid.UUID `json:"employee_id"`
+	Planned    float64   `json:"planned"`
+	Capacity   float64   `json:"capacity"`
+	Gap        float64   `json:"gap"`
+}
+
+// CoverageResponse is the direction-coverage read-model response (DIR-06,
+// 13-UI-SPEC): the uncovered rows (fully-absent days excluded, D-13-26), the
+// period totals per employee, and the warnings overlay (D-13-28/31).
+type CoverageResponse struct {
+	Rows     []directiondomain.CoverageRow `json:"rows"`
+	Totals   []CoverageTotals              `json:"totals"`
+	Warnings []directiondomain.Warning     `json:"warnings"`
+}
+
+// ListPlan returns the org plan read-model with the self-or-manager gate
+// (checker fix, T-13-26): the org-wide view (employee_id omitted) is
+// manager-only; a non-manager may read only their own plan (employee_id ==
+// actorID). The warnings overlay is computed over the rows' employees/days.
+func (s *Service) ListPlan(ctx context.Context, orgID, actorID uuid.UUID, role string, employeeID *uuid.UUID, periodStart, periodEnd time.Time) (PlanResponse, error) {
+	if (employeeID == nil || *employeeID != actorID) && role != string(models.RoleManager) {
+		return PlanResponse{}, directiondomain.ErrForbidden
+	}
+	rows, err := s.repo.ListPlan(ctx, orgID, employeeID, periodStart, periodEnd)
+	if err != nil {
+		return PlanResponse{}, err
+	}
+	employeeSet := make(map[uuid.UUID]bool)
+	for _, r := range rows {
+		if r.DirectedTo != nil {
+			employeeSet[*r.DirectedTo] = true
+		}
+	}
+	employeeIDs := make([]uuid.UUID, 0, len(employeeSet))
+	for emp := range employeeSet {
+		employeeIDs = append(employeeIDs, emp)
+	}
+	sort.Slice(employeeIDs, func(i, j int) bool { return employeeIDs[i].String() < employeeIDs[j].String() })
+	warnings, err := s.computeWarnings(ctx, orgID, employeeIDs, periodStart, periodEnd)
+	if err != nil {
+		return PlanResponse{}, err
+	}
+	return PlanResponse{Rows: rows, Warnings: warnings}, nil
+}
+
+// Coverage resolves the DIR-06 read-model: the employee set by scope
+// (employee | unit | wg — D-13-25), the validity split (validity-outside
+// employees get the invalid warning and never reach the repo call, D-13-31),
+// the fully-absent-day exclusion from uncovered surfacing (D-13-26), and the
+// per-employee period totals (D-Z). Scope gates (checker fix, T-13-26):
+// unit/wg scopes are manager-only; the employee scope allows the non-manager
+// self-view (scope_id == actorID).
+func (s *Service) Coverage(ctx context.Context, orgID, actorID uuid.UUID, role, scope, scopeID string, periodStart, periodEnd time.Time) (CoverageResponse, error) {
+	employees, err := s.resolveScopeEmployees(ctx, orgID, actorID, role, scope, scopeID)
+	if err != nil {
+		return CoverageResponse{}, err
+	}
+
+	// Validity split (D-13-31): validity-outside employees are dropped from
+	// the repo call but still feed the warning overlay (invalid warning).
+	valid := make([]uuid.UUID, 0, len(employees))
+	for _, emp := range employees {
+		m, err := s.orgRepo.GetMembership(ctx, emp, orgID)
+		if err != nil {
+			return CoverageResponse{}, err
+		}
+		if membershipValid(m, periodStart, periodEnd) {
+			valid = append(valid, emp)
+		}
+	}
+
+	rows, err := s.repo.Coverage(ctx, orgID, valid, periodStart, periodEnd)
+	if err != nil {
+		return CoverageResponse{}, err
+	}
+
+	warnings, err := s.computeWarnings(ctx, orgID, employees, periodStart, periodEnd)
+	if err != nil {
+		return CoverageResponse{}, err
+	}
+
+	// D-13-26: fully-absent days (capacity 0) are excluded from the uncovered
+	// surfacing; the row data stays available for the warning overlay.
+	uncovered := make([]directiondomain.CoverageRow, 0, len(rows))
+	for _, r := range rows {
+		if r.Capacity > 0 {
+			uncovered = append(uncovered, r)
+		}
+	}
+
+	// Period totals per employee over the FULL row set (the away day keeps
+	// its zero capacity — D-Z aggregates stay truthful).
+	totalsByEmp := make(map[uuid.UUID]*CoverageTotals)
+	for _, r := range rows {
+		t := totalsByEmp[r.EmployeeID]
+		if t == nil {
+			t = &CoverageTotals{EmployeeID: r.EmployeeID}
+			totalsByEmp[r.EmployeeID] = t
+		}
+		t.Planned += r.Planned
+		t.Capacity += r.Capacity
+		t.Gap += r.Gap
+	}
+	totals := make([]CoverageTotals, 0, len(totalsByEmp))
+	for _, t := range totalsByEmp {
+		totals = append(totals, *t)
+	}
+	sort.Slice(totals, func(i, j int) bool { return totals[i].EmployeeID.String() < totals[j].EmployeeID.String() })
+
+	return CoverageResponse{Rows: uncovered, Totals: totals, Warnings: warnings}, nil
+}
+
+// resolveScopeEmployees resolves the DIR-06 employee set by scope (D-13-25,
+// A6): employee → the one employee; unit → the unit's members plus every
+// descendant unit's members; wg → the WG's members. Scope gates (T-13-26):
+// unit/wg are manager-only; employee allows the non-manager self-view.
+func (s *Service) resolveScopeEmployees(ctx context.Context, orgID, actorID uuid.UUID, role, scope, scopeID string) ([]uuid.UUID, error) {
+	set := make(map[uuid.UUID]bool)
+	switch scope {
+	case "employee":
+		if role != string(models.RoleManager) && scopeID != actorID.String() {
+			return nil, directiondomain.ErrForbidden
+		}
+		empID, err := uuid.Parse(scopeID)
+		if err != nil {
+			return nil, directiondomain.ErrInvalidRequest
+		}
+		set[empID] = true
+	case "unit":
+		if role != string(models.RoleManager) {
+			return nil, directiondomain.ErrForbidden
+		}
+		members, err := s.unitRepo.ListMembers(ctx, scopeID)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range members {
+			set[m.UserID] = true
+		}
+		descendants, err := s.unitRepo.GetDescendants(ctx, scopeID)
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range descendants {
+			dm, err := s.unitRepo.ListMembers(ctx, d.ID)
+			if err != nil {
+				return nil, err
+			}
+			for _, m := range dm {
+				set[m.UserID] = true
+			}
+		}
+	case "wg":
+		if role != string(models.RoleManager) {
+			return nil, directiondomain.ErrForbidden
+		}
+		wgID, err := uuid.Parse(scopeID)
+		if err != nil {
+			return nil, directiondomain.ErrInvalidRequest
+		}
+		members, err := s.wgRepo.ListMembers(ctx, wgID)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range members {
+			set[m.UserID] = true
+		}
+	default:
+		return nil, directiondomain.ErrInvalidRequest
+	}
+	out := make([]uuid.UUID, 0, len(set))
+	for emp := range set {
+		out = append(out, emp)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
+	return out, nil
+}
+
 // ---------------------------------------------------------------------------
 // Warning overlay — pure function, never blocking (D-13-28/30/31)
 // ---------------------------------------------------------------------------

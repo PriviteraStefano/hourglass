@@ -942,8 +942,9 @@ func TestService_Coverage(t *testing.T) {
 		_, err := f.svc.Coverage(ctx, orgID, actorID, "employee", "unit", "u1", start, end)
 		require.ErrorIs(t, err, directiondomain.ErrForbidden)
 
-		_, err = f.svc.Coverage(ctx, orgID, actorID, "manager", "unit", "u1", start, end)
-		require.ErrorIs(t, err, directiondomain.ErrInvalidRequest, "unknown unit ids must not 500 (GetDescendants/ListMembers degrade)")
+		resp, err := f.svc.Coverage(ctx, orgID, actorID, "manager", "unit", "u1", start, end)
+		require.NoError(t, err, "unknown unit ids degrade to an empty employee set — never a 500")
+		assert.Empty(t, resp.Rows)
 	})
 
 	t.Run("wg scope is manager-only", func(t *testing.T) {
@@ -968,6 +969,7 @@ func TestService_Coverage(t *testing.T) {
 
 	t.Run("employee scope resolves to the one employee", func(t *testing.T) {
 		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, nil)
 		var captured [][]uuid.UUID
 		f.dirRepo.CoverageFn = func(ctx context.Context, orgID uuid.UUID, employeeIDs []uuid.UUID, ps, pe time.Time) ([]directiondomain.CoverageRow, error) {
 			captured = append(captured, employeeIDs)
@@ -1000,8 +1002,10 @@ func TestService_Coverage(t *testing.T) {
 
 	t.Run("unit scope aggregates the unit and descendant members (A6)", func(t *testing.T) {
 		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, nil)
+		f.seedMembership(otherID, orgID, nil, nil, nil)
 		unitID, descID := "unit-1", "unit-2"
-		f.unitRepo.Descendants[unitID] = []unit.Unit{{ID: descID, OrgID: orgID, Name: "desc"}}
+		f.unitRepo.Descendants = map[string][]unit.Unit{unitID: {{ID: descID, OrgID: orgID, Name: "desc"}}}
 		f.seedUnitMember(unitID, empID, true)
 		f.seedUnitMember(descID, otherID, true)
 		var captured [][]uuid.UUID
@@ -1018,6 +1022,8 @@ func TestService_Coverage(t *testing.T) {
 
 	t.Run("wg scope aggregates the WG members", func(t *testing.T) {
 		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, nil)
+		f.seedMembership(otherID, orgID, nil, nil, nil)
 		wgID := uuid.New()
 		f.seedWgMember(wgID, empID)
 		f.seedWgMember(wgID, otherID)
