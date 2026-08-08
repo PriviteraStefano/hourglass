@@ -1,7 +1,7 @@
 ---
 phase: 13
 slug: 13-direction-backend-the-plan-plane
-status: draft
+status: approved
 shadcn_initialized: true
 preset: base-mira
 created: 2026-08-08
@@ -100,10 +100,13 @@ Phase 13 has **no UI copy** (no surface). The following are server-emitted strin
 > `## UI Considerations` lift rule. Shape-rooted UI *state* coverage (empty / loading / error /
 > populated / partial / overflow / zero-one-many / long-text).
 
-Applicable state considerations resolved: 0 covered, 0 backstop, 0 unresolved — **none applicable**
+Applicable state considerations probed: 10 raised, 10 dismissed, 0 covered, 0 backstop, 0 unresolved — **none applicable**. Phase boundary: backend-only, no UI surface (CONTEXT.md). All 3 surfaces below are server-emitted contracts pinned for Phase 19 — their state rendering is re-probed where elements actually exist.
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
+| unclassified (manual review) | E1 — Warning message objects | ✅ covered | Dismissed (user). Warning strings are a closed-set server contract (`away` \| `partial` \| `over-capacity` \| `invalid`), fixed `{Type} {date-range-or-day}` format, rendered verbatim — no container exists this phase. State coverage belongs to Phase 19's surface probe (scheduler calendar warning overlays) |
+| overflow, long-text | E2 — Error envelope `{ "error": ... }` (pkg/api) | ✅ covered | Dismissed (user). House API shape already rendered by existing alert components (`web/src/components`); message length is server-controlled, rendering/wrapping is a Phase 19 surface concern, not this backend phase |
+| empty, loading, error, populated, partial, overflow, zero-one-many | E3 — Destructive confirmation (required-reason dialog) | ✅ covered | Dismissed (user). The required-reason confirm dialog does not exist this phase (explicitly N/A for UI in Copywriting Contract). Backend enforces invariant server-side (400 on reason-less writes, D-13-10/D-13-16). All 7 dialog states are re-probed in Phase 19 where the element exists |
 | — | — | ✅ covered | No UI elements exist in this phase — backend-only (CONTEXT.md phase boundary). The 8-category taxonomy's relevance filter raises zero considerations for an empty element list; silence is resolved by the phase-boundary reason string. Future UI states (direction queue empty/loading, coverage grid overflow, long activity titles in scheduler cells, claim zero-one-many) are deferred to Phase 15/19 probes, where elements actually exist |
 
 <!-- Status vocabulary (locked by probe-core projectTruths):
@@ -158,11 +161,11 @@ Vetting gate result: no third-party registries declared, therefore no `shadcn vi
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** {pending / approved YYYY-MM-DD}
+**Approval:** approved 2026-08-08
