@@ -27,6 +27,17 @@ type ActivityRepository interface {
 	// with a contract and returns (contract_id, customer_id), or nil for a
 	// purely internal tree (D-3 — derived, never stored).
 	ResolveCommercialContext(ctx context.Context, activityID uuid.UUID) (*activitydomain.CommercialContext, error)
+	// ResolveBeneficiaryUnit walks parent_id upward to the nearest ancestor
+	// with beneficiary_unit_id set (COV-05 — inherited downward like
+	// contract_id, D-3). Returns nil when no ancestor carries a unit; this is
+	// the absorption funding-source default (D-04).
+	ResolveBeneficiaryUnit(ctx context.Context, activityID uuid.UUID) (*uuid.UUID, error)
+	// ResolveFundingContext walks parent_id upward to the nearest ancestor
+	// with a contract and returns the contract plus its funding attributes
+	// (contract_type, sold_hours via the contracts JOIN — 016). Returns nil
+	// for a chain without a contract. The D-04 decision input: contract draw
+	// vs support bucket vs service request (zero-value contract).
+	ResolveFundingContext(ctx context.Context, activityID uuid.UUID) (*activitydomain.FundingContext, error)
 	// ResolveBillability walks ancestry: nearest non-NULL billable wins; if the
 	// walk hits a contract-linked ancestor, defer to the contract default (D-7).
 	ResolveBillability(ctx context.Context, activityID uuid.UUID) (*bool, error)

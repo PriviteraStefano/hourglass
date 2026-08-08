@@ -32,6 +32,7 @@ func NewActivityRepository(pool *pgxpool.Pool) *ActivityRepository {
 // $1 is reserved for orgID (is_adopted EXISTS subquery).
 func baseActivityQuery() string {
 	return `SELECT a.id, a.org_id, a.parent_id, a.name, a.description, a.kind, a.contract_id,
+		a.beneficiary_unit_id,
 		a.governance_model, a.created_by_org_id, a.is_shared, a.billable, a.budget_amount,
 		a.is_active, a.created_at, a.updated_at,
 		a.origin_type, a.assigned_by, a.assigned_to, a.proposed_by, a.reviewed_by, a.ticket_id,
@@ -127,12 +128,12 @@ func (r *ActivityRepository) Create(ctx context.Context, orgID uuid.UUID, req *a
 	id := uuid.New()
 
 	_, err := r.pool.Exec(ctx, `INSERT INTO activities (id, org_id, parent_id, name, description, kind,
-		contract_id, governance_model, created_by_org_id, is_shared, billable, budget_amount,
+		contract_id, beneficiary_unit_id, governance_model, created_by_org_id, is_shared, billable, budget_amount,
 		origin_type, assigned_by, assigned_to, proposed_by, reviewed_by, ticket_id,
 		is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, COALESCE($19, true), NOW(), NOW())`,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, COALESCE($20, true), NOW(), NOW())`,
 		id, orgID, req.ParentID, req.Name, req.Description, req.Kind,
-		req.ContractID, req.GovernanceModel, orgID, req.IsShared, req.Billable, req.BudgetAmount,
+		req.ContractID, req.BeneficiaryUnitID, req.GovernanceModel, orgID, req.IsShared, req.Billable, req.BudgetAmount,
 		req.OriginType, req.AssignedBy, req.AssignedTo, req.ProposedBy, req.ReviewedBy, req.TicketID,
 		req.IsActive)
 	if err != nil {
@@ -194,19 +195,22 @@ func (r *ActivityRepository) ListByContract(ctx context.Context, contractID uuid
 // Used for commercial-chain resolution (D-3) and billability inheritance (D-7).
 func (r *ActivityRepository) GetAncestry(ctx context.Context, id uuid.UUID) ([]activitydomain.Activity, error) {
 	query := `WITH RECURSIVE ancestry AS (
-		SELECT id, org_id, parent_id, name, description, kind, contract_id, governance_model,
+		SELECT id, org_id, parent_id, name, description, kind, contract_id, beneficiary_unit_id,
+			governance_model,
 			created_by_org_id, is_shared, billable, budget_amount, is_active, created_at, updated_at,
 			origin_type, assigned_by, assigned_to, proposed_by, reviewed_by, ticket_id
 		FROM activities WHERE id = $1
 		UNION ALL
 		SELECT a.id, a.org_id, a.parent_id, a.name, a.description, a.kind, a.contract_id,
+			a.beneficiary_unit_id,
 			a.governance_model, a.created_by_org_id, a.is_shared, a.billable, a.budget_amount,
 			a.is_active, a.created_at, a.updated_at,
 			a.origin_type, a.assigned_by, a.assigned_to, a.proposed_by, a.reviewed_by, a.ticket_id
 		FROM activities a
 		INNER JOIN ancestry anc ON a.id = anc.parent_id
 	)
-	SELECT id, org_id, parent_id, name, description, kind, contract_id, governance_model,
+	SELECT id, org_id, parent_id, name, description, kind, contract_id, beneficiary_unit_id,
+		governance_model,
 		created_by_org_id, is_shared, billable, budget_amount, is_active, created_at, updated_at,
 		origin_type, assigned_by, assigned_to, proposed_by, reviewed_by, ticket_id
 	FROM ancestry`
@@ -261,6 +265,74 @@ func (r *ActivityRepository) ResolveCommercialContext(ctx context.Context, activ
 	return &activitydomain.CommercialContext{
 		ContractID: &contractID,
 		CustomerID: customerID,
+	}, nil
+}
+
+// ResolveBeneficiaryUnit walks parent_id upward to the nearest ancestor with
+// beneficiary_unit_id set (COV-05 — inherited downward like contract_id,
+// D-3). Returns nil when the chain has no beneficiary unit anywhere: the
+// absorption proposal then has no default unit (D-06 no-eligible-source
+// flag). CTE shape mirrors ResolveCommercialContext exactly.
+func (r *ActivityRepository) ResolveBeneficiaryUnit(ctx context.Context, activityID uuid.UUID) (*uuid.UUID, error) {
+	query := `WITH RECURSIVE chain AS (
+		SELECT id, parent_id, beneficiary_unit_id FROM activities WHERE id = $1
+		UNION ALL
+		SELECT a.id, a.parent_id, a.beneficiary_unit_id
+		FROM activities a
+		INNER JOIN chain c ON a.id = c.parent_id
+		WHERE c.beneficiary_unit_id IS NULL
+	)
+	SELECT c.beneficiary_unit_id
+	FROM chain c
+	WHERE c.beneficiary_unit_id IS NOT NULL
+	LIMIT 1`
+
+	var unitID uuid.UUID
+	err := r.pool.QueryRow(ctx, query, activityID).Scan(&unitID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolve beneficiary unit: %w", err)
+	}
+	return &unitID, nil
+}
+
+// ResolveFundingContext walks parent_id upward to the nearest ancestor with
+// contract_id set and returns the contract plus its funding attributes
+// (contract_type, sold_hours via the contracts JOIN — 016). Returns nil when
+// the chain has no contract. This is the D-04 decision input: the coverage
+// service branches contract draw vs support bucket vs service request
+// (zero-value contract) on these fields.
+func (r *ActivityRepository) ResolveFundingContext(ctx context.Context, activityID uuid.UUID) (*activitydomain.FundingContext, error) {
+	query := `WITH RECURSIVE chain AS (
+		SELECT id, parent_id, contract_id FROM activities WHERE id = $1
+		UNION ALL
+		SELECT a.id, a.parent_id, a.contract_id
+		FROM activities a
+		INNER JOIN chain c ON a.id = c.parent_id
+		WHERE c.contract_id IS NULL
+	)
+	SELECT c.contract_id, ct.contract_type, ct.sold_hours
+	FROM chain c
+	LEFT JOIN contracts ct ON ct.id = c.contract_id
+	WHERE c.contract_id IS NOT NULL
+	LIMIT 1`
+
+	var contractID uuid.UUID
+	var contractType *string
+	var soldHours *float64
+	err := r.pool.QueryRow(ctx, query, activityID).Scan(&contractID, &contractType, &soldHours)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolve funding context: %w", err)
+	}
+	return &activitydomain.FundingContext{
+		ContractID:   &contractID,
+		ContractType: contractType,
+		SoldHours:    soldHours,
 	}, nil
 }
 
@@ -481,6 +553,13 @@ func (r *ActivityRepository) Update(ctx context.Context, orgID, activityID uuid.
 		args = append(args, *req.ContractID)
 		argIdx++
 	}
+	// COV-05: beneficiary unit is EDITABLE (unlike origin refs) — the SET
+	// branch mirrors contract_id; a nil request field leaves it untouched.
+	if req.BeneficiaryUnitID != nil {
+		sets = append(sets, fmt.Sprintf("beneficiary_unit_id = $%d", argIdx))
+		args = append(args, *req.BeneficiaryUnitID)
+		argIdx++
+	}
 
 	if len(sets) == 0 {
 		return nil, fmt.Errorf("no fields to update")
@@ -663,12 +742,13 @@ type activityScanner interface {
 }
 
 // scanActivity scans a single activities row into the domain type.
-// parent_id, contract_id, billable, budget_amount and the six origin
-// columns are nullable.
+// parent_id, contract_id, beneficiary_unit_id, billable, budget_amount and
+// the six origin columns are nullable.
 func scanActivity(s activityScanner) (*activitydomain.Activity, error) {
 	var a activitydomain.Activity
 	var parentID *uuid.UUID
 	var contractID *uuid.UUID
+	var beneficiaryUnitID *uuid.UUID
 	var billable *bool
 	var budgetAmount *float64
 	var originType *string
@@ -676,6 +756,7 @@ func scanActivity(s activityScanner) (*activitydomain.Activity, error) {
 
 	err := s.Scan(
 		&a.ID, &a.OrgID, &parentID, &a.Name, &a.Description, &a.Kind, &contractID,
+		&beneficiaryUnitID,
 		&a.GovernanceModel, &a.CreatedByOrgID, &a.IsShared, &billable, &budgetAmount,
 		&a.IsActive, &a.CreatedAt, &a.UpdatedAt,
 		&originType, &assignedBy, &assignedTo, &proposedBy, &reviewedBy, &ticketID,
@@ -685,6 +766,7 @@ func scanActivity(s activityScanner) (*activitydomain.Activity, error) {
 	}
 	a.ParentID = parentID
 	a.ContractID = contractID
+	a.BeneficiaryUnitID = beneficiaryUnitID
 	a.Billable = billable
 	a.BudgetAmount = budgetAmount
 	a.OriginType = originType
@@ -700,6 +782,7 @@ func scanActivityResponse(s activityScanner) (*activitydomain.ActivityResponse, 
 	var a activitydomain.ActivityResponse
 	var parentID *uuid.UUID
 	var contractID *uuid.UUID
+	var beneficiaryUnitID *uuid.UUID
 	var billable *bool
 	var budgetAmount *float64
 	var originType *string
@@ -707,6 +790,7 @@ func scanActivityResponse(s activityScanner) (*activitydomain.ActivityResponse, 
 
 	err := s.Scan(
 		&a.ID, &a.OrgID, &parentID, &a.Name, &a.Description, &a.Kind, &contractID,
+		&beneficiaryUnitID,
 		&a.GovernanceModel, &a.CreatedByOrgID, &a.IsShared, &billable, &budgetAmount,
 		&a.IsActive, &a.CreatedAt, &a.UpdatedAt,
 		&originType, &assignedBy, &assignedTo, &proposedBy, &reviewedBy, &ticketID,
@@ -718,6 +802,7 @@ func scanActivityResponse(s activityScanner) (*activitydomain.ActivityResponse, 
 	}
 	a.ParentID = parentID
 	a.ContractID = contractID
+	a.BeneficiaryUnitID = beneficiaryUnitID
 	a.Billable = billable
 	a.BudgetAmount = budgetAmount
 	a.OriginType = originType
