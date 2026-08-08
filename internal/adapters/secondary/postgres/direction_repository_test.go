@@ -1442,25 +1442,106 @@ func TestDirectionRepository_AbsenceWindows(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, len(windows), "declared + confirmed rows in the overlap, org-scoped")
 
-	var declared, confirmed *directiondomain.AbsenceWindow
+	// The 'declared' window is the full holiday (hours NULL); the 'confirmed'
+	// window is the partial permit (hours 3.5) — the struct carries kind +
+	// hours, the status vocabulary is exercised by which rows come back.
+	var full, partial *directiondomain.AbsenceWindow
 	for i := range windows {
 		switch windows[i].Kind {
 		case "holiday":
-			declared = &windows[i]
+			full = &windows[i]
 		case "permit":
-			confirmed = &windows[i]
+			partial = &windows[i]
 		}
 	}
-	require.NotNil(t, declared)
-	require.Equal(t, emp1, declared.EmployeeID)
-	require.Equal(t, "declared", declared.Kind)
-	require.Nil(t, declared.Hours, "full absence: hours NULL")
-	require.Equal(t, today, declared.StartsOn)
-	require.Equal(t, today.AddDate(0, 0, 1), declared.EndsOn)
+	require.NotNil(t, full, "the declared-status full window must be returned")
+	require.Equal(t, emp1, full.EmployeeID)
+	require.Equal(t, "holiday", full.Kind)
+	require.Nil(t, full.Hours, "full absence: hours NULL")
+	require.Equal(t, today, full.StartsOn)
+	require.Equal(t, today.AddDate(0, 0, 1), full.EndsOn)
 
-	require.NotNil(t, confirmed)
-	require.Equal(t, emp1, confirmed.EmployeeID)
-	require.Equal(t, "confirmed", confirmed.Kind)
-	require.NotNil(t, confirmed.Hours)
-	require.Equal(t, 3.5, *confirmed.Hours)
+	require.NotNil(t, partial, "the confirmed-status partial window must be returned")
+	require.Equal(t, emp1, partial.EmployeeID)
+	require.Equal(t, "permit", partial.Kind)
+	require.NotNil(t, partial.Hours)
+	require.Equal(t, 3.5, *partial.Hours)
+}
+
+// ---------------------------------------------------------------------------
+// Task 3 (13-06) — FirstDirectionRefs (origin fallback lookup, D-13-32..34)
+// ---------------------------------------------------------------------------
+
+// TestDirectionRepository_FirstDirectionRefs proves the origin-fallback
+// lookup (D-13-32..34, Pattern 8): the manager-assignment-shaped refs
+// (assigned_by = directed_by, assigned_to = directed_to) of the EARLIEST
+// created_at NON-CANCELLED direction row for the activity, org-scoped,
+// read-only; nil when no such row (refs stay empty — D-13-33/34). Never the
+// other origin shapes.
+func TestDirectionRepository_FirstDirectionRefs(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	otherOrgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	empA := seedUser(t, pool, now)
+	empB := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+	otherActivityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	// (a) Two rows on activityID: the EARLIEST created_at non-cancelled row
+	// wins (assigned_to = empA).
+	_ = seedDirectionRow(t, pool, orgID, managerID, &empB, nil, activityID, nil, ptr(4.0), "draft", now.Add(-2*time.Hour))
+	_ = seedDirectionRow(t, pool, orgID, managerID, &empA, nil, activityID, nil, ptr(4.0), "draft", now.Add(-1*time.Hour))
+	refs, err := repo.FirstDirectionRefs(ctx, orgID, activityID)
+	require.NoError(t, err)
+	require.NotNil(t, refs, "a non-cancelled row exists → refs are not empty")
+	require.Equal(t, managerID, *refs.AssignedBy)
+	require.Equal(t, empB, *refs.AssignedTo, "the earliest created_at row supplies the pair")
+
+	// (b) A CANCELLED earliest row is skipped in favor of a later
+	// non-cancelled row (on otherActivityID).
+	_ = seedDirectionRowCancelled(t, pool, orgID, managerID, &empA, otherActivityID, "cancelled first", now.Add(-3*time.Hour))
+	_ = seedDirectionRow(t, pool, orgID, managerID, &empB, nil, otherActivityID, nil, ptr(4.0), "draft", now.Add(-1*time.Hour))
+	refs, err = repo.FirstDirectionRefs(ctx, orgID, otherActivityID)
+	require.NoError(t, err)
+	require.NotNil(t, refs)
+	require.Equal(t, empB, *refs.AssignedTo, "the cancelled earliest row is skipped")
+
+	// (c) No rows at all → (nil, nil).
+	noRowsActivityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+	refs, err = repo.FirstDirectionRefs(ctx, orgID, noRowsActivityID)
+	require.NoError(t, err)
+	require.Nil(t, refs, "no rows → refs stay empty (D-13-33)")
+
+	// (d) Rows exist but ALL cancelled → (nil, nil).
+	allCancelledActivityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+	_ = seedDirectionRowCancelled(t, pool, orgID, managerID, &empA, allCancelledActivityID, "first", now.Add(-2*time.Hour))
+	_ = seedDirectionRowCancelled(t, pool, orgID, managerID, &empB, allCancelledActivityID, "second", now.Add(-1*time.Hour))
+	refs, err = repo.FirstDirectionRefs(ctx, orgID, allCancelledActivityID)
+	require.NoError(t, err)
+	require.Nil(t, refs, "all-cancelled rows are not a fallback source")
+
+	// (e) Rows for ANOTHER org → (nil, nil) (org-scoped, T-13-21 — no cross-
+	// org leak into the activity read path).
+	_ = seedDirectionRow(t, pool, otherOrgID, managerID, &empA, nil, activityID, nil, ptr(4.0), "draft", now.Add(-1*time.Hour))
+	refs, err = repo.FirstDirectionRefs(ctx, orgID, activityID)
+	require.NoError(t, err)
+	require.NotNil(t, refs, "org-scoping: the other-org row must not shadow this org's rows")
+
+	// (f) A WG row (wg_id set, directed_to NULL) → AssignedBy set,
+	// AssignedTo nil (the fallback carries what exists).
+	wgActivityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+	wgID := seedWorkingGroup(t, pool, orgID, wgActivityID, managerID, now)
+	_ = seedDirectionRow(t, pool, orgID, managerID, nil, ptr(wgID), wgActivityID, nil, ptr(8.0), "active", now.Add(-1*time.Hour))
+	refs, err = repo.FirstDirectionRefs(ctx, orgID, wgActivityID)
+	require.NoError(t, err)
+	require.NotNil(t, refs)
+	require.Equal(t, managerID, *refs.AssignedBy)
+	require.Nil(t, refs.AssignedTo, "a WG row carries no directed_to — AssignedTo stays nil")
 }
