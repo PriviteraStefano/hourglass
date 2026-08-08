@@ -325,6 +325,170 @@ func (s *Service) Create(ctx context.Context, orgID, actorID uuid.UUID, role str
 }
 
 // ---------------------------------------------------------------------------
+// Lifecycle — Activate / Cancel / Unclaim (D-13-07/10/16)
+// ---------------------------------------------------------------------------
+
+// lifecycleAllowed is the activate/cancel/unclaim permission: the row's
+// creator (DirectedBy) always, else the BE-014 manager reach resolved on the
+// row's activity (managers may lifecycle rows they did not create). WG rows
+// (DirectedTo nil) resolve with uuid.Nil unit/owner — the routing degrades
+// to the anchored-WG approver set or the role-gated terminal stage.
+func (s *Service) lifecycleAllowed(ctx context.Context, orgID, actorID uuid.UUID, role string, d *directiondomain.Direction) error {
+	if d.DirectedBy == actorID {
+		return nil
+	}
+	var unitID, owner uuid.UUID
+	if d.DirectedTo != nil {
+		uid, err := s.primaryUnitIDFor(ctx, *d.DirectedTo)
+		if err != nil {
+			return err
+		}
+		unitID = uid
+		owner = *d.DirectedTo
+	}
+	return s.managerReach(ctx, orgID, d.ActivityID, unitID, owner, actorID, role)
+}
+
+// Activate transitions draft → active (explicit endpoint, OQ1). The matrix
+// fast-fails at the pool level BEFORE the repo call (CR-01 UX — the repo
+// re-validates under the FOR UPDATE lock); the permission is creator-or-
+// manager-reach. The 'activated' audit row lands in the same tx.
+func (s *Service) Activate(ctx context.Context, orgID, actorID uuid.UUID, role string, id uuid.UUID) (*directiondomain.Direction, error) {
+	d, err := s.repo.Get(ctx, orgID, id)
+	if err != nil {
+		return nil, err
+	}
+	if !directiondomain.CanTransition(d.Status, directiondomain.StatusActive) {
+		return nil, directiondomain.ErrInvalidTransition
+	}
+	if err := s.lifecycleAllowed(ctx, orgID, actorID, role, d); err != nil {
+		return nil, err
+	}
+	actor := actorID
+	return s.repo.Activate(ctx, orgID, id, &audit.AuditLog{
+		OrgID:      orgID,
+		EntityType: directiondomain.AuditEntityDirection,
+		EntityID:   id,
+		Action:     directiondomain.AuditActionActivated,
+		ActorID:    &actor,
+		CreatedAt:  time.Now().UTC(),
+	})
+}
+
+// Cancel transitions draft|active → cancelled with a mandatory reason
+// (D-13-10): the reason requirement is enforced BEFORE the pool read, then
+// the matrix fast-fail, then the creator-or-manager permission. The
+// 'cancelled' audit carries {reason} (ADR-BE-018 §3).
+func (s *Service) Cancel(ctx context.Context, orgID, actorID uuid.UUID, role string, id uuid.UUID, reason string) (*directiondomain.Direction, error) {
+	if reason == "" {
+		return nil, directiondomain.ErrCancelReasonRequired
+	}
+	d, err := s.repo.Get(ctx, orgID, id)
+	if err != nil {
+		return nil, err
+	}
+	if !directiondomain.CanTransition(d.Status, directiondomain.StatusCancelled) {
+		return nil, directiondomain.ErrInvalidTransition
+	}
+	if err := s.lifecycleAllowed(ctx, orgID, actorID, role, d); err != nil {
+		return nil, err
+	}
+	actor := actorID
+	return s.repo.Cancel(ctx, orgID, id, reason, &audit.AuditLog{
+		OrgID:      orgID,
+		EntityType: directiondomain.AuditEntityDirection,
+		EntityID:   id,
+		Action:     directiondomain.AuditActionCancelled,
+		ActorID:    &actor,
+		Payload:    map[string]any{"reason": reason},
+		CreatedAt:  time.Now().UTC(),
+	})
+}
+
+// Unclaim cancels a CLAIM row (D-13-16): the claim-row guard (only rows with
+// origin_direction_id are unclaimable), the reason requirement, and the
+// claimant (DirectedTo) / creator (DirectedBy) / manager gate. The unclaim
+// audit is the 'cancelled' action with {reason} — the repo tx re-validates
+// the claim-row guard + matrix under the FOR UPDATE lock (authoritative,
+// CR-01); hours return to the WG budget automatically (Σ-derived).
+func (s *Service) Unclaim(ctx context.Context, orgID, actorID uuid.UUID, role string, claimRowID uuid.UUID, reason string) (*directiondomain.Direction, error) {
+	claim, err := s.repo.Get(ctx, orgID, claimRowID)
+	if err != nil {
+		return nil, err
+	}
+	if claim.OriginDirectionID == nil {
+		return nil, directiondomain.ErrInvalidRequest
+	}
+	if reason == "" {
+		return nil, directiondomain.ErrCancelReasonRequired
+	}
+	if claim.DirectedBy != actorID && (claim.DirectedTo == nil || *claim.DirectedTo != actorID) {
+		if err := s.lifecycleAllowed(ctx, orgID, actorID, role, claim); err != nil {
+			return nil, err
+		}
+	}
+	actor := actorID
+	return s.repo.Unclaim(ctx, orgID, claimRowID, reason, &audit.AuditLog{
+		OrgID:      orgID,
+		EntityType: directiondomain.AuditEntityDirection,
+		EntityID:   claimRowID,
+		Action:     directiondomain.AuditActionCancelled,
+		ActorID:    &actor,
+		Payload:    map[string]any{"reason": reason},
+		CreatedAt:  time.Now().UTC(),
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Claim — the WG claim orchestration (D-13-11..16)
+// ---------------------------------------------------------------------------
+
+// Claim creates the claim row for an active WG row: pool fast-fails — the WG
+// row exists + is active (ErrWgRowNotActive), the claimant is a WG member
+// (ErrNotWgMember, D-13-12), the claimed hours are positive whole-cent
+// (ErrInvalidHours). The repo's in-tx Σ guard under the WG-row FOR UPDATE
+// lock is authoritative (D-13-13, CR-01) — these checks are fast-fail UX
+// only. The 'claimed' audit carries {wg_row_id, est_hours} with uuid.Nil
+// entity_id — the repo pins it to the claim row it creates (ADR-BE-018 §3,
+// 13-05).
+func (s *Service) Claim(ctx context.Context, orgID, actorID uuid.UUID, role string, wgRowID uuid.UUID, estHours float64) (*directiondomain.Direction, error) {
+	wg, err := s.repo.Get(ctx, orgID, wgRowID)
+	if err != nil {
+		return nil, err
+	}
+	if wg.Status != directiondomain.StatusActive {
+		return nil, directiondomain.ErrWgRowNotActive
+	}
+	members, err := s.wgRepo.ListMembers(ctx, *wg.WgID)
+	if err != nil {
+		return nil, err
+	}
+	member := false
+	for _, m := range members {
+		if m.UserID == actorID {
+			member = true
+			break
+		}
+	}
+	if !member {
+		return nil, directiondomain.ErrNotWgMember
+	}
+	if !wholeCent(estHours) {
+		return nil, directiondomain.ErrInvalidHours
+	}
+	actor := actorID
+	return s.repo.Claim(ctx, orgID, wgRowID, actorID, estHours, &audit.AuditLog{
+		OrgID:      orgID,
+		EntityType: directiondomain.AuditEntityDirection,
+		EntityID:   uuid.Nil, // the repo pins entity_id to the claim row (13-05)
+		Action:     directiondomain.AuditActionClaimed,
+		ActorID:    &actor,
+		Payload:    map[string]any{"wg_row_id": wgRowID.String(), "est_hours": estHours},
+		CreatedAt:  time.Now().UTC(),
+	})
+}
+
+// ---------------------------------------------------------------------------
 // Warning overlay — pure function, never blocking (D-13-28/30/31)
 // ---------------------------------------------------------------------------
 

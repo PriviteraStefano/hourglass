@@ -50,6 +50,7 @@ type MockDirectionRepo struct {
 	CreateFn             func(ctx context.Context, orgID uuid.UUID, d *directiondomain.Direction, supersedesID *uuid.UUID, audits []*audit.AuditLog) (*directiondomain.Direction, error)
 	ActivateFn           func(ctx context.Context, orgID, id uuid.UUID, audit *audit.AuditLog) (*directiondomain.Direction, error)
 	CancelFn             func(ctx context.Context, orgID, id uuid.UUID, reason string, audit *audit.AuditLog) (*directiondomain.Direction, error)
+	UnclaimFn            func(ctx context.Context, orgID, claimRowID uuid.UUID, reason string, audit *audit.AuditLog) (*directiondomain.Direction, error)
 	ClaimFn              func(ctx context.Context, orgID, wgRowID, claimantID uuid.UUID, estHours float64, audit *audit.AuditLog) (*directiondomain.Direction, error)
 	ListPlanFn           func(ctx context.Context, orgID uuid.UUID, employeeID *uuid.UUID, periodStart, periodEnd time.Time) ([]directiondomain.PlanRow, error)
 	CoverageFn           func(ctx context.Context, orgID uuid.UUID, employeeIDs []uuid.UUID, periodStart, periodEnd time.Time) ([]directiondomain.CoverageRow, error)
@@ -194,6 +195,31 @@ func (m *MockDirectionRepo) Claim(ctx context.Context, orgID, wgRowID, claimantI
 		m.Audits = append(m.Audits, a)
 	}
 	return claim, nil
+}
+
+// Unclaim cancels a CLAIM row (D-13-16): the same cancel semantics plus the
+// claim-row guard — a row without origin_direction_id is rejected with
+// ErrInvalidRequest (the service fast-fails the same shape at the pool
+// level; this guard is the mock's authoritative line).
+func (m *MockDirectionRepo) Unclaim(ctx context.Context, orgID, claimRowID uuid.UUID, reason string, a *audit.AuditLog) (*directiondomain.Direction, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.UnclaimFn != nil {
+		return m.UnclaimFn(ctx, orgID, claimRowID, reason, a)
+	}
+	d, ok := m.Directions[claimRowID]
+	if !ok || d.OrgID != orgID {
+		return nil, directiondomain.ErrDirectionNotFound
+	}
+	if d.OriginDirectionID == nil {
+		return nil, directiondomain.ErrInvalidRequest
+	}
+	d.Status = directiondomain.StatusCancelled
+	d.Reason = &reason
+	if a != nil {
+		m.Audits = append(m.Audits, a)
+	}
+	return d, nil
 }
 
 func (m *MockDirectionRepo) ListPlan(ctx context.Context, orgID uuid.UUID, employeeID *uuid.UUID, periodStart, periodEnd time.Time) ([]directiondomain.PlanRow, error) {

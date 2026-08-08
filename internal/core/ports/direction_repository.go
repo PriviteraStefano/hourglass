@@ -59,6 +59,13 @@ type DirectionRepository interface {
 	// consumption is Σ-derived.
 	Cancel(ctx context.Context, orgID, id uuid.UUID, reason string, audit *audit.AuditLog) (*direction.Direction, error)
 
+	// Unclaim cancels a CLAIM row (D-13-16, the 13-07 service path): the
+	// same reason requirement and matrix re-validation as Cancel, plus the
+	// claim-row guard — a row without origin_direction_id is rejected with
+	// ErrInvalidRequest. Hours return to the WG budget automatically since
+	// consumption is Σ-derived. One 'cancelled' audit row in the same tx.
+	Unclaim(ctx context.Context, orgID, claimRowID uuid.UUID, reason string, audit *audit.AuditLog) (*direction.Direction, error)
+
 	// Claim creates the claim row (D-13-11..13): user-targeted row with
 	// directed_by = the WG row's creator (manager attribution preserved),
 	// origin_direction_id = wgRowID, est_hours = claimed amount. The Σ
