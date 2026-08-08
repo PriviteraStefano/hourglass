@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
+	"github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/auth"
 	directiondomain "github.com/stefanoprivitera/hourglass/internal/core/domain/direction"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/orgsettings"
@@ -416,5 +417,333 @@ func TestService_Create(t *testing.T) {
 		require.Len(t, warnings, 1)
 		assert.Equal(t, directiondomain.WarningAway, warnings[0].Type)
 		assert.Equal(t, "Away 14 Aug", warnings[0].Message)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestService_Activate — Task 2: matrix fast-fail + creator/manager gate
+// ---------------------------------------------------------------------------
+
+func TestService_Activate(t *testing.T) {
+	orgID := uuid.New()
+	actorID := uuid.New()
+	employeeID := uuid.New()
+	otherID := uuid.New()
+	activityID := uuid.New()
+	ctx := context.Background()
+
+	seedDraft := func(f *fixture, directedBy uuid.UUID) uuid.UUID {
+		id := uuid.New()
+		f.seedDirectionRow(&directiondomain.Direction{
+			ID: id, OrgID: orgID, DirectedBy: directedBy, DirectedTo: &employeeID,
+			ActivityID: activityID, Status: directiondomain.StatusDraft,
+		})
+		return id
+	}
+
+	t.Run("creator activates their own draft row", func(t *testing.T) {
+		f := setup(t)
+		id := seedDraft(f, actorID)
+
+		activated, err := f.svc.Activate(ctx, orgID, actorID, "employee", id)
+		require.NoError(t, err)
+		require.NotNil(t, activated)
+		assert.Equal(t, directiondomain.StatusActive, activated.Status)
+
+		require.Len(t, f.dirRepo.Audits, 1)
+		a := f.dirRepo.Audits[0]
+		assert.Equal(t, directiondomain.AuditActionActivated, a.Action)
+		assert.Equal(t, id, a.EntityID)
+		require.NotNil(t, a.ActorID)
+		assert.Equal(t, actorID, *a.ActorID)
+	})
+
+	t.Run("cancelled row matrix fast-fails before the repo call", func(t *testing.T) {
+		f := setup(t)
+		id := uuid.New()
+		f.seedDirectionRow(&directiondomain.Direction{
+			ID: id, OrgID: orgID, DirectedBy: actorID, DirectedTo: &employeeID,
+			ActivityID: activityID, Status: directiondomain.StatusCancelled, Reason: ptrStr("done"),
+		})
+		trap := false
+		f.dirRepo.ActivateFn = func(ctx context.Context, orgID, id uuid.UUID, a *audit.AuditLog) (*directiondomain.Direction, error) {
+			trap = true
+			return nil, nil
+		}
+
+		_, err := f.svc.Activate(ctx, orgID, actorID, "employee", id)
+		require.ErrorIs(t, err, directiondomain.ErrInvalidTransition)
+		assert.False(t, trap, "the repo must not be reached when the pool-level matrix fails")
+	})
+
+	t.Run("non-creator manager activates via the approver set", func(t *testing.T) {
+		f := setup(t)
+		f.seedActivity(orgID, activityID)
+		id := seedDraft(f, otherID)
+		f.seedWG(uuid.New(), orgID, activityID, actorID)
+
+		activated, err := f.svc.Activate(ctx, orgID, actorID, "employee", id)
+		require.NoError(t, err)
+		require.NotNil(t, activated)
+		assert.Equal(t, directiondomain.StatusActive, activated.Status)
+	})
+
+	t.Run("non-creator without manager reach is forbidden", func(t *testing.T) {
+		f := setup(t)
+		f.seedActivity(orgID, activityID)
+		id := seedDraft(f, otherID)
+
+		_, err := f.svc.Activate(ctx, orgID, actorID, "employee", id)
+		require.ErrorIs(t, err, directiondomain.ErrForbidden)
+	})
+
+	t.Run("missing row surfaces ErrDirectionNotFound", func(t *testing.T) {
+		f := setup(t)
+		_, err := f.svc.Activate(ctx, orgID, actorID, "employee", uuid.New())
+		require.ErrorIs(t, err, directiondomain.ErrDirectionNotFound)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestService_Cancel — Task 2: reason requirement + matrix + gate
+// ---------------------------------------------------------------------------
+
+func TestService_Cancel(t *testing.T) {
+	orgID := uuid.New()
+	actorID := uuid.New()
+	employeeID := uuid.New()
+	otherID := uuid.New()
+	activityID := uuid.New()
+	ctx := context.Background()
+
+	t.Run("cancel without reason is rejected before the pool read", func(t *testing.T) {
+		f := setup(t)
+		// No row seeded: ErrCancelReasonRequired must win without a Get.
+		_, err := f.svc.Cancel(ctx, orgID, actorID, "employee", uuid.New(), "")
+		require.ErrorIs(t, err, directiondomain.ErrCancelReasonRequired)
+	})
+
+	t.Run("creator cancels own draft row with a reason", func(t *testing.T) {
+		f := setup(t)
+		id := uuid.New()
+		f.seedDirectionRow(&directiondomain.Direction{
+			ID: id, OrgID: orgID, DirectedBy: actorID, DirectedTo: &employeeID,
+			ActivityID: activityID, Status: directiondomain.StatusDraft,
+		})
+
+		cancelled, err := f.svc.Cancel(ctx, orgID, actorID, "employee", id, "scope changed")
+		require.NoError(t, err)
+		require.NotNil(t, cancelled)
+		assert.Equal(t, directiondomain.StatusCancelled, cancelled.Status)
+		require.NotNil(t, cancelled.Reason)
+		assert.Equal(t, "scope changed", *cancelled.Reason)
+
+		require.Len(t, f.dirRepo.Audits, 1)
+		a := f.dirRepo.Audits[0]
+		assert.Equal(t, directiondomain.AuditActionCancelled, a.Action)
+		assert.Equal(t, id, a.EntityID)
+		require.NotNil(t, a.Payload)
+		assert.Equal(t, "scope changed", a.Payload["reason"])
+	})
+
+	t.Run("cancelled row matrix fast-fails before the repo call", func(t *testing.T) {
+		f := setup(t)
+		id := uuid.New()
+		f.seedDirectionRow(&directiondomain.Direction{
+			ID: id, OrgID: orgID, DirectedBy: actorID, DirectedTo: &employeeID,
+			ActivityID: activityID, Status: directiondomain.StatusCancelled, Reason: ptrStr("done"),
+		})
+		trap := false
+		f.dirRepo.CancelFn = func(ctx context.Context, orgID, id uuid.UUID, reason string, a *audit.AuditLog) (*directiondomain.Direction, error) {
+			trap = true
+			return nil, nil
+		}
+
+		_, err := f.svc.Cancel(ctx, orgID, actorID, "employee", id, "again")
+		require.ErrorIs(t, err, directiondomain.ErrInvalidTransition)
+		assert.False(t, trap, "the repo must not be reached when the pool-level matrix fails")
+	})
+
+	t.Run("non-creator without manager reach is forbidden", func(t *testing.T) {
+		f := setup(t)
+		f.seedActivity(orgID, activityID)
+		id := uuid.New()
+		f.seedDirectionRow(&directiondomain.Direction{
+			ID: id, OrgID: orgID, DirectedBy: otherID, DirectedTo: &employeeID,
+			ActivityID: activityID, Status: directiondomain.StatusDraft,
+		})
+
+		_, err := f.svc.Cancel(ctx, orgID, actorID, "employee", id, "scope changed")
+		require.ErrorIs(t, err, directiondomain.ErrForbidden)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestService_Claim — Task 2: active + membership + hours fast-fails
+// ---------------------------------------------------------------------------
+
+func TestService_Claim(t *testing.T) {
+	orgID := uuid.New()
+	actorID := uuid.New()
+	activityID := uuid.New()
+	ctx := context.Background()
+
+	seedWgRow := func(f *fixture, status string) uuid.UUID {
+		wgID := uuid.New()
+		wgRowID := uuid.New()
+		f.seedWG(wgID, orgID, activityID, uuid.New())
+		f.seedDirectionRow(&directiondomain.Direction{
+			ID: wgRowID, OrgID: orgID, DirectedBy: uuid.New(), WgID: &wgID,
+			ActivityID: activityID, Status: status,
+		})
+		return wgRowID
+	}
+
+	t.Run("member claims an active WG row", func(t *testing.T) {
+		f := setup(t)
+		wgRowID := seedWgRow(f, directiondomain.StatusActive)
+		f.seedWgMember(*f.dirRepo.Directions[wgRowID].WgID, actorID)
+
+		claim, err := f.svc.Claim(ctx, orgID, actorID, "employee", wgRowID, 4.0)
+		require.NoError(t, err)
+		require.NotNil(t, claim)
+		assert.Equal(t, wgRowID, *claim.OriginDirectionID)
+		require.NotNil(t, claim.DirectedTo)
+		assert.Equal(t, actorID, *claim.DirectedTo)
+
+		require.Len(t, f.dirRepo.Audits, 1)
+		a := f.dirRepo.Audits[0]
+		assert.Equal(t, directiondomain.AuditActionClaimed, a.Action)
+		assert.Equal(t, uuid.Nil, a.EntityID, "the repo pins entity_id to the claim row it creates (13-05)")
+		require.NotNil(t, a.Payload)
+		assert.Equal(t, wgRowID.String(), a.Payload["wg_row_id"])
+		assert.Equal(t, 4.0, a.Payload["est_hours"])
+	})
+
+	t.Run("claim on a draft WG row is rejected with ErrWgRowNotActive", func(t *testing.T) {
+		f := setup(t)
+		wgRowID := seedWgRow(f, directiondomain.StatusDraft)
+		f.seedWgMember(*f.dirRepo.Directions[wgRowID].WgID, actorID)
+
+		_, err := f.svc.Claim(ctx, orgID, actorID, "employee", wgRowID, 4.0)
+		require.ErrorIs(t, err, directiondomain.ErrWgRowNotActive)
+	})
+
+	t.Run("claim by a non-member is rejected with ErrNotWgMember", func(t *testing.T) {
+		f := setup(t)
+		wgRowID := seedWgRow(f, directiondomain.StatusActive)
+
+		_, err := f.svc.Claim(ctx, orgID, actorID, "employee", wgRowID, 4.0)
+		require.ErrorIs(t, err, directiondomain.ErrNotWgMember)
+	})
+
+	t.Run("claim with non-positive or sub-cent hours is rejected with ErrInvalidHours", func(t *testing.T) {
+		f := setup(t)
+		for _, hours := range []float64{0, -2, 1.005} {
+			wgRowID := seedWgRow(f, directiondomain.StatusActive)
+			f.seedWgMember(*f.dirRepo.Directions[wgRowID].WgID, actorID)
+			_, err := f.svc.Claim(ctx, orgID, actorID, "employee", wgRowID, hours)
+			require.ErrorIs(t, err, directiondomain.ErrInvalidHours, "est_hours %v must be rejected", hours)
+		}
+	})
+
+	t.Run("claim on a missing row surfaces ErrDirectionNotFound", func(t *testing.T) {
+		f := setup(t)
+		_, err := f.svc.Claim(ctx, orgID, actorID, "employee", uuid.New(), 4.0)
+		require.ErrorIs(t, err, directiondomain.ErrDirectionNotFound)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestService_Unclaim — Task 2: claim-row guard + reason + claimant/creator/
+// manager gate (D-13-16)
+// ---------------------------------------------------------------------------
+
+func TestService_Unclaim(t *testing.T) {
+	orgID := uuid.New()
+	actorID := uuid.New()
+	employeeID := uuid.New()
+	otherID := uuid.New()
+	activityID := uuid.New()
+	ctx := context.Background()
+
+	seedClaimRow := func(f *fixture, directedTo, directedBy *uuid.UUID) uuid.UUID {
+		id := uuid.New()
+		origin := uuid.New()
+		f.seedDirectionRow(&directiondomain.Direction{
+			ID: id, OrgID: orgID, DirectedBy: *directedBy, DirectedTo: directedTo,
+			ActivityID: activityID, Status: directiondomain.StatusDraft, OriginDirectionID: &origin,
+		})
+		return id
+	}
+
+	t.Run("unclaim of a non-claim row is rejected with ErrInvalidRequest", func(t *testing.T) {
+		f := setup(t)
+		id := uuid.New()
+		f.seedDirectionRow(&directiondomain.Direction{
+			ID: id, OrgID: orgID, DirectedBy: actorID, DirectedTo: &employeeID,
+			ActivityID: activityID, Status: directiondomain.StatusDraft,
+		})
+
+		_, err := f.svc.Unclaim(ctx, orgID, actorID, "employee", id, "no longer wanted")
+		require.ErrorIs(t, err, directiondomain.ErrInvalidRequest)
+	})
+
+	t.Run("unclaim without a reason is rejected with ErrCancelReasonRequired", func(t *testing.T) {
+		f := setup(t)
+		id := seedClaimRow(f, &actorID, &actorID)
+
+		_, err := f.svc.Unclaim(ctx, orgID, actorID, "employee", id, "")
+		require.ErrorIs(t, err, directiondomain.ErrCancelReasonRequired)
+	})
+
+	t.Run("claimant unclaims their own claim row with a reason", func(t *testing.T) {
+		f := setup(t)
+		id := seedClaimRow(f, &actorID, &otherID)
+
+		unclaimed, err := f.svc.Unclaim(ctx, orgID, actorID, "employee", id, "no longer wanted")
+		require.NoError(t, err)
+		require.NotNil(t, unclaimed)
+		assert.Equal(t, directiondomain.StatusCancelled, unclaimed.Status)
+		require.NotNil(t, unclaimed.Reason)
+		assert.Equal(t, "no longer wanted", *unclaimed.Reason)
+
+		require.Len(t, f.dirRepo.Audits, 1)
+		a := f.dirRepo.Audits[0]
+		assert.Equal(t, directiondomain.AuditActionCancelled, a.Action)
+		assert.Equal(t, id, a.EntityID)
+		require.NotNil(t, a.Payload)
+		assert.Equal(t, "no longer wanted", a.Payload["reason"])
+	})
+
+	t.Run("creator can unclaim the claim row", func(t *testing.T) {
+		f := setup(t)
+		id := seedClaimRow(f, &employeeID, &actorID)
+
+		unclaimed, err := f.svc.Unclaim(ctx, orgID, actorID, "employee", id, "manager recall")
+		require.NoError(t, err)
+		require.NotNil(t, unclaimed)
+		assert.Equal(t, directiondomain.StatusCancelled, unclaimed.Status)
+	})
+
+	t.Run("neither claimant nor creator nor manager is forbidden", func(t *testing.T) {
+		f := setup(t)
+		f.seedActivity(orgID, activityID)
+		id := seedClaimRow(f, &employeeID, &otherID)
+
+		_, err := f.svc.Unclaim(ctx, orgID, actorID, "employee", id, "nope")
+		require.ErrorIs(t, err, directiondomain.ErrForbidden)
+	})
+
+	t.Run("manager unclaims via the approver set", func(t *testing.T) {
+		f := setup(t)
+		f.seedActivity(orgID, activityID)
+		id := seedClaimRow(f, &employeeID, &otherID)
+		f.seedWG(uuid.New(), orgID, activityID, actorID)
+
+		unclaimed, err := f.svc.Unclaim(ctx, orgID, actorID, "employee", id, "manager recall")
+		require.NoError(t, err)
+		require.NotNil(t, unclaimed)
+		assert.Equal(t, directiondomain.StatusCancelled, unclaimed.Status)
 	})
 }
