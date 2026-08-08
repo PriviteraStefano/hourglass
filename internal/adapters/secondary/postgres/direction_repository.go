@@ -527,3 +527,188 @@ func (r *DirectionRepository) Claim(ctx context.Context, orgID, wgRowID, claiman
 	}
 	return created, nil
 }
+
+// ---------------------------------------------------------------------------
+// Read-model (plan 13-06) — ListPlan, Coverage, AbsenceWindows,
+// FirstDirectionRefs. Derived states are computed ON READ, never stored, no
+// nightly jobs (D-V, D-13-09).
+// ---------------------------------------------------------------------------
+
+// terminalActivitySubtree reports whether the direction row's activity
+// subtree is terminal (D-13-09, ADR-BE-018 §2): the Phase 11 ticket
+// dismissal-guard recursive CTE (ticket_repository.go
+// HasNonTerminalActivities) RE-ANCHORED at activities.id with the SEMANTIC
+// INVERSION — the read-model asks NOT EXISTS (no non-terminal entry) where
+// the ticket guard asks EXISTS. Same subtree walk (activity + descendants),
+// same non-terminal predicate verbatim: status IN
+// ('draft','submitted','pending_manager','pending_finance') AND
+// is_deleted = false.
+func terminalActivitySubtree(ctx context.Context, pool *pgxpool.Pool, activityID uuid.UUID) (bool, error) {
+	var terminal bool
+	err := pool.QueryRow(ctx,
+		`WITH RECURSIVE subtree AS (
+			SELECT id FROM activities WHERE id = $1
+			UNION ALL
+			SELECT a.id FROM activities a JOIN subtree s ON a.parent_id = s.id
+		 )
+		 SELECT NOT EXISTS (
+			SELECT 1 FROM time_entries te
+			WHERE te.is_deleted = false
+			  AND te.status IN ('draft','submitted','pending_manager','pending_finance')
+			  AND te.activity_id IN (SELECT id FROM subtree)
+		 )`,
+		activityID).Scan(&terminal)
+	if err != nil {
+		return false, wrapPGError(err, "check terminal activity subtree")
+	}
+	return terminal, nil
+}
+
+// hasAnyEntries reports whether the activity subtree carries ANY non-deleted
+// time entry — ANY status, draft included (OQ2/A3): the lapsed predicate
+// input. A single draft entry on the subtree kills lapsed ("a draft entry
+// indicates work started", ADR-BE-018 §2).
+func hasAnyEntries(ctx context.Context, pool *pgxpool.Pool, activityID uuid.UUID) (bool, error) {
+	var any bool
+	err := pool.QueryRow(ctx,
+		`WITH RECURSIVE subtree AS (
+			SELECT id FROM activities WHERE id = $1
+			UNION ALL
+			SELECT a.id FROM activities a JOIN subtree s ON a.parent_id = s.id
+		 )
+		 SELECT EXISTS (
+			SELECT 1 FROM time_entries te
+			WHERE te.is_deleted = false
+			  AND te.activity_id IN (SELECT id FROM subtree)
+		 )`,
+		activityID).Scan(&any)
+	if err != nil {
+		return false, wrapPGError(err, "check activity subtree entries")
+	}
+	return any, nil
+}
+
+// claimSpectrum derives the D-13-15 claim spectrum for a WG row from the Σ of
+// its draft|active claim rows vs the row's budget (est_hours) — compared in
+// CENTS (Pitfall 3/6, the coverage precedent). Cancelled/superseded claim
+// rows never consume: a superseded claim drops out of the Σ while its
+// superseding row (origin_direction_id carried, ADR-BE-018 §5) counts the
+// same hours, so cancel/unclaim releases hours automatically (D-13-16).
+// Budget NULL = uncapped (D-13-14): partially_claimed once any claim exists,
+// fully_claimed never derives.
+func claimSpectrum(ctx context.Context, pool *pgxpool.Pool, wgRowID uuid.UUID, budget *float64) (string, error) {
+	var claimed float64
+	err := pool.QueryRow(ctx,
+		`SELECT COALESCE(SUM(est_hours), 0) FROM direction
+		 WHERE origin_direction_id = $1 AND status IN ('draft','active')`,
+		wgRowID).Scan(&claimed)
+	if err != nil {
+		return "", wrapPGError(err, "compute claim spectrum")
+	}
+	claimedCents := int64(math.Round(claimed * 100))
+	if claimedCents == 0 {
+		return directiondomain.ClaimStateNotClaimed, nil
+	}
+	if budget == nil {
+		return directiondomain.ClaimStatePartiallyClaimed, nil
+	}
+	budgetCents := int64(math.Round(*budget * 100))
+	if claimedCents >= budgetCents {
+		return directiondomain.ClaimStateFullyClaimed, nil
+	}
+	return directiondomain.ClaimStatePartiallyClaimed, nil
+}
+
+// ListPlan returns the plan read-model (D-13-27): draft|active direction rows
+// for the period with the derived states computed ON READ, never stored
+// (D-V): done (terminal-activity CTE semantic inversion), lapsed (the row's
+// date — planned_date, or due_date for queued — in the past AND no non-deleted
+// entries of ANY status on the activity subtree, A3), and the claim spectrum
+// for WG rows (D-13-15). Superseded/cancelled rows are history and never
+// appear (D-13-08).
+//
+// Selection: scheduled rows (planned_date set) with planned_date within
+// [periodStart, periodEnd]; queued rows (planned_date NULL) with due_date
+// within the period OR no due_date at all — the queue is part of the plan
+// view. employeeID nil = all employees (org-scoped). Ordering (D-13-06,
+// probe DIR-01): planned_date ASC NULLS LAST, priority ASC NULLS LAST
+// (lower = higher), due_date ASC NULLS LAST, created_at ASC — stable for
+// equal keys.
+func (r *DirectionRepository) ListPlan(ctx context.Context, orgID uuid.UUID, employeeID *uuid.UUID, periodStart, periodEnd time.Time) ([]directiondomain.PlanRow, error) {
+	query := `SELECT ` + directionColumns + ` FROM direction
+	 WHERE org_id = $1 AND status IN ('draft','active')`
+	args := []any{orgID}
+	n := 1
+	if employeeID != nil {
+		n++
+		query += fmt.Sprintf(" AND directed_to = $%d", n)
+		args = append(args, *employeeID)
+	}
+	n++
+	query += fmt.Sprintf(` AND (
+		(planned_date IS NOT NULL AND planned_date >= $%d::date AND planned_date <= $%d::date)
+		OR (planned_date IS NULL AND (due_date IS NULL OR (due_date >= $%d::date AND due_date <= $%d::date)))
+	)
+	 ORDER BY planned_date ASC NULLS LAST, priority ASC NULLS LAST, due_date ASC NULLS LAST, created_at ASC`,
+		n, n+1, n, n+1)
+	args = append(args, periodStart, periodEnd)
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, wrapPGError(err, "list plan rows")
+	}
+	defer rows.Close()
+
+	var directions []directiondomain.Direction
+	for rows.Next() {
+		d, err := scanDirectionRow(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan plan row: %w", err)
+		}
+		directions = append(directions, *d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate plan rows: %w", err)
+	}
+
+	// Derived states, one pass per DISTINCT activity of the returned rows.
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	type activityDerived struct{ done, anyEntries bool }
+	derived := make(map[uuid.UUID]activityDerived)
+	for _, d := range directions {
+		if _, ok := derived[d.ActivityID]; ok {
+			continue
+		}
+		done, err := terminalActivitySubtree(ctx, r.pool, d.ActivityID)
+		if err != nil {
+			return nil, err
+		}
+		anyEntries, err := hasAnyEntries(ctx, r.pool, d.ActivityID)
+		if err != nil {
+			return nil, err
+		}
+		derived[d.ActivityID] = activityDerived{done: done, anyEntries: anyEntries}
+	}
+
+	planRows := make([]directiondomain.PlanRow, 0, len(directions))
+	for _, d := range directions {
+		pr := directiondomain.PlanRow{Direction: d}
+		ad := derived[d.ActivityID]
+		pr.Done = ad.done
+		effectiveDate := d.PlannedDate
+		if effectiveDate == nil {
+			effectiveDate = d.DueDate
+		}
+		pr.Lapsed = effectiveDate != nil && effectiveDate.Before(today) && !ad.anyEntries
+		// Claim spectrum for WG rows only (D-13-15).
+		if d.WgID != nil {
+			cs, err := claimSpectrum(ctx, r.pool, d.ID, d.EstHours)
+			if err != nil {
+				return nil, err
+			}
+			pr.ClaimState = cs
+		}
+		planRows = append(planRows, pr)
+	}
+	return planRows, nil
+}
