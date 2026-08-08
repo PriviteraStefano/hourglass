@@ -264,17 +264,31 @@ func TestService_Create(t *testing.T) {
 		require.ErrorIs(t, err, directiondomain.ErrInvalidTarget)
 	})
 
-	t.Run("est_hours 0 / negative / sub-cent rejected with ErrInvalidHours", func(t *testing.T) {
+	t.Run("est_hours 0 / negative / sub-cent / absurd rejected with ErrInvalidHours", func(t *testing.T) {
 		f := setup(t)
 		f.seedActivity(orgID, activityID)
 		f.seedMembership(actorID, orgID, &selfPlanned, nil, nil)
 
-		for _, hours := range []float64{0, -1, 1.005} {
+		for _, hours := range []float64{0, -1, 1.005, 1000000} {
 			req := baseReq()
 			req.EstHours = &hours
 			_, _, err := f.svc.Create(ctx, orgID, actorID, "employee", req)
 			require.ErrorIs(t, err, directiondomain.ErrInvalidHours, "est_hours %v must be rejected", hours)
 		}
+	})
+
+	t.Run("est_hours at the DECIMAL(8,2) ceiling succeeds (WR-02)", func(t *testing.T) {
+		f := setup(t)
+		f.seedActivity(orgID, activityID)
+		f.seedMembership(actorID, orgID, &selfPlanned, nil, nil)
+
+		req := baseReq()
+		req.EstHours = ptrF(999999.99)
+		created, _, err := f.svc.Create(ctx, orgID, actorID, "employee", req)
+		require.NoError(t, err)
+		require.NotNil(t, created)
+		require.NotNil(t, created.EstHours)
+		assert.Equal(t, 999999.99, *created.EstHours, "the ceiling value stays insertable (no 22003)")
 	})
 
 	t.Run("scheduled row without est_hours rejected with ErrInvalidHours", func(t *testing.T) {
@@ -670,9 +684,9 @@ func TestService_Claim(t *testing.T) {
 		require.ErrorIs(t, err, directiondomain.ErrNotWgMember)
 	})
 
-	t.Run("claim with non-positive or sub-cent hours is rejected with ErrInvalidHours", func(t *testing.T) {
+	t.Run("claim with non-positive, sub-cent or absurd hours is rejected with ErrInvalidHours", func(t *testing.T) {
 		f := setup(t)
-		for _, hours := range []float64{0, -2, 1.005} {
+		for _, hours := range []float64{0, -2, 1.005, 1000000} {
 			wgRowID := seedWgRow(f, directiondomain.StatusActive)
 			f.seedWgMember(*f.dirRepo.Directions[wgRowID].WgID, actorID)
 			_, err := f.svc.Claim(ctx, orgID, actorID, "employee", wgRowID, hours)

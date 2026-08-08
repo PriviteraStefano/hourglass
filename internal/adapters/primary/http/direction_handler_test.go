@@ -276,6 +276,14 @@ func TestDirectionHandler(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, status, "malformed body must be 400: %v", env)
 	})
 
+	t.Run("est_hours above the DECIMAL(8,2) ceiling is 400, never 500 (WR-02)", func(t *testing.T) {
+		f.loginUser(t, ownerEmail, "TestPass123!")
+		status, env := h.doJSON(t, http.MethodPost, "/direction",
+			fmt.Sprintf(`{"directed_to":"%s","activity_id":"%s","planned_date":"2026-08-13T00:00:00Z","est_hours":1000000}`,
+				ownerUUID.String(), activityID))
+		require.Equal(t, http.StatusBadRequest, status, "absurd est_hours must map to 400 (WR-02): %v", env)
+	})
+
 	t.Run("claims on a user-targeted row are 404 — no panic, connection stays up (CR-01)", func(t *testing.T) {
 		f.loginUser(t, ownerEmail, "TestPass123!")
 		status, env := h.doJSON(t, http.MethodPost, "/direction",
