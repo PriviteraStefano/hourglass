@@ -36,7 +36,7 @@ Requirements for milestone v0.2 — Ontology Extension (Origins, Tickets & Cover
 - [ ] **DIR-01**: User (manager or self) can create direction rows: per-day storage always, `est_hours` per row, partial days first-class, no intra-day ordering; mode derived from `planned_date` (set → scheduled, null → queued with priority + `due_date`); self-direction (`directed_by == directed_to`) needs no approval (D-R, D-S, D-W, D-AA)
 - [ ] **DIR-02**: Direction lifecycle: draft → active → superseded / cancelled; `done`, `lapsed`, `claimed` are derived, never stored; `supersedes_id` chains replanning; audit-first via BE-012 (D-V)
 - [ ] **DIR-03**: WG-direction exists: queued-only rows target a WG; a member's claim creates a user-targeted row via `origin_direction_id`; "claimed" is derived (D-T)
-- [ ] **DIR-04**: Org planning policy is org-configurable: deadline date, horizon (day/week/month), per-employee mode (manager-planned vs self-planned); soft policy (block vs nag) decided in UI prototyping (D-X)
+- [x] **DIR-04**: Org planning policy is org-configurable: deadline date, horizon (day/week/month), per-employee mode (manager-planned vs self-planned); soft policy (block vs nag) decided in UI prototyping (D-X)
 - [ ] **DIR-05**: Scheduler reads P-008 absence windows + employment validity and warns at plan time ("away 10–21 Aug") — never blocks (D-Y)
 - [ ] **DIR-06**: Direction-coverage read-model: planned hours per employee per period vs capacity, plus uncovered-day surfacing — per employee / unit / WG (D-Z)
 
@@ -142,7 +142,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DIR-01 | Phase 13 | Pending |
 | DIR-02 | Phase 13 | Pending |
 | DIR-03 | Phase 13 | Pending |
-| DIR-04 | Phase 13 | Pending |
+| DIR-04 | Phase 13 | Complete |
 | DIR-05 | Phase 13 | Pending |
 | DIR-06 | Phase 13 | Pending |
 | AVAIL-01 | Phase 14 | Pending |

@@ -5,15 +5,15 @@ milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 13
 current_phase_name: direction-backend-the-plan-plane
 status: executing
-stopped_at: Completed 13-03-PLAN.md
-last_updated: "2026-08-08T12:37:09.560Z"
+stopped_at: Completed 13-04-PLAN.md
+last_updated: "2026-08-08T13:27:59.479Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 13 execution resumed (wave continue)
 progress:
   total_phases: 16
   completed_phases: 2
   total_plans: 23
-  completed_plans: 17
+  completed_plans: 19
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 ## Current Position
 
 Phase: 13 (direction-backend-the-plan-plane) — EXECUTING
-Plan: 4 of 8
+Plan: 5 of 8
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 13 execution resumed (wave continue)
 
@@ -100,6 +100,7 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 13]: 021 header comment avoids the literal word "unique" — grep-based acceptance checks for an absent UNIQUE constraint would trip on the comment; the DDL carries none — 021 header comment avoids the literal word "unique" — grep-based acceptance checks for an absent UNIQUE constraint would trip on the comment; the DDL carries none
 - [Phase 13-direction-backend-the-plan-plane]: [Phase 13-02]: ADR-P-015 + ADR-BE-018 drafted into the vault: direction plane (derived mode, per-day rows, supersede chain, derived states, WG claim model, org policy stored-not-enforced, P-008 warning overlay, coverage read-model, origin fallback) + BE encoding (status/derived/claim-spectrum/audit/settings vocabularies, claim lock FOR UPDATE + in-tx Sigma in cents over draft|active claim rows -> 409 ErrClaimOverBudget, supersede-of-claim-row inheritance, est_hours DECIMAL(8,2), settings CRUD literal routes, 8 assumption pins) — [Phase 13-02]: vocab/mechanism pins recorded BEFORE code lands — domain constants (13-03) and audit inserts (13-05) compile against them; three assumption-delta decisions recorded (identity no-change / fallback add-alongside / policy promoted)
 - [Phase ?]: MockDirectionRepo absence-window stub field is named Windows (setter SetAbsenceWindows): the plan's literal field name AbsenceWindows collides with the port method AbsenceWindows — Go forbids a field and method with the same name on one type; the pinned setter surface is unchanged (13-07/13-08 tests seed via the setters)
+- [Phase 13]: ResolvePlanningMode precedence: membership override -> org default -> manager_planned fallback; invalid mode in either position is ErrInvalidValue (D-13-19) — Seam for 13-07 mode gate; JSONB store unvalidated so corruption surfaces, never silently defaults
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -158,11 +159,12 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 13 P13-01 | 18 min | 2 tasks | 6 files |
 | Phase 13-direction-backend-the-plan-plane P13-02 | 4min | 2 tasks | 4 files |
 | Phase 13 P13-03 | 42 min | 3 tasks | 8 files |
+| Phase 13 P04 | 40min | 3 tasks | 10 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T12:37:09.328Z
-Stopped at: Completed 13-03-PLAN.md
+Last session: 2026-08-08T13:27:59.465Z
+Stopped at: Completed 13-04-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
