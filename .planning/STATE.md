@@ -4,15 +4,15 @@ milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 13
 current_phase_name: direction-backend-the-plan-plane
-status: verifying
+status: executing
 stopped_at: Completed 13-08-PLAN.md
-last_updated: "2026-08-08T14:48:08.296Z"
+last_updated: "2026-08-08T15:39:19.083Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 13 execution resumed (wave continue)
 progress:
   total_phases: 16
   completed_phases: 2
-  total_plans: 23
+  total_plans: 25
   completed_plans: 22
   percent: 13
 ---
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 Phase: 13 (direction-backend-the-plan-plane) — EXECUTING
 Plan: 8 of 8
-Status: Phase complete — ready for verification
+Status: Ready to execute
 Last activity: 2026-08-08 — Phase 13 execution resumed (wave continue)
 
 ## Accumulated Context
