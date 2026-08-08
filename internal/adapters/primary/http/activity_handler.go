@@ -34,16 +34,17 @@ func NewActivityHandler(service *activitysvc.Service, repo ports.ActivityReposit
 }
 
 type CreateActivityRequest struct {
-	ParentID        string                 `json:"parent_id"`
-	Name            string                 `json:"name"`
-	Description     string                 `json:"description"`
-	Kind            string                 `json:"kind"`
-	ContractID      string                 `json:"contract_id"`
-	GovernanceModel models.GovernanceModel `json:"governance_model"`
-	IsShared        bool                   `json:"is_shared"`
-	Billable        *bool                  `json:"billable"`
-	BudgetAmount    *float64               `json:"budget_amount"`
-	IsActive        *bool                  `json:"is_active"`
+	ParentID          string                 `json:"parent_id"`
+	Name              string                 `json:"name"`
+	Description       string                 `json:"description"`
+	Kind              string                 `json:"kind"`
+	ContractID        string                 `json:"contract_id"`
+	BeneficiaryUnitID *string                `json:"beneficiary_unit_id,omitempty"`
+	GovernanceModel   models.GovernanceModel `json:"governance_model"`
+	IsShared          bool                   `json:"is_shared"`
+	Billable          *bool                  `json:"billable"`
+	BudgetAmount      *float64               `json:"budget_amount"`
+	IsActive          *bool                  `json:"is_active"`
 
 	// Origin axis (ADR-P-013): strings parsed to pointers; empty → nil.
 	OriginType string `json:"origin_type"`
@@ -55,16 +56,17 @@ type CreateActivityRequest struct {
 }
 
 type UpdateActivityRequest struct {
-	ParentID        *string                 `json:"parent_id,omitempty"`
-	Name            *string                 `json:"name,omitempty"`
-	Description     *string                 `json:"description,omitempty"`
-	Kind            *string                 `json:"kind,omitempty"`
-	ContractID      *string                 `json:"contract_id,omitempty"`
-	GovernanceModel *models.GovernanceModel `json:"governance_model,omitempty"`
-	IsShared        *bool                   `json:"is_shared,omitempty"`
-	Billable        *bool                   `json:"billable,omitempty"`
-	BudgetAmount    *float64                `json:"budget_amount,omitempty"`
-	IsActive        *bool                   `json:"is_active,omitempty"`
+	ParentID          *string                 `json:"parent_id,omitempty"`
+	Name              *string                 `json:"name,omitempty"`
+	Description       *string                 `json:"description,omitempty"`
+	Kind              *string                 `json:"kind,omitempty"`
+	ContractID        *string                 `json:"contract_id,omitempty"`
+	BeneficiaryUnitID *string                 `json:"beneficiary_unit_id,omitempty"`
+	GovernanceModel   *models.GovernanceModel `json:"governance_model,omitempty"`
+	IsShared          *bool                   `json:"is_shared,omitempty"`
+	Billable          *bool                   `json:"billable,omitempty"`
+	BudgetAmount      *float64                `json:"budget_amount,omitempty"`
+	IsActive          *bool                   `json:"is_active,omitempty"`
 
 	// Origin fields present so the service immutability guard can reject
 	// them (D-03); the repo UPDATE never touches origin columns.
@@ -179,6 +181,16 @@ func (h *ActivityHandler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		svcReq.ContractID = &cid
+	}
+	// COV-05: beneficiary_unit_id is optional and editable; malformed UUIDs
+	// are rejected at the boundary (same shape as contract_id).
+	if req.BeneficiaryUnitID != nil {
+		bid, err := uuid.Parse(*req.BeneficiaryUnitID)
+		if err != nil {
+			api.RespondWithError(w, http.StatusBadRequest, "invalid beneficiary_unit_id")
+			return
+		}
+		svcReq.BeneficiaryUnitID = &bid
 	}
 
 	// Origin payload (ADR-P-013): empty strings parse to nil; malformed
@@ -319,6 +331,16 @@ func (h *ActivityHandler) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		svcReq.ContractID = &cid
+	}
+	// COV-05: editable non-origin field — parse at the boundary, reject
+	// malformed UUIDs with a 400.
+	if req.BeneficiaryUnitID != nil {
+		bid, err := uuid.Parse(*req.BeneficiaryUnitID)
+		if err != nil {
+			api.RespondWithError(w, http.StatusBadRequest, "invalid beneficiary_unit_id")
+			return
+		}
+		svcReq.BeneficiaryUnitID = &bid
 	}
 	if req.Name != nil {
 		svcReq.Name = *req.Name

@@ -488,6 +488,8 @@ type MockActivityRepo struct {
 	HasActiveTimeEntriesFn     func(ctx context.Context, activityID uuid.UUID) (bool, bool, error)
 	HasActiveExpensesFn        func(ctx context.Context, activityID uuid.UUID) (bool, error)
 	ResolveCommercialContextFn func(ctx context.Context, activityID uuid.UUID) (*activitydomain.CommercialContext, error)
+	ResolveBeneficiaryUnitFn   func(ctx context.Context, activityID uuid.UUID) (*uuid.UUID, error)
+	ResolveFundingContextFn    func(ctx context.Context, activityID uuid.UUID) (*activitydomain.FundingContext, error)
 	GetAncestryFn              func(ctx context.Context, id uuid.UUID) ([]activitydomain.Activity, error)
 }
 
@@ -527,6 +529,7 @@ func (m *MockActivityRepo) Create(ctx context.Context, orgID uuid.UUID, req *act
 	a.Description = req.Description
 	a.Kind = req.Kind
 	a.ContractID = req.ContractID
+	a.BeneficiaryUnitID = req.BeneficiaryUnitID
 	a.GovernanceModel = req.GovernanceModel
 	a.CreatedByOrgID = orgID
 	a.IsShared = req.IsShared
@@ -561,6 +564,10 @@ func (m *MockActivityRepo) Update(ctx context.Context, orgID, activityID uuid.UU
 	}
 	if req.IsActive != nil {
 		a.IsActive = *req.IsActive
+	}
+	// COV-05: beneficiary unit is editable on Update (not an origin ref).
+	if req.BeneficiaryUnitID != nil {
+		a.BeneficiaryUnitID = req.BeneficiaryUnitID
 	}
 	return a, nil
 }
@@ -677,6 +684,66 @@ func (m *MockActivityRepo) ResolveCommercialContext(ctx context.Context, activit
 	return nil, nil
 }
 
+// ResolveBeneficiaryUnit derives the nearest ancestor with a beneficiary
+// unit from the stored activities (mirrors the adapter's recursive walk,
+// COV-05). Override with ResolveBeneficiaryUnitFn when a test needs a
+// non-derived answer.
+func (m *MockActivityRepo) ResolveBeneficiaryUnit(ctx context.Context, activityID uuid.UUID) (*uuid.UUID, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.ResolveBeneficiaryUnitFn != nil {
+		return m.ResolveBeneficiaryUnitFn(ctx, activityID)
+	}
+	seen := map[uuid.UUID]bool{}
+	cur := activityID
+	for cur != uuid.Nil && !seen[cur] {
+		seen[cur] = true
+		a, ok := m.Activities[cur]
+		if !ok {
+			return nil, nil
+		}
+		if a.BeneficiaryUnitID != nil {
+			return a.BeneficiaryUnitID, nil
+		}
+		if a.ParentID == nil {
+			break
+		}
+		cur = *a.ParentID
+	}
+	return nil, nil
+}
+
+// ResolveFundingContext derives the nearest ancestor with a contract from
+// the stored activities (mirrors the adapter's recursive walk + contracts
+// JOIN). ContractType/SoldHours are nil in the mock — the postgres adapter
+// supplies them via the JOIN; override with ResolveFundingContextFn when a
+// test needs the full D-04 input.
+func (m *MockActivityRepo) ResolveFundingContext(ctx context.Context, activityID uuid.UUID) (*activitydomain.FundingContext, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.ResolveFundingContextFn != nil {
+		return m.ResolveFundingContextFn(ctx, activityID)
+	}
+	seen := map[uuid.UUID]bool{}
+	cur := activityID
+	for cur != uuid.Nil && !seen[cur] {
+		seen[cur] = true
+		a, ok := m.Activities[cur]
+		if !ok {
+			return nil, nil
+		}
+		if a.ContractID != nil {
+			return &activitydomain.FundingContext{ContractID: a.ContractID}, nil
+		}
+		if a.ParentID == nil {
+			break
+		}
+		cur = *a.ParentID
+	}
+	return nil, nil
+}
+
+// ResolveBillability returns the configured billability (default false).
 func (m *MockActivityRepo) ResolveBillability(ctx context.Context, activityID uuid.UUID) (*bool, error) {
 	f := false
 	return &f, nil

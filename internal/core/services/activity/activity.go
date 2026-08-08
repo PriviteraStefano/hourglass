@@ -108,6 +108,19 @@ func (s *Service) Create(ctx context.Context, role string, orgID, userID uuid.UU
 		}
 	}
 
+	// COV-05/T-12-06: a beneficiary unit is accepted only when it belongs to
+	// the same org — a cross-org unit id is rejected (fetch-and-compare via
+	// unitRepo.GetByID, the same pattern the expense service applies).
+	if req.BeneficiaryUnitID != nil {
+		u, err := s.unitRepo.GetByID(ctx, req.BeneficiaryUnitID.String())
+		if err != nil {
+			return nil, err
+		}
+		if u.OrgID != orgID {
+			return nil, activitydomain.ErrInvalidRequest
+		}
+	}
+
 	if err := s.validateOrigin(ctx, role, orgID, userID, req); err != nil {
 		return nil, err
 	}
@@ -223,6 +236,19 @@ func (s *Service) Update(ctx context.Context, role string, orgID, activityID uui
 	if req.ParentID != nil {
 		if err := s.validateParent(ctx, orgID, activityID, req.ParentID); err != nil {
 			return nil, err
+		}
+	}
+	// COV-05/T-12-06: same-org fetch-and-compare on the update path too —
+	// the beneficiary unit is editable (unlike origin refs) so every write
+	// re-validates it. hasOriginFields stays untouched: this is not an
+	// origin ref.
+	if req.BeneficiaryUnitID != nil {
+		u, err := s.unitRepo.GetByID(ctx, req.BeneficiaryUnitID.String())
+		if err != nil {
+			return nil, err
+		}
+		if u.OrgID != orgID {
+			return nil, activitydomain.ErrInvalidRequest
 		}
 	}
 	return s.activityRepo.Update(ctx, orgID, activityID, req)
