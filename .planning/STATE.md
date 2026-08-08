@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
-current_phase: 13
-current_phase_name: direction-backend-the-plan-plane
-status: verifying
+current_phase: 14
+current_phase_name: Availability Backend — Absences + Capacity
+status: planning
 stopped_at: Completed 13-10-PLAN.md
-last_updated: "2026-08-08T16:04:23.253Z"
+last_updated: "2026-08-08T16:21:37.873Z"
 last_activity: 2026-08-08
-last_activity_desc: Phase 13 execution started
+last_activity_desc: Phase 13 complete, transitioned to Phase 14
 progress:
   total_phases: 16
   completed_phases: 3
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 ## Current Position
 
-Phase: 13 (direction-backend-the-plan-plane) — EXECUTING
-Plan: 2 of 2
-Status: Phase complete — ready for verification
-Last activity: 2026-08-08 — Phase 13 execution started
+Phase: 14 — Availability Backend — Absences + Capacity
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-08 — Phase 13 complete, transitioned to Phase 14
 
 ## Accumulated Context
 
