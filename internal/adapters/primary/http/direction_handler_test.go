@@ -276,6 +276,24 @@ func TestDirectionHandler(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, status, "malformed body must be 400: %v", env)
 	})
 
+	t.Run("claims on a user-targeted row are 404 — no panic, connection stays up (CR-01)", func(t *testing.T) {
+		f.loginUser(t, ownerEmail, "TestPass123!")
+		status, env := h.doJSON(t, http.MethodPost, "/direction",
+			fmt.Sprintf(`{"directed_to":"%s","activity_id":"%s","planned_date":"2026-08-12T00:00:00Z","est_hours":4}`,
+				ownerUUID.String(), activityID))
+		require.Equal(t, http.StatusOK, status, "self-direction create: %v", env)
+		rowID := mustParse(t, env["data"].(map[string]any)["row"].(map[string]any)["id"].(string))
+
+		status, env = h.doJSON(t, http.MethodPost, "/direction/"+rowID.String()+"/activate", "")
+		require.Equal(t, http.StatusOK, status, "activate self-direction row: %v", env)
+
+		// The guard sits after the status fast-fail, so the 404 contract
+		// needs an ACTIVE user-targeted row (the deref path).
+		status, env = h.doJSON(t, http.MethodPost, "/direction/claims",
+			fmt.Sprintf(`{"wg_row_id":"%s","est_hours":4}`, rowID.String()))
+		require.Equal(t, http.StatusNotFound, status, "claim on a user-targeted row must be 404 (CR-01): %v", env)
+	})
+
 	// ---------------------------------------------------------------------
 	// (c) Supersede chain (D-13-08) — incl. claim-row superseding
 	// ---------------------------------------------------------------------

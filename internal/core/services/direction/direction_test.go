@@ -680,6 +680,25 @@ func TestService_Claim(t *testing.T) {
 		}
 	})
 
+	t.Run("claim on a user-targeted row returns ErrDirectionNotFound without touching ListMembers (CR-01)", func(t *testing.T) {
+		f := setup(t)
+		rowID := uuid.New()
+		f.seedDirectionRow(&directiondomain.Direction{
+			ID: rowID, OrgID: orgID, DirectedBy: uuid.New(), DirectedTo: &actorID,
+			ActivityID: activityID, Status: directiondomain.StatusActive,
+		})
+		trap := false
+		f.wgRepo.ListMembersFn = func(ctx context.Context, wgID uuid.UUID) ([]wgdomain.WorkingGroupMember, error) {
+			trap = true
+			return nil, nil
+		}
+
+		_, err := f.svc.Claim(ctx, orgID, actorID, "employee", rowID, 4.0)
+		require.ErrorIs(t, err, directiondomain.ErrDirectionNotFound,
+			"user-targeted rows are not claimable — the repo wg_id IS NOT NULL predicate mirrored at the service (CR-01)")
+		assert.False(t, trap, "ListMembers must never be reached for a user-targeted row (no deref path remains)")
+	})
+
 	t.Run("claim on a missing row surfaces ErrDirectionNotFound", func(t *testing.T) {
 		f := setup(t)
 		_, err := f.svc.Claim(ctx, orgID, actorID, "employee", uuid.New(), 4.0)
