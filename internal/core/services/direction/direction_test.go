@@ -747,3 +747,347 @@ func TestService_Unclaim(t *testing.T) {
 		assert.Equal(t, directiondomain.StatusCancelled, unclaimed.Status)
 	})
 }
+
+// ---------------------------------------------------------------------------
+// TestService_Warnings — Task 3: the pure warning overlay (D-13-28/30/31)
+// ---------------------------------------------------------------------------
+
+func TestService_Warnings(t *testing.T) {
+	orgID := uuid.New()
+	empID := uuid.New()
+	ctx := context.Background()
+	period := func() (time.Time, time.Time) { return day(2026, 8, 10), day(2026, 8, 21) }
+
+	t.Run("invalid employee (valid_until in the past) gets one invalid warning", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, ptrT(day(2026, 7, 31)))
+		start, end := period()
+
+		warnings, err := f.svc.computeWarnings(ctx, orgID, []uuid.UUID{empID}, start, end)
+		require.NoError(t, err)
+		require.Len(t, warnings, 1, "the day-less invalid message dedupes to one warning per employee")
+		assert.Equal(t, directiondomain.WarningInvalid, warnings[0].Type)
+		assert.Equal(t, "Outside validity period", warnings[0].Message)
+	})
+
+	t.Run("full absence window emits the contiguous away range (en dash)", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, nil)
+		f.dirRepo.SetAbsenceWindows([]directiondomain.AbsenceWindow{{
+			EmployeeID: empID, Kind: "holiday",
+			StartsOn: day(2026, 8, 10), EndsOn: day(2026, 8, 21),
+		}})
+		start, end := period()
+
+		warnings, err := f.svc.computeWarnings(ctx, orgID, []uuid.UUID{empID}, start, end)
+		require.NoError(t, err)
+		require.Len(t, warnings, 1)
+		assert.Equal(t, directiondomain.WarningAway, warnings[0].Type)
+		assert.Equal(t, "Away 10 Aug\u201321 Aug", warnings[0].Message)
+	})
+
+	t.Run("single-day full absence emits the away day message", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, nil)
+		f.dirRepo.SetAbsenceWindows([]directiondomain.AbsenceWindow{{
+			EmployeeID: empID, Kind: "unavailable",
+			StartsOn: day(2026, 8, 14), EndsOn: day(2026, 8, 14),
+		}})
+		start, end := day(2026, 8, 14), day(2026, 8, 14)
+
+		warnings, err := f.svc.computeWarnings(ctx, orgID, []uuid.UUID{empID}, start, end)
+		require.NoError(t, err)
+		require.Len(t, warnings, 1)
+		assert.Equal(t, directiondomain.WarningAway, warnings[0].Type)
+		assert.Equal(t, "Away 14 Aug", warnings[0].Message)
+	})
+
+	t.Run("partial-day permit emits the partial message", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, nil)
+		hours := 4.0
+		f.dirRepo.SetAbsenceWindows([]directiondomain.AbsenceWindow{{
+			EmployeeID: empID, Kind: "permit",
+			StartsOn: day(2026, 8, 14), EndsOn: day(2026, 8, 14), Hours: &hours,
+		}})
+		start, end := day(2026, 8, 14), day(2026, 8, 14)
+
+		warnings, err := f.svc.computeWarnings(ctx, orgID, []uuid.UUID{empID}, start, end)
+		require.NoError(t, err)
+		require.Len(t, warnings, 1)
+		assert.Equal(t, directiondomain.WarningPartial, warnings[0].Type)
+		assert.Equal(t, "Partial 14 Aug", warnings[0].Message)
+	})
+
+	t.Run("planned above capacity emits the over-capacity message", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, nil)
+		f.dirRepo.SetCoverageRows([]directiondomain.CoverageRow{{
+			EmployeeID: empID, Date: day(2026, 8, 16), Capacity: 8, Planned: 10, Gap: -2,
+		}})
+		start, end := day(2026, 8, 16), day(2026, 8, 16)
+
+		warnings, err := f.svc.computeWarnings(ctx, orgID, []uuid.UUID{empID}, start, end)
+		require.NoError(t, err)
+		require.Len(t, warnings, 1)
+		assert.Equal(t, directiondomain.WarningOverCapacity, warnings[0].Type)
+		assert.Equal(t, "Over capacity 16 Aug", warnings[0].Message)
+	})
+
+	t.Run("validity boundary days are valid (inclusive)", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(empID, orgID, nil, ptrT(day(2026, 8, 14)), nil)
+		start, end := day(2026, 8, 14), day(2026, 8, 14)
+
+		warnings, err := f.svc.computeWarnings(ctx, orgID, []uuid.UUID{empID}, start, end)
+		require.NoError(t, err)
+		assert.Empty(t, warnings)
+	})
+
+	t.Run("no absence/coverage data yields no warnings", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, nil)
+		start, end := period()
+
+		warnings, err := f.svc.computeWarnings(ctx, orgID, []uuid.UUID{empID}, start, end)
+		require.NoError(t, err)
+		assert.Empty(t, warnings)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestService_ListPlan — Task 3: the self-or-manager read gate + warnings
+// ---------------------------------------------------------------------------
+
+func TestService_ListPlan(t *testing.T) {
+	orgID := uuid.New()
+	actorID := uuid.New()
+	otherID := uuid.New()
+	ctx := context.Background()
+	start, end := day(2026, 8, 10), day(2026, 8, 21)
+
+	t.Run("non-manager without an employee filter is forbidden (org-wide view is manager-only)", func(t *testing.T) {
+		f := setup(t)
+		trap := false
+		f.dirRepo.ListPlanFn = func(ctx context.Context, orgID uuid.UUID, employeeID *uuid.UUID, ps, pe time.Time) ([]directiondomain.PlanRow, error) {
+			trap = true
+			return nil, nil
+		}
+
+		_, err := f.svc.ListPlan(ctx, orgID, actorID, "employee", nil, start, end)
+		require.ErrorIs(t, err, directiondomain.ErrForbidden)
+		assert.False(t, trap, "the repo must not be reached for a forbidden view")
+	})
+
+	t.Run("non-manager requesting another employee's plan is forbidden", func(t *testing.T) {
+		f := setup(t)
+		_, err := f.svc.ListPlan(ctx, orgID, actorID, "employee", &otherID, start, end)
+		require.ErrorIs(t, err, directiondomain.ErrForbidden)
+	})
+
+	t.Run("non-manager reading their own plan succeeds with rows + warnings", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(actorID, orgID, nil, nil, nil)
+		f.dirRepo.SetPlanRows([]directiondomain.PlanRow{{Direction: directiondomain.Direction{
+			ID: uuid.New(), OrgID: orgID, DirectedBy: uuid.New(), DirectedTo: &actorID,
+			ActivityID: uuid.New(), Status: directiondomain.StatusDraft,
+		}}})
+		f.dirRepo.SetAbsenceWindows([]directiondomain.AbsenceWindow{{
+			EmployeeID: actorID, Kind: "unavailable",
+			StartsOn: day(2026, 8, 14), EndsOn: day(2026, 8, 14),
+		}})
+
+		resp, err := f.svc.ListPlan(ctx, orgID, actorID, "employee", &actorID, start, end)
+		require.NoError(t, err)
+		require.Len(t, resp.Rows, 1)
+		require.Len(t, resp.Warnings, 1)
+		assert.Equal(t, directiondomain.WarningAway, resp.Warnings[0].Type)
+		assert.Equal(t, "Away 14 Aug", resp.Warnings[0].Message)
+	})
+
+	t.Run("manager reads the org-wide plan", func(t *testing.T) {
+		f := setup(t)
+		f.dirRepo.SetPlanRows([]directiondomain.PlanRow{{Direction: directiondomain.Direction{
+			ID: uuid.New(), OrgID: orgID, DirectedBy: uuid.New(), DirectedTo: &otherID,
+			ActivityID: uuid.New(), Status: directiondomain.StatusActive,
+		}}})
+
+		resp, err := f.svc.ListPlan(ctx, orgID, actorID, "manager", nil, start, end)
+		require.NoError(t, err)
+		require.Len(t, resp.Rows, 1)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestService_Coverage — Task 3: scope resolution + gates + exclusions +
+// totals (D-13-25/26/31)
+// ---------------------------------------------------------------------------
+
+func TestService_Coverage(t *testing.T) {
+	orgID := uuid.New()
+	actorID := uuid.New()
+	empID := uuid.New()
+	otherID := uuid.New()
+	ctx := context.Background()
+	start, end := day(2026, 8, 10), day(2026, 8, 21)
+
+	t.Run("unknown scope is rejected with ErrInvalidRequest (D-13-25)", func(t *testing.T) {
+		f := setup(t)
+		_, err := f.svc.Coverage(ctx, orgID, actorID, "manager", "team", "x", start, end)
+		require.ErrorIs(t, err, directiondomain.ErrInvalidRequest)
+	})
+
+	t.Run("unit scope is manager-only", func(t *testing.T) {
+		f := setup(t)
+		_, err := f.svc.Coverage(ctx, orgID, actorID, "employee", "unit", "u1", start, end)
+		require.ErrorIs(t, err, directiondomain.ErrForbidden)
+
+		_, err = f.svc.Coverage(ctx, orgID, actorID, "manager", "unit", "u1", start, end)
+		require.ErrorIs(t, err, directiondomain.ErrInvalidRequest, "unknown unit ids must not 500 (GetDescendants/ListMembers degrade)")
+	})
+
+	t.Run("wg scope is manager-only", func(t *testing.T) {
+		f := setup(t)
+		_, err := f.svc.Coverage(ctx, orgID, actorID, "employee", "wg", "w1", start, end)
+		require.ErrorIs(t, err, directiondomain.ErrForbidden)
+
+		_, err = f.svc.Coverage(ctx, orgID, actorID, "manager", "wg", "w1", start, end)
+		require.ErrorIs(t, err, directiondomain.ErrInvalidRequest, "unparseable scope ids must not 500")
+	})
+
+	t.Run("employee scope as non-manager requires scope_id == actorID (self-view)", func(t *testing.T) {
+		f := setup(t)
+		_, err := f.svc.Coverage(ctx, orgID, actorID, "employee", "employee", otherID.String(), start, end)
+		require.ErrorIs(t, err, directiondomain.ErrForbidden)
+
+		resp, err := f.svc.Coverage(ctx, orgID, actorID, "employee", "employee", actorID.String(), start, end)
+		require.NoError(t, err)
+		assert.Empty(t, resp.Rows)
+		assert.Empty(t, resp.Totals)
+	})
+
+	t.Run("employee scope resolves to the one employee", func(t *testing.T) {
+		f := setup(t)
+		var captured [][]uuid.UUID
+		f.dirRepo.CoverageFn = func(ctx context.Context, orgID uuid.UUID, employeeIDs []uuid.UUID, ps, pe time.Time) ([]directiondomain.CoverageRow, error) {
+			captured = append(captured, employeeIDs)
+			return nil, nil
+		}
+
+		_, err := f.svc.Coverage(ctx, orgID, actorID, "manager", "employee", empID.String(), start, end)
+		require.NoError(t, err)
+		require.NotEmpty(t, captured)
+		require.Equal(t, []uuid.UUID{empID}, captured[0])
+	})
+
+	t.Run("validity-outside employee gets the invalid warning and is dropped from the repo call (D-13-31)", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, ptrT(day(2026, 7, 31)))
+		var captured [][]uuid.UUID
+		f.dirRepo.CoverageFn = func(ctx context.Context, orgID uuid.UUID, employeeIDs []uuid.UUID, ps, pe time.Time) ([]directiondomain.CoverageRow, error) {
+			captured = append(captured, employeeIDs)
+			return nil, nil
+		}
+
+		resp, err := f.svc.Coverage(ctx, orgID, actorID, "manager", "employee", empID.String(), start, end)
+		require.NoError(t, err)
+		require.NotEmpty(t, captured)
+		assert.NotContains(t, captured[0], empID, "the invalid employee must not reach the coverage repo call")
+		require.Len(t, resp.Warnings, 1)
+		assert.Equal(t, directiondomain.WarningInvalid, resp.Warnings[0].Type)
+		assert.Equal(t, "Outside validity period", resp.Warnings[0].Message)
+	})
+
+	t.Run("unit scope aggregates the unit and descendant members (A6)", func(t *testing.T) {
+		f := setup(t)
+		unitID, descID := "unit-1", "unit-2"
+		f.unitRepo.Descendants[unitID] = []unit.Unit{{ID: descID, OrgID: orgID, Name: "desc"}}
+		f.seedUnitMember(unitID, empID, true)
+		f.seedUnitMember(descID, otherID, true)
+		var captured [][]uuid.UUID
+		f.dirRepo.CoverageFn = func(ctx context.Context, orgID uuid.UUID, employeeIDs []uuid.UUID, ps, pe time.Time) ([]directiondomain.CoverageRow, error) {
+			captured = append(captured, employeeIDs)
+			return nil, nil
+		}
+
+		_, err := f.svc.Coverage(ctx, orgID, actorID, "manager", "unit", unitID, start, end)
+		require.NoError(t, err)
+		require.NotEmpty(t, captured)
+		require.ElementsMatch(t, []uuid.UUID{empID, otherID}, captured[0])
+	})
+
+	t.Run("wg scope aggregates the WG members", func(t *testing.T) {
+		f := setup(t)
+		wgID := uuid.New()
+		f.seedWgMember(wgID, empID)
+		f.seedWgMember(wgID, otherID)
+		var captured [][]uuid.UUID
+		f.dirRepo.CoverageFn = func(ctx context.Context, orgID uuid.UUID, employeeIDs []uuid.UUID, ps, pe time.Time) ([]directiondomain.CoverageRow, error) {
+			captured = append(captured, employeeIDs)
+			return nil, nil
+		}
+
+		_, err := f.svc.Coverage(ctx, orgID, actorID, "manager", "wg", wgID.String(), start, end)
+		require.NoError(t, err)
+		require.NotEmpty(t, captured)
+		require.ElementsMatch(t, []uuid.UUID{empID, otherID}, captured[0])
+	})
+
+	t.Run("away day (capacity 0) is excluded from uncovered rows but the warning is present (D-13-26)", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, nil)
+		f.dirRepo.SetCoverageRows([]directiondomain.CoverageRow{
+			{EmployeeID: empID, Date: day(2026, 8, 16), Capacity: 8, Planned: 6, Gap: 2},
+			{EmployeeID: empID, Date: day(2026, 8, 17), Capacity: 0, Planned: 0, Gap: 0},
+		})
+		f.dirRepo.SetAbsenceWindows([]directiondomain.AbsenceWindow{{
+			EmployeeID: empID, Kind: "unavailable",
+			StartsOn: day(2026, 8, 17), EndsOn: day(2026, 8, 17),
+		}})
+
+		resp, err := f.svc.Coverage(ctx, orgID, actorID, "manager", "employee", empID.String(), start, end)
+		require.NoError(t, err)
+		require.Len(t, resp.Rows, 1, "the fully-absent day is excluded from uncovered surfacing")
+		assert.Equal(t, day(2026, 8, 16), resp.Rows[0].Date)
+		require.Len(t, resp.Warnings, 1)
+		assert.Equal(t, directiondomain.WarningAway, resp.Warnings[0].Type)
+		assert.Equal(t, "Away 17 Aug", resp.Warnings[0].Message)
+	})
+
+	t.Run("over-capacity day is surfaced with the warning and counted in totals", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, nil)
+		f.dirRepo.SetCoverageRows([]directiondomain.CoverageRow{
+			{EmployeeID: empID, Date: day(2026, 8, 16), Capacity: 8, Planned: 6, Gap: 2},
+			{EmployeeID: empID, Date: day(2026, 8, 17), Capacity: 8, Planned: 10, Gap: -2},
+		})
+
+		resp, err := f.svc.Coverage(ctx, orgID, actorID, "manager", "employee", empID.String(), start, end)
+		require.NoError(t, err)
+		require.Len(t, resp.Rows, 2)
+		require.Len(t, resp.Warnings, 1)
+		assert.Equal(t, directiondomain.WarningOverCapacity, resp.Warnings[0].Type)
+		assert.Equal(t, "Over capacity 17 Aug", resp.Warnings[0].Message)
+		require.Len(t, resp.Totals, 1)
+		assert.Equal(t, empID, resp.Totals[0].EmployeeID)
+		assert.Equal(t, 16.0, resp.Totals[0].Planned)
+		assert.Equal(t, 16.0, resp.Totals[0].Capacity)
+		assert.Equal(t, 0.0, resp.Totals[0].Gap)
+	})
+
+	t.Run("partial-day permit surfaces the partial warning", func(t *testing.T) {
+		f := setup(t)
+		f.seedMembership(empID, orgID, nil, nil, nil)
+		hours := 4.0
+		f.dirRepo.SetAbsenceWindows([]directiondomain.AbsenceWindow{{
+			EmployeeID: empID, Kind: "permit",
+			StartsOn: day(2026, 8, 14), EndsOn: day(2026, 8, 14), Hours: &hours,
+		}})
+
+		resp, err := f.svc.Coverage(ctx, orgID, actorID, "manager", "employee", empID.String(), start, end)
+		require.NoError(t, err)
+		require.Len(t, resp.Warnings, 1)
+		assert.Equal(t, directiondomain.WarningPartial, resp.Warnings[0].Type)
+		assert.Equal(t, "Partial 14 Aug", resp.Warnings[0].Message)
+	})
+}
