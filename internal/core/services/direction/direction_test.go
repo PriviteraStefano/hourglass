@@ -341,12 +341,12 @@ func TestService_Create(t *testing.T) {
 		assert.Equal(t, wgID, *created.WgID)
 	})
 
-	t.Run("WG row routed by the role-gated manager when no WG anchors the anchored activity", func(t *testing.T) {
+	t.Run("WG row whose activity is the anchor succeeds via the approver set (A10)", func(t *testing.T) {
 		f := setup(t)
 		f.seedActivity(orgID, activityID)
 		wgID := uuid.New()
-		// WG anchored to the activity itself; no OTHER WG resolves — the
-		// routing call on the anchored activity finds this WG.
+		// WG anchored to the row's activity itself; the routing call on the
+		// anchored activity resolves this WG's manager + delegates.
 		f.seedWG(wgID, orgID, activityID, actorID)
 
 		req := baseReq()
