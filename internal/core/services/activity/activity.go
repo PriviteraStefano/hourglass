@@ -230,6 +230,22 @@ func (s *Service) Update(ctx context.Context, role string, orgID, activityID uui
 	if existing.CreatedByOrgID != orgID {
 		return nil, activitydomain.ErrForbidden
 	}
+	// WR-04: mirror Create — the kind must exist in the org's catalog (D-2)
+	// and the governance model must be valid. Without this, a bogus
+	// kind/governance_model was written straight through to the UPDATE and
+	// surfaced as a raw FK (23503) / CHECK (23514) 500 at the handler.
+	if req.Kind != "" {
+		exists, err := s.activityRepo.KindExists(ctx, orgID, string(req.Kind))
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, activitydomain.ErrInvalidRequest
+		}
+	}
+	if req.GovernanceModel != "" && !req.GovernanceModel.IsValid() {
+		return nil, activitydomain.ErrInvalidRequest
+	}
 	if hasOriginFields(req) {
 		return nil, activitydomain.ErrOriginImmutable
 	}
