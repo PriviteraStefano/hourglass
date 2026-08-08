@@ -107,13 +107,13 @@ Plans:
   7. Coverage references a polymorphic entry (`entry_type` + `entry_id`); validation rejects non-`time` types in v0.2 (COV-05)
   8. Beneficiary unit is nullable on activities, inherited downward like contract_id; absorption sources default from it (COV-05)
 
-**Plans**: 1/7 plans executed
+**Plans**: 3/7 plans executed
 Plans:
 **Wave 1**
 
 - [x] 12-01-PLAN.md — Migrations 018-020 (beneficiary unit, allocation ledger, snapshots) + teardown + cycle tests (3VL + mandatory-field CHECK assertions)
 - [x] 12-02-PLAN.md — ADRs: ADR-P-012 accepted + ADR-BE-017 coverage encoding (D-K cost, pinned OQ resolutions) + index updates
-- [ ] 12-04-PLAN.md — Coverage domain + ports.CoverageRepository + MockCoverageRepo (contracts all plans compile against)
+- [x] 12-04-PLAN.md — Coverage domain + ports.CoverageRepository + MockCoverageRepo (contracts all plans compile against)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -349,7 +349,7 @@ Plans:
 | 9. Activity Ont. | v0.1 | 8/8 | Complete | 2026-07-31 |
 | 10. IA Impl. | v0.1 | 6/6 | Complete | 2026-08-01 |
 | 11. Foundations | v0.2 | 8/8 | Complete    | 2026-08-07 |
-| 12. Coverage Backend | v0.2 | 1/7 | In Progress|  |
+| 12. Coverage Backend | v0.2 | 3/7 | In Progress|  |
 | 13. Direction Backend | v0.2 | 0/TBD | Not started | - |
 | 14. Availability Backend | v0.2 | 0/TBD | Not started | - |
 | 15. UX Foundation | v0.2 | 0/TBD | Not started | - |

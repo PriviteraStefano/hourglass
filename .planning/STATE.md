@@ -5,15 +5,15 @@ milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 12
 current_phase_name: Coverage Backend — The Allocation Loop
 status: executing
-stopped_at: Completed 12-02-PLAN.md
-last_updated: "2026-08-08T09:04:32.990Z"
+stopped_at: Completed 12-04-PLAN.md
+last_updated: "2026-08-08T09:09:27.405Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 16
   completed_phases: 1
   total_plans: 15
-  completed_plans: 10
+  completed_plans: 11
   percent: 6
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 ## Current Position
 
 Phase: 12 (Coverage Backend — The Allocation Loop) — EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 12 execution started
 
@@ -137,11 +137,12 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 11 P08 | 3h 50m | 2 tasks | 6 files |
 | Phase 12 P01 | 6min | 2 tasks | 11 files |
 | Phase 12-coverage-backend-the-allocation-loop P02 | 4min | 2 tasks | 4 files |
+| Phase 12-coverage-backend-the-allocation-loop P04 | 3min | 2 tasks | 5 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T09:04:25.716Z
-Stopped at: Completed 12-02-PLAN.md
+Last session: 2026-08-08T09:09:27.392Z
+Stopped at: Completed 12-04-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
