@@ -373,9 +373,20 @@ func (r *CoverageRepository) ClosePeriod(ctx context.Context, orgID uuid.UUID, p
 	// 4. One coverage_snapshot_rows row per current allocation of each frozen
 	// entry — the resolved contract/unit refs ARE the chain snapshot (D-11),
 	// copied as stored; employee_id + entry_date come from the entry row.
-	// Entries with no allocations simply contribute no rows.
+	// Entries with no allocations simply contribute no rows. Allocations are
+	// read into memory first (a pgx rows cursor cannot be interleaved with
+	// Exec on the same tx connection).
 	rowCount := 0
+	type frozenAlloc struct {
+		sourceType    string
+		contractID    *uuid.UUID
+		unitID        *uuid.UUID
+		hours         float64
+		reason        *string
+		justification *string
+	}
 	for _, e := range entries {
+		var frozen []frozenAlloc
 		allocRows, err := tx.Query(ctx,
 			`SELECT source_type, contract_id, unit_id, hours, reason, justification
 			 FROM coverage_allocations
@@ -384,30 +395,31 @@ func (r *CoverageRepository) ClosePeriod(ctx context.Context, orgID uuid.UUID, p
 			return nil, wrapPGError(err, "read allocations for close freeze")
 		}
 		for allocRows.Next() {
-			var sourceType string
-			var contractID, unitID *uuid.UUID
-			var hours float64
-			var reason, justification *string
-			if err := allocRows.Scan(&sourceType, &contractID, &unitID, &hours, &reason, &justification); err != nil {
+			var fa frozenAlloc
+			if err := allocRows.Scan(&fa.sourceType, &fa.contractID, &fa.unitID,
+				&fa.hours, &fa.reason, &fa.justification); err != nil {
 				allocRows.Close()
 				return nil, fmt.Errorf("scan allocation for close freeze: %w", err)
 			}
-			if _, err := tx.Exec(ctx,
-				`INSERT INTO coverage_snapshot_rows (id, close_id, entry_id, employee_id, entry_date, activity_id,
-					source_type, contract_id, unit_id, hours, reason, justification)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-				uuid.New(), closeID, e.id, e.employeeID, e.entryDate, e.activityID,
-				sourceType, contractID, unitID, hours, reason, justification); err != nil {
-				allocRows.Close()
-				return nil, wrapPGError(err, "insert snapshot row")
-			}
-			rowCount++
+			frozen = append(frozen, fa)
 		}
 		if err := allocRows.Err(); err != nil {
 			allocRows.Close()
 			return nil, fmt.Errorf("iterate allocations for close freeze: %w", err)
 		}
 		allocRows.Close()
+
+		for _, fa := range frozen {
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO coverage_snapshot_rows (id, close_id, entry_id, employee_id, entry_date, activity_id,
+					source_type, contract_id, unit_id, hours, reason, justification)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+				uuid.New(), closeID, e.id, e.employeeID, e.entryDate, e.activityID,
+				fa.sourceType, fa.contractID, fa.unitID, fa.hours, fa.reason, fa.justification); err != nil {
+				return nil, wrapPGError(err, "insert snapshot row")
+			}
+			rowCount++
+		}
 	}
 
 	// 5. Audit row in the SAME tx (BE-016, T-12-16): the close is not durable

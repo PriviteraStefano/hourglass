@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -437,3 +438,420 @@ func TestCoverageRepository_BucketBalance_AdoptionAwareVisibility(t *testing.T) 
 
 // ptr returns a pointer to v (test helper for nullable seed columns).
 func ptr[T any](v T) *T { return &v }
+
+// coverageCloseAudit builds the 'coverage-closed' audit row the service passes
+// to ClosePeriod — addressed to the CLOSE (entity_id = closeID), the
+// close-level event the org's audit stream records (A7: per-entry history
+// reads entity_id = entry id, so the close event is read by close, not entry).
+func coverageCloseAudit(orgID, closeID, actorID uuid.UUID, payload map[string]any, now time.Time) *audit.AuditLog {
+	return &audit.AuditLog{
+		OrgID:      orgID,
+		EntityType: coverage.AuditEntityCoverageAllocation,
+		EntityID:   closeID,
+		Action:     coverage.AuditActionCoverageClosed,
+		ActorID:    &actorID,
+		Payload:    payload,
+		CreatedAt:  now,
+	}
+}
+
+// day returns a UTC time at noon on the given date — date-part comparisons
+// (entry_date::date BETWEEN ...) are insensitive to the time component.
+func day(y int, m time.Month, d int) time.Time {
+	return time.Date(y, m, d, 12, 0, 0, 0, time.UTC)
+}
+
+// ---------------------------------------------------------------------------
+// ClosePeriod — the frozen snapshot tx (D-10/D-11/D-12, T-12-15).
+// ---------------------------------------------------------------------------
+
+func TestCoverageRepository_ClosePeriod_FreezesSnapshot(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewCoverageRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	userID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	contractID := seedCoverageContract(t, pool, orgID, "Budget", "project", ptr(100.0), false, now)
+
+	entryID := seedTimeEntry(t, pool, orgID, userID, activityID, unitID, 8, day(2026, 7, 10), "approved", now)
+
+	// Original set: 5h + 3h (the state "as reported").
+	_, err := repo.ReplaceAllocations(ctx, orgID, entryID,
+		[]*coverage.CoverageAllocation{contractAllocation(5, contractID), contractAllocation(3, contractID)},
+		coverageSetAudit(orgID, entryID, userID, nil, now))
+	require.NoError(t, err)
+
+	closeID := uuid.New()
+	closePayload := map[string]any{"period_start": "2026-07-01", "period_end": "2026-07-31", "rows": 2}
+	pc, err := repo.ClosePeriod(ctx, orgID, day(2026, 7, 1), day(2026, 7, 31), closeID, userID,
+		coverageCloseAudit(orgID, closeID, userID, closePayload, now))
+	require.NoError(t, err)
+	require.Equal(t, closeID, pc.ID)
+	require.Equal(t, orgID, pc.OrgID)
+	require.Len(t, pc.Rows, 2)
+	require.Equal(t, 8.0, pc.Rows[0].Hours+pc.Rows[1].Hours)
+
+	// Later replace changes the LIVE set to 2h + 6h — the snapshot must be
+	// untouched (COV-04, Pitfall 7: reports read the copy).
+	_, err = repo.ReplaceAllocations(ctx, orgID, entryID,
+		[]*coverage.CoverageAllocation{contractAllocation(2, contractID), contractAllocation(6, contractID)},
+		coverageSetAudit(orgID, entryID, userID, nil, now))
+	require.NoError(t, err)
+
+	snap, err := repo.GetSnapshot(ctx, orgID, closeID)
+	require.NoError(t, err)
+	require.Len(t, snap.Rows, 2, "the frozen rows survive the later replace")
+	hours := map[float64]bool{}
+	for _, row := range snap.Rows {
+		require.Equal(t, entryID, row.EntryID)
+		require.Equal(t, userID, row.EmployeeID)
+		require.Equal(t, activityID, row.ActivityID)
+		require.Equal(t, contractID, *row.ContractID)
+		require.Equal(t, coverage.SourceTypeContract, row.SourceType)
+		hours[row.Hours] = true
+	}
+	require.True(t, hours[5], "the ORIGINAL 5h allocation must be frozen")
+	require.True(t, hours[3], "the ORIGINAL 3h allocation must be frozen")
+
+	// The live set is the new one.
+	live, err := repo.ListByEntry(ctx, orgID, entryID)
+	require.NoError(t, err)
+	require.Equal(t, 8.0, sumHours(t, live))
+	liveHours := map[float64]bool{}
+	for _, a := range live {
+		liveHours[a.Hours] = true
+	}
+	require.True(t, liveHours[2])
+	require.True(t, liveHours[6])
+}
+
+func TestCoverageRepository_ClosePeriod_Scope(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewCoverageRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	userID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	contractID := seedCoverageContract(t, pool, orgID, "Budget", "project", ptr(100.0), false, now)
+
+	inside := seedTimeEntry(t, pool, orgID, userID, activityID, unitID, 4, day(2026, 7, 15), "approved", now)
+	boundary := seedTimeEntry(t, pool, orgID, userID, activityID, unitID, 2, day(2026, 7, 31), "approved", now)
+	outside := seedTimeEntry(t, pool, orgID, userID, activityID, unitID, 6, day(2026, 6, 15), "approved", now)
+
+	for _, e := range []uuid.UUID{inside, boundary, outside} {
+		hours := 4.0
+		switch e {
+		case boundary:
+			hours = 2.0
+		case outside:
+			hours = 6.0
+		}
+		_, err := repo.ReplaceAllocations(ctx, orgID, e,
+			[]*coverage.CoverageAllocation{contractAllocation(hours/2, contractID), contractAllocation(hours/2, contractID)},
+			coverageSetAudit(orgID, e, userID, nil, now))
+		require.NoError(t, err)
+	}
+
+	closeID := uuid.New()
+	pc, err := repo.ClosePeriod(ctx, orgID, day(2026, 7, 1), day(2026, 7, 31), closeID, userID,
+		coverageCloseAudit(orgID, closeID, userID, nil, now))
+	require.NoError(t, err)
+
+	// Inclusive bounds on both ends, date-cast: inside AND boundary frozen;
+	// outside not.
+	require.Len(t, pc.Rows, 4, "inside + boundary entries each contribute 2 rows")
+	frozenEntries := map[uuid.UUID]int{}
+	for _, row := range pc.Rows {
+		frozenEntries[row.EntryID]++
+	}
+	require.Equal(t, 2, frozenEntries[inside])
+	require.Equal(t, 2, frozenEntries[boundary])
+	_, hasOutside := frozenEntries[outside]
+	require.False(t, hasOutside, "entries outside the period are not frozen")
+}
+
+func TestCoverageRepository_ClosePeriod_DuplicateRejected(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewCoverageRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	userID := seedUser(t, pool, now)
+
+	// Existing close [2026-07-01, 2026-07-05].
+	closeID := uuid.New()
+	_, err := repo.ClosePeriod(ctx, orgID, day(2026, 7, 1), day(2026, 7, 5), closeID, userID,
+		coverageCloseAudit(orgID, closeID, userID, nil, now))
+	require.NoError(t, err)
+
+	// Identical bounds → rejected.
+	_, err = repo.ClosePeriod(ctx, orgID, day(2026, 7, 1), day(2026, 7, 5), uuid.New(), userID,
+		coverageCloseAudit(orgID, uuid.New(), userID, nil, now))
+	require.ErrorIs(t, err, coverage.ErrPeriodAlreadyClosed)
+
+	// Partial overlap [07-04, 07-10] vs existing [07-01, 07-05] → shares the
+	// [07-04, 07-05] overlap → rejected (A6: inclusive-overlap, not just
+	// identical bounds).
+	_, err = repo.ClosePeriod(ctx, orgID, day(2026, 7, 4), day(2026, 7, 10), uuid.New(), userID,
+		coverageCloseAudit(orgID, uuid.New(), userID, nil, now))
+	require.ErrorIs(t, err, coverage.ErrPeriodAlreadyClosed)
+
+	// A close fully contained in the existing period → rejected.
+	_, err = repo.ClosePeriod(ctx, orgID, day(2026, 7, 2), day(2026, 7, 3), uuid.New(), userID,
+		coverageCloseAudit(orgID, uuid.New(), userID, nil, now))
+	require.ErrorIs(t, err, coverage.ErrPeriodAlreadyClosed)
+
+	// A close WIDER than the existing period → rejected (the predicate catches
+	// [06-01, 08-31] which contains [07-01, 07-05]).
+	_, err = repo.ClosePeriod(ctx, orgID, day(2026, 6, 1), day(2026, 8, 31), uuid.New(), userID,
+		coverageCloseAudit(orgID, uuid.New(), userID, nil, now))
+	require.ErrorIs(t, err, coverage.ErrPeriodAlreadyClosed)
+
+	// Later non-overlapping period → succeeds.
+	close2 := uuid.New()
+	pc, err := repo.ClosePeriod(ctx, orgID, day(2026, 7, 11), day(2026, 7, 15), close2, userID,
+		coverageCloseAudit(orgID, close2, userID, nil, now))
+	require.NoError(t, err)
+	require.Equal(t, close2, pc.ID)
+	require.Empty(t, pc.Rows)
+}
+
+func TestCoverageRepository_ClosePeriod_Audit(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewCoverageRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	userID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	contractID := seedCoverageContract(t, pool, orgID, "Budget", "project", ptr(100.0), false, now)
+
+	entryID := seedTimeEntry(t, pool, orgID, userID, activityID, unitID, 4, day(2026, 7, 10), "approved", now)
+	_, err := repo.ReplaceAllocations(ctx, orgID, entryID,
+		[]*coverage.CoverageAllocation{contractAllocation(4, contractID)},
+		coverageSetAudit(orgID, entryID, userID, nil, now))
+	require.NoError(t, err)
+
+	closeID := uuid.New()
+	_, err = repo.ClosePeriod(ctx, orgID, day(2026, 7, 1), day(2026, 7, 31), closeID, userID,
+		coverageCloseAudit(orgID, closeID, userID, map[string]any{"period_start": "2026-07-01", "period_end": "2026-07-31", "rows": 1}, now))
+	require.NoError(t, err)
+
+	// Exactly one coverage-closed audit row, payload present (in-tx write,
+	// T-12-16).
+	var action, payload string
+	err = pool.QueryRow(ctx,
+		`SELECT action, COALESCE(payload::text, '') FROM audit_logs
+		 WHERE entity_type = 'coverage_allocation' AND entity_id = $1`,
+		closeID).Scan(&action, &payload)
+	require.NoError(t, err)
+	require.Equal(t, coverage.AuditActionCoverageClosed, action)
+	require.Contains(t, payload, "period_start")
+	require.Contains(t, payload, "rows")
+
+	var closeAudits int
+	err = pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM audit_logs WHERE entity_type = 'coverage_allocation' AND entity_id = $1 AND action = 'coverage-closed'`,
+		closeID).Scan(&closeAudits)
+	require.NoError(t, err)
+	require.Equal(t, 1, closeAudits)
+}
+
+// ---------------------------------------------------------------------------
+// GetSnapshot
+// ---------------------------------------------------------------------------
+
+func TestCoverageRepository_GetSnapshot_NotFoundAndScope(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewCoverageRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	userID := seedUser(t, pool, now)
+
+	closeID := uuid.New()
+	_, err := repo.ClosePeriod(ctx, orgID, day(2026, 7, 1), day(2026, 7, 31), closeID, userID,
+		coverageCloseAudit(orgID, closeID, userID, nil, now))
+	require.NoError(t, err)
+
+	// Missing close → ErrNotFound.
+	_, err = repo.GetSnapshot(ctx, orgID, uuid.New())
+	require.ErrorIs(t, err, coverage.ErrNotFound)
+
+	// Cross-org close → ErrNotFound (the org_id filter fails the same way).
+	otherOrg := seedOrg(t, pool, now)
+	_, err = repo.GetSnapshot(ctx, otherOrg, closeID)
+	require.ErrorIs(t, err, coverage.ErrNotFound)
+}
+
+// ---------------------------------------------------------------------------
+// ListHistory — the entry-scoped audit stream (A7).
+// ---------------------------------------------------------------------------
+
+func TestCoverageRepository_ListHistory(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewCoverageRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	userID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	contractID := seedCoverageContract(t, pool, orgID, "Budget", "project", ptr(100.0), false, now)
+
+	entryID := seedTimeEntry(t, pool, orgID, userID, activityID, unitID, 8, day(2026, 7, 10), "approved", now)
+	_, err := repo.ReplaceAllocations(ctx, orgID, entryID,
+		[]*coverage.CoverageAllocation{contractAllocation(8, contractID)},
+		coverageSetAudit(orgID, entryID, userID, map[string]any{"set": "first"}, now))
+	require.NoError(t, err)
+	_, err = repo.ReplaceAllocations(ctx, orgID, entryID,
+		[]*coverage.CoverageAllocation{contractAllocation(5, contractID), contractAllocation(3, contractID)},
+		coverageSetAudit(orgID, entryID, userID, map[string]any{"set": "second"}, now.Add(time.Second)))
+	require.NoError(t, err)
+
+	// A close of a period containing the entry (its event is addressed to the
+	// CLOSE, not the entry — A7 entry history covers allocation changes only).
+	closeID := uuid.New()
+	_, err = repo.ClosePeriod(ctx, orgID, day(2026, 7, 1), day(2026, 7, 31), closeID, userID,
+		coverageCloseAudit(orgID, closeID, userID, nil, now))
+	require.NoError(t, err)
+
+	history, err := repo.ListHistory(ctx, orgID, entryID)
+	require.NoError(t, err)
+	require.Len(t, history, 2, "two allocations-set events for the entry, in created order")
+	require.Equal(t, coverage.AuditActionAllocationsSet, history[0].Action)
+	require.Equal(t, coverage.AuditActionAllocationsSet, history[1].Action)
+	require.Equal(t, entryID, history[0].EntityID)
+	require.Equal(t, coverage.AuditEntityCoverageAllocation, history[0].EntityType)
+	require.Equal(t, "first", history[0].Payload["set"])
+	require.Equal(t, "second", history[1].Payload["set"])
+
+	// The close event is NOT in the entry history (entity_id = closeID) — it
+	// lives in the org stream addressed to the close; read via the close id.
+	closeHistory, err := repo.ListHistory(ctx, orgID, closeID)
+	require.NoError(t, err)
+	require.Len(t, closeHistory, 1)
+	require.Equal(t, coverage.AuditActionCoverageClosed, closeHistory[0].Action)
+
+	// Cross-org reads return nothing.
+	otherOrg := seedOrg(t, pool, now)
+	other, err := repo.ListHistory(ctx, otherOrg, entryID)
+	require.NoError(t, err)
+	require.Empty(t, other)
+}
+
+// ---------------------------------------------------------------------------
+// CR-01 gap-closure battery — concurrent replace-sets on one entry (T-12-14).
+// Mirrors the ticket battery shape (start channel + buffered results channel):
+// no wall-clock timing decides anything, only the FOR UPDATE entry-row lock.
+// ---------------------------------------------------------------------------
+
+func TestCoverageReplace_Concurrent(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewCoverageRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	userID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	contractID := seedCoverageContract(t, pool, orgID, "Budget", "project", ptr(100.0), false, now)
+	entryID := seedTimeEntry(t, pool, orgID, userID, activityID, unitID, 8, now, "approved", now)
+
+	t.Run("two valid sets — invariant holds after both commit", func(t *testing.T) {
+		setA := []*coverage.CoverageAllocation{
+			contractAllocation(5, contractID),
+			contractAllocation(3, contractID),
+		}
+		setB := []*coverage.CoverageAllocation{contractAllocation(8, contractID)}
+
+		start := make(chan struct{})
+		results := make(chan error, 2)
+		go func() {
+			<-start
+			_, err := repo.ReplaceAllocations(ctx, orgID, entryID, setA, coverageSetAudit(orgID, entryID, userID, nil, now))
+			results <- err
+		}()
+		go func() {
+			<-start
+			_, err := repo.ReplaceAllocations(ctx, orgID, entryID, setB, coverageSetAudit(orgID, entryID, userID, nil, now))
+			results <- err
+		}()
+		close(start)
+
+		for i := 0; i < 2; i++ {
+			require.NoError(t, <-results)
+		}
+
+		// The committed state is exactly one of the two sets — Σ == hours
+		// either way; a violating state must never be observable.
+		stored, err := repo.ListByEntry(ctx, orgID, entryID)
+		require.NoError(t, err)
+		require.Equal(t, 8.0, sumHours(t, stored), "no violating state may ever be observable")
+	})
+
+	t.Run("mismatched set racing a valid set — the invalid never commits", func(t *testing.T) {
+		bad := []*coverage.CoverageAllocation{contractAllocation(7, contractID)} // Σ=7 ≠ 8
+		good := []*coverage.CoverageAllocation{contractAllocation(8, contractID)}
+
+		start := make(chan struct{})
+		results := make(chan error, 2)
+		go func() {
+			<-start
+			_, err := repo.ReplaceAllocations(ctx, orgID, entryID, bad, coverageSetAudit(orgID, entryID, userID, nil, now))
+			results <- err
+		}()
+		go func() {
+			<-start
+			_, err := repo.ReplaceAllocations(ctx, orgID, entryID, good, coverageSetAudit(orgID, entryID, userID, nil, now))
+			results <- err
+		}()
+		close(start)
+
+		successes, mismatches := 0, 0
+		for i := 0; i < 2; i++ {
+			err := <-results
+			switch {
+			case err == nil:
+				successes++
+			case errors.Is(err, coverage.ErrAllocationSumMismatch):
+				mismatches++
+			default:
+				t.Fatalf("unexpected race outcome: %v", err)
+			}
+		}
+		require.Equal(t, 1, successes, "exactly one replace must win the race")
+		require.Equal(t, 1, mismatches, "the invalid set must fail the in-tx Σ re-check")
+
+		stored, err := repo.ListByEntry(ctx, orgID, entryID)
+		require.NoError(t, err)
+		require.Equal(t, 8.0, sumHours(t, stored), "no violating state may ever be observable")
+	})
+}
