@@ -228,6 +228,47 @@ func TestService_Create(t *testing.T) {
 			"self_planned mode: only the employee creates their own rows (strict reading A9)")
 	})
 
+	t.Run("directed_to with no membership rejected with ErrInvalidRequest (WR-01)", func(t *testing.T) {
+		f := setup(t)
+		f.seedActivity(orgID, activityID)
+		// No seedMembership for the foreign user → GetMembership returns
+		// (nil, nil) — cross-org refs die BEFORE the mode gate (ADR-BE-018
+		// §Security, T-13g-04).
+		foreignID := uuid.New()
+
+		req := baseReq()
+		req.DirectedTo = &foreignID
+		_, _, err := f.svc.Create(ctx, orgID, actorID, "employee", req)
+		require.ErrorIs(t, err, directiondomain.ErrInvalidRequest,
+			"a user with no membership in the org must be rejected before any mode/routing decision (WR-01)")
+	})
+
+	t.Run("directed_to with an inactive membership rejected with ErrInvalidRequest (WR-01)", func(t *testing.T) {
+		f := setup(t)
+		f.seedActivity(orgID, activityID)
+		f.seedMembership(colleagueID, orgID, &selfPlanned, nil, nil)
+		f.orgRepo.Memberships[colleagueID.String()+":"+orgID.String()].IsActive = false
+
+		req := baseReq()
+		req.DirectedTo = &colleagueID
+		_, _, err := f.svc.Create(ctx, orgID, actorID, "employee", req)
+		require.ErrorIs(t, err, directiondomain.ErrInvalidRequest,
+			"an inactive member must not be a direction target (WR-01)")
+	})
+
+	t.Run("directed_to who is an ACTIVE member passes through to the mode gate (WR-01)", func(t *testing.T) {
+		f := setup(t)
+		f.seedActivity(orgID, activityID)
+		f.seedMembership(actorID, orgID, &selfPlanned, nil, nil)
+
+		// The membership gate must be a pass-through for active members: the
+		// self_planned self-direction still succeeds (no routing call, D-S) —
+		// the gate never rejects a same-org active target.
+		created, _, err := f.svc.Create(ctx, orgID, actorID, "employee", baseReq())
+		require.NoError(t, err)
+		require.NotNil(t, created)
+	})
+
 	t.Run("manager creates for an employee in manager_planned mode via the approver set", func(t *testing.T) {
 		f := setup(t)
 		f.seedActivity(orgID, activityID)

@@ -186,6 +186,24 @@ func TestDirectionHandler(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, status, "cross-employee create in manager_planned mode: %v", env)
 	})
 
+	t.Run("directed_to a user outside the org is 400 (WR-01)", func(t *testing.T) {
+		// A user whose ONLY membership is in a different org: the fixture org
+		// has no membership row for them → GetMembership returns (nil, nil) →
+		// the service rejects before any mode/routing decision (T-13g-04).
+		foreignEmail := "dir-xorg-" + uuid.New().String()[:8] + "@test.com"
+		f.registerAndLogin(t, foreignEmail, "dirxorg", "TestPass123!", "OtherOrg_"+uuid.New().String()[:8])
+		var foreignID string
+		require.NoError(t, h.f.Pool.QueryRow(context.Background(),
+			`SELECT id FROM users WHERE email = $1`, foreignEmail).Scan(&foreignID))
+
+		f.loginUser(t, ownerEmail, "TestPass123!")
+
+		status, env := h.doJSON(t, http.MethodPost, "/direction",
+			fmt.Sprintf(`{"directed_to":"%s","activity_id":"%s","planned_date":"2026-08-11T00:00:00Z","est_hours":4}`,
+				foreignID, activityID))
+		require.Equal(t, http.StatusBadRequest, status, "cross-org directed_to must be 400 (WR-01): %v", env)
+	})
+
 	t.Run("wg claim by non-member is forbidden", func(t *testing.T) {
 		wgID := h.seedWorkingGroup(t, orgUUID, mustParse(t, activityID), ownerUUID)
 		h.seedWorkingGroupMember(t, orgUUID, wgID, ownerUUID)
