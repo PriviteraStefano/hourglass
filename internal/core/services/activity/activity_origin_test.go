@@ -37,7 +37,7 @@ func setupOrigin(t *testing.T) *originFixture {
 		wgRepo:       &testdata.MockWorkingGroupRepo{},
 	}
 	f.routingSvc = routing.NewService(f.wgRepo, f.activityRepo, f.unitRepo)
-	f.svc = NewService(f.activityRepo, &testdata.MockContractRepo{}, f.unitRepo, f.orgRepo, f.ticketRepo, f.routingSvc)
+	f.svc = NewService(f.activityRepo, &testdata.MockContractRepo{}, f.unitRepo, f.orgRepo, f.ticketRepo, &testdata.MockDirectionRepo{}, f.routingSvc)
 	return f
 }
 

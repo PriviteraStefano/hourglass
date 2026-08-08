@@ -32,7 +32,7 @@
 
 - [x] **Phase 11: Foundations** - Schema + origins + tickets backend: activity origin refs, sold_hours, ticket lifecycle with triage + dismissal guard; ADR-P-003 rev + P-013 (completed 2026-08-07)
 - [ ] **Phase 12: Coverage Backend** - Allocation ledger, funding sources, to-cover queue, proposals-on-read, one-step confirm, snapshot mechanics; ADR-P-012 + BE encoding
-- [ ] **Phase 13: Direction Backend** - Plan plane: direction entity, lifecycle, claim model, org policy, coverage read-model; ADR-P-015 + BE encoding
+- [x] **Phase 13: Direction Backend** - Plan plane: direction entity, lifecycle, claim model, org policy, coverage read-model; ADR-P-015 + BE encoding (completed 2026-08-08)
 - [ ] **Phase 14: Availability Backend** - Absence declare/confirm/reject + capacity queries over availability_windows
 - [ ] **Phase 15: UX Foundation** - Design tokens + shared components frozen; sketch loop contract established
 - [ ] **Phase 16: Availability Frontend** - Absence calendars + capacity grid in People pillar
@@ -144,30 +144,35 @@ Plans:
   7. Direction-coverage read-model returns planned hours vs capacity per employee/period with uncovered days surfaced, per employee / unit / WG (DIR-06)
   8. Origin fallback active: activities with empty origin refs resolve refs from the first direction record (FND-04 read path, additive)
 
-**Plans**: 8/8 plans
+**Plans**: 10 plans (8 executed + 2 gap-closure)
 Plans:
 **Wave 1**
 
-- [ ] 13-01-PLAN.md — Migrations 021/022 (direction rows + org_settings/planning_mode) + teardown + cycle tests (XOR/queued-only/est_hours/reason CHECKs, per-day identity assertion)
-- [ ] 13-02-PLAN.md — ADRs: ADR-P-015 (direction plane) + ADR-BE-018 (encoding: vocabularies, claim lock, assumption-delta decisions) + index
-- [ ] 13-03-PLAN.md — Direction + orgsettings domains, both ports, testdata mocks (contracts all plans compile against)
+- [x] 13-01-PLAN.md — Migrations 021/022 (direction rows + org_settings/planning_mode) + teardown + cycle tests (XOR/queued-only/est_hours/reason CHECKs, per-day identity assertion)
+- [x] 13-02-PLAN.md — ADRs: ADR-P-015 (direction plane) + ADR-BE-018 (encoding: vocabularies, claim lock, assumption-delta decisions) + index
+- [x] 13-03-PLAN.md — Direction + orgsettings domains, both ports, testdata mocks (contracts all plans compile against)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 13-04-PLAN.md — Org settings vertical (phase tracer, DIR-04): repo+service+handler+literal routes+wiring+membership extension+ResolvePlanningMode
-- [ ] 13-05-PLAN.md — Direction repo mutators: supersede-on-create tx, activate/cancel, claim Σ-lock tx, unclaim + concurrent battery
+- [x] 13-04-PLAN.md — Org settings vertical (phase tracer, DIR-04): repo+service+handler+literal routes+wiring+membership extension+ResolvePlanningMode
+- [x] 13-05-PLAN.md — Direction repo mutators: supersede-on-create tx, activate/cancel, claim Σ-lock tx, unclaim + concurrent battery
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 13-06-PLAN.md — Direction repo read-models: ListPlan (derived done/lapsed/claimed), Coverage, AbsenceWindows, FirstDirectionRefs
+- [x] 13-06-PLAN.md — Direction repo read-models: ListPlan (derived done/lapsed/claimed), Coverage, AbsenceWindows, FirstDirectionRefs
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 13-07-PLAN.md — Direction service: create gate chain (mode + routing + WG-scope), lifecycle/claim orchestration, warnings fn, coverage assembly
+- [x] 13-07-PLAN.md — Direction service: create gate chain (mode + routing + WG-scope), lifecycle/claim orchestration, warnings fn, coverage assembly
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 13-08-PLAN.md — Direction HTTP surface (7 routes) + wiring + origin fallback in the activity read path (FND-04)
+- [x] 13-08-PLAN.md — Direction HTTP surface (7 routes) + wiring + origin fallback in the activity read path (FND-04)
+
+**Wave 6 (gap closure)** *(blocked on Wave 5 completion — 13-VERIFICATION.md, 5 gaps)*
+
+- [x] 13-09-PLAN.md — Service boundary hardening: superseded audit row on supersede-on-create (CR-02/DIR-02), Claim nil-WgID guard 404-no-panic (CR-01/DIR-03), wholeCent DECIMAL(8,2) ceiling 400-not-500 (WR-02/D-13-03)
+- [x] 13-10-PLAN.md — ADR-BE-018 alignment: directed_to same-org active-membership gate (WR-01 §Security) + Unclaim writes 'unclaimed' audit action (WR-03 §3)
 
 ### Phase 14: Availability Backend — Absences + Capacity
 
@@ -373,7 +378,7 @@ Plans:
 | 10. IA Impl. | v0.1 | 6/6 | Complete | 2026-08-01 |
 | 11. Foundations | v0.2 | 8/8 | Complete    | 2026-08-07 |
 | 12. Coverage Backend | v0.2 | 7/7 | In Progress|  |
-| 13. Direction Backend | v0.2 | 0/TBD | Not started | - |
+| 13. Direction Backend | v0.2 | 10/10 | Complete    | 2026-08-08 |
 | 14. Availability Backend | v0.2 | 0/TBD | Not started | - |
 | 15. UX Foundation | v0.2 | 0/TBD | Not started | - |
 | 16. Availability FE | v0.2 | 0/TBD | Not started | - |

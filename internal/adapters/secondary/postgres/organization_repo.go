@@ -64,12 +64,14 @@ func (r *OrganizationRepository) GetByID(ctx context.Context, id uuid.UUID) (*au
 
 // GetMembership returns the membership for the given user and org, or nil (not found).
 func (r *OrganizationRepository) GetMembership(ctx context.Context, userID, orgID uuid.UUID) (*auth.OrganizationMembership, error) {
-	query := `SELECT id, user_id, organization_id, role, is_active, invited_by, invited_at, activated_at, created_at, updated_at
+	query := `SELECT id, user_id, organization_id, role, is_active, invited_by, invited_at, activated_at, created_at, updated_at,
+			valid_from, valid_until, planning_mode
 		FROM organization_memberships WHERE user_id = $1 AND organization_id = $2`
 	var m auth.OrganizationMembership
 	err := r.pool.QueryRow(ctx, query, userID, orgID).Scan(
 		&m.ID, &m.UserID, &m.OrganizationID, &m.Role, &m.IsActive,
 		&m.InvitedBy, &m.InvitedAt, &m.ActivatedAt, &m.CreatedAt, &m.UpdatedAt,
+		&m.ValidFrom, &m.ValidUntil, &m.PlanningMode,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

@@ -15,10 +15,12 @@ import (
 	contractsvc "github.com/stefanoprivitera/hourglass/internal/core/services/contract"
 	coveragesvc "github.com/stefanoprivitera/hourglass/internal/core/services/coverage"
 	customersvc "github.com/stefanoprivitera/hourglass/internal/core/services/customer"
+	directionsvc "github.com/stefanoprivitera/hourglass/internal/core/services/direction"
 	expsvc "github.com/stefanoprivitera/hourglass/internal/core/services/expense"
 	exportsvc "github.com/stefanoprivitera/hourglass/internal/core/services/export"
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
 	orgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/organization"
+	orgsettingssvc "github.com/stefanoprivitera/hourglass/internal/core/services/orgsettings"
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
@@ -143,7 +145,13 @@ func main() {
 	// proposal approval routed through the shared BE-014 machinery with a
 	// synchronous audit_logs write.
 	ticketRepo := postgres.NewTicketRepository(pool)
-	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, ticketRepo, routingSvc)
+	// directionRepo is the origin-FALLBACK seam (D-13-32..34, FND-04): the
+	// activity service derives manager-assignment refs from the first
+	// direction row when origin refs are empty (Pitfall 5 — one wiring task,
+	// compile-forced). The direction service itself is built below (it needs
+	// the orgsettings service, which is constructed after the activities).
+	directionRepo := postgres.NewDirectionRepository(pool)
+	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, ticketRepo, directionRepo, routingSvc)
 	activityHandler := http.NewActivityHandler(activityService, activityRepo)
 
 	// Tickets — the second capture layer (ADR-P-003 rev). The service takes
@@ -160,6 +168,23 @@ func main() {
 	coverageRepo := postgres.NewCoverageRepository(pool)
 	coverageService := coveragesvc.NewService(coverageRepo, activityRepo, contractRepo, unitRepo, timeEntryRepo, routingSvc)
 	coverageHandler := http.NewCoverageHandler(coverageService)
+
+	// Org settings — the org policy key/value store (D-13-18..23,
+	// ADR-BE-018). Literal GET/PUT /organizations/settings routes COEXIST
+	// with the typed GET/PUT /organizations/{id}/settings wildcard below
+	// (Pitfall 6 — ServeMux most-specific-wins, proven by POST
+	// /organizations/invite).
+	orgSettingsRepo := postgres.NewOrgSettingsRepository(pool)
+	orgSettingsService := orgsettingssvc.NewService(orgSettingsRepo, orgRepo)
+	orgSettingsHandler := http.NewOrgSettingsHandler(orgSettingsService)
+
+	// Direction — the plan plane (ADR-P-015, ADR-BE-018): the service takes
+	// the direction repo + the shared activity/WG/unit/org repos + the SHARED
+	// orgsettings (mode gate) and routing (BE-014 manager reach) services —
+	// no second instances (D-G parity). The handler is thin; the seven
+	// pinned routes are registered below (DIR-01..06).
+	directionService := directionsvc.NewService(directionRepo, activityRepo, wgRepo, unitRepo, orgRepo, orgSettingsService, routingSvc)
+	directionHandler := http.NewDirectionHandler(directionService)
 
 	expenseService := expsvc.NewService(expenseRepo, wgRepo, activityRepo, unitRepo)
 	expenseHandler := http.NewExpenseHandler(expenseService)
@@ -210,6 +235,10 @@ func main() {
 	mux.HandleFunc("POST /organizations/invite-customer", middleware.Auth(authService, orgHandler.InviteCustomer))
 	mux.HandleFunc("GET /organizations/{id}/settings", middleware.Auth(authService, orgHandler.GetSettings))
 	mux.HandleFunc("PUT /organizations/{id}/settings", middleware.Auth(authService, orgHandler.UpdateSettings))
+	// Literal org_settings routes (D-13-23) — do NOT remove the typed
+	// wildcard registrations above (Pitfall 6).
+	mux.HandleFunc("GET /organizations/settings", middleware.Auth(authService, orgSettingsHandler.Get))
+	mux.HandleFunc("PUT /organizations/settings", middleware.Auth(authService, orgSettingsHandler.Put))
 	mux.HandleFunc("GET /organizations/members", middleware.Auth(authService, orgHandler.ListMembers))
 	mux.HandleFunc("PUT /organizations/members/{member_id}/roles", middleware.Auth(authService, orgHandler.UpdateMemberRoles))
 	mux.HandleFunc("DELETE /organizations/members/{member_id}", middleware.Auth(authService, orgHandler.DeactivateMember))
@@ -247,6 +276,18 @@ func main() {
 	mux.HandleFunc("POST /coverage/close", middleware.Auth(authService, coverageHandler.PostClose))
 	mux.HandleFunc("GET /coverage/snapshots/{close_id}", middleware.Auth(authService, coverageHandler.GetSnapshot))
 	mux.HandleFunc("GET /coverage/allocations/{entry_id}/history", middleware.Auth(authService, coverageHandler.GetHistory))
+
+	// Direction — the 7 pinned routes (DIR-01..06, ADR-BE-018 §7): the
+	// explicit activation endpoint (OQ1), cancel/unclaim with reason
+	// (D-13-10/16), the WG claim (D-13-11..13), and the plan/coverage
+	// read-models with the warning overlay. All auth-gated (T-13-28).
+	mux.HandleFunc("POST /direction", middleware.Auth(authService, directionHandler.Create))
+	mux.HandleFunc("POST /direction/{id}/activate", middleware.Auth(authService, directionHandler.Activate))
+	mux.HandleFunc("POST /direction/{id}/cancel", middleware.Auth(authService, directionHandler.Cancel))
+	mux.HandleFunc("POST /direction/claims", middleware.Auth(authService, directionHandler.Claim))
+	mux.HandleFunc("POST /direction/claims/{id}/cancel", middleware.Auth(authService, directionHandler.Unclaim))
+	mux.HandleFunc("GET /direction", middleware.Auth(authService, directionHandler.ListPlan))
+	mux.HandleFunc("GET /direction/coverage", middleware.Auth(authService, directionHandler.Coverage))
 
 	mux.HandleFunc("GET /contracts", middleware.Auth(authService, contractHandler.List))
 	mux.HandleFunc("POST /contracts", middleware.Auth(authService, contractHandler.Create))

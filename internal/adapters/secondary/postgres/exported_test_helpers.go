@@ -93,6 +93,7 @@ func TeardownTestSchema(t *testing.T, pool *pgxpool.Pool) {
 		"coverage_period_closes",
 		"coverage_allocations",
 		"time_entries",
+		"direction",
 		"wg_members",
 		"working_groups",
 		"subprojects",
@@ -114,6 +115,7 @@ func TeardownTestSchema(t *testing.T, pool *pgxpool.Pool) {
 		"organization_memberships",
 		"users",
 		"organization_settings",
+		"org_settings",
 		"organizations",
 		"verification_tokens",
 	}
@@ -239,6 +241,25 @@ func seedTimeEntry(t *testing.T, pool *pgxpool.Pool, orgID, userID, activityID, 
 		`INSERT INTO time_entries (id, org_id, user_id, activity_id, unit_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, $10, $10)`,
 		id, orgID, userID, activityID, unitID, hours, "Coverage test entry", entryDate, status, now)
+	require.NoError(t, err)
+	return id
+}
+
+// seedDirectionRow creates a direction row following the seedTimeEntry shape
+// (seeded org/user/activity; returns the row id). directedTo / wgID /
+// plannedDate / estHours are nullable — pass nil for NULL. The 021 XOR CHECK
+// requires exactly one of directedTo / wgID; status defaults to 'draft' when
+// empty.
+func seedDirectionRow(t *testing.T, pool *pgxpool.Pool, orgID, directedBy uuid.UUID, directedTo *uuid.UUID, wgID *uuid.UUID, activityID uuid.UUID, plannedDate *time.Time, estHours *float64, status string, now time.Time) uuid.UUID {
+	t.Helper()
+	if status == "" {
+		status = "draft"
+	}
+	id := uuid.New()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO direction (id, org_id, directed_by, directed_to, wg_id, activity_id, planned_date, est_hours, status, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
+		id, orgID, directedBy, directedTo, wgID, activityID, plannedDate, estHours, status, now)
 	require.NoError(t, err)
 	return id
 }

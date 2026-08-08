@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
-current_phase: 12
-current_phase_name: Coverage Backend — The Allocation Loop
-status: executing
-stopped_at: Completed 12-07-PLAN.md
-last_updated: "2026-08-08T11:16:23.605Z"
+current_phase: 14
+current_phase_name: Availability Backend — Absences + Capacity
+status: planning
+stopped_at: Completed 13-10-PLAN.md
+last_updated: "2026-08-08T16:21:37.873Z"
 last_activity: 2026-08-08
-last_activity_desc: Phase 12 execution started
+last_activity_desc: Phase 13 complete, transitioned to Phase 14
 progress:
   total_phases: 16
-  completed_phases: 2
-  total_plans: 23
-  completed_plans: 15
-  percent: 13
+  completed_phases: 3
+  total_plans: 25
+  completed_plans: 25
+  percent: 19
 ---
 
 # Project State
@@ -25,14 +25,14 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 **Core value:** Role-based approval workflows (employee → manager → finance) with hierarchical organization structures, contract/activity management, and export capabilities.
 
-**Current focus:** Phase 12 — Coverage Backend — The Allocation Loop
+**Current focus:** Phase 13 — direction-backend-the-plan-plane
 
 ## Current Position
 
-Phase: 12 (Coverage Backend — The Allocation Loop) — EXECUTING
-Plan: 7 of 7
-Status: Ready to execute
-Last activity: 2026-08-08 — Phase 12 execution started
+Phase: 14 — Availability Backend — Absences + Capacity
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-08 — Phase 13 complete, transitioned to Phase 14
 
 ## Accumulated Context
 
@@ -95,6 +95,27 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 12-coverage-backend-the-allocation-loop]: Partial coverage states cannot be created via the replace-set (Σ == hours enforced in-tx); they arise from later entry-hours edits — Test simulates the realistic partial path (allocate full, then bump entry hours)
 - [Phase 12-coverage-backend-the-allocation-loop]: FundingContext gained BeneficiaryUnitID (additive): the pinned DefaultSource signature needs the absorption branch input; the service attaches the resolved unit when the chain has no contract — Rule 3 fix — the 12-03 chain struct lacked the absorption default; keeps DefaultSource pure and the six-case matrix table-driven
 - [Phase 12-coverage-backend-the-allocation-loop]: GetAllocations reuses the pinned Propose read path — the 12-05 service surface has no ListByEntry method, so the thin handler consumes Propose (proposal, allocs) instead of extending the service surface — Plan referenced a service read missing from the pinned 12-05 surface; reusing Propose honors the pinned surface. time_entry.ErrTimeEntryNotFound normalizes to coverage.ErrEntryNotCoverable in the service so the 404 contract holds without leaking cross-domain sentinels into the handler.
+- [Phase 13]: 021 status vocabulary lives in the single named constraint direction_status_check; the inline column CHECK was dropped (PostgreSQL auto-names inline CHECKs, colliding 42710 with the explicit ALTER — Rule 1 auto-fix) — 021 status vocabulary lives in the single named constraint direction_status_check; the inline column CHECK was dropped (PostgreSQL auto-names inline CHECKs, colliding 42710 with the explicit ALTER — Rule 1 auto-fix)
+- [Phase 13]: assertPrimaryKey helper added locally in direction_ontology_migrations_test.go (pg_constraint contype p) — no shared PK-assert helper existed in the postgres test package — assertPrimaryKey helper added locally in direction_ontology_migrations_test.go (pg_constraint contype p) — no shared PK-assert helper existed in the postgres test package
+- [Phase 13]: 021 header comment avoids the literal word "unique" — grep-based acceptance checks for an absent UNIQUE constraint would trip on the comment; the DDL carries none — 021 header comment avoids the literal word "unique" — grep-based acceptance checks for an absent UNIQUE constraint would trip on the comment; the DDL carries none
+- [Phase 13-direction-backend-the-plan-plane]: [Phase 13-02]: ADR-P-015 + ADR-BE-018 drafted into the vault: direction plane (derived mode, per-day rows, supersede chain, derived states, WG claim model, org policy stored-not-enforced, P-008 warning overlay, coverage read-model, origin fallback) + BE encoding (status/derived/claim-spectrum/audit/settings vocabularies, claim lock FOR UPDATE + in-tx Sigma in cents over draft|active claim rows -> 409 ErrClaimOverBudget, supersede-of-claim-row inheritance, est_hours DECIMAL(8,2), settings CRUD literal routes, 8 assumption pins) — [Phase 13-02]: vocab/mechanism pins recorded BEFORE code lands — domain constants (13-03) and audit inserts (13-05) compile against them; three assumption-delta decisions recorded (identity no-change / fallback add-alongside / policy promoted)
+- [Phase ?]: MockDirectionRepo absence-window stub field is named Windows (setter SetAbsenceWindows): the plan's literal field name AbsenceWindows collides with the port method AbsenceWindows — Go forbids a field and method with the same name on one type; the pinned setter surface is unchanged (13-07/13-08 tests seed via the setters)
+- [Phase 13]: ResolvePlanningMode precedence: membership override -> org default -> manager_planned fallback; invalid mode in either position is ErrInvalidValue (D-13-19) — Seam for 13-07 mode gate; JSONB store unvalidated so corruption surfaces, never silently defaults
+- [Phase 13]: Claim audit entity_id pinning: the repo generates the claim row id (the port signature takes no id), so Claim pins the audit row entity_id to the claim row it creates when the caller passed uuid.Nil — entity_id = the direction row id per ADR-BE-018 §3. — Claim audit entity_id pinning: the repo generates the claim row id (the port signature takes no id), so Claim pins the audit row entity_id to the claim row it creates when the caller passed uuid.Nil — entity_id = the direction row id per ADR-BE-018 §3.
+- [Phase 13]: Full-interface assertion deferred to 13-06: the port declares read-model methods that 13-06 owns, so the var _ ports.DirectionRepository assertion cannot compile on the mutator-only half; Get ships in 13-05, the assertion lands with 13-06. — Full-interface assertion deferred to 13-06: the port declares read-model methods that 13-06 owns, so the var _ ports.DirectionRepository assertion cannot compile on the mutator-only half; Get ships in 13-05, the assertion lands with 13-06.
+- [Phase 13]: Coverage/AbsenceWindows normalize scanned DATE columns to UTC midnight (normalizeDay): PostgreSQL DATE values scan back in the SESSION timezone (e.g. +02:00 Local), making day-key comparisons and JSON serialization nondeterministic; the read-model day semantics are timezone-free, the mutator scans stay as-is — Coverage/AbsenceWindows normalize scanned DATE columns to UTC midnight (normalizeDay): PostgreSQL DATE values scan back in the SESSION timezone (e.g. +02:00 Local), making day-key comparisons and JSON serialization nondeterministic; the read-model day semantics are timezone-free, the mutator scans stay as-is
+- [Phase 13]: ListPlan/Coverage/AbsenceWindows/FirstDirectionRefs all landed on direction_repository.go and the full-interface assertion var _ ports.DirectionRepository compiles (deferred from 13-05); AbsenceWindows maps availability_windows.user_id (migration 012 column name) to AbsenceWindow.EmployeeID — ListPlan/Coverage/AbsenceWindows/FirstDirectionRefs all landed on direction_repository.go and the full-interface assertion var _ ports.DirectionRepository compiles (deferred from 13-05); AbsenceWindows maps availability_windows.user_id (migration 012 column name) to AbsenceWindow.EmployeeID
+- [Phase 13-direction-backend-the-plan-plane]: Unclaim added to ports.DirectionRepository + MockDirectionRepo (additive, plan-sanctioned "repo.Unclaim"): the postgres repo's in-tx claim-row guard is now reachable via the port
+- [Phase 13-direction-backend-the-plan-plane]: Unclaim audit = 'cancelled' action with {reason} (plan text + 13-05 repo tests); AuditActionUnclaimed stays a pinned ADR vocabulary constant, never written by the unclaim path
+- [Phase 13-direction-backend-the-plan-plane]: Claim reuses the create-side whole-cent validation (D-13-03): sub-cent claims would corrupt the repo's cents-based Sigma (rounded Sigma != stored DECIMAL(8,2))
+- [Phase 13-direction-backend-the-plan-plane]: Coverage period totals are computed over the FULL row set (capacity-0 away days keep their zero capacity); only the uncovered rows list excludes them (D-13-26)
+- [Phase 13-direction-backend-the-plan-plane]: created/activated audits carry nil payloads (the 13-05 repo test contract); cancelled carries {reason}, claimed carries {wg_row_id, est_hours} with uuid.Nil entity (repo pins it to the claim row)
+- [Phase 13]: Origin fallback lives in the activity read path at the service layer (OriginType == nil predicate), derived from FirstDirectionRefs — read-only, never written back
+- [Phase 13]: The create response shape is {row, warnings} with warnings normalized to an always-array at the handler boundary (D-13-03/13-UI-SPEC); read-models carry rows/coverage rows + totals + warnings
+- [Phase 13]: The seven direction routes are wired with middleware.Auth; the direction service reuses the SHARED orgsettings + routing services (no second instances, D-G parity)
+- [Phase 13-09]: CR-01 handler regression activates the user-targeted row first: the nil-guard sits after the status fast-fail, so the 404 contract is only reachable for an ACTIVE user row — Plan's own unit behavior pinned status active; its abbreviated handler-test text omitted the activate step
+- [Phase 13-09]: wrapPGError untouched: with the service-side maxEstHours ceiling the PG 22003 path is unreachable for client input; a global 22003 mapping would alter unrelated repos (time entries) — Per plan Task 3 action; scope boundary honored
+- [Phase ?]: WR-03 reversal (13-10): Unclaim writes AuditActionUnclaimed ('unclaimed') — ADR-BE-018 §3 always pinned the vocabulary; the code drifted to 'cancelled'. Aligning code to the ADR makes unclaim events distinguishable from cancels for Phase 19 history filters and makes the exported constant live. Reverses the 13-05 note. Reversible: one line + docs.
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -150,11 +171,22 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 12-coverage-backend-the-allocation-loop P06 | 8m | 2 tasks | 3 files |
 | Phase 12-coverage-backend-the-allocation-loop P05 | 7 min | 2 tasks | 3 files |
 | Phase 12-coverage-backend-the-allocation-loop P07 | 6min | 2 tasks | 5 files |
+| Phase 13 P13-01 | 18 min | 2 tasks | 6 files |
+| Phase 13-direction-backend-the-plan-plane P13-02 | 4min | 2 tasks | 4 files |
+| Phase 13 P13-03 | 42 min | 3 tasks | 8 files |
+| Phase 13 P04 | 40min | 3 tasks | 10 files |
+| Phase 13 P05 | 47 min | 3 tasks | 2 files |
+| Phase 13 P13-06 | 38 min | 3 tasks | 2 files |
+| Phase 13-direction-backend-the-plan-plane P07 | 11min | 3 tasks | 4 files |
+| Phase 13 P13-08 | 2h 23m | 3 tasks | 9 files |
+| Phase 13-direction-backend-the-plan-plane P09 | 6min | 3 tasks | 5 files |
+| Phase 13-direction-backend-the-plan-plane P09 | 6min | 3 tasks | 5 files |
+| Phase 13-direction-backend-the-plan-plane P10 | 18 min | 2 tasks | 5 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T10:01:27.460Z
-Stopped at: Completed 12-07-PLAN.md
+Last session: 2026-08-08T16:04:14.472Z
+Stopped at: Completed 13-10-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 

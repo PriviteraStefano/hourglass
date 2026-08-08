@@ -932,6 +932,11 @@ type MockWorkingGroupRepo struct {
 	mu        sync.Mutex
 	Groups    map[uuid.UUID]*wgdomain.WorkingGroup
 	WGMembers map[string][]wgdomain.WorkingGroupMember // key = wgID.String()
+	// ListMembersFn is the per-method override for ListMembers (ClaimFn-
+	// style: nil = the default hard-coded WGMembers lookup, backward
+	// compatible). Consulted before the default path so tests can trap or
+	// stub the call (13-09 CR-01 trap).
+	ListMembersFn func(ctx context.Context, wgID uuid.UUID) ([]wgdomain.WorkingGroupMember, error)
 }
 
 // ListByOrg returns the org's working groups, optionally filtered by the
@@ -999,6 +1004,9 @@ func (m *MockWorkingGroupRepo) HasMembers(ctx context.Context, id uuid.UUID) (bo
 func (m *MockWorkingGroupRepo) ListMembers(ctx context.Context, wgID uuid.UUID) ([]wgdomain.WorkingGroupMember, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.ListMembersFn != nil {
+		return m.ListMembersFn(ctx, wgID)
+	}
 	if m.WGMembers == nil {
 		return nil, nil
 	}

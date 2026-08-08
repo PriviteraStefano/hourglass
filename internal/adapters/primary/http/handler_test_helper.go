@@ -16,8 +16,10 @@ import (
 	contractsvc "github.com/stefanoprivitera/hourglass/internal/core/services/contract"
 	coveragesvc "github.com/stefanoprivitera/hourglass/internal/core/services/coverage"
 	customersvc "github.com/stefanoprivitera/hourglass/internal/core/services/customer"
+	directionsvc "github.com/stefanoprivitera/hourglass/internal/core/services/direction"
 	exportsvc "github.com/stefanoprivitera/hourglass/internal/core/services/export"
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
+	orgsettingssvc "github.com/stefanoprivitera/hourglass/internal/core/services/orgsettings"
 	orgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/organization"
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
@@ -82,7 +84,8 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	customerService := customersvc.NewService(customerRepo)
 	orgMgmtService := orgsvc.NewService(orgMgmtRepo, customerService)
 	routingSvc := routing.NewService(wgRepo, activityRepo, unitRepo)
-	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, postgres.NewTicketRepository(pool), routingSvc)
+	directionRepo := postgres.NewDirectionRepository(pool)
+	activityService := activitysvc.NewService(activityRepo, contractRepo, unitRepo, orgRepo, postgres.NewTicketRepository(pool), directionRepo, routingSvc)
 	contractService := contractsvc.NewService(contractRepo)
 	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo, routingSvc)
 	exportService := exportsvc.NewService(exportRepo)
@@ -90,6 +93,20 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	coverageRepo := postgres.NewCoverageRepository(pool)
 	coverageService := coveragesvc.NewService(coverageRepo, activityRepo, contractRepo, unitRepo, timeEntryRepo, routingSvc)
 	coverageHandler := NewCoverageHandler(coverageService)
+
+	// Org settings — the org policy key/value store (D-13-18..23): literal
+	// /organizations/settings routes mirroring cmd/server/main.go, with the
+	// typed /organizations/{id}/settings wildcard still registered below
+	// (Pitfall 6 — ServeMux most-specific-wins).
+	orgSettingsRepo := postgres.NewOrgSettingsRepository(pool)
+	orgSettingsService := orgsettingssvc.NewService(orgSettingsRepo, orgRepo)
+	orgSettingsHandler := NewOrgSettingsHandler(orgSettingsService)
+
+	// Direction — the plan plane (ADR-P-015, ADR-BE-018): mirrors the
+	// cmd/server/main.go wiring so handler tests exercise the real stack
+	// (direction service + handler + the 7 routes below).
+	directionService := directionsvc.NewService(directionRepo, activityRepo, wgRepo, unitRepo, orgRepo, orgSettingsService, routingSvc)
+	directionHandler := NewDirectionHandler(directionService)
 
 	// Handlers
 	authHandler := NewAuthHandler(hexAuthService, invitationService)
@@ -161,6 +178,10 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	mux.HandleFunc("POST /organizations/invite-customer", middleware.Auth(authSvc, orgHandler.InviteCustomer))
 	mux.HandleFunc("GET /organizations/{id}/settings", middleware.Auth(authSvc, orgHandler.GetSettings))
 	mux.HandleFunc("PUT /organizations/{id}/settings", middleware.Auth(authSvc, orgHandler.UpdateSettings))
+	// Literal org_settings routes (D-13-23) — coexisting with the typed
+	// wildcard registrations above (Pitfall 6).
+	mux.HandleFunc("GET /organizations/settings", middleware.Auth(authSvc, orgSettingsHandler.Get))
+	mux.HandleFunc("PUT /organizations/settings", middleware.Auth(authSvc, orgSettingsHandler.Put))
 	mux.HandleFunc("GET /organizations/members", middleware.Auth(authSvc, orgHandler.ListMembers))
 	mux.HandleFunc("PUT /organizations/members/{member_id}/roles", middleware.Auth(authSvc, orgHandler.UpdateMemberRoles))
 	mux.HandleFunc("DELETE /organizations/members/{member_id}", middleware.Auth(authSvc, orgHandler.DeactivateMember))
@@ -220,6 +241,16 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	mux.HandleFunc("POST /coverage/close", middleware.Auth(authSvc, coverageHandler.PostClose))
 	mux.HandleFunc("GET /coverage/snapshots/{close_id}", middleware.Auth(authSvc, coverageHandler.GetSnapshot))
 	mux.HandleFunc("GET /coverage/allocations/{entry_id}/history", middleware.Auth(authSvc, coverageHandler.GetHistory))
+
+	// Direction — the 7 pinned routes mirroring cmd/server/main.go
+	// (DIR-01..06, ADR-BE-018 §7).
+	mux.HandleFunc("POST /direction", middleware.Auth(authSvc, directionHandler.Create))
+	mux.HandleFunc("POST /direction/{id}/activate", middleware.Auth(authSvc, directionHandler.Activate))
+	mux.HandleFunc("POST /direction/{id}/cancel", middleware.Auth(authSvc, directionHandler.Cancel))
+	mux.HandleFunc("POST /direction/claims", middleware.Auth(authSvc, directionHandler.Claim))
+	mux.HandleFunc("POST /direction/claims/{id}/cancel", middleware.Auth(authSvc, directionHandler.Unclaim))
+	mux.HandleFunc("GET /direction", middleware.Auth(authSvc, directionHandler.ListPlan))
+	mux.HandleFunc("GET /direction/coverage", middleware.Auth(authSvc, directionHandler.Coverage))
 
 	server := httptest.NewServer(mux)
 
