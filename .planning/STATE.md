@@ -4,16 +4,16 @@ milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 13
 current_phase_name: direction-backend-the-plan-plane
-status: executing
-stopped_at: Completed 13-06-PLAN.md
-last_updated: "2026-08-08T13:58:46.787Z"
+status: verifying
+stopped_at: Completed 13-07-PLAN.md
+last_updated: "2026-08-08T14:19:50.796Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 13 execution resumed (wave continue)
 progress:
   total_phases: 16
   completed_phases: 2
   total_plans: 23
-  completed_plans: 20
+  completed_plans: 22
   percent: 13
 ---
 
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 ## Current Position
 
 Phase: 13 (direction-backend-the-plan-plane) — EXECUTING
-Plan: 7 of 8
-Status: Ready to execute
+Plan: 8 of 8
+Status: Phase complete — ready for verification
 Last activity: 2026-08-08 — Phase 13 execution resumed (wave continue)
 
 ## Accumulated Context
@@ -105,6 +105,11 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 13]: Full-interface assertion deferred to 13-06: the port declares read-model methods that 13-06 owns, so the var _ ports.DirectionRepository assertion cannot compile on the mutator-only half; Get ships in 13-05, the assertion lands with 13-06. — Full-interface assertion deferred to 13-06: the port declares read-model methods that 13-06 owns, so the var _ ports.DirectionRepository assertion cannot compile on the mutator-only half; Get ships in 13-05, the assertion lands with 13-06.
 - [Phase 13]: Coverage/AbsenceWindows normalize scanned DATE columns to UTC midnight (normalizeDay): PostgreSQL DATE values scan back in the SESSION timezone (e.g. +02:00 Local), making day-key comparisons and JSON serialization nondeterministic; the read-model day semantics are timezone-free, the mutator scans stay as-is — Coverage/AbsenceWindows normalize scanned DATE columns to UTC midnight (normalizeDay): PostgreSQL DATE values scan back in the SESSION timezone (e.g. +02:00 Local), making day-key comparisons and JSON serialization nondeterministic; the read-model day semantics are timezone-free, the mutator scans stay as-is
 - [Phase 13]: ListPlan/Coverage/AbsenceWindows/FirstDirectionRefs all landed on direction_repository.go and the full-interface assertion var _ ports.DirectionRepository compiles (deferred from 13-05); AbsenceWindows maps availability_windows.user_id (migration 012 column name) to AbsenceWindow.EmployeeID — ListPlan/Coverage/AbsenceWindows/FirstDirectionRefs all landed on direction_repository.go and the full-interface assertion var _ ports.DirectionRepository compiles (deferred from 13-05); AbsenceWindows maps availability_windows.user_id (migration 012 column name) to AbsenceWindow.EmployeeID
+- [Phase 13-direction-backend-the-plan-plane]: Unclaim added to ports.DirectionRepository + MockDirectionRepo (additive, plan-sanctioned "repo.Unclaim"): the postgres repo's in-tx claim-row guard is now reachable via the port
+- [Phase 13-direction-backend-the-plan-plane]: Unclaim audit = 'cancelled' action with {reason} (plan text + 13-05 repo tests); AuditActionUnclaimed stays a pinned ADR vocabulary constant, never written by the unclaim path
+- [Phase 13-direction-backend-the-plan-plane]: Claim reuses the create-side whole-cent validation (D-13-03): sub-cent claims would corrupt the repo's cents-based Sigma (rounded Sigma != stored DECIMAL(8,2))
+- [Phase 13-direction-backend-the-plan-plane]: Coverage period totals are computed over the FULL row set (capacity-0 away days keep their zero capacity); only the uncovered rows list excludes them (D-13-26)
+- [Phase 13-direction-backend-the-plan-plane]: created/activated audits carry nil payloads (the 13-05 repo test contract); cancelled carries {reason}, claimed carries {wg_row_id, est_hours} with uuid.Nil entity (repo pins it to the claim row)
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -166,11 +171,12 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 13 P04 | 40min | 3 tasks | 10 files |
 | Phase 13 P05 | 47 min | 3 tasks | 2 files |
 | Phase 13 P13-06 | 38 min | 3 tasks | 2 files |
+| Phase 13-direction-backend-the-plan-plane P07 | 11min | 3 tasks | 4 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T13:58:38.706Z
-Stopped at: Completed 13-06-PLAN.md
+Last session: 2026-08-08T14:19:25.540Z
+Stopped at: Completed 13-07-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
