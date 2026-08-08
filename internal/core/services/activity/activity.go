@@ -31,31 +31,56 @@ import (
 // resolves the proposal approver set (D-G parity with entry approval). The
 // proposal_approved audit row is written by the activity repo IN THE SAME
 // TRANSACTION as the is_active flip (Pitfall 2, ADR-BE-016, T-11-08).
+//
+// directionRefs is the origin-FALLBACK seam (D-13-32..34, FND-04): activities
+// with empty origin refs (OriginType nil — A4) derive manager-assignment
+// refs from the earliest non-cancelled direction row via FirstDirectionRefs.
+// Derivation is read-only — the derived refs are set on the response only,
+// never written back (D-13-34); stored refs stay authoritative.
 type Service struct {
-	activityRepo ports.ActivityRepository
-	contractRepo ports.ContractRepository
-	unitRepo     ports.UnitRepository
-	orgRepo      ports.OrganizationRepository
-	ticketRepo   ports.TicketRepository
-	routing      *routing.Service
+	activityRepo  ports.ActivityRepository
+	contractRepo  ports.ContractRepository
+	unitRepo      ports.UnitRepository
+	orgRepo       ports.OrganizationRepository
+	ticketRepo    ports.TicketRepository
+	directionRefs ports.DirectionRepository
+	routing       *routing.Service
 }
 
-func NewService(activityRepo ports.ActivityRepository, contractRepo ports.ContractRepository, unitRepo ports.UnitRepository, orgRepo ports.OrganizationRepository, ticketRepo ports.TicketRepository, routing *routing.Service) *Service {
+func NewService(activityRepo ports.ActivityRepository, contractRepo ports.ContractRepository, unitRepo ports.UnitRepository, orgRepo ports.OrganizationRepository, ticketRepo ports.TicketRepository, directionRepo ports.DirectionRepository, routing *routing.Service) *Service {
 	return &Service{
-		activityRepo: activityRepo,
-		contractRepo: contractRepo,
-		unitRepo:     unitRepo,
-		orgRepo:      orgRepo,
-		ticketRepo:   ticketRepo,
-		routing:      routing,
+		activityRepo:  activityRepo,
+		contractRepo:  contractRepo,
+		unitRepo:      unitRepo,
+		orgRepo:       orgRepo,
+		ticketRepo:    ticketRepo,
+		directionRefs: directionRepo,
+		routing:       routing,
 	}
 }
 
 // List returns the org's activities filtered by scope, contract, parent, kind
 // and active state (delegates to the repository — visibility gating stays
-// repo-side, R-4).
+// repo-side, R-4). The origin fallback (D-13-32..34, FND-04) enriches every
+// empty-origin row with the manager-assignment refs of the activity's first
+// direction row — derived on read, never written back (Pitfall 5).
 func (s *Service) List(ctx context.Context, orgID uuid.UUID, filter *activitydomain.ActivityFilter) ([]activitydomain.ActivityResponse, error) {
-	return s.activityRepo.List(ctx, orgID, filter)
+	activities, err := s.activityRepo.List(ctx, orgID, filter)
+	if err != nil {
+		return nil, err
+	}
+	for i := range activities {
+		if activities[i].OriginType == nil {
+			refs, err := s.directionRefs.FirstDirectionRefs(ctx, orgID, activities[i].ID)
+			if err != nil {
+				return nil, err
+			}
+			if refs != nil {
+				activities[i].AssignedBy, activities[i].AssignedTo = refs.AssignedBy, refs.AssignedTo
+			}
+		}
+	}
+	return activities, nil
 }
 
 // ListChildren returns the direct children of an activity.
@@ -69,9 +94,26 @@ func (s *Service) ListKinds(ctx context.Context, orgID uuid.UUID) ([]activitydom
 	return s.activityRepo.ListKinds(ctx, orgID)
 }
 
-// GetByID returns a single activity scoped to the org.
+// GetByID returns a single activity scoped to the org. When the activity
+// has no stored origin (OriginType == nil — A4), the origin fallback
+// (D-13-32..34, FND-04) derives manager-assignment refs from the activity's
+// first non-cancelled direction row via FirstDirectionRefs — read-only, the
+// response carries the refs and nothing is persisted (Pitfall 5, T-13-30).
 func (s *Service) GetByID(ctx context.Context, orgID, activityID uuid.UUID) (*activitydomain.ActivityResponse, error) {
-	return s.activityRepo.Get(ctx, orgID, activityID)
+	a, err := s.activityRepo.Get(ctx, orgID, activityID)
+	if err != nil {
+		return nil, err
+	}
+	if a.OriginType == nil {
+		refs, err := s.directionRefs.FirstDirectionRefs(ctx, orgID, activityID)
+		if err != nil {
+			return nil, err
+		}
+		if refs != nil {
+			a.AssignedBy, a.AssignedTo = refs.AssignedBy, refs.AssignedTo
+		}
+	}
+	return a, nil
 }
 
 // Create validates the activity against the org's context before delegating:
