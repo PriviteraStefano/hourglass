@@ -5,15 +5,15 @@ milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 13
 current_phase_name: direction-backend-the-plan-plane
 status: executing
-stopped_at: Completed 13-05-PLAN.md
-last_updated: "2026-08-08T13:40:59.179Z"
+stopped_at: Completed 13-06-PLAN.md
+last_updated: "2026-08-08T13:58:46.787Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 13 execution resumed (wave continue)
 progress:
   total_phases: 16
   completed_phases: 2
   total_plans: 23
-  completed_plans: 19
+  completed_plans: 20
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 ## Current Position
 
 Phase: 13 (direction-backend-the-plan-plane) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 13 execution resumed (wave continue)
 
@@ -103,6 +103,8 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 13]: ResolvePlanningMode precedence: membership override -> org default -> manager_planned fallback; invalid mode in either position is ErrInvalidValue (D-13-19) — Seam for 13-07 mode gate; JSONB store unvalidated so corruption surfaces, never silently defaults
 - [Phase 13]: Claim audit entity_id pinning: the repo generates the claim row id (the port signature takes no id), so Claim pins the audit row entity_id to the claim row it creates when the caller passed uuid.Nil — entity_id = the direction row id per ADR-BE-018 §3. — Claim audit entity_id pinning: the repo generates the claim row id (the port signature takes no id), so Claim pins the audit row entity_id to the claim row it creates when the caller passed uuid.Nil — entity_id = the direction row id per ADR-BE-018 §3.
 - [Phase 13]: Full-interface assertion deferred to 13-06: the port declares read-model methods that 13-06 owns, so the var _ ports.DirectionRepository assertion cannot compile on the mutator-only half; Get ships in 13-05, the assertion lands with 13-06. — Full-interface assertion deferred to 13-06: the port declares read-model methods that 13-06 owns, so the var _ ports.DirectionRepository assertion cannot compile on the mutator-only half; Get ships in 13-05, the assertion lands with 13-06.
+- [Phase 13]: Coverage/AbsenceWindows normalize scanned DATE columns to UTC midnight (normalizeDay): PostgreSQL DATE values scan back in the SESSION timezone (e.g. +02:00 Local), making day-key comparisons and JSON serialization nondeterministic; the read-model day semantics are timezone-free, the mutator scans stay as-is — Coverage/AbsenceWindows normalize scanned DATE columns to UTC midnight (normalizeDay): PostgreSQL DATE values scan back in the SESSION timezone (e.g. +02:00 Local), making day-key comparisons and JSON serialization nondeterministic; the read-model day semantics are timezone-free, the mutator scans stay as-is
+- [Phase 13]: ListPlan/Coverage/AbsenceWindows/FirstDirectionRefs all landed on direction_repository.go and the full-interface assertion var _ ports.DirectionRepository compiles (deferred from 13-05); AbsenceWindows maps availability_windows.user_id (migration 012 column name) to AbsenceWindow.EmployeeID — ListPlan/Coverage/AbsenceWindows/FirstDirectionRefs all landed on direction_repository.go and the full-interface assertion var _ ports.DirectionRepository compiles (deferred from 13-05); AbsenceWindows maps availability_windows.user_id (migration 012 column name) to AbsenceWindow.EmployeeID
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -163,11 +165,12 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 13 P13-03 | 42 min | 3 tasks | 8 files |
 | Phase 13 P04 | 40min | 3 tasks | 10 files |
 | Phase 13 P05 | 47 min | 3 tasks | 2 files |
+| Phase 13 P13-06 | 38 min | 3 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T13:40:45.226Z
-Stopped at: Completed 13-05-PLAN.md
+Last session: 2026-08-08T13:58:38.706Z
+Stopped at: Completed 13-06-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
