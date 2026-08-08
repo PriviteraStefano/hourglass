@@ -144,13 +144,13 @@ Plans:
   7. Direction-coverage read-model returns planned hours vs capacity per employee/period with uncovered days surfaced, per employee / unit / WG (DIR-06)
   8. Origin fallback active: activities with empty origin refs resolve refs from the first direction record (FND-04 read path, additive)
 
-**Plans**: 2/8 plans executed
+**Plans**: 3/8 plans executed
 Plans:
 **Wave 1**
 
 - [x] 13-01-PLAN.md — Migrations 021/022 (direction rows + org_settings/planning_mode) + teardown + cycle tests (XOR/queued-only/est_hours/reason CHECKs, per-day identity assertion)
 - [x] 13-02-PLAN.md — ADRs: ADR-P-015 (direction plane) + ADR-BE-018 (encoding: vocabularies, claim lock, assumption-delta decisions) + index
-- [ ] 13-03-PLAN.md — Direction + orgsettings domains, both ports, testdata mocks (contracts all plans compile against)
+- [x] 13-03-PLAN.md — Direction + orgsettings domains, both ports, testdata mocks (contracts all plans compile against)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -373,7 +373,7 @@ Plans:
 | 10. IA Impl. | v0.1 | 6/6 | Complete | 2026-08-01 |
 | 11. Foundations | v0.2 | 8/8 | Complete    | 2026-08-07 |
 | 12. Coverage Backend | v0.2 | 7/7 | In Progress|  |
-| 13. Direction Backend | v0.2 | 2/8 | In Progress|  |
+| 13. Direction Backend | v0.2 | 3/8 | In Progress|  |
 | 14. Availability Backend | v0.2 | 0/TBD | Not started | - |
 | 15. UX Foundation | v0.2 | 0/TBD | Not started | - |
 | 16. Availability FE | v0.2 | 0/TBD | Not started | - |
