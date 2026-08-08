@@ -143,10 +143,16 @@ func (r *CoverageRepository) ReplaceAllocations(ctx context.Context, orgID, entr
 		return nil, wrapPGError(err, "delete allocations for replace")
 	}
 
-	// 4. INSERT the full set (1..N rows). The DB CHECKs (019) backstop the
+	// 4. INSERT the full set (1..N rows). The boundary DTO never carries
+	// allocation ids (D-07), so every row's id is generated here — the PK is
+	// table-wide, and a uuid.Nil id would collide with the first row inserted
+	// anywhere in the ledger (CR-01). The DB CHECKs (019) backstop the
 	// refs-to-type and mandatory-field vocabularies as a third line.
 	now := time.Now().UTC()
 	for _, a := range allocs {
+		if a.ID == uuid.Nil {
+			a.ID = uuid.New()
+		}
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO coverage_allocations (id, org_id, entry_type, entry_id, source_type,
 				contract_id, unit_id, hours, reason, justification, created_at, updated_at)
@@ -307,6 +313,15 @@ func roundCents(v float64) float64 {
 // contained, partial, and wider-than-existing closes, not just identical
 // bounds. No UNIQUE constraint exists on 020; this in-tx check is
 // authoritative (409 at the handler).
+//
+// WR-03: the check is made concurrency-safe by a per-org advisory xact lock
+// taken BEFORE it — without it, two concurrent closes of the same period
+// both observe "no overlap" at READ COMMITTED (no header exists yet), then
+// serialize only on the entry FOR UPDATE (step 2, after the check) and both
+// commit. The xact lock serializes closes for the org: the loser's check
+// runs only after the winner's tx committed, so it sees the committed
+// header and returns 409. (Closes are rare manager-only operations, so
+// per-org serialization is free.)
 func (r *CoverageRepository) ClosePeriod(ctx context.Context, orgID uuid.UUID, periodStart, periodEnd time.Time, closeID, closedBy uuid.UUID, auditLog *audit.AuditLog) (*coverage.PeriodClose, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -314,13 +329,24 @@ func (r *CoverageRepository) ClosePeriod(ctx context.Context, orgID uuid.UUID, p
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	// 0. WR-03: serialize closes per org — released automatically at tx end.
+	if _, err := tx.Exec(ctx,
+		`SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`, orgID); err != nil {
+		return nil, wrapPGError(err, "acquire close serialization lock")
+	}
+
 	// 1. In-tx overlap check (A6): inclusive-overlap predicate — any period
 	// sharing even one day with an existing close for the org is rejected.
+	// WR-06: the parameter casts are UTC-explicit so the predicate is
+	// session-timezone-independent (the caller parses period bounds as UTC
+	// midnights; a raw ::date cast would shift the window on a non-UTC
+	// session).
 	var overlap bool
 	err = tx.QueryRow(ctx,
 		`SELECT EXISTS (
 			SELECT 1 FROM coverage_period_closes
-			WHERE org_id = $1 AND period_start <= $3::date AND period_end >= $2::date
+			WHERE org_id = $1 AND period_start <= ($3 AT TIME ZONE 'UTC')::date
+			  AND period_end >= ($2 AT TIME ZONE 'UTC')::date
 		 )`, orgID, periodStart, periodEnd).Scan(&overlap)
 	if err != nil {
 		return nil, wrapPGError(err, "check overlapping close period")
@@ -342,7 +368,7 @@ func (r *CoverageRepository) ClosePeriod(ctx context.Context, orgID uuid.UUID, p
 	entryRows, err := tx.Query(ctx,
 		`SELECT id, user_id, entry_date, activity_id FROM time_entries
 		 WHERE org_id = $1 AND status = 'approved' AND is_deleted = false
-		   AND entry_date::date BETWEEN $2::date AND $3::date
+		   AND (entry_date AT TIME ZONE 'UTC')::date BETWEEN ($2 AT TIME ZONE 'UTC')::date AND ($3 AT TIME ZONE 'UTC')::date
 		 FOR UPDATE`, orgID, periodStart, periodEnd)
 	if err != nil {
 		return nil, wrapPGError(err, "lock period entries for close")
@@ -361,11 +387,12 @@ func (r *CoverageRepository) ClosePeriod(ctx context.Context, orgID uuid.UUID, p
 	}
 	entryRows.Close()
 
-	// 3. Insert the header (id = caller-supplied closeID).
+	// 3. Insert the header (id = caller-supplied closeID). WR-06: UTC-explicit
+	// casts for the same session-timezone independence as the predicates.
 	now := time.Now().UTC()
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO coverage_period_closes (id, org_id, period_start, period_end, closed_by, closed_at)
-		 VALUES ($1, $2, $3::date, $4::date, $5, $6)`,
+		 VALUES ($1, $2, ($3 AT TIME ZONE 'UTC')::date, ($4 AT TIME ZONE 'UTC')::date, $5, $6)`,
 		closeID, orgID, periodStart, periodEnd, closedBy, now); err != nil {
 		return nil, wrapPGError(err, "insert close header")
 	}

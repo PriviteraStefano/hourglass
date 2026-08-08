@@ -479,6 +479,23 @@ func TestService_ReplaceAllocations(t *testing.T) {
 		require.ErrorIs(t, err, coverage.ErrForbidden)
 	})
 
+	t.Run("fractional-cent hours rejected (WR-01)", func(t *testing.T) {
+		// 7.999 rounds to 800 cents in the Σ fast-fail (matches the 8h
+		// entry), so only the step-5 whole-cent check can catch it — the
+		// DB CHECK (23514) would otherwise surface as a 500.
+		f, e := setupHappy(t)
+		req := []*coverage.CoverageAllocation{{
+			EntryType:  coverage.EntryTypeTime,
+			EntryID:    e.ID,
+			SourceType: coverage.SourceTypeContract,
+			ContractID: &contractID,
+			Hours:      7.999,
+		}}
+
+		_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, approver.String(), "employee")
+		require.ErrorIs(t, err, coverage.ErrInvalidRequest)
+	})
+
 	t.Run("Σ mismatch and empty set return ErrAllocationSumMismatch", func(t *testing.T) {
 		f, e := setupHappy(t)
 		bad := []*coverage.CoverageAllocation{contractAllocation(e.ID, contractID), {
@@ -726,5 +743,12 @@ func TestService_ClosePeriod(t *testing.T) {
 
 		_, err := f.svc.ClosePeriod(context.Background(), orgID, periodStart, periodEnd, manager, "manager")
 		require.ErrorIs(t, err, coverage.ErrPeriodAlreadyClosed)
+	})
+
+	t.Run("inverted period rejected (WR-02)", func(t *testing.T) {
+		f := setupCoverage(t)
+
+		_, err := f.svc.ClosePeriod(context.Background(), orgID, periodEnd, periodStart, manager, "manager")
+		require.ErrorIs(t, err, coverage.ErrInvalidRequest)
 	})
 }

@@ -372,7 +372,13 @@ func (s *Service) ReplaceAllocations(ctx context.Context, orgID, entryID uuid.UU
 	// repo call (violations → 400; check_violation 23514 is unmapped in
 	// wrapPGError and would otherwise surface as 500).
 	for _, a := range req {
-		if a.Hours <= 0 {
+		// WR-01: hours must be a positive whole-cent value. A sub-cent or
+		// >2-decimal value (e.g. 7.999 or 0.001) contributes a rounded 0 to
+		// the Σ fast-fail above yet violates the DECIMAL(8,2) hours > 0 CHECK
+		// on INSERT — 23514 is unmapped and would surface as 500. Rejecting
+		// non-whole-cent values here also keeps the stored Σ from silently
+		// diverging from the validated cents sum.
+		if a.Hours <= 0 || math.Round(a.Hours*100) != a.Hours*100 {
 			return nil, coverage.ErrInvalidRequest
 		}
 		switch a.SourceType {
@@ -474,6 +480,13 @@ func (s *Service) ReplaceAllocations(ctx context.Context, orgID, entryID uuid.UU
 func (s *Service) ClosePeriod(ctx context.Context, orgID uuid.UUID, periodStart, periodEnd time.Time, userID uuid.UUID, role string) (*coverage.PeriodClose, error) {
 	if role != string(models.RoleManager) {
 		return nil, coverage.ErrForbidden
+	}
+	// WR-02: an inverted period (start > end) would "succeed" — the BETWEEN
+	// finds no entries → an empty snapshot — while the inclusive overlap
+	// predicate would then reject every legitimate close of that range
+	// forever (snapshots are append-only). Reject it up front.
+	if periodStart.After(periodEnd) {
+		return nil, coverage.ErrInvalidRequest
 	}
 	closeID := uuid.New()
 	actor := userID

@@ -2,12 +2,15 @@ package activity
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
+	contractdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/contract"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/ticket"
+	unitdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/unit"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	"github.com/stefanoprivitera/hourglass/internal/models"
@@ -104,6 +107,12 @@ func (s *Service) Create(ctx context.Context, role string, orgID, userID uuid.UU
 
 	if req.ContractID != nil {
 		if _, err := s.contractRepo.Get(ctx, orgID, *req.ContractID); err != nil {
+			// WR-05: a missing contract must map to the activity 400 — the
+			// contract repo's sentinel would otherwise fall through the
+			// handler's activitydomain-only switch to a 500.
+			if errors.Is(err, contractdomain.ErrContractNotFound) {
+				return nil, activitydomain.ErrInvalidRequest
+			}
 			return nil, err
 		}
 	}
@@ -114,6 +123,11 @@ func (s *Service) Create(ctx context.Context, role string, orgID, userID uuid.UU
 	if req.BeneficiaryUnitID != nil {
 		u, err := s.unitRepo.GetByID(ctx, req.BeneficiaryUnitID.String())
 		if err != nil {
+			// WR-05: normalize the unit repo's missing-unit sentinel to the
+			// activity 400 (raw ErrUnitNotFound surfaced as 500 before).
+			if errors.Is(err, unitdomain.ErrUnitNotFound) {
+				return nil, activitydomain.ErrInvalidRequest
+			}
 			return nil, err
 		}
 		if u.OrgID != orgID {
@@ -230,12 +244,45 @@ func (s *Service) Update(ctx context.Context, role string, orgID, activityID uui
 	if existing.CreatedByOrgID != orgID {
 		return nil, activitydomain.ErrForbidden
 	}
+	// WR-04: mirror Create — the kind must exist in the org's catalog (D-2)
+	// and the governance model must be valid. Without this, a bogus
+	// kind/governance_model was written straight through to the UPDATE and
+	// surfaced as a raw FK (23503) / CHECK (23514) 500 at the handler.
+	if req.Kind != "" {
+		exists, err := s.activityRepo.KindExists(ctx, orgID, string(req.Kind))
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, activitydomain.ErrInvalidRequest
+		}
+	}
+	if req.GovernanceModel != "" && !req.GovernanceModel.IsValid() {
+		return nil, activitydomain.ErrInvalidRequest
+	}
 	if hasOriginFields(req) {
 		return nil, activitydomain.ErrOriginImmutable
 	}
 	if req.ParentID != nil {
 		if err := s.validateParent(ctx, orgID, activityID, req.ParentID); err != nil {
 			return nil, err
+		}
+	}
+	// WR-05: the update path must validate contract refs exactly like
+	// Create — existence plus org visibility (created-by-org or
+	// shared+adopted, the same predicate the coverage service applies to
+	// allocation refs). The FK proves existence only, never ownership, so a
+	// cross-org ref would otherwise repoint the activity silently.
+	if req.ContractID != nil {
+		c, err := s.contractRepo.Get(ctx, orgID, *req.ContractID)
+		if err != nil {
+			if errors.Is(err, contractdomain.ErrContractNotFound) {
+				return nil, activitydomain.ErrInvalidRequest
+			}
+			return nil, err
+		}
+		if c.CreatedByOrgID != orgID && !(c.IsShared && c.IsAdopted) {
+			return nil, activitydomain.ErrInvalidRequest
 		}
 	}
 	// COV-05/T-12-06: same-org fetch-and-compare on the update path too —
@@ -245,6 +292,11 @@ func (s *Service) Update(ctx context.Context, role string, orgID, activityID uui
 	if req.BeneficiaryUnitID != nil {
 		u, err := s.unitRepo.GetByID(ctx, req.BeneficiaryUnitID.String())
 		if err != nil {
+			// WR-05: normalize the unit repo's missing-unit sentinel to the
+			// activity 400 (raw ErrUnitNotFound surfaced as 500 before).
+			if errors.Is(err, unitdomain.ErrUnitNotFound) {
+				return nil, activitydomain.ErrInvalidRequest
+			}
 			return nil, err
 		}
 		if u.OrgID != orgID {

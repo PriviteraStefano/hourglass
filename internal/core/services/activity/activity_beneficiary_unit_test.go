@@ -62,14 +62,14 @@ func TestService_Create_BeneficiaryUnit(t *testing.T) {
 		assert.Nil(t, created)
 	})
 
-	t.Run("missing unit surfaced as repo sentinel", func(t *testing.T) {
+	t.Run("missing unit rejected as invalid request (WR-05)", func(t *testing.T) {
 		svc, repo, _, _ := setupService(t)
 		repo.Kinds = map[string]bool{orgID.String() + ":engagement": true}
 
 		req := validCreateReq()
 		req.BeneficiaryUnitID = ptr(uuid.New())
 		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), req)
-		assert.ErrorIs(t, err, unitdomain.ErrUnitNotFound)
+		assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)
 		assert.Nil(t, created)
 	})
 }
