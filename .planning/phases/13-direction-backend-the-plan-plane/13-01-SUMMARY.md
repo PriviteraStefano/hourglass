@@ -167,3 +167,10 @@ None - no external service configuration required.
 ---
 *Phase: 13-direction-backend-the-plan-plane*
 *Completed: 2026-08-08*
+
+## Self-Check: PASSED
+
+- All 6 plan artifacts exist on disk (4 migrations + test file + SUMMARY)
+- All 4 commits present: 361065d, 5ddf262, 673db9e, 41df694
+- `go test ./internal/adapters/secondary/postgres/ -run 'TestMigration021|TestMigration022' -count=1` exits 0
+- `go build ./...` and `go vet ./...` clean
