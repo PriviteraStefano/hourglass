@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
 	directiondomain "github.com/stefanoprivitera/hourglass/internal/core/domain/direction"
+	"github.com/stefanoprivitera/hourglass/internal/core/ports"
 )
 
 // DirectionRepository implements the mutator surface of
@@ -836,3 +837,35 @@ func (r *DirectionRepository) AbsenceWindows(ctx context.Context, orgID uuid.UUI
 	}
 	return windows, nil
 }
+
+// FirstDirectionRefs returns the manager-assignment-shaped refs of the
+// EARLIEST created_at non-cancelled direction row for the activity
+// (D-13-32/33): assigned_by = directed_by, assigned_to = directed_to — never
+// the other origin shapes (proposed_by/reviewed_by/ticket_id). The
+// idx_direction_activity_created index serves the (activity_id, created_at)
+// ordering. nil when no such row — refs stay empty (D-13-33), and the query
+// is org-scoped so the fallback can never leak another org's direction data
+// into the activity read path (T-13-21). Read-only by construction — no
+// INSERT/UPDATE path exists in this method (D-13-34).
+func (r *DirectionRepository) FirstDirectionRefs(ctx context.Context, orgID, activityID uuid.UUID) (*directiondomain.DirectionRefs, error) {
+	var directedBy uuid.UUID
+	var directedTo *uuid.UUID
+	err := r.pool.QueryRow(ctx,
+		`SELECT directed_by, directed_to FROM direction
+		 WHERE org_id = $1 AND activity_id = $2 AND status <> 'cancelled'
+		 ORDER BY created_at ASC, id ASC LIMIT 1`,
+		orgID, activityID).Scan(&directedBy, &directedTo)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolve first direction refs: %w", err)
+	}
+	return &directiondomain.DirectionRefs{AssignedBy: &directedBy, AssignedTo: directedTo}, nil
+}
+
+// Compile-time assertion that DirectionRepository implements the FULL
+// ports.DirectionRepository contract (13-03 pin). The mutator half (13-05)
+// could not satisfy it alone — the port declares the four read-model methods
+// this plan implements; the assertion lands here with the last method.
+var _ ports.DirectionRepository = (*DirectionRepository)(nil)
