@@ -481,6 +481,13 @@ func (s *Service) ClosePeriod(ctx context.Context, orgID uuid.UUID, periodStart,
 	if role != string(models.RoleManager) {
 		return nil, coverage.ErrForbidden
 	}
+	// WR-02: an inverted period (start > end) would "succeed" — the BETWEEN
+	// finds no entries → an empty snapshot — while the inclusive overlap
+	// predicate would then reject every legitimate close of that range
+	// forever (snapshots are append-only). Reject it up front.
+	if periodStart.After(periodEnd) {
+		return nil, coverage.ErrInvalidRequest
+	}
 	closeID := uuid.New()
 	actor := userID
 	return s.repo.ClosePeriod(ctx, orgID, periodStart, periodEnd, closeID, userID, &audit.AuditLog{
