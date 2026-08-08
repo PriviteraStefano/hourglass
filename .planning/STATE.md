@@ -4,17 +4,17 @@ milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 13
 current_phase_name: direction-backend-the-plan-plane
-status: executing
-stopped_at: Completed 13-09-PLAN.md
-last_updated: "2026-08-08T15:56:32.275Z"
+status: verifying
+stopped_at: Completed 13-10-PLAN.md
+last_updated: "2026-08-08T16:04:23.253Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 13 execution started
 progress:
   total_phases: 16
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 25
-  completed_plans: 24
-  percent: 13
+  completed_plans: 25
+  percent: 19
 ---
 
 # Project State
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 Phase: 13 (direction-backend-the-plan-plane) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-08 — Phase 13 execution started
 
 ## Accumulated Context
@@ -115,6 +115,7 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 13]: The seven direction routes are wired with middleware.Auth; the direction service reuses the SHARED orgsettings + routing services (no second instances, D-G parity)
 - [Phase 13-09]: CR-01 handler regression activates the user-targeted row first: the nil-guard sits after the status fast-fail, so the 404 contract is only reachable for an ACTIVE user row — Plan's own unit behavior pinned status active; its abbreviated handler-test text omitted the activate step
 - [Phase 13-09]: wrapPGError untouched: with the service-side maxEstHours ceiling the PG 22003 path is unreachable for client input; a global 22003 mapping would alter unrelated repos (time entries) — Per plan Task 3 action; scope boundary honored
+- [Phase ?]: WR-03 reversal (13-10): Unclaim writes AuditActionUnclaimed ('unclaimed') — ADR-BE-018 §3 always pinned the vocabulary; the code drifted to 'cancelled'. Aligning code to the ADR makes unclaim events distinguishable from cancels for Phase 19 history filters and makes the exported constant live. Reverses the 13-05 note. Reversible: one line + docs.
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -180,11 +181,12 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 13 P13-08 | 2h 23m | 3 tasks | 9 files |
 | Phase 13-direction-backend-the-plan-plane P09 | 6min | 3 tasks | 5 files |
 | Phase 13-direction-backend-the-plan-plane P09 | 6min | 3 tasks | 5 files |
+| Phase 13-direction-backend-the-plan-plane P10 | 18 min | 2 tasks | 5 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T15:56:32.259Z
-Stopped at: Completed 13-09-PLAN.md
+Last session: 2026-08-08T16:04:14.472Z
+Stopped at: Completed 13-10-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
