@@ -153,6 +153,12 @@ func (s *Service) readAllowed(role string) bool {
 func (s *Service) Propose(ctx context.Context, orgID, entryID uuid.UUID, role, userID string) (*coverage.CoverageProposal, []*coverage.CoverageAllocation, error) {
 	e, err := s.entryRepo.GetByID(ctx, entryID)
 	if err != nil {
+		// The entry repo's sentinel normalizes to the coverage 404 (the
+		// handler maps ErrEntryNotCoverable → 404; a raw ErrTimeEntryNotFound
+		// would otherwise surface as 500).
+		if errors.Is(err, time_entrydomain.ErrTimeEntryNotFound) {
+			return nil, nil, coverage.ErrEntryNotCoverable
+		}
 		return nil, nil, err
 	}
 	if e == nil || e.OrgID != orgID {
@@ -304,6 +310,11 @@ func (s *Service) ReplaceAllocations(ctx context.Context, orgID, entryID uuid.UU
 	// 1. Entry fetch + scope (GetByID is not org-scoped — the compare is).
 	e, err := s.entryRepo.GetByID(ctx, entryID)
 	if err != nil {
+		// Normalize the entry repo's sentinel to the coverage 404 (see
+		// Propose — a raw ErrTimeEntryNotFound must not surface as 500).
+		if errors.Is(err, time_entrydomain.ErrTimeEntryNotFound) {
+			return nil, coverage.ErrEntryNotCoverable
+		}
 		return nil, err
 	}
 	if e == nil || e.OrgID != orgID {

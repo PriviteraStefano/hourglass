@@ -14,6 +14,7 @@ import (
 	activitysvc "github.com/stefanoprivitera/hourglass/internal/core/services/activity"
 	authsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
 	contractsvc "github.com/stefanoprivitera/hourglass/internal/core/services/contract"
+	coveragesvc "github.com/stefanoprivitera/hourglass/internal/core/services/coverage"
 	customersvc "github.com/stefanoprivitera/hourglass/internal/core/services/customer"
 	exportsvc "github.com/stefanoprivitera/hourglass/internal/core/services/export"
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
@@ -86,6 +87,9 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	teService := tesvc.NewService(timeEntryRepo, timeEntryRepo, wgRepo, activityRepo, unitRepo, routingSvc)
 	exportService := exportsvc.NewService(exportRepo)
 	ticketService := ticketsvc.NewService(postgres.NewTicketRepository(pool), activityRepo, contractRepo, orgRepo)
+	coverageRepo := postgres.NewCoverageRepository(pool)
+	coverageService := coveragesvc.NewService(coverageRepo, activityRepo, contractRepo, unitRepo, timeEntryRepo, routingSvc)
+	coverageHandler := NewCoverageHandler(coverageService)
 
 	// Handlers
 	authHandler := NewAuthHandler(hexAuthService, invitationService)
@@ -204,6 +208,18 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	mux.HandleFunc("POST /tickets/{id}/transition", middleware.Auth(authSvc, ticketHandler.Transition))
 	mux.HandleFunc("POST /tickets/{id}/comments", middleware.Auth(authSvc, ticketHandler.AddComment))
 	mux.HandleFunc("GET /tickets/{id}/history", middleware.Auth(authSvc, ticketHandler.History))
+
+	// Coverage — the 8 registered routes (D-07/COV-04: no incremental CRUD,
+	// no snapshot/audit mutation routes, no finance confirm step; the close
+	// body carries only the period — org comes from claims).
+	mux.HandleFunc("PUT /time-entries/{id}/allocations", middleware.Auth(authSvc, coverageHandler.PutAllocations))
+	mux.HandleFunc("GET /time-entries/{id}/allocations", middleware.Auth(authSvc, coverageHandler.GetAllocations))
+	mux.HandleFunc("GET /coverage/proposals/{entry_id}", middleware.Auth(authSvc, coverageHandler.GetProposal))
+	mux.HandleFunc("GET /coverage/to-cover", middleware.Auth(authSvc, coverageHandler.GetToCoverQueue))
+	mux.HandleFunc("GET /coverage/buckets/{contract_id}/balance", middleware.Auth(authSvc, coverageHandler.GetBucketBalance))
+	mux.HandleFunc("POST /coverage/close", middleware.Auth(authSvc, coverageHandler.PostClose))
+	mux.HandleFunc("GET /coverage/snapshots/{close_id}", middleware.Auth(authSvc, coverageHandler.GetSnapshot))
+	mux.HandleFunc("GET /coverage/allocations/{entry_id}/history", middleware.Auth(authSvc, coverageHandler.GetHistory))
 
 	server := httptest.NewServer(mux)
 
