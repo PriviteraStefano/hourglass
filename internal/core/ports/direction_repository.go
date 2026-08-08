@@ -63,7 +63,8 @@ type DirectionRepository interface {
 	// same reason requirement and matrix re-validation as Cancel, plus the
 	// claim-row guard — a row without origin_direction_id is rejected with
 	// ErrInvalidRequest. Hours return to the WG budget automatically since
-	// consumption is Σ-derived. One 'cancelled' audit row in the same tx.
+	// consumption is Σ-derived. One 'unclaimed' audit row in the same tx
+	// (ADR-BE-018 §3).
 	Unclaim(ctx context.Context, orgID, claimRowID uuid.UUID, reason string, audit *audit.AuditLog) (*direction.Direction, error)
 
 	// Claim creates the claim row (D-13-11..13): user-targeted row with

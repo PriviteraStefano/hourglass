@@ -444,9 +444,10 @@ func (s *Service) Cancel(ctx context.Context, orgID, actorID uuid.UUID, role str
 // Unclaim cancels a CLAIM row (D-13-16): the claim-row guard (only rows with
 // origin_direction_id are unclaimable), the reason requirement, and the
 // claimant (DirectedTo) / creator (DirectedBy) / manager gate. The unclaim
-// audit is the 'cancelled' action with {reason} — the repo tx re-validates
-// the claim-row guard + matrix under the FOR UPDATE lock (authoritative,
-// CR-01); hours return to the WG budget automatically (Σ-derived).
+// audit is the 'unclaimed' action with {reason} (ADR-BE-018 §3) — the repo tx
+// re-validates the claim-row guard + matrix under the FOR UPDATE lock
+// (authoritative, CR-01); hours return to the WG budget automatically
+// (Σ-derived).
 func (s *Service) Unclaim(ctx context.Context, orgID, actorID uuid.UUID, role string, claimRowID uuid.UUID, reason string) (*directiondomain.Direction, error) {
 	claim, err := s.repo.Get(ctx, orgID, claimRowID)
 	if err != nil {
@@ -468,7 +469,7 @@ func (s *Service) Unclaim(ctx context.Context, orgID, actorID uuid.UUID, role st
 		OrgID:      orgID,
 		EntityType: directiondomain.AuditEntityDirection,
 		EntityID:   claimRowID,
-		Action:     directiondomain.AuditActionCancelled,
+		Action:     directiondomain.AuditActionUnclaimed,
 		ActorID:    &actor,
 		Payload:    map[string]any{"reason": reason},
 		CreatedAt:  time.Now().UTC(),
