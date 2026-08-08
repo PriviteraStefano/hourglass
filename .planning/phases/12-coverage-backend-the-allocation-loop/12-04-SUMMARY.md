@@ -158,3 +158,9 @@ None - no external service configuration required.
 
 *Phase: 12-coverage-backend-the-allocation-loop*
 *Completed: 2026-08-08*
+
+## Self-Check: PASSED
+- All 4 key files exist on disk (coverage.go, errors.go, coverage_repository.go, mock_coverage_repo.go) + SUMMARY
+- All 3 commits present in git history (98edb5f, ff902e5, 090f75a)
+- `go build ./...` green; `go vet ./internal/core/domain/coverage/ ./internal/core/ports/` green
+- `go test ./internal/core/services/testdata/ -count=1` ok (mock satisfies the port)
