@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -395,4 +396,134 @@ func (r *DirectionRepository) cancelWithGuard(ctx context.Context, orgID, id uui
 		return nil, fmt.Errorf("commit direction cancellation: %w", err)
 	}
 	return cancelled, nil
+}
+
+// Claim creates the claim row (D-13-11..13): a user-targeted direction row
+// with directed_by = the WG row's creator (manager attribution preserved,
+// D-13-11), directed_to = the claimant, origin_direction_id = wgRowID, same
+// activity, est_hours = the claimed amount, queued (planned_date NULL) and
+// draft, copying priority/due_date from the WG row (A8 — the claimant
+// schedules via the normal supersede chain).
+//
+// The Σ over-subscription guard (D-13-13, ADR-BE-018 §5) is AUTHORITATIVE
+// inside this tx (CR-01 closure, Pitfall 1): the WG row is locked FOR UPDATE,
+// then status/membership/Σ are re-checked in-tx — pool-level service checks
+// are fast-fail UX only. Σ is computed in CENTS (math.Round(h*100), the
+// coverage precedent) over the predicate origin_direction_id = wgRowID AND
+// status IN ('draft','active') — superseded/cancelled claim rows never
+// consume budget; over budget → ErrClaimOverBudget (409). Uncapped when the
+// WG row's est_hours is NULL (D-13-14). The 'claimed' audit row is written
+// in the same tx (BE-012).
+func (r *DirectionRepository) Claim(ctx context.Context, orgID, wgRowID, claimantID uuid.UUID, estHours float64, auditLog *audit.AuditLog) (*directiondomain.Direction, error) {
+	if estHours <= 0 {
+		// Fast-fail at the repo boundary (D-13-03); the DB CHECK
+		// direction_est_hours_check is the second line.
+		return nil, directiondomain.ErrInvalidHours
+	}
+
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("begin direction claim: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// 1. Lock the WG row in-org (CR-01): the lock serializes concurrent
+	//    claims — the locked values are the commit-order truth. wg_id IS NOT
+	//    NULL pins the WG shape (a user row is not claimable).
+	var wgEstHours *float64
+	var wgStatus string
+	var directedBy, activityID, wgID uuid.UUID
+	var priority *int
+	var dueDate *time.Time
+	err = tx.QueryRow(ctx,
+		`SELECT est_hours, status, directed_by, activity_id, priority, due_date, wg_id
+		 FROM direction WHERE id = $1 AND org_id = $2 AND wg_id IS NOT NULL FOR UPDATE`,
+		wgRowID, orgID).Scan(&wgEstHours, &wgStatus, &directedBy, &activityID, &priority, &dueDate, &wgID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, directiondomain.ErrDirectionNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock working-group row for claim: %w", err)
+	}
+
+	// 2. In-tx re-checks (D-13-12, D-13-16): the WG row must be active — a
+	//    draft WG row is not claimable (ADR-BE-018 pinned reading) and
+	//    superseded/cancelled rows are closed.
+	if wgStatus != directiondomain.StatusActive {
+		return nil, directiondomain.ErrWgRowNotActive
+	}
+
+	// 3. Membership re-check in-tx (D-13-12 — authoritative, never
+	//    pool-only): the claimant must be a member of the WG owning the row
+	//    (wg_members, migration 000).
+	var member bool
+	err = tx.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM wg_members WHERE wg_id = $1 AND user_id = $2)`,
+		wgID, claimantID).Scan(&member)
+	if err != nil {
+		return nil, fmt.Errorf("check working-group membership: %w", err)
+	}
+	if !member {
+		return nil, directiondomain.ErrNotWgMember
+	}
+
+	// 4. Σ guard in cents when the budget is set (D-13-13, ADR-BE-018 §5):
+	//    superseded/cancelled claim rows never consume budget — the predicate
+	//    is draft|active only, so hours freed by cancel/unclaim return
+	//    automatically (D-13-16) and a supersede of a claim row keeps the Σ
+	//    unchanged (the superseding row carries origin_direction_id).
+	if wgEstHours != nil {
+		var claimed float64
+		err = tx.QueryRow(ctx,
+			`SELECT COALESCE(SUM(est_hours), 0) FROM direction
+			 WHERE origin_direction_id = $1 AND status IN ('draft','active')`,
+			wgRowID).Scan(&claimed)
+		if err != nil {
+			return nil, fmt.Errorf("compute claimed hours: %w", err)
+		}
+		claimedCents := int64(math.Round(claimed * 100))
+		claimCents := int64(math.Round(estHours * 100))
+		budgetCents := int64(math.Round(*wgEstHours * 100))
+		if claimedCents+claimCents > budgetCents {
+			return nil, directiondomain.ErrClaimOverBudget
+		}
+	}
+
+	// 5. INSERT the claim row (D-13-11, A8): user-targeted (wg_id NULL,
+	//    directed_to = claimant), queued (planned_date NULL), draft status,
+	//    attribution preserved (directed_by = the WG row's creator),
+	//    priority/due_date copied from the locked WG row.
+	now := time.Now().UTC()
+	claimID := uuid.New()
+	_, err = tx.Exec(ctx,
+		`INSERT INTO direction (id, org_id, directed_by, directed_to, wg_id, activity_id,
+			planned_date, est_hours, priority, due_date, status, supersedes_id, origin_direction_id, reason, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, NULL, $5, NULL, $6, $7, $8, 'draft', NULL, $9, NULL, $10, $10)`,
+		claimID, orgID, directedBy, claimantID, activityID, estHours, priority, dueDate, wgRowID, now)
+	if err != nil {
+		return nil, wrapPGError(err, "insert claim row")
+	}
+
+	// 6. 'claimed' audit row in the SAME tx (BE-012, T-13-17). The row id is
+	//    generated here (the port signature takes no id), so the audit's
+	//    entity_id — which the caller cannot know in advance — is pinned to
+	//    the claim row the tx creates (ADR-BE-018 §3: entity_id = the
+	//    direction row id).
+	if auditLog != nil {
+		if auditLog.EntityID == uuid.Nil {
+			auditLog.EntityID = claimID
+		}
+		if err := insertDirectionAudit(ctx, tx, auditLog); err != nil {
+			return nil, err
+		}
+	}
+
+	created, err := r.getByIDTx(ctx, tx, orgID, claimID)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit direction claim: %w", err)
+	}
+	return created, nil
 }

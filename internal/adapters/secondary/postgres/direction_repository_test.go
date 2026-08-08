@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -136,12 +137,12 @@ func TestDirectionRepository_Create(t *testing.T) {
 
 	planned := now.AddDate(0, 0, 1)
 	d := &directiondomain.Direction{
-		ID:         uuid.New(),
-		DirectedBy: managerID,
-		DirectedTo: &employeeID,
-		ActivityID: activityID,
+		ID:          uuid.New(),
+		DirectedBy:  managerID,
+		DirectedTo:  &employeeID,
+		ActivityID:  activityID,
 		PlannedDate: &planned,
-		EstHours:   ptr(8.0),
+		EstHours:    ptr(8.0),
 	}
 
 	created, err := repo.Create(ctx, orgID, d, nil,
@@ -597,4 +598,371 @@ func TestDirectionRepository_Cancel_CrossOrg(t *testing.T) {
 	_, err := repo.Cancel(ctx, orgID, rowID, "scope changed",
 		directionAudit(orgID, rowID, managerID, directiondomain.AuditActionCancelled, nil, now))
 	require.ErrorIs(t, err, directiondomain.ErrDirectionNotFound)
+}
+
+// ---------------------------------------------------------------------------
+// Task 3 — Claim tx (WG-row lock + Σ cents guard + membership re-check),
+// Unclaim, concurrent battery, supersede-chain hours-return
+// ---------------------------------------------------------------------------
+
+// claimAudit builds the 'claimed' audit row the service would pass (payload
+// carries the WG row id + claimed hours, ADR-BE-018 §3).
+func claimAudit(orgID, claimRowID, actorID uuid.UUID, wgRowID uuid.UUID, estHours float64, now time.Time) *audit.AuditLog {
+	return &audit.AuditLog{
+		OrgID:      orgID,
+		EntityType: directiondomain.AuditEntityDirection,
+		EntityID:   claimRowID,
+		Action:     directiondomain.AuditActionClaimed,
+		ActorID:    &actorID,
+		Payload:    map[string]any{"wg_row_id": wgRowID.String(), "est_hours": estHours},
+		CreatedAt:  now,
+	}
+}
+
+// seedWgClaimSetup seeds the WG + active WG row (budget) + a member — the
+// claim test pre-state.
+func seedWgClaimSetup(t *testing.T, pool *pgxpool.Pool, orgID, managerID, memberID uuid.UUID, activityID uuid.UUID, budget *float64, now time.Time) (wgRowID uuid.UUID) {
+	t.Helper()
+	wgID := seedWorkingGroup(t, pool, orgID, activityID, managerID, now)
+	seedWgMember(t, pool, wgID, memberID, seedUnit(t, pool, orgID, now))
+	return seedDirectionRow(t, pool, orgID, managerID, nil, ptr(wgID), activityID, nil, budget, "active", now)
+}
+
+// TestDirectionRepository_Claim proves the claim row shape (D-13-11, A8):
+// user-targeted, queued, draft, attribution preserved, priority/due_date
+// copied from the WG row, origin_direction_id set, 'claimed' audit in-tx,
+// and the Σ reflects the claimed hours.
+func TestDirectionRepository_Claim(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	memberID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	wgRowID := seedWgClaimSetup(t, pool, orgID, managerID, memberID, activityID, ptr(8.0), now)
+	// Give the WG row a priority/due_date to prove the copy (A8).
+	_, err := pool.Exec(ctx, `UPDATE direction SET priority = 3, due_date = DATE '2026-08-20' WHERE id = $1`, wgRowID)
+	require.NoError(t, err)
+
+	claim, err := repo.Claim(ctx, orgID, wgRowID, memberID, 2.0,
+		claimAudit(orgID, uuid.Nil, memberID, wgRowID, 2.0, now))
+	require.NoError(t, err)
+
+	// Claim row shape.
+	require.Equal(t, directiondomain.StatusDraft, claim.Status)
+	require.Equal(t, memberID, *claim.DirectedTo, "directed_to = claimant")
+	require.Equal(t, managerID, claim.DirectedBy, "directed_by = the WG row's creator (attribution, D-13-11)")
+	require.Nil(t, claim.WgID, "claim rows are user-targeted")
+	require.Equal(t, activityID, claim.ActivityID)
+	require.Nil(t, claim.PlannedDate, "claim rows land queued (planned_date NULL, A8)")
+	require.Equal(t, 2.0, *claim.EstHours)
+	require.Equal(t, 3, *claim.Priority, "priority copied from the WG row")
+	require.NotNil(t, claim.DueDate, "due_date copied from the WG row")
+	require.Equal(t, wgRowID, *claim.OriginDirectionID, "origin_direction_id = the WG row")
+
+	require.Equal(t, 2.0, claimSum(t, pool, wgRowID))
+	require.Equal(t, 1, countDirectionAudits(t, pool, claim.ID, directiondomain.AuditActionClaimed))
+}
+
+// TestDirectionRepository_Claim_NotWgMember proves the in-tx membership
+// re-check (D-13-12): a non-member claimant is rejected authoritatively.
+func TestDirectionRepository_Claim_NotWgMember(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	memberID := seedUser(t, pool, now)
+	outsiderID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	wgRowID := seedWgClaimSetup(t, pool, orgID, managerID, memberID, activityID, ptr(8.0), now)
+
+	_, err := repo.Claim(ctx, orgID, wgRowID, outsiderID, 2.0,
+		claimAudit(orgID, uuid.Nil, outsiderID, wgRowID, 2.0, now))
+	require.ErrorIs(t, err, directiondomain.ErrNotWgMember)
+	require.Zero(t, claimSum(t, pool, wgRowID), "a rejected claim must not consume budget")
+}
+
+// TestDirectionRepository_Claim_WgRowDraft proves the active-only pin
+// (ADR-BE-018 §5, D-13-16): a draft WG row is not claimable.
+func TestDirectionRepository_Claim_WgRowDraft(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	memberID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	wgID := seedWorkingGroup(t, pool, orgID, activityID, managerID, now)
+	seedWgMember(t, pool, wgID, memberID, seedUnit(t, pool, orgID, now))
+	wgRowID := seedDirectionRow(t, pool, orgID, managerID, nil, ptr(wgID), activityID, nil, ptr(8.0), "draft", now)
+
+	_, err := repo.Claim(ctx, orgID, wgRowID, memberID, 2.0,
+		claimAudit(orgID, uuid.Nil, memberID, wgRowID, 2.0, now))
+	require.ErrorIs(t, err, directiondomain.ErrWgRowNotActive)
+}
+
+// TestDirectionRepository_Claim_OverBudget proves the single-threaded 409:
+// a claim that would push the Σ over the WG budget fails with
+// ErrClaimOverBudget and nothing commits.
+func TestDirectionRepository_Claim_OverBudget(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	memberID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	wgRowID := seedWgClaimSetup(t, pool, orgID, managerID, memberID, activityID, ptr(8.0), now)
+
+	_, err := repo.Claim(ctx, orgID, wgRowID, memberID, 6.0,
+		claimAudit(orgID, uuid.Nil, memberID, wgRowID, 6.0, now))
+	require.NoError(t, err)
+
+	_, err = repo.Claim(ctx, orgID, wgRowID, memberID, 3.0,
+		claimAudit(orgID, uuid.Nil, memberID, wgRowID, 3.0, now))
+	require.ErrorIs(t, err, directiondomain.ErrClaimOverBudget,
+		"Σ 6.0 + 3.0 > budget 8.0 — the in-tx Σ guard must reject (409)")
+	require.Equal(t, 6.0, claimSum(t, pool, wgRowID), "an over-budget claim must not consume budget")
+}
+
+// TestDirectionRepository_Claim_Uncapped proves the uncapped path (D-13-14):
+// a WG row with NULL budget accepts claims without a Σ gate — two 10h claims
+// both succeed.
+func TestDirectionRepository_Claim_Uncapped(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	memberA := seedUser(t, pool, now)
+	memberB := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	wgID := seedWorkingGroup(t, pool, orgID, activityID, managerID, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	seedWgMember(t, pool, wgID, memberA, unitID)
+	seedWgMember(t, pool, wgID, memberB, unitID)
+	// Budget NULL = uncapped.
+	wgRowID := seedDirectionRow(t, pool, orgID, managerID, nil, ptr(wgID), activityID, nil, nil, "active", now)
+
+	_, err := repo.Claim(ctx, orgID, wgRowID, memberA, 10.0,
+		claimAudit(orgID, uuid.Nil, memberA, wgRowID, 10.0, now))
+	require.NoError(t, err)
+	_, err = repo.Claim(ctx, orgID, wgRowID, memberB, 10.0,
+		claimAudit(orgID, uuid.Nil, memberB, wgRowID, 10.0, now))
+	require.NoError(t, err, "an uncapped WG row accepts any positive claim (D-13-14)")
+	require.Equal(t, 20.0, claimSum(t, pool, wgRowID))
+}
+
+// TestDirectionRepository_Unclaim proves unclaim = cancel of a claim row
+// (D-13-16): the reason requirement holds, hours return to the WG budget
+// (Σ-derived), and a re-claim succeeds.
+func TestDirectionRepository_Unclaim(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	memberID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	wgRowID := seedWgClaimSetup(t, pool, orgID, managerID, memberID, activityID, ptr(8.0), now)
+
+	claim, err := repo.Claim(ctx, orgID, wgRowID, memberID, 8.0,
+		claimAudit(orgID, uuid.Nil, memberID, wgRowID, 8.0, now))
+	require.NoError(t, err)
+	require.Equal(t, 8.0, claimSum(t, pool, wgRowID))
+
+	// Unclaim with a reason — the hours return (Σ-derived, D-13-16).
+	unclaimed, err := repo.Unclaim(ctx, orgID, claim.ID, "no longer wanted",
+		directionAudit(orgID, claim.ID, memberID, directiondomain.AuditActionCancelled,
+			map[string]any{"reason": "no longer wanted"}, now))
+	require.NoError(t, err)
+	require.Equal(t, directiondomain.StatusCancelled, unclaimed.Status)
+	require.Equal(t, 0.0, claimSum(t, pool, wgRowID), "unclaim frees the claimed hours (Σ-derived)")
+	require.Equal(t, 1, countDirectionAudits(t, pool, claim.ID, directiondomain.AuditActionCancelled))
+
+	// Re-claim the freed hours.
+	reclaim, err := repo.Claim(ctx, orgID, wgRowID, memberID, 8.0,
+		claimAudit(orgID, uuid.Nil, memberID, wgRowID, 8.0, now))
+	require.NoError(t, err)
+	require.Equal(t, 8.0, claimSum(t, pool, wgRowID), "re-claim succeeds after unclaim")
+	require.Equal(t, directiondomain.StatusDraft, reclaim.Status)
+}
+
+// TestDirectionRepository_Unclaim_NotClaimRow proves the claim-row guard: the
+// unclaim path rejects rows without origin_direction_id (ErrInvalidRequest).
+func TestDirectionRepository_Unclaim_NotClaimRow(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	rowID := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "draft", now)
+
+	_, err := repo.Unclaim(ctx, orgID, rowID, "nope",
+		directionAudit(orgID, rowID, managerID, directiondomain.AuditActionCancelled, nil, now))
+	require.ErrorIs(t, err, directiondomain.ErrInvalidRequest,
+		"a non-claim row is not unclaimable through the unclaim path")
+}
+
+// TestDirectionClaim_Concurrent is the CR-01 closure battery (mirrors
+// ticket_repository_test.go:418-506 + TestCoverageReplace_Concurrent): N=5
+// members each claim 2.00h against an 8.00 WG budget concurrently. The
+// WG-row FOR UPDATE lock serializes the claims — exactly the budget-bounded
+// set commits (4 succeed + 1 ErrClaimOverBudget), Σ == 8.00, and
+// over-subscription never commits.
+func TestDirectionClaim_Concurrent(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	wgID := seedWorkingGroup(t, pool, orgID, activityID, managerID, now)
+	unitID := seedUnit(t, pool, orgID, now)
+
+	const n = 5
+	members := make([]uuid.UUID, 0, n)
+	for i := 0; i < n; i++ {
+		m := seedUser(t, pool, now)
+		seedWgMember(t, pool, wgID, m, unitID)
+		members = append(members, m)
+	}
+	wgRowID := seedDirectionRow(t, pool, orgID, managerID, nil, ptr(wgID), activityID, nil, ptr(8.0), "active", now)
+
+	start := make(chan struct{})
+	results := make(chan error, n)
+	for _, m := range members {
+		m := m
+		go func() {
+			<-start
+			_, err := repo.Claim(ctx, orgID, wgRowID, m, 2.0,
+				claimAudit(orgID, uuid.Nil, m, wgRowID, 2.0, now))
+			results <- err
+		}()
+	}
+	close(start)
+
+	successes, overBudget := 0, 0
+	for i := 0; i < n; i++ {
+		err := <-results
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, directiondomain.ErrClaimOverBudget):
+			overBudget++
+		default:
+			t.Fatalf("unexpected claim race outcome: %v", err)
+		}
+	}
+	require.Equal(t, 4, successes, "exactly the budget-bounded set commits (4 x 2.00 = 8.00)")
+	require.Equal(t, 1, overBudget, "the 5th claim must fail the in-tx Σ re-check")
+
+	var sum float64
+	var claimRows int
+	err := pool.QueryRow(ctx,
+		`SELECT COALESCE(SUM(est_hours), 0), COUNT(*) FROM direction
+		 WHERE origin_direction_id = $1 AND status IN ('draft','active')`,
+		wgRowID).Scan(&sum, &claimRows)
+	require.NoError(t, err)
+	require.Equal(t, 8.0, sum, "Σ claimed == the WG budget — over-subscription never commits")
+	require.Equal(t, 4, claimRows, "exactly 4 claim rows exist in any committed state")
+}
+
+// TestDirectionClaim_SupersedeCancelReclaim is the D-13-15/D-13-16 contract
+// through the chain (ADR-BE-018 §5): claim 8.00 against the 8.00 budget →
+// supersede the claim row (the superseded row drops out of the Σ, the new
+// row — origin carried, draft — counts the same 8.00: no strand, no double
+// count) → cancel the new row (hours return, Σ == 0 — a re-claim succeeds) →
+// re-claim 8.00 (Σ == 8.00 again).
+func TestDirectionClaim_SupersedeCancelReclaim(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	memberID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	wgRowID := seedWgClaimSetup(t, pool, orgID, managerID, memberID, activityID, ptr(8.0), now)
+
+	// 1. Claim the full budget.
+	claim, err := repo.Claim(ctx, orgID, wgRowID, memberID, 8.0,
+		claimAudit(orgID, uuid.Nil, memberID, wgRowID, 8.0, now))
+	require.NoError(t, err)
+	require.Equal(t, 8.0, claimSum(t, pool, wgRowID))
+
+	// 2. Supersede the claim row — the chain carries the hours.
+	superseding, err := repo.Create(ctx, orgID, &directiondomain.Direction{
+		ID: uuid.New(), DirectedBy: managerID, DirectedTo: &memberID,
+		ActivityID: activityID, EstHours: ptr(8.0),
+	}, &claim.ID, []*audit.AuditLog{
+		directionAudit(orgID, uuid.New(), managerID, directiondomain.AuditActionCreated, nil, now),
+		directionAudit(orgID, claim.ID, managerID, directiondomain.AuditActionSuperseded, nil, now),
+	})
+	require.NoError(t, err)
+	require.Equal(t, wgRowID, *superseding.OriginDirectionID, "the superseding row inherits the claim's origin")
+	require.Equal(t, 8.0, claimSum(t, pool, wgRowID),
+		"the supersede must keep the Σ at 8.00 — no double count, no strand")
+
+	// 3. Cancel the superseding row — hours return to the WG budget.
+	_, err = repo.Cancel(ctx, orgID, superseding.ID, "dropping the claim",
+		directionAudit(orgID, superseding.ID, memberID, directiondomain.AuditActionCancelled,
+			map[string]any{"reason": "dropping the claim"}, now))
+	require.NoError(t, err)
+	require.Equal(t, 0.0, claimSum(t, pool, wgRowID), "cancelling through the chain releases the hours")
+
+	// 4. Re-claim the released budget.
+	reclaim, err := repo.Claim(ctx, orgID, wgRowID, memberID, 8.0,
+		claimAudit(orgID, uuid.Nil, memberID, wgRowID, 8.0, now))
+	require.NoError(t, err)
+	require.Equal(t, 8.0, claimSum(t, pool, wgRowID), "re-claim succeeds — Σ back to fully_claimed")
+	require.Equal(t, directiondomain.StatusDraft, reclaim.Status)
 }
