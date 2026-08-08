@@ -1259,3 +1259,208 @@ func TestDirectionRepository_ListPlan_ClaimSpectrum(t *testing.T) {
 	_ = seedClaimRow(t, pool, orgID, managerID, memberID, uncappedRowID, activityID, 10.0, nil, nil, now)
 	require.Equal(t, directiondomain.ClaimStatePartiallyClaimed, spectrum(uncappedRowID))
 }
+
+// ---------------------------------------------------------------------------
+// Task 2 (13-06) — Coverage read-model (capacity math, planned Σ, gap) +
+// AbsenceWindows
+// ---------------------------------------------------------------------------
+
+// coverageByCell indexes CoverageRow by (employee, day) for per-cell
+// assertions.
+func coverageByCell(rows []directiondomain.CoverageRow) map[[2]any]directiondomain.CoverageRow {
+	m := make(map[[2]any]directiondomain.CoverageRow, len(rows))
+	for _, r := range rows {
+		m[[2]any{r.EmployeeID, r.Date}] = r
+	}
+	return m
+}
+
+// TestDirectionRepository_Coverage_CapacityMath proves the per-day capacity
+// math (D-13-24, Pitfall 10): default 8.0 when no org_settings row; a full
+// window (hours NULL) zeroes the day (away); a partial window reduces by its
+// hours; a multi-day window subtracts once per covered day; overlapping
+// windows both subtract; capacity floors at 0 (never negative — a zeroed day
+// is away, never fake over-capacity).
+func TestDirectionRepository_Coverage_CapacityMath(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+
+	d0, d1, d2, d3, d4, d5 := today, today.AddDate(0, 0, 1), today.AddDate(0, 0, 2),
+		today.AddDate(0, 0, 3), today.AddDate(0, 0, 4), today.AddDate(0, 0, 5)
+
+	// d0: two OVERLAPPING partial permits (3.5 + 2.0) → 8 − 5.5 = 2.5.
+	seedAvailabilityWindow(t, pool, orgID, employeeID, "permit", d0, d0, ptr(3.5), "confirmed", now)
+	seedAvailabilityWindow(t, pool, orgID, employeeID, "permit", d0, d0, ptr(2.0), "confirmed", now)
+	// d1: single full holiday → 0.
+	seedAvailabilityWindow(t, pool, orgID, employeeID, "holiday", d1, d1, nil, "confirmed", now)
+	// d2..d3: multi-day FULL window (declared) → 0 on both days (once each).
+	seedAvailabilityWindow(t, pool, orgID, employeeID, "holiday", d2, d3, nil, "declared", now)
+	// d4: partial multi-day permit spanning beyond the period end → the
+	// in-period day subtracts its hours once (6.5), the out-of-period part is
+	// clamped away.
+	seedAvailabilityWindow(t, pool, orgID, employeeID, "permit", d4, d5, ptr(1.5), "declared", now)
+	// d5: a partial permit larger than the daily hours → capacity floors at 0.
+	seedAvailabilityWindow(t, pool, orgID, employeeID, "permit", d5, d5, ptr(9.0), "declared", now)
+
+	periodStart, periodEnd := today, d5
+	rows, err := repo.Coverage(ctx, orgID, []uuid.UUID{employeeID}, periodStart, periodEnd)
+	require.NoError(t, err)
+	byDay := coverageByCell(rows)
+
+	require.Equal(t, 6, len(rows), "one row per (employee, day) for every day in the period")
+	require.Equal(t, 2.5, byDay[[2]any{employeeID, d0}].Capacity, "overlapping partial permits both subtract (8 − 3.5 − 2)")
+	require.Equal(t, 0.0, byDay[[2]any{employeeID, d1}].Capacity, "full absence zeroes the day")
+	require.Equal(t, 0.0, byDay[[2]any{employeeID, d2}].Capacity, "multi-day full window covers d2")
+	require.Equal(t, 0.0, byDay[[2]any{employeeID, d3}].Capacity, "multi-day full window covers d3 — once per day")
+	require.Equal(t, 6.5, byDay[[2]any{employeeID, d4}].Capacity, "partial multi-day window subtracts once on the in-period day")
+	require.Equal(t, 0.0, byDay[[2]any{employeeID, d5}].Capacity, "capacity floors at 0 — never negative (Pitfall 10)")
+}
+
+// TestDirectionRepository_Coverage_CustomDailyHours proves the org_settings
+// planning_daily_hours override (D-13-24, ADR-BE-018 consequence): a 7.5 row
+// changes the capacity denominator; the COALESCE default (8.0) applies when
+// the key is absent.
+func TestDirectionRepository_Coverage_CustomDailyHours(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+
+	seedOrgSettings(t, pool, orgID, "planning_daily_hours", 7.5, now)
+
+	d0, d1, d2 := today, today.AddDate(0, 0, 1), today.AddDate(0, 0, 2)
+	seedAvailabilityWindow(t, pool, orgID, employeeID, "permit", d1, d1, ptr(3.5), "confirmed", now)
+	seedAvailabilityWindow(t, pool, orgID, employeeID, "holiday", d2, d2, nil, "confirmed", now)
+
+	rows, err := repo.Coverage(ctx, orgID, []uuid.UUID{employeeID}, today, d2)
+	require.NoError(t, err)
+	byDay := coverageByCell(rows)
+
+	require.Equal(t, 7.5, byDay[[2]any{employeeID, d0}].Capacity, "custom daily hours become the denominator")
+	require.Equal(t, 4.0, byDay[[2]any{employeeID, d1}].Capacity, "7.5 − 3.5 partial permit")
+	require.Equal(t, 0.0, byDay[[2]any{employeeID, d2}].Capacity, "full absence zeroes regardless of the denominator")
+}
+
+// TestDirectionRepository_Coverage_PlannedAndGap proves the planned Σ and gap
+// per (employee, day) (D-13-25/26, Pitfall 7): planned counts ONLY
+// draft|active rows for that employee on that exact day (superseded/cancelled
+// history rows excluded — T-13-19); multiple rows sharing the day sum
+// (D-W/D-AA multiplicity); an employee with no rows surfaces planned 0 and
+// gap == capacity (uncovered day — D-13-26); over-capacity yields a negative
+// gap; fully-absent days still return a row (the repo owns the math, the
+// service owns the surfacing policy).
+func TestDirectionRepository_Coverage_PlannedAndGap(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	emp1 := seedUser(t, pool, now)
+	emp2 := seedUser(t, pool, now)
+	emp3 := seedUser(t, pool, now)
+	emp4 := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	// emp1: two active rows sharing the day (Σ 5.5) + superseded + cancelled
+	// history rows that must NOT count.
+	_ = seedDirectionRow(t, pool, orgID, managerID, &emp1, nil, activityID, ptr(today), ptr(3.5), "active", now)
+	_ = seedDirectionRow(t, pool, orgID, managerID, &emp1, nil, activityID, ptr(today), ptr(2.0), "active", now)
+	_ = seedDirectionRow(t, pool, orgID, managerID, &emp1, nil, activityID, ptr(today), ptr(4.0), "superseded", now)
+	cancID := seedDirectionRow(t, pool, orgID, managerID, &emp1, nil, activityID, ptr(today), ptr(1.0), "active", now)
+	_, err := pool.Exec(ctx, `UPDATE direction SET status = 'cancelled', reason = 'history' WHERE id = $1`, cancID)
+	require.NoError(t, err)
+	// emp2: over-capacity (9.0 planned vs 8.0 capacity → gap −1).
+	_ = seedDirectionRow(t, pool, orgID, managerID, &emp2, nil, activityID, ptr(today), ptr(9.0), "active", now)
+	// emp3: no direction rows + a full absence → away day surfaced with 0s.
+	seedAvailabilityWindow(t, pool, orgID, emp3, "holiday", today, today, nil, "confirmed", now)
+	// emp4: no rows today (only a draft row on a different day) → uncovered
+	// day (planned 0, gap == capacity).
+	_ = seedDirectionRow(t, pool, orgID, managerID, &emp4, nil, activityID, ptr(today.AddDate(0, 0, 1)), ptr(4.0), "draft", now)
+
+	rows, err := repo.Coverage(ctx, orgID, []uuid.UUID{emp1, emp2, emp3, emp4}, today, today)
+	require.NoError(t, err)
+	byCell := coverageByCell(rows)
+
+	require.Equal(t, 4, len(rows), "one row per employee per day in the period")
+	require.Equal(t, 5.5, byCell[[2]any{emp1, today}].Planned, "Σ of the two active rows sharing the day; superseded/cancelled rows excluded (T-13-19)")
+	require.Equal(t, 2.5, byCell[[2]any{emp1, today}].Gap, "8.0 − 5.5")
+	require.Equal(t, 9.0, byCell[[2]any{emp2, today}].Planned)
+	require.Equal(t, -1.0, byCell[[2]any{emp2, today}].Gap, "over-capacity: gap is negative")
+	require.Equal(t, 0.0, byCell[[2]any{emp3, today}].Capacity, "fully-absent day still returns a row (service owns surfacing)")
+	require.Equal(t, 0.0, byCell[[2]any{emp3, today}].Gap)
+	require.Equal(t, 0.0, byCell[[2]any{emp4, today}].Planned, "no rows today → planned 0")
+	require.Equal(t, 8.0, byCell[[2]any{emp4, today}].Gap, "uncovered day surfaced: gap == capacity (D-13-26)")
+}
+
+// TestDirectionRepository_AbsenceWindows proves AbsenceWindows returns
+// availability_windows rows with status IN ('declared','confirmed') — BOTH
+// statuses per D-13-29 — overlapping [start, end], org-scoped, with kind +
+// hours + starts_on + ends_on for the service-side warning formatting.
+func TestDirectionRepository_AbsenceWindows(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	otherOrgID := seedOrg(t, pool, now)
+	emp1 := seedUser(t, pool, now)
+	emp2 := seedUser(t, pool, now)
+
+	_ = seedAvailabilityWindow(t, pool, orgID, emp1, "holiday", today, today.AddDate(0, 0, 1), nil, "declared", now)
+	_ = seedAvailabilityWindow(t, pool, orgID, emp1, "permit", today.AddDate(0, 0, 2), today.AddDate(0, 0, 2), ptr(3.5), "confirmed", now)
+	// Out of range (ends before the period starts) — excluded.
+	_ = seedAvailabilityWindow(t, pool, orgID, emp1, "unavailable", today.AddDate(0, 0, -5), today.AddDate(0, 0, -1), nil, "declared", now)
+	// Another org's window for the same employee — excluded (org-scoped).
+	_ = seedAvailabilityWindow(t, pool, otherOrgID, emp1, "medical", today, today, nil, "confirmed", now)
+	// emp2 has no windows in the period.
+	_ = seedAvailabilityWindow(t, pool, orgID, emp2, "holiday", today.AddDate(0, 0, -5), today.AddDate(0, 0, -1), nil, "declared", now)
+
+	windows, err := repo.AbsenceWindows(ctx, orgID, []uuid.UUID{emp1, emp2}, today, today.AddDate(0, 0, 3))
+	require.NoError(t, err)
+	require.Equal(t, 2, len(windows), "declared + confirmed rows in the overlap, org-scoped")
+
+	var declared, confirmed *directiondomain.AbsenceWindow
+	for i := range windows {
+		switch windows[i].Kind {
+		case "holiday":
+			declared = &windows[i]
+		case "permit":
+			confirmed = &windows[i]
+		}
+	}
+	require.NotNil(t, declared)
+	require.Equal(t, emp1, declared.EmployeeID)
+	require.Equal(t, "declared", declared.Kind)
+	require.Nil(t, declared.Hours, "full absence: hours NULL")
+	require.Equal(t, today, declared.StartsOn)
+	require.Equal(t, today.AddDate(0, 0, 1), declared.EndsOn)
+
+	require.NotNil(t, confirmed)
+	require.Equal(t, emp1, confirmed.EmployeeID)
+	require.Equal(t, "confirmed", confirmed.Kind)
+	require.NotNil(t, confirmed.Hours)
+	require.Equal(t, 3.5, *confirmed.Hours)
+}
