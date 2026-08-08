@@ -332,7 +332,7 @@ if res.RoleGated && role != string(models.RoleManager) { return nil, coverage.Er
 **Claim tx (recommended):**
 1. Lock the WG row: `SELECT status, est_hours FROM direction WHERE id = $1 AND org_id = $2 AND wg_id IS NOT NULL FOR UPDATE` (CR-01 — serializes concurrent claims; the in-tx re-check is authoritative).
 2. Re-check in-tx: WG row is `active` (or `draft`? — planner; recommend active), claimant is a WG member (`wgRepo.ListMembers` — `[VERIFIED: internal/core/ports/working_group_repository.go:16]`), activity still within WG scope, claimed `est_hours > 0`.
-3. Σ guard (when budget set): `SELECT COALESCE(SUM(est_hours),0) FROM direction WHERE origin_direction_id = $1 AND status <> 'cancelled'` + claimed amount ≤ WG `est_hours` → else `ErrClaimOverBudget` (409). Uncapped when WG `est_hours` is NULL (D-13-14).
+3. Σ guard (when budget set): `SELECT COALESCE(SUM(est_hours),0) FROM direction WHERE origin_direction_id = $1 AND status IN ('draft','active')` — superseded/cancelled claim rows never consume budget (checker-fix predicate pinned in ADR-BE-018; superseded rows are immutable history and a supersede of a claim row carries `origin_direction_id` onto the new row) + claimed amount ≤ WG `est_hours` → else `ErrClaimOverBudget` (409). Uncapped when WG `est_hours` is NULL (D-13-14).
 4. INSERT claim row: `directed_by` = WG row's creator (D-13-11 attribution), `directed_to` = claimant, `origin_direction_id` = WG row id, same activity, `est_hours` = claimed amount; write `claimed` audit row in the same tx.
 **Unclaim** = cancel the claim row (reason required, D-13-16) — hours return automatically because consumption is Σ-derived.
 
@@ -511,7 +511,7 @@ if wgEstHours != nil {
     var claimed int64
     tx.QueryRow(ctx,
         `SELECT COALESCE(SUM(est_hours), 0) FROM direction
-          WHERE origin_direction_id = $1 AND status <> 'cancelled'`,
+          WHERE origin_direction_id = $1 AND status IN ('draft','active')`,
         wgRowID).Scan(&claimed)
     claimCents := int64(math.Round(claimEstHours * 100))
     if claimed+claimCents > int64(math.Round(*wgEstHours*100)) {
@@ -617,49 +617,51 @@ func TestMigration021_DirectionRows_UpDownUpCycle(t *testing.T) {
 | A9 | Mode gate (D-13-20) strict reading: manager-planned → only managers create rows for that employee; self-planned → only the employee creates their own rows; queued self-rows follow the same mode | Pattern 3 / OQ7 | If self-direction is always allowed regardless of mode (D-S first-class), the gate loosens — additive code change |
 | A10 | WG-direction creation gate = manager within BE-014 reach of the anchored activity (same routing resolution as entries) | Pattern 3 | If any org manager may create WG rows, the routing call is dropped — permission difference |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Draft → active activation mechanics (discretion area, D-13-07)**
+All nine questions were resolved during planning; every recommendation is adopted verbatim, pinned in ADR-BE-018 (13-02) and compiled into the implementing plans listed per question below.
+
+1. **Draft → active activation mechanics (discretion area, D-13-07)** (RESOLVED — adopted by 13-05 T2, 13-07 T2, 13-08 T3)
    - What we know: "created as draft, activated explicitly or via first plan action".
    - What's unclear: explicit `POST /direction/{id}/activate` endpoint vs auto-activation on first create-with-planned_date.
    - Recommendation: **explicit activate endpoint** — one audit row per transition, symmetric with cancel, and the matrix stays simple (`draft → active → cancelled`; create-with-planned_date does NOT auto-activate). Planner confirms; either is within the locked decision.
 
-2. **`lapsed` "without logged hours" predicate (D-13-09)**
+2. **`lapsed` "without logged hours" predicate (D-13-09)** (RESOLVED — adopted by 13-02 T2 [ADR-BE-018 A3 pin], 13-06 T1)
    - What we know: lapsed = past planned_date/due_date without logged hours; the terminal CTE defines non-terminal entries as `status IN ('draft','submitted','pending_manager','pending_finance')` + `is_deleted = false` (verified).
    - What's unclear: does "logged hours" mean *any* non-deleted entry (even draft), or only submitted+approved?
    - Recommendation: **no non-deleted entries at all** on the activity subtree (any status) — a plan "lapsed" when nothing was ever logged; a draft entry indicates work started. Planner pins the SQL; see A3.
 
-3. **Origin fallback trigger and shape (D-13-32..34)**
+3. **Origin fallback trigger and shape (D-13-32..34)** (RESOLVED — adopted by 13-02 T2 [ADR-BE-018 A4 pin], 13-08 T1)
    - What we know: fallback fills `assigned_by`/`assigned_to` from the first non-cancelled direction row when stored refs are empty; never other origin shapes.
    - What's unclear: (a) trigger predicate — `origin_type IS NULL` only, or any empty ref set; (b) whether the response's `origin_type` should report `manager_assignment` when refs are derived (it stays NULL in storage).
    - Recommendation: trigger on `OriginType == nil`; **report the derived refs without flipping origin_type** (the stored value stays authoritative — D-13-34 spirit); document in the BE ADR so Phase 19 surfaces don't re-derive.
 
-4. **Claim row mode/status semantics (D-13-11..16)**
+4. **Claim row mode/status semantics (D-13-11..16)** (RESOLVED — adopted by 13-02 T2 [ADR-BE-018 A8 pin], 13-05 T3)
    - What we know: claim = user-targeted row via `origin_direction_id`; Σ ≤ WG budget under lock; unclaim = cancel with reason.
    - What's unclear: is the claim row `draft` or `active`? Queued or scheduled? Does it copy priority/due_date?
    - Recommendation: **draft + queued, copying priority/due_date** — the claim lands in the claimant's queue (scheduling stays personal, D-T), and the claimant schedules it through the normal supersede chain. See A8.
 
-5. **Coverage read-model period + envelope (discretion area, D-13-25)**
+5. **Coverage read-model period + envelope (discretion area, D-13-25)** (RESOLVED — adopted by 13-06 T2, 13-08 T3)
    - What we know: `GET /direction/coverage?scope=employee|unit|wg&scope_id=&period=`; rows `(employee, date, capacity, planned, gap)` + period totals; derived states included (D-13-27).
    - What's unclear: `period` as single string ("2026-08") vs start/end pair; response grouping (per-employee map vs flat rows); pagination.
    - Recommendation: mirror the coverage close's two-date shape (`period_start`+`period_end`, "2006-01-02" strings parsed at the boundary); return grouped per-employee rows + period totals + warnings; no pagination in v0.2 (org-scoped, period-bounded).
 
-6. **Unit scope employee resolution (D-13-25)**
+6. **Unit scope employee resolution (D-13-25)** (RESOLVED — adopted by 13-07 T3 [A6 pin])
    - What we know: "aggregation differs only in which-employees resolution; unit/WG scopes aggregate employees underneath".
    - What's unclear: does unit scope include members of descendant units? Do WG members outside the unit count?
    - Recommendation: unit scope = members of the unit + all descendant units (`GetDescendants` + `ListMembers`, verified ports); WG scope = `wgRepo.ListMembers` of that WG. See A6.
 
-7. **Mode gate exclusivity (D-13-20)**
+7. **Mode gate exclusivity (D-13-20)** (RESOLVED — adopted by 13-02 T2 [ADR-BE-018 A9 pin], 13-07 T1)
    - What we know: mode gates who may create scheduled rows for whom; self-direction is first-class with no approval (D-S).
    - What's unclear: in manager-planned mode, may the employee still self-direct? In self-planned mode, may a manager still create a scheduled row?
    - Recommendation: strict reading — manager-planned → manager creates via BE-014 reach; self-planned → only the employee creates own rows (see A9). If a hybrid is wanted (self-direction always allowed), it's an additive loosening.
 
-8. **WG-direction row creation permission (D-13-17, D-13-20)**
+8. **WG-direction row creation permission (D-13-17, D-13-20)** (RESOLVED — adopted by 13-07 T1 [A10 pin])
    - What we know: activity must be within the WG's scope; managers direct within subtree/WG reach (BE-014 machinery).
    - What's unclear: who may create a WG row — the WG manager/delegates only, or any manager within BE-014 reach of the anchored activity?
    - Recommendation: reuse `routing.ResolveManagerStage` on the anchored activity (WG manager/delegates or role-gated manager) — same resolution as entry approval, no new permission machinery. See A5/A10.
 
-9. **Settings endpoint shape: one service or fold into direction (D-13-18..23)**
+9. **Settings endpoint shape: one service or fold into direction (D-13-18..23)** (RESOLVED — adopted by 13-04 orgsettings vertical, 13-03 port/domain)
    - What we know: generic `GET/PUT /organizations/settings`, key/value, manager+ gated, audit-logged; "configurations are getting bigger and bigger".
    - What's unclear: separate `orgsettings` package vs extending the existing organization service (which owns the typed `/organizations/{id}/settings`).
    - Recommendation: **separate small `orgsettings` package** (domain + port + service + repo + handler) — keeps the typed legacy surface untouched and gives future settings keys a home independent of direction; wiring in `cmd/server/main.go` beside the existing org routes.
