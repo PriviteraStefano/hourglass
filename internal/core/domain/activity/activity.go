@@ -127,10 +127,13 @@ type CommercialContext struct {
 // sold_hours via the contracts JOIN (016). The coverage service consumes it
 // as the decision input: contract draw vs support bucket vs service request
 // (zero-value contract). All fields nil when the chain has no contract.
+// BeneficiaryUnitID is attached service-side (ResolveBeneficiaryUnit) when
+// the chain has no contract — the absorption default (COV-05).
 type FundingContext struct {
-	ContractID   *uuid.UUID `json:"contract_id,omitempty"`
-	ContractType *string    `json:"contract_type,omitempty"`
-	SoldHours    *float64   `json:"sold_hours,omitempty"`
+	ContractID       *uuid.UUID `json:"contract_id,omitempty"`
+	ContractType     *string    `json:"contract_type,omitempty"`
+	SoldHours        *float64   `json:"sold_hours,omitempty"`
+	BeneficiaryUnitID *uuid.UUID `json:"beneficiary_unit_id,omitempty"`
 }
 
 // CreateActivityRequest is the DTO for creating an activity.
