@@ -122,7 +122,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 12-05-PLAN.md — Coverage service: D-04 proposal decision fn, replace-set (Σ + D-08 gate + D-K), queue enrichment, close orchestration + unit tests
+- [x] 12-05-PLAN.md — Coverage service: D-04 proposal decision fn, replace-set (Σ + D-08 gate + D-K), queue enrichment, close orchestration + unit tests
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
