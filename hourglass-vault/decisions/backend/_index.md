@@ -37,6 +37,7 @@ These ADRs record **how we build in this repo** — Go/backend decisions **speci
 | [[ADR-BE-014 — Approval-Routing Precedence & Activity-Chain Resolution]] | Routing via activity → anchored WG manager/delegate; no fallback; D-11 skip incl. delegates; unit-subtree visibility; `enforce_unit_tuple` drop | P-001 Q1–Q4, P-007 | Accepted |
 | [[ADR-BE-015 — Demo Environment Topology]] | Compose + Caddy + cloudflared (named tunnel + Access); zero published ports; seed via `scripts/seed_demo.sql`; VPS as portable escalation path; k8s deferred | Phase 11 demo | Accepted |
 | [[ADR-BE-016 — Origins Tickets & Audit Schema Encoding]] | Origins/tickets/audit schema: migrations 014–017 shapes, 3VL CHECK guard rule, three-layer ticket model (state/comments/audit), synchronous in-tx ticket audit writes (BE-012 scope extended), terminal-activity definition, `LoggedHours` guard signature, transition matrix, sold_hours semantics | Phase 11 semantic resolutions (OQ1–OQ6, D-05/06/10/13/14) | Proposed |
+| [[ADR-BE-017 — Coverage Encoding]] | Allocation ledger (migrations 018-020): tagged-union source_type with 3VL CHECK guard, chain-driven proposals on read, replace-set with in-tx Σ validation, manager gate via BE-014, frozen period-close snapshots, D-K polymorphic validation cost | COV-01..05, D-01..D-12 | Accepted |
 
 ## Coverage vs. the audit
 
