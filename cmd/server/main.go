@@ -13,6 +13,7 @@ import (
 	activitysvc "github.com/stefanoprivitera/hourglass/internal/core/services/activity"
 	authsvc "github.com/stefanoprivitera/hourglass/internal/core/services/auth"
 	contractsvc "github.com/stefanoprivitera/hourglass/internal/core/services/contract"
+	coveragesvc "github.com/stefanoprivitera/hourglass/internal/core/services/coverage"
 	customersvc "github.com/stefanoprivitera/hourglass/internal/core/services/customer"
 	expsvc "github.com/stefanoprivitera/hourglass/internal/core/services/expense"
 	exportsvc "github.com/stefanoprivitera/hourglass/internal/core/services/export"
@@ -151,6 +152,15 @@ func main() {
 	ticketService := ticketsvc.NewService(ticketRepo, activityRepo, contractRepo, orgRepo)
 	ticketHandler := http.NewTicketHandler(ticketService)
 
+	// Coverage — the allocation loop (ADR-P-012, ADR-BE-017). The service
+	// takes the coverage repo + the activity/contract/unit/entry repos and
+	// the SHARED routing service (BE-014: allocation writers resolve the
+	// same manager stage that approved the entry — D-08 parity, no second
+	// instance).
+	coverageRepo := postgres.NewCoverageRepository(pool)
+	coverageService := coveragesvc.NewService(coverageRepo, activityRepo, contractRepo, unitRepo, timeEntryRepo, routingSvc)
+	coverageHandler := http.NewCoverageHandler(coverageService)
+
 	expenseService := expsvc.NewService(expenseRepo, wgRepo, activityRepo, unitRepo)
 	expenseHandler := http.NewExpenseHandler(expenseService)
 
@@ -225,6 +235,18 @@ func main() {
 	mux.HandleFunc("POST /tickets/{id}/transition", middleware.Auth(authService, ticketHandler.Transition))
 	mux.HandleFunc("POST /tickets/{id}/comments", middleware.Auth(authService, ticketHandler.AddComment))
 	mux.HandleFunc("GET /tickets/{id}/history", middleware.Auth(authService, ticketHandler.History))
+
+	// Coverage — the 8 pinned routes (D-07/COV-04: no incremental CRUD, no
+	// snapshot/audit mutation routes, no finance confirm step; the close
+	// body carries only the period — org comes from claims, T-12-19).
+	mux.HandleFunc("PUT /time-entries/{id}/allocations", middleware.Auth(authService, coverageHandler.PutAllocations))
+	mux.HandleFunc("GET /time-entries/{id}/allocations", middleware.Auth(authService, coverageHandler.GetAllocations))
+	mux.HandleFunc("GET /coverage/proposals/{entry_id}", middleware.Auth(authService, coverageHandler.GetProposal))
+	mux.HandleFunc("GET /coverage/to-cover", middleware.Auth(authService, coverageHandler.GetToCoverQueue))
+	mux.HandleFunc("GET /coverage/buckets/{contract_id}/balance", middleware.Auth(authService, coverageHandler.GetBucketBalance))
+	mux.HandleFunc("POST /coverage/close", middleware.Auth(authService, coverageHandler.PostClose))
+	mux.HandleFunc("GET /coverage/snapshots/{close_id}", middleware.Auth(authService, coverageHandler.GetSnapshot))
+	mux.HandleFunc("GET /coverage/allocations/{entry_id}/history", middleware.Auth(authService, coverageHandler.GetHistory))
 
 	mux.HandleFunc("GET /contracts", middleware.Auth(authService, contractHandler.List))
 	mux.HandleFunc("POST /contracts", middleware.Auth(authService, contractHandler.Create))
