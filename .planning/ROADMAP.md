@@ -107,7 +107,7 @@ Plans:
   7. Coverage references a polymorphic entry (`entry_type` + `entry_id`); validation rejects non-`time` types in v0.2 (COV-05)
   8. Beneficiary unit is nullable on activities, inherited downward like contract_id; absorption sources default from it (COV-05)
 
-**Plans**: 3/7 plans executed
+**Plans**: 4/7 plans executed
 Plans:
 **Wave 1**
 
@@ -117,7 +117,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 12-03-PLAN.md — Beneficiary unit vertical (COV-05, phase tracer): activity field + GetAncestry/scan/Update + ResolveBeneficiaryUnit + ResolveFundingContext CTEs + service/handler + tests
+- [x] 12-03-PLAN.md — Beneficiary unit vertical (COV-05, phase tracer): activity field + GetAncestry/scan/Update + ResolveBeneficiaryUnit + ResolveFundingContext CTEs + service/handler + tests
 - [ ] 12-06-PLAN.md — Coverage repo: replace-set tx (FOR UPDATE + in-tx Σ + audit), queue, bucket balance, close snapshot, history + CR-01 concurrency battery
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -349,7 +349,7 @@ Plans:
 | 9. Activity Ont. | v0.1 | 8/8 | Complete | 2026-07-31 |
 | 10. IA Impl. | v0.1 | 6/6 | Complete | 2026-08-01 |
 | 11. Foundations | v0.2 | 8/8 | Complete    | 2026-08-07 |
-| 12. Coverage Backend | v0.2 | 3/7 | In Progress|  |
+| 12. Coverage Backend | v0.2 | 4/7 | In Progress|  |
 | 13. Direction Backend | v0.2 | 0/TBD | Not started | - |
 | 14. Availability Backend | v0.2 | 0/TBD | Not started | - |
 | 15. UX Foundation | v0.2 | 0/TBD | Not started | - |

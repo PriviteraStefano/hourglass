@@ -5,15 +5,15 @@ milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 12
 current_phase_name: Coverage Backend — The Allocation Loop
 status: executing
-stopped_at: Completed 12-04-PLAN.md
-last_updated: "2026-08-08T09:09:27.405Z"
+stopped_at: Completed 12-03-PLAN.md
+last_updated: "2026-08-08T09:25:51.177Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 16
   completed_phases: 1
   total_plans: 15
-  completed_plans: 11
+  completed_plans: 12
   percent: 6
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 ## Current Position
 
 Phase: 12 (Coverage Backend — The Allocation Loop) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 12 execution started
 
@@ -87,6 +87,10 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 12-coverage-backend-the-allocation-loop]: ADR-P-012 accepted 2026-08-07; D-1..D-6 operationalized via ADR-BE-017; snapshot-not-lock implemented as the frozen period-close snapshot (D-10/D-11/D-12) — ADR-P-012 accepted 2026-08-07; D-1..D-6 operationalized via ADR-BE-017; snapshot-not-lock implemented as the frozen period-close snapshot (D-10/D-11/D-12)
 - [Phase 12-coverage-backend-the-allocation-loop]: ADR-BE-017 pins: zero-value predicate contract_type=project AND sold_hours IS NOT DISTINCT FROM 0 (A3), raw bucket balance without period scaling (A8), duplicate close rejected with 409 (A6), audit vocabulary entity_type=coverage_allocation + actions allocations-set/coverage-closed (A7) — ADR-BE-017 pins: zero-value predicate contract_type=project AND sold_hours IS NOT DISTINCT FROM 0 (A3), raw bucket balance without period scaling (A8), duplicate close rejected with 409 (A6), audit vocabulary entity_type=coverage_allocation + actions allocations-set/coverage-closed (A7)
 - [Phase 12-coverage-backend-the-allocation-loop]: D-K polymorphic validation cost stated honestly in ADR-BE-017: one service branch rejecting entry_type != time + the entry_type CHECK; COV-06 (expense) needs an additive ALTER + service rule change, not a redesign — D-K polymorphic validation cost stated honestly in ADR-BE-017: one service branch rejecting entry_type != time + the entry_type CHECK; COV-06 (expense) needs an additive ALTER + service rule change, not a redesign
+- [Phase ?]: FundingContext chain-data type defined in domain/activity (ContractID/ContractType/SoldHours, all pointer) — coverage service 12-05 consumes it via the port, never stored
+- [Phase ?]: Two separate CTE resolvers with independent NULL-walk guards: ResolveBeneficiaryUnit walks beneficiary_unit_id (absorption default), ResolveFundingContext walks contract_id + contracts JOIN for contract_type/sold_hours (D-04 input)
+- [Phase ?]: beneficiary_unit_id is EDITABLE on Update (unlike origin refs): Update SET branch mirrors ContractID, service re-validates same-org on every write, hasOriginFields untouched (T-12-06)
+- [Phase ?]: Same-org validation via unitRepo.GetByID + u.OrgID == orgID (expense-service pattern); ErrInvalidRequest on mismatch -> 400, fetch error surfaces as-is
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -138,11 +142,12 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 12 P01 | 6min | 2 tasks | 11 files |
 | Phase 12-coverage-backend-the-allocation-loop P02 | 4min | 2 tasks | 4 files |
 | Phase 12-coverage-backend-the-allocation-loop P04 | 3min | 2 tasks | 5 files |
+| Phase 12-coverage-backend-the-allocation-loop P03 | 12min | 2 tasks | 8 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T09:09:27.392Z
-Stopped at: Completed 12-04-PLAN.md
+Last session: 2026-08-08T09:25:50.668Z
+Stopped at: Completed 12-03-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
