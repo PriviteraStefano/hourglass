@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
-current_phase: 12
-current_phase_name: Coverage Backend — The Allocation Loop
+current_phase: 13
+current_phase_name: direction-backend-the-plan-plane
 status: executing
-stopped_at: Completed 12-07-PLAN.md
-last_updated: "2026-08-08T11:16:23.605Z"
+stopped_at: Completed 13-01-PLAN.md
+last_updated: "2026-08-08T12:17:16.740Z"
 last_activity: 2026-08-08
-last_activity_desc: Phase 12 execution started
+last_activity_desc: Phase 13 execution resumed (wave continue)
 progress:
   total_phases: 16
   completed_phases: 2
@@ -25,14 +25,14 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 **Core value:** Role-based approval workflows (employee → manager → finance) with hierarchical organization structures, contract/activity management, and export capabilities.
 
-**Current focus:** Phase 12 — Coverage Backend — The Allocation Loop
+**Current focus:** Phase 13 — direction-backend-the-plan-plane
 
 ## Current Position
 
-Phase: 12 (Coverage Backend — The Allocation Loop) — EXECUTING
-Plan: 7 of 7
+Phase: 13 (direction-backend-the-plan-plane) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-08 — Phase 12 execution started
+Last activity: 2026-08-08 — Phase 13 execution resumed (wave continue)
 
 ## Accumulated Context
 
@@ -95,6 +95,9 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 12-coverage-backend-the-allocation-loop]: Partial coverage states cannot be created via the replace-set (Σ == hours enforced in-tx); they arise from later entry-hours edits — Test simulates the realistic partial path (allocate full, then bump entry hours)
 - [Phase 12-coverage-backend-the-allocation-loop]: FundingContext gained BeneficiaryUnitID (additive): the pinned DefaultSource signature needs the absorption branch input; the service attaches the resolved unit when the chain has no contract — Rule 3 fix — the 12-03 chain struct lacked the absorption default; keeps DefaultSource pure and the six-case matrix table-driven
 - [Phase 12-coverage-backend-the-allocation-loop]: GetAllocations reuses the pinned Propose read path — the 12-05 service surface has no ListByEntry method, so the thin handler consumes Propose (proposal, allocs) instead of extending the service surface — Plan referenced a service read missing from the pinned 12-05 surface; reusing Propose honors the pinned surface. time_entry.ErrTimeEntryNotFound normalizes to coverage.ErrEntryNotCoverable in the service so the 404 contract holds without leaking cross-domain sentinels into the handler.
+- [Phase 13]: 021 status vocabulary lives in the single named constraint direction_status_check; the inline column CHECK was dropped (PostgreSQL auto-names inline CHECKs, colliding 42710 with the explicit ALTER — Rule 1 auto-fix) — 021 status vocabulary lives in the single named constraint direction_status_check; the inline column CHECK was dropped (PostgreSQL auto-names inline CHECKs, colliding 42710 with the explicit ALTER — Rule 1 auto-fix)
+- [Phase 13]: assertPrimaryKey helper added locally in direction_ontology_migrations_test.go (pg_constraint contype p) — no shared PK-assert helper existed in the postgres test package — assertPrimaryKey helper added locally in direction_ontology_migrations_test.go (pg_constraint contype p) — no shared PK-assert helper existed in the postgres test package
+- [Phase 13]: 021 header comment avoids the literal word "unique" — grep-based acceptance checks for an absent UNIQUE constraint would trip on the comment; the DDL carries none — 021 header comment avoids the literal word "unique" — grep-based acceptance checks for an absent UNIQUE constraint would trip on the comment; the DDL carries none
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -150,11 +153,12 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 12-coverage-backend-the-allocation-loop P06 | 8m | 2 tasks | 3 files |
 | Phase 12-coverage-backend-the-allocation-loop P05 | 7 min | 2 tasks | 3 files |
 | Phase 12-coverage-backend-the-allocation-loop P07 | 6min | 2 tasks | 5 files |
+| Phase 13 P13-01 | 18 min | 2 tasks | 6 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T10:01:27.460Z
-Stopped at: Completed 12-07-PLAN.md
+Last session: 2026-08-08T12:16:46.351Z
+Stopped at: Completed 13-01-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
