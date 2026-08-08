@@ -144,7 +144,7 @@ Plans:
   7. Direction-coverage read-model returns planned hours vs capacity per employee/period with uncovered days surfaced, per employee / unit / WG (DIR-06)
   8. Origin fallback active: activities with empty origin refs resolve refs from the first direction record (FND-04 read path, additive)
 
-**Plans**: 7/8 plans executed
+**Plans**: 8/8 plans executed
 Plans:
 **Wave 1**
 
@@ -167,7 +167,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 13-08-PLAN.md — Direction HTTP surface (7 routes) + wiring + origin fallback in the activity read path (FND-04)
+- [x] 13-08-PLAN.md — Direction HTTP surface (7 routes) + wiring + origin fallback in the activity read path (FND-04)
 
 ### Phase 14: Availability Backend — Absences + Capacity
 
@@ -373,7 +373,7 @@ Plans:
 | 10. IA Impl. | v0.1 | 6/6 | Complete | 2026-08-01 |
 | 11. Foundations | v0.2 | 8/8 | Complete    | 2026-08-07 |
 | 12. Coverage Backend | v0.2 | 7/7 | In Progress|  |
-| 13. Direction Backend | v0.2 | 7/8 | In Progress|  |
+| 13. Direction Backend | v0.2 | 8/8 | In Progress|  |
 | 14. Availability Backend | v0.2 | 0/TBD | Not started | - |
 | 15. UX Foundation | v0.2 | 0/TBD | Not started | - |
 | 16. Availability FE | v0.2 | 0/TBD | Not started | - |

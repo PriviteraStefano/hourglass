@@ -5,8 +5,8 @@ milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 13
 current_phase_name: direction-backend-the-plan-plane
 status: verifying
-stopped_at: Completed 13-07-PLAN.md
-last_updated: "2026-08-08T14:19:50.796Z"
+stopped_at: Completed 13-08-PLAN.md
+last_updated: "2026-08-08T14:48:08.296Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 13 execution resumed (wave continue)
 progress:
@@ -110,6 +110,9 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 13-direction-backend-the-plan-plane]: Claim reuses the create-side whole-cent validation (D-13-03): sub-cent claims would corrupt the repo's cents-based Sigma (rounded Sigma != stored DECIMAL(8,2))
 - [Phase 13-direction-backend-the-plan-plane]: Coverage period totals are computed over the FULL row set (capacity-0 away days keep their zero capacity); only the uncovered rows list excludes them (D-13-26)
 - [Phase 13-direction-backend-the-plan-plane]: created/activated audits carry nil payloads (the 13-05 repo test contract); cancelled carries {reason}, claimed carries {wg_row_id, est_hours} with uuid.Nil entity (repo pins it to the claim row)
+- [Phase 13]: Origin fallback lives in the activity read path at the service layer (OriginType == nil predicate), derived from FirstDirectionRefs — read-only, never written back
+- [Phase 13]: The create response shape is {row, warnings} with warnings normalized to an always-array at the handler boundary (D-13-03/13-UI-SPEC); read-models carry rows/coverage rows + totals + warnings
+- [Phase 13]: The seven direction routes are wired with middleware.Auth; the direction service reuses the SHARED orgsettings + routing services (no second instances, D-G parity)
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -172,11 +175,12 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 13 P05 | 47 min | 3 tasks | 2 files |
 | Phase 13 P13-06 | 38 min | 3 tasks | 2 files |
 | Phase 13-direction-backend-the-plan-plane P07 | 11min | 3 tasks | 4 files |
+| Phase 13 P13-08 | 2h 23m | 3 tasks | 9 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T14:19:25.540Z
-Stopped at: Completed 13-07-PLAN.md
+Last session: 2026-08-08T14:48:08.281Z
+Stopped at: Completed 13-08-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 
