@@ -252,3 +252,147 @@ func (r *DirectionRepository) Create(ctx context.Context, orgID uuid.UUID, d *di
 	}
 	return created, nil
 }
+
+// Activate transitions draft → active (explicit endpoint, OQ1 resolution —
+// create-with-planned_date does NOT auto-activate). The matrix is re-validated
+// against the FOR UPDATE locked row (CR-01): a concurrent transition that
+// commits before this tx acquires the lock is read as the locked status, so
+// terminal rows can no longer be flipped (Pitfall 4). The UPDATE carries the
+// locked status as a precondition backstop; the 'activated' audit row is
+// written in the same tx (BE-012).
+func (r *DirectionRepository) Activate(ctx context.Context, orgID, id uuid.UUID, auditLog *audit.AuditLog) (*directiondomain.Direction, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("begin direction activation: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var currentStatus string
+	err = tx.QueryRow(ctx,
+		`SELECT status FROM direction WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+		id, orgID).Scan(&currentStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, directiondomain.ErrDirectionNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock direction for activation: %w", err)
+	}
+
+	// Authoritative in-tx matrix re-check (D-13-07, CR-01).
+	if !directiondomain.CanTransition(currentStatus, directiondomain.StatusActive) {
+		return nil, directiondomain.ErrInvalidTransition
+	}
+
+	ct, err := tx.Exec(ctx,
+		`UPDATE direction SET status = 'active', updated_at = $1
+		 WHERE id = $2 AND org_id = $3 AND status = $4`,
+		time.Now().UTC(), id, orgID, currentStatus)
+	if err != nil {
+		return nil, wrapPGError(err, "activate direction")
+	}
+	if ct.RowsAffected() == 0 {
+		return nil, directiondomain.ErrDirectionNotFound
+	}
+
+	if auditLog != nil {
+		if err := insertDirectionAudit(ctx, tx, auditLog); err != nil {
+			return nil, err
+		}
+	}
+
+	activated, err := r.getByIDTx(ctx, tx, orgID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit direction activation: %w", err)
+	}
+	return activated, nil
+}
+
+// Cancel transitions draft|active → cancelled with a MANDATORY reason
+// (D-13-10; the schema CHECK direction_cancel_reason_check is the second
+// line) and writes the 'cancelled' audit row (reason payload) in the same tx.
+// The matrix is re-validated against the FOR UPDATE locked row (CR-01) with
+// the status-precondition UPDATE backstop; terminal rows reject further
+// transitions. Also serves unclaim = cancel of a claim row (D-13-16) — hours
+// return to the WG budget automatically since consumption is Σ-derived.
+func (r *DirectionRepository) Cancel(ctx context.Context, orgID, id uuid.UUID, reason string, auditLog *audit.AuditLog) (*directiondomain.Direction, error) {
+	return r.cancelWithGuard(ctx, orgID, id, reason, auditLog, false)
+}
+
+// Unclaim is cancel of a CLAIM row (D-13-16): the same reason requirement and
+// matrix re-validation, plus the claim-row guard — a row without
+// origin_direction_id is not unclaimable through this path
+// (ErrInvalidRequest). The service (13-07) fast-fails "unclaim only on claim
+// rows" at the pool level; this in-tx guard is authoritative.
+func (r *DirectionRepository) Unclaim(ctx context.Context, orgID, claimRowID uuid.UUID, reason string, auditLog *audit.AuditLog) (*directiondomain.Direction, error) {
+	return r.cancelWithGuard(ctx, orgID, claimRowID, reason, auditLog, true)
+}
+
+// cancelWithGuard is the shared cancel tx internals (Cancel + Unclaim): lock
+// the row FOR UPDATE in-org, enforce the claim-row guard when required,
+// re-check the matrix against the locked status (CR-01), UPDATE with a
+// status-precondition backstop, write the audit row in-tx, commit.
+func (r *DirectionRepository) cancelWithGuard(ctx context.Context, orgID, id uuid.UUID, reason string, auditLog *audit.AuditLog, requireClaimRow bool) (*directiondomain.Direction, error) {
+	if reason == "" {
+		// Fast-fail at the repo boundary (D-13-10) — the DB CHECK is the
+		// second line, this is the first.
+		return nil, directiondomain.ErrCancelReasonRequired
+	}
+
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("begin direction cancellation: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var currentStatus string
+	var originDirectionID *uuid.UUID
+	err = tx.QueryRow(ctx,
+		`SELECT status, origin_direction_id FROM direction WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+		id, orgID).Scan(&currentStatus, &originDirectionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, directiondomain.ErrDirectionNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock direction for cancellation: %w", err)
+	}
+
+	// Unclaim path: only claim rows (origin_direction_id set) are unclaimable.
+	if requireClaimRow && originDirectionID == nil {
+		return nil, directiondomain.ErrInvalidRequest
+	}
+
+	// Authoritative in-tx matrix re-check (D-13-07, CR-01): draft|active →
+	// cancelled; terminal rows reject.
+	if !directiondomain.CanTransition(currentStatus, directiondomain.StatusCancelled) {
+		return nil, directiondomain.ErrInvalidTransition
+	}
+
+	ct, err := tx.Exec(ctx,
+		`UPDATE direction SET status = 'cancelled', reason = $1, updated_at = $2
+		 WHERE id = $3 AND org_id = $4 AND status = $5`,
+		reason, time.Now().UTC(), id, orgID, currentStatus)
+	if err != nil {
+		return nil, wrapPGError(err, "cancel direction")
+	}
+	if ct.RowsAffected() == 0 {
+		return nil, directiondomain.ErrDirectionNotFound
+	}
+
+	if auditLog != nil {
+		if err := insertDirectionAudit(ctx, tx, auditLog); err != nil {
+			return nil, err
+		}
+	}
+
+	cancelled, err := r.getByIDTx(ctx, tx, orgID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit direction cancellation: %w", err)
+	}
+	return cancelled, nil
+}

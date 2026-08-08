@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -95,6 +96,22 @@ func countDirectionAudits(t *testing.T, pool *pgxpool.Pool, entityID uuid.UUID, 
 		entityID, action).Scan(&n)
 	require.NoError(t, err)
 	return n
+}
+
+// cancelReasonPayload reads the latest 'cancelled' audit payload for a row
+// (the reason payload, D-13-10).
+func cancelReasonPayload(t *testing.T, pool *pgxpool.Pool, entityID uuid.UUID) map[string]any {
+	t.Helper()
+	var payloadJSON []byte
+	err := pool.QueryRow(context.Background(),
+		`SELECT payload FROM audit_logs
+		 WHERE entity_type = 'direction' AND entity_id = $1 AND action = 'cancelled'
+		 ORDER BY created_at DESC LIMIT 1`,
+		entityID).Scan(&payloadJSON)
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(payloadJSON, &payload))
+	return payload
 }
 
 // ---------------------------------------------------------------------------
@@ -372,4 +389,212 @@ func TestDirectionRepository_Create_SupersedeClaimRowToWgShape(t *testing.T) {
 	})
 	require.ErrorIs(t, err, directiondomain.ErrInvalidTarget,
 		"a WG-shaped superseding row cannot carry a claim's origin")
+}
+
+// ---------------------------------------------------------------------------
+// Task 2 — Activate + Cancel txs (matrix re-validation under lock)
+// ---------------------------------------------------------------------------
+
+// TestDirectionRepository_Activate proves draft → active with the 'activated'
+// audit row written in the same tx (BE-012).
+func TestDirectionRepository_Activate(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	rowID := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "draft", now)
+
+	activated, err := repo.Activate(ctx, orgID, rowID,
+		directionAudit(orgID, rowID, managerID, directiondomain.AuditActionActivated, nil, now))
+	require.NoError(t, err)
+	require.Equal(t, directiondomain.StatusActive, activated.Status)
+	require.Equal(t, 1, countDirectionAudits(t, pool, rowID, directiondomain.AuditActionActivated))
+}
+
+// TestDirectionRepository_Activate_Twice proves the idempotency edge: a second
+// activate on an active row fails in-tx with ErrInvalidTransition (probe
+// DIR-01) — no silent double-transition.
+func TestDirectionRepository_Activate_Twice(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	rowID := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "active", now)
+
+	_, err := repo.Activate(ctx, orgID, rowID,
+		directionAudit(orgID, rowID, managerID, directiondomain.AuditActionActivated, nil, now))
+	require.ErrorIs(t, err, directiondomain.ErrInvalidTransition,
+		"active → active is not in the matrix")
+
+	var status string
+	err = pool.QueryRow(ctx, `SELECT status FROM direction WHERE id = $1`, rowID).Scan(&status)
+	require.NoError(t, err)
+	require.Equal(t, directiondomain.StatusActive, status, "a failed transition must not change the row")
+}
+
+// TestDirectionRepository_Activate_Cancelled proves a terminal row rejects the
+// activate transition (Pitfall 4).
+func TestDirectionRepository_Activate_Cancelled(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	rowID := seedDirectionRowCancelled(t, pool, orgID, managerID, &employeeID, activityID, "no longer needed", now)
+
+	_, err := repo.Activate(ctx, orgID, rowID,
+		directionAudit(orgID, rowID, managerID, directiondomain.AuditActionActivated, nil, now))
+	require.ErrorIs(t, err, directiondomain.ErrInvalidTransition,
+		"a cancelled row is terminal — never activatable")
+}
+
+// TestDirectionRepository_Activate_CrossOrg proves the org-scoped lock: an
+// activate on another org's row reads as ErrDirectionNotFound (T-13-18).
+func TestDirectionRepository_Activate_CrossOrg(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	otherOrgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	rowID := seedDirectionRow(t, pool, otherOrgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "draft", now)
+
+	_, err := repo.Activate(ctx, orgID, rowID,
+		directionAudit(orgID, rowID, managerID, directiondomain.AuditActionActivated, nil, now))
+	require.ErrorIs(t, err, directiondomain.ErrDirectionNotFound)
+}
+
+// TestDirectionRepository_Cancel proves draft → cancelled with a reason: the
+// audit row carries the reason payload (D-13-10), the row's reason column is
+// persisted, and the return reflects the cancelled state.
+func TestDirectionRepository_Cancel(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	rowID := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "draft", now)
+
+	cancelled, err := repo.Cancel(ctx, orgID, rowID, "scope changed",
+		directionAudit(orgID, rowID, managerID, directiondomain.AuditActionCancelled, map[string]any{"reason": "scope changed"}, now))
+	require.NoError(t, err)
+	require.Equal(t, directiondomain.StatusCancelled, cancelled.Status)
+	require.NotNil(t, cancelled.Reason)
+	require.Equal(t, "scope changed", *cancelled.Reason)
+
+	require.Equal(t, 1, countDirectionAudits(t, pool, rowID, directiondomain.AuditActionCancelled))
+	require.Equal(t, "scope changed", cancelReasonPayload(t, pool, rowID)["reason"])
+}
+
+// TestDirectionRepository_Cancel_EmptyReason proves the reason requirement
+// (D-13-10): an empty reason is rejected at the repo boundary BEFORE any lock
+// or write (ErrCancelReasonRequired).
+func TestDirectionRepository_Cancel_EmptyReason(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	rowID := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "draft", now)
+
+	_, err := repo.Cancel(ctx, orgID, rowID, "",
+		directionAudit(orgID, rowID, managerID, directiondomain.AuditActionCancelled, nil, now))
+	require.ErrorIs(t, err, directiondomain.ErrCancelReasonRequired)
+
+	var status string
+	err = pool.QueryRow(ctx, `SELECT status FROM direction WHERE id = $1`, rowID).Scan(&status)
+	require.NoError(t, err)
+	require.Equal(t, directiondomain.StatusDraft, status, "a reason-less cancel must not change the row")
+	require.Zero(t, countDirectionAudits(t, pool, rowID, directiondomain.AuditActionCancelled))
+}
+
+// TestDirectionRepository_Cancel_Twice proves a cancelled row is terminal: a
+// second cancel fails in-tx with ErrInvalidTransition (no silent
+// double-transition).
+func TestDirectionRepository_Cancel_Twice(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	rowID := seedDirectionRowCancelled(t, pool, orgID, managerID, &employeeID, activityID, "first reason", now)
+
+	_, err := repo.Cancel(ctx, orgID, rowID, "second reason",
+		directionAudit(orgID, rowID, managerID, directiondomain.AuditActionCancelled, nil, now))
+	require.ErrorIs(t, err, directiondomain.ErrInvalidTransition,
+		"cancelled → cancelled is not in the matrix")
+}
+
+// TestDirectionRepository_Cancel_CrossOrg proves the org-scoped lock: a cancel
+// on another org's row reads as ErrDirectionNotFound (T-13-18).
+func TestDirectionRepository_Cancel_CrossOrg(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	otherOrgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	rowID := seedDirectionRow(t, pool, otherOrgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "draft", now)
+
+	_, err := repo.Cancel(ctx, orgID, rowID, "scope changed",
+		directionAudit(orgID, rowID, managerID, directiondomain.AuditActionCancelled, nil, now))
+	require.ErrorIs(t, err, directiondomain.ErrDirectionNotFound)
 }
