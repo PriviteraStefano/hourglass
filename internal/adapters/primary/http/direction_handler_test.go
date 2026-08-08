@@ -304,6 +304,32 @@ func TestDirectionHandler(t *testing.T) {
 		require.False(t, ids[row1ID], "the superseded row is history, not in the plan (D-13-08)")
 	})
 
+	t.Run("supersede-on-create writes BOTH audit rows in the tx (CR-02)", func(t *testing.T) {
+		f.loginUser(t, ownerEmail, "TestPass123!")
+		status, env := h.doJSON(t, http.MethodPost, "/direction",
+			fmt.Sprintf(`{"directed_to":"%s","activity_id":"%s","est_hours":4}`, ownerUUID.String(), activityID))
+		require.Equal(t, http.StatusOK, status, "row1 create: %v", env)
+		row1ID := mustParse(t, env["data"].(map[string]any)["row"].(map[string]any)["id"].(string))
+
+		status, env = h.doJSON(t, http.MethodPost, "/direction",
+			fmt.Sprintf(`{"directed_to":"%s","activity_id":"%s","est_hours":6,"supersedes_id":"%s"}`,
+				ownerUUID.String(), activityID, row1ID.String()))
+		require.Equal(t, http.StatusOK, status, "row2 create-with-supersedes: %v", env)
+		row2ID := mustParse(t, env["data"].(map[string]any)["row"].(map[string]any)["id"].(string))
+
+		var supersededCount int
+		require.NoError(t, h.f.Pool.QueryRow(context.Background(),
+			`SELECT COUNT(*) FROM audit_logs WHERE entity_type = 'direction' AND entity_id = $1 AND action = 'superseded'`,
+			row1ID).Scan(&supersededCount))
+		require.Equal(t, 1, supersededCount, "the superseded audit must address the flipped target (CR-02)")
+
+		var createdCount int
+		require.NoError(t, h.f.Pool.QueryRow(context.Background(),
+			`SELECT COUNT(*) FROM audit_logs WHERE entity_type = 'direction' AND entity_id = $1 AND action = 'created'`,
+			row2ID).Scan(&createdCount))
+		require.Equal(t, 1, createdCount, "the created audit addresses the new row")
+	})
+
 	t.Run("superseding a claim-row target carries origin_direction_id", func(t *testing.T) {
 		wgID := h.seedWorkingGroup(t, orgUUID, mustParse(t, activityID), ownerUUID)
 		memberEmail := "dir-cs-" + uuid.New().String()[:8] + "@test.com"

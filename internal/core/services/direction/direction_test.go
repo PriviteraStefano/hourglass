@@ -360,6 +360,39 @@ func TestService_Create(t *testing.T) {
 		require.NotNil(t, created)
 	})
 
+	t.Run("supersede-on-create writes created + superseded audit rows (CR-02)", func(t *testing.T) {
+		f := setup(t)
+		f.seedActivity(orgID, activityID)
+		f.seedMembership(actorID, orgID, &selfPlanned, nil, nil)
+		targetID := uuid.New()
+		f.seedDirectionRow(&directiondomain.Direction{
+			ID: targetID, OrgID: orgID, DirectedBy: actorID, DirectedTo: &actorID,
+			ActivityID: activityID, Status: directiondomain.StatusDraft,
+		})
+
+		req := baseReq()
+		req.SupersedesID = &targetID
+		created, _, err := f.svc.Create(ctx, orgID, actorID, "employee", req)
+		require.NoError(t, err)
+		require.NotNil(t, created)
+
+		require.Len(t, f.dirRepo.Audits, 2, "supersede-on-create must write created + superseded (CR-02)")
+		a0 := f.dirRepo.Audits[0]
+		assert.Equal(t, directiondomain.AuditActionCreated, a0.Action)
+		assert.Equal(t, created.ID, a0.EntityID)
+		require.NotNil(t, a0.ActorID)
+		assert.Equal(t, actorID, *a0.ActorID)
+		assert.Nil(t, a0.Payload)
+
+		a1 := f.dirRepo.Audits[1]
+		assert.Equal(t, directiondomain.AuditActionSuperseded, a1.Action)
+		assert.Equal(t, targetID, a1.EntityID, "the superseded audit addresses the flipped target")
+		assert.Equal(t, directiondomain.AuditEntityDirection, a1.EntityType)
+		require.NotNil(t, a1.ActorID)
+		assert.Equal(t, actorID, *a1.ActorID)
+		assert.Nil(t, a1.Payload)
+	})
+
 	t.Run("supersede target already superseded rejected with ErrInvalidTransition", func(t *testing.T) {
 		f := setup(t)
 		f.seedActivity(orgID, activityID)
