@@ -255,6 +255,20 @@ func (s *Service) Create(ctx context.Context, orgID, actorID uuid.UUID, role str
 	// 5. Permission gate: mode gate for user-targeted rows, routing gate for
 	// the manager path and all WG rows.
 	if req.DirectedTo != nil {
+		// Same-org active-membership gate (WR-01, T-13g-04, ADR-BE-018
+		// §Security): the target must be an ACTIVE member of orgID BEFORE
+		// any mode/routing decision — FK users(id) alone does not enforce
+		// org containment. Nil or inactive membership -> ErrInvalidRequest
+		// (400) — no existence oracle: a nonexistent user, an inactive
+		// member, and a cross-org user are indistinguishable at this
+		// boundary.
+		m, err := s.orgRepo.GetMembership(ctx, *req.DirectedTo, orgID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if m == nil || !m.IsActive {
+			return nil, nil, directiondomain.ErrInvalidRequest
+		}
 		mode, err := s.orgSettings.ResolvePlanningMode(ctx, orgID, *req.DirectedTo)
 		if err != nil {
 			return nil, nil, err
