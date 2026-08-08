@@ -5,15 +5,15 @@ milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 12
 current_phase_name: Coverage Backend — The Allocation Loop
 status: executing
-stopped_at: Completed 12-03-PLAN.md
-last_updated: "2026-08-08T09:25:51.177Z"
+stopped_at: Completed 12-06-PLAN.md
+last_updated: "2026-08-08T09:38:33.424Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 16
   completed_phases: 1
   total_plans: 15
-  completed_plans: 12
+  completed_plans: 13
   percent: 6
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 ## Current Position
 
 Phase: 12 (Coverage Backend — The Allocation Loop) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 12 execution started
 
@@ -91,6 +91,8 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase ?]: Two separate CTE resolvers with independent NULL-walk guards: ResolveBeneficiaryUnit walks beneficiary_unit_id (absorption default), ResolveFundingContext walks contract_id + contracts JOIN for contract_type/sold_hours (D-04 input)
 - [Phase ?]: beneficiary_unit_id is EDITABLE on Update (unlike origin refs): Update SET branch mirrors ContractID, service re-validates same-org on every write, hasOriginFields untouched (T-12-06)
 - [Phase ?]: Same-org validation via unitRepo.GetByID + u.OrgID == orgID (expense-service pattern); ErrInvalidRequest on mismatch -> 400, fetch error surfaces as-is
+- [Phase 12-coverage-backend-the-allocation-loop]: Close audit row addresses the close (entity_id = closeID), not the entry: A7 per-entry history covers allocation changes only; the close event is read by close id — The plan's test wording implied close rows appear in entry history; the port contract pins entity_id = entry — port wins
+- [Phase 12-coverage-backend-the-allocation-loop]: Partial coverage states cannot be created via the replace-set (Σ == hours enforced in-tx); they arise from later entry-hours edits — Test simulates the realistic partial path (allocate full, then bump entry hours)
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -143,11 +145,12 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 12-coverage-backend-the-allocation-loop P02 | 4min | 2 tasks | 4 files |
 | Phase 12-coverage-backend-the-allocation-loop P04 | 3min | 2 tasks | 5 files |
 | Phase 12-coverage-backend-the-allocation-loop P03 | 12min | 2 tasks | 8 files |
+| Phase 12-coverage-backend-the-allocation-loop P06 | 8m | 2 tasks | 3 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T09:25:50.668Z
-Stopped at: Completed 12-03-PLAN.md
+Last session: 2026-08-08T09:38:19.492Z
+Stopped at: Completed 12-06-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 

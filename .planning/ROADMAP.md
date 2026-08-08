@@ -118,7 +118,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 12-03-PLAN.md — Beneficiary unit vertical (COV-05, phase tracer): activity field + GetAncestry/scan/Update + ResolveBeneficiaryUnit + ResolveFundingContext CTEs + service/handler + tests
-- [ ] 12-06-PLAN.md — Coverage repo: replace-set tx (FOR UPDATE + in-tx Σ + audit), queue, bucket balance, close snapshot, history + CR-01 concurrency battery
+- [x] 12-06-PLAN.md — Coverage repo: replace-set tx (FOR UPDATE + in-tx Σ + audit), queue, bucket balance, close snapshot, history + CR-01 concurrency battery
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
