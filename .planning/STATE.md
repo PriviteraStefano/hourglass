@@ -4,17 +4,17 @@ milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 12
 current_phase_name: Coverage Backend — The Allocation Loop
-status: executing
-stopped_at: Completed 12-05-PLAN.md
-last_updated: "2026-08-08T09:51:30.280Z"
+status: verifying
+stopped_at: Completed 12-07-PLAN.md
+last_updated: "2026-08-08T10:01:43.662Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 16
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 15
-  completed_plans: 14
-  percent: 6
+  completed_plans: 15
+  percent: 13
 ---
 
 # Project State
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 Phase: 12 (Coverage Backend — The Allocation Loop) — EXECUTING
 Plan: 7 of 7
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-08 — Phase 12 execution started
 
 ## Accumulated Context
@@ -94,6 +94,7 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 12-coverage-backend-the-allocation-loop]: Close audit row addresses the close (entity_id = closeID), not the entry: A7 per-entry history covers allocation changes only; the close event is read by close id — The plan's test wording implied close rows appear in entry history; the port contract pins entity_id = entry — port wins
 - [Phase 12-coverage-backend-the-allocation-loop]: Partial coverage states cannot be created via the replace-set (Σ == hours enforced in-tx); they arise from later entry-hours edits — Test simulates the realistic partial path (allocate full, then bump entry hours)
 - [Phase 12-coverage-backend-the-allocation-loop]: FundingContext gained BeneficiaryUnitID (additive): the pinned DefaultSource signature needs the absorption branch input; the service attaches the resolved unit when the chain has no contract — Rule 3 fix — the 12-03 chain struct lacked the absorption default; keeps DefaultSource pure and the six-case matrix table-driven
+- [Phase 12-coverage-backend-the-allocation-loop]: GetAllocations reuses the pinned Propose read path — the 12-05 service surface has no ListByEntry method, so the thin handler consumes Propose (proposal, allocs) instead of extending the service surface — Plan referenced a service read missing from the pinned 12-05 surface; reusing Propose honors the pinned surface. time_entry.ErrTimeEntryNotFound normalizes to coverage.ErrEntryNotCoverable in the service so the 404 contract holds without leaking cross-domain sentinels into the handler.
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -148,11 +149,12 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 12-coverage-backend-the-allocation-loop P03 | 12min | 2 tasks | 8 files |
 | Phase 12-coverage-backend-the-allocation-loop P06 | 8m | 2 tasks | 3 files |
 | Phase 12-coverage-backend-the-allocation-loop P05 | 7 min | 2 tasks | 3 files |
+| Phase 12-coverage-backend-the-allocation-loop P07 | 6min | 2 tasks | 5 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T09:51:24.008Z
-Stopped at: Completed 12-05-PLAN.md
+Last session: 2026-08-08T10:01:27.460Z
+Stopped at: Completed 12-07-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 

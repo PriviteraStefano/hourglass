@@ -25,11 +25,11 @@ Requirements for milestone v0.2 — Ontology Extension (Origins, Tickets & Cover
 
 ### Coverage
 
-- [ ] **COV-01**: Approved time entries are coverable by 1..N coverage allocations; Σ allocations = entry hours (invariant); uncovered hours land in the to-cover queue — a visible state, never an implicit gap (P-012)
-- [ ] **COV-02**: Funding sources exist and work: contract budget (default for billable, D-7 rule), support bucket (hours-only, carry-over, no expiry, overlapping buckets allowed — D-P), service request (zero-value contract, D-J), internal absorption (mandatory reason: WarrantyBug · UnderEstimate · Goodwill), cross-project transfer (explicit justification) (P-014)
-- [ ] **COV-03**: Manager confirms allocations in one step (no finance chain, D-L); every change is audit-logged (BE-012); proposals are computed on read, never stored (D-I)
-- [ ] **COV-04**: Allocations stay editable indefinitely; period close produces a reporting snapshot (billing, bucket levels, per-unit report), never a lock (D-F); snapshot mechanics backend-only (F)
-- [ ] **COV-05**: Activity carries a nullable beneficiary unit (inherited downward like `contract_id`); absorption funding sources default from it; coverage entries are polymorphic (`entry_type` + `entry_id`), `time` only allowed in v0.2 (D-B, D-K)
+- [x] **COV-01**: Approved time entries are coverable by 1..N coverage allocations; Σ allocations = entry hours (invariant); uncovered hours land in the to-cover queue — a visible state, never an implicit gap (P-012)
+- [x] **COV-02**: Funding sources exist and work: contract budget (default for billable, D-7 rule), support bucket (hours-only, carry-over, no expiry, overlapping buckets allowed — D-P), service request (zero-value contract, D-J), internal absorption (mandatory reason: WarrantyBug · UnderEstimate · Goodwill), cross-project transfer (explicit justification) (P-014)
+- [x] **COV-03**: Manager confirms allocations in one step (no finance chain, D-L); every change is audit-logged (BE-012); proposals are computed on read, never stored (D-I)
+- [x] **COV-04**: Allocations stay editable indefinitely; period close produces a reporting snapshot (billing, bucket levels, per-unit report), never a lock (D-F); snapshot mechanics backend-only (F)
+- [x] **COV-05**: Activity carries a nullable beneficiary unit (inherited downward like `contract_id`); absorption funding sources default from it; coverage entries are polymorphic (`entry_type` + `entry_id`), `time` only allowed in v0.2 (D-B, D-K)
 
 ### Direction
 
@@ -134,11 +134,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TICK-03 | Phase 11 | Complete |
 | TICK-04 | Phase 11 | Complete |
 | TICK-05 | Phase 11 | Complete |
-| COV-01 | Phase 12 | Pending |
-| COV-02 | Phase 12 | Pending |
-| COV-03 | Phase 12 | Pending |
-| COV-04 | Phase 12 | Pending |
-| COV-05 | Phase 12 | Pending |
+| COV-01 | Phase 12 | Complete |
+| COV-02 | Phase 12 | Complete |
+| COV-03 | Phase 12 | Complete |
+| COV-04 | Phase 12 | Complete |
+| COV-05 | Phase 12 | Complete |
 | DIR-01 | Phase 13 | Pending |
 | DIR-02 | Phase 13 | Pending |
 | DIR-03 | Phase 13 | Pending |

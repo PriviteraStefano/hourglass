@@ -107,7 +107,7 @@ Plans:
   7. Coverage references a polymorphic entry (`entry_type` + `entry_id`); validation rejects non-`time` types in v0.2 (COV-05)
   8. Beneficiary unit is nullable on activities, inherited downward like contract_id; absorption sources default from it (COV-05)
 
-**Plans**: 4/7 plans executed
+**Plans**: 7/7 plans executed
 Plans:
 **Wave 1**
 
@@ -126,7 +126,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 12-07-PLAN.md — Coverage HTTP surface: 8 routes + sentinel map + permission-matrix tests + cmd/server wiring
+- [x] 12-07-PLAN.md — Coverage HTTP surface: 8 routes + sentinel map + permission-matrix tests + cmd/server wiring
 
 ### Phase 13: Direction Backend — The Plan Plane
 
@@ -349,7 +349,7 @@ Plans:
 | 9. Activity Ont. | v0.1 | 8/8 | Complete | 2026-07-31 |
 | 10. IA Impl. | v0.1 | 6/6 | Complete | 2026-08-01 |
 | 11. Foundations | v0.2 | 8/8 | Complete    | 2026-08-07 |
-| 12. Coverage Backend | v0.2 | 4/7 | In Progress|  |
+| 12. Coverage Backend | v0.2 | 7/7 | In Progress|  |
 | 13. Direction Backend | v0.2 | 0/TBD | Not started | - |
 | 14. Availability Backend | v0.2 | 0/TBD | Not started | - |
 | 15. UX Foundation | v0.2 | 0/TBD | Not started | - |
