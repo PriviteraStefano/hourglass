@@ -16,6 +16,7 @@ import (
 	contractsvc "github.com/stefanoprivitera/hourglass/internal/core/services/contract"
 	coveragesvc "github.com/stefanoprivitera/hourglass/internal/core/services/coverage"
 	customersvc "github.com/stefanoprivitera/hourglass/internal/core/services/customer"
+	directionsvc "github.com/stefanoprivitera/hourglass/internal/core/services/direction"
 	exportsvc "github.com/stefanoprivitera/hourglass/internal/core/services/export"
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
 	orgsettingssvc "github.com/stefanoprivitera/hourglass/internal/core/services/orgsettings"
@@ -100,6 +101,12 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	orgSettingsRepo := postgres.NewOrgSettingsRepository(pool)
 	orgSettingsService := orgsettingssvc.NewService(orgSettingsRepo, orgRepo)
 	orgSettingsHandler := NewOrgSettingsHandler(orgSettingsService)
+
+	// Direction — the plan plane (ADR-P-015, ADR-BE-018): mirrors the
+	// cmd/server/main.go wiring so handler tests exercise the real stack
+	// (direction service + handler + the 7 routes below).
+	directionService := directionsvc.NewService(directionRepo, activityRepo, wgRepo, unitRepo, orgRepo, orgSettingsService, routingSvc)
+	directionHandler := NewDirectionHandler(directionService)
 
 	// Handlers
 	authHandler := NewAuthHandler(hexAuthService, invitationService)
@@ -234,6 +241,16 @@ func newHandlerFixture(t *testing.T, pool *pgxpool.Pool) *handlerFixture {
 	mux.HandleFunc("POST /coverage/close", middleware.Auth(authSvc, coverageHandler.PostClose))
 	mux.HandleFunc("GET /coverage/snapshots/{close_id}", middleware.Auth(authSvc, coverageHandler.GetSnapshot))
 	mux.HandleFunc("GET /coverage/allocations/{entry_id}/history", middleware.Auth(authSvc, coverageHandler.GetHistory))
+
+	// Direction — the 7 pinned routes mirroring cmd/server/main.go
+	// (DIR-01..06, ADR-BE-018 §7).
+	mux.HandleFunc("POST /direction", middleware.Auth(authSvc, directionHandler.Create))
+	mux.HandleFunc("POST /direction/{id}/activate", middleware.Auth(authSvc, directionHandler.Activate))
+	mux.HandleFunc("POST /direction/{id}/cancel", middleware.Auth(authSvc, directionHandler.Cancel))
+	mux.HandleFunc("POST /direction/claims", middleware.Auth(authSvc, directionHandler.Claim))
+	mux.HandleFunc("POST /direction/claims/{id}/cancel", middleware.Auth(authSvc, directionHandler.Unclaim))
+	mux.HandleFunc("GET /direction", middleware.Auth(authSvc, directionHandler.ListPlan))
+	mux.HandleFunc("GET /direction/coverage", middleware.Auth(authSvc, directionHandler.Coverage))
 
 	server := httptest.NewServer(mux)
 
