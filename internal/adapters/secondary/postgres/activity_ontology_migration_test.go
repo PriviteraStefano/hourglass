@@ -211,9 +211,13 @@ func TestMigration011_ActivityOntology_UpDownUpCycle(t *testing.T) {
 	// exists after 011 — applied before 011 it would fail with SQLSTATE 42P01.
 	// 014-017 are skipped too: 015 ALTERs activities (which only exists after
 	// 011) — the pre-state must stay exactly at 000-010 per ADR-BE-004.
+	// 018-020 are skipped too (coverage migrations, applied by later cycle
+	// tests; 018 ALTERs activities which does not exist yet at 000-010).
 	applyMigrations(t, pool, true, "011_activity_ontology.up.sql", "013_activity_kind_phase_fix.up.sql",
 		"014_ticket_schema.up.sql", "015_activity_origins.up.sql",
-		"016_contract_sold_hours.up.sql", "017_audit_logs.up.sql")
+		"016_contract_sold_hours.up.sql", "017_audit_logs.up.sql",
+		"018_activity_beneficiary_unit.up.sql", "019_coverage_allocations.up.sql",
+		"020_coverage_snapshots.up.sql")
 	// The historical MVP seed (003_seed.up.sql) is no longer a migration
 	// fixture — seed data lives in scripts/seed_demo.sql which applyMigrations
 	// never loads. Self-seed the two-level pre-state the 011 data migration

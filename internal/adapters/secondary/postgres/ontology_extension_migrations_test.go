@@ -35,7 +35,9 @@ func TestMigration014_TicketSchema_UpDownUpCycle(t *testing.T) {
 	// --- Pre-state: schema 000-013 (014-017 skipped) -------------------------
 	applyMigrations(t, pool, true,
 		"014_ticket_schema.up.sql", "015_activity_origins.up.sql",
-		"016_contract_sold_hours.up.sql", "017_audit_logs.up.sql")
+		"016_contract_sold_hours.up.sql", "017_audit_logs.up.sql",
+		"018_activity_beneficiary_unit.up.sql", "019_coverage_allocations.up.sql",
+		"020_coverage_snapshots.up.sql")
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 
@@ -101,7 +103,8 @@ func TestMigration015_ActivityOrigins_UpDownUpCycle(t *testing.T) {
 	// resolves against tickets; 016/017 skipped) ------------------------------
 	applyMigrations(t, pool, true,
 		"015_activity_origins.up.sql", "016_contract_sold_hours.up.sql",
-		"017_audit_logs.up.sql")
+		"017_audit_logs.up.sql", "018_activity_beneficiary_unit.up.sql",
+		"019_coverage_allocations.up.sql", "020_coverage_snapshots.up.sql")
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 	seedActivityKind(t, pool, orgID, "engagement")
@@ -183,7 +186,9 @@ func TestMigration016_ContractSoldHours_UpDownUpCycle(t *testing.T) {
 	down016 := readMigration(t, "016_contract_sold_hours.down.sql")
 
 	// --- Pre-state: schema 000-015 (016/017 skipped) -------------------------
-	applyMigrations(t, pool, true, "016_contract_sold_hours.up.sql", "017_audit_logs.up.sql")
+	applyMigrations(t, pool, true, "016_contract_sold_hours.up.sql", "017_audit_logs.up.sql",
+		"018_activity_beneficiary_unit.up.sql", "019_coverage_allocations.up.sql",
+		"020_coverage_snapshots.up.sql")
 	orgID := seedOrg(t, pool, now)
 
 	// --- UP ------------------------------------------------------------------
@@ -248,7 +253,9 @@ func TestMigration017_AuditLogs_UpDownUpCycle(t *testing.T) {
 	down017 := readMigration(t, "017_audit_logs.down.sql")
 
 	// --- Pre-state: schema 000-016 (017 skipped) -----------------------------
-	applyMigrations(t, pool, true, "017_audit_logs.up.sql")
+	applyMigrations(t, pool, true, "017_audit_logs.up.sql",
+		"018_activity_beneficiary_unit.up.sql", "019_coverage_allocations.up.sql",
+		"020_coverage_snapshots.up.sql")
 	orgID := seedOrg(t, pool, now)
 	userID := seedUser(t, pool, now)
 
