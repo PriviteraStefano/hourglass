@@ -144,7 +144,30 @@ Plans:
   7. Direction-coverage read-model returns planned hours vs capacity per employee/period with uncovered days surfaced, per employee / unit / WG (DIR-06)
   8. Origin fallback active: activities with empty origin refs resolve refs from the first direction record (FND-04 read path, additive)
 
-**Plans**: TBD
+**Plans**: 8/8 plans
+Plans:
+**Wave 1**
+
+- [ ] 13-01-PLAN.md — Migrations 021/022 (direction rows + org_settings/planning_mode) + teardown + cycle tests (XOR/queued-only/est_hours/reason CHECKs, per-day identity assertion)
+- [ ] 13-02-PLAN.md — ADRs: ADR-P-015 (direction plane) + ADR-BE-018 (encoding: vocabularies, claim lock, assumption-delta decisions) + index
+- [ ] 13-03-PLAN.md — Direction + orgsettings domains, both ports, testdata mocks (contracts all plans compile against)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 13-04-PLAN.md — Org settings vertical (phase tracer, DIR-04): repo+service+handler+literal routes+wiring+membership extension+ResolvePlanningMode
+- [ ] 13-05-PLAN.md — Direction repo mutators: supersede-on-create tx, activate/cancel, claim Σ-lock tx, unclaim + concurrent battery
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 13-06-PLAN.md — Direction repo read-models: ListPlan (derived done/lapsed/claimed), Coverage, AbsenceWindows, FirstDirectionRefs
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 13-07-PLAN.md — Direction service: create gate chain (mode + routing + WG-scope), lifecycle/claim orchestration, warnings fn, coverage assembly
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 13-08-PLAN.md — Direction HTTP surface (7 routes) + wiring + origin fallback in the activity read path (FND-04)
 
 ### Phase 14: Availability Backend — Absences + Capacity
 
