@@ -19,6 +19,7 @@ import (
 	exportsvc "github.com/stefanoprivitera/hourglass/internal/core/services/export"
 	invitationsvc "github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
 	orgsvc "github.com/stefanoprivitera/hourglass/internal/core/services/organization"
+	orgsettingssvc "github.com/stefanoprivitera/hourglass/internal/core/services/orgsettings"
 	passwordresetsvc "github.com/stefanoprivitera/hourglass/internal/core/services/password_reset"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"
@@ -161,6 +162,15 @@ func main() {
 	coverageService := coveragesvc.NewService(coverageRepo, activityRepo, contractRepo, unitRepo, timeEntryRepo, routingSvc)
 	coverageHandler := http.NewCoverageHandler(coverageService)
 
+	// Org settings — the org policy key/value store (D-13-18..23,
+	// ADR-BE-018). Literal GET/PUT /organizations/settings routes COEXIST
+	// with the typed GET/PUT /organizations/{id}/settings wildcard below
+	// (Pitfall 6 — ServeMux most-specific-wins, proven by POST
+	// /organizations/invite).
+	orgSettingsRepo := postgres.NewOrgSettingsRepository(pool)
+	orgSettingsService := orgsettingssvc.NewService(orgSettingsRepo, orgRepo)
+	orgSettingsHandler := http.NewOrgSettingsHandler(orgSettingsService)
+
 	expenseService := expsvc.NewService(expenseRepo, wgRepo, activityRepo, unitRepo)
 	expenseHandler := http.NewExpenseHandler(expenseService)
 
@@ -210,6 +220,10 @@ func main() {
 	mux.HandleFunc("POST /organizations/invite-customer", middleware.Auth(authService, orgHandler.InviteCustomer))
 	mux.HandleFunc("GET /organizations/{id}/settings", middleware.Auth(authService, orgHandler.GetSettings))
 	mux.HandleFunc("PUT /organizations/{id}/settings", middleware.Auth(authService, orgHandler.UpdateSettings))
+	// Literal org_settings routes (D-13-23) — do NOT remove the typed
+	// wildcard registrations above (Pitfall 6).
+	mux.HandleFunc("GET /organizations/settings", middleware.Auth(authService, orgSettingsHandler.Get))
+	mux.HandleFunc("PUT /organizations/settings", middleware.Auth(authService, orgSettingsHandler.Put))
 	mux.HandleFunc("GET /organizations/members", middleware.Auth(authService, orgHandler.ListMembers))
 	mux.HandleFunc("PUT /organizations/members/{member_id}/roles", middleware.Auth(authService, orgHandler.UpdateMemberRoles))
 	mux.HandleFunc("DELETE /organizations/members/{member_id}", middleware.Auth(authService, orgHandler.DeactivateMember))
