@@ -300,14 +300,30 @@ func (s *Service) Create(ctx context.Context, orgID, actorID uuid.UUID, role str
 		SupersedesID: req.SupersedesID,
 	}
 	actor := actorID
-	created, err := s.repo.Create(ctx, orgID, row, req.SupersedesID, []*audit.AuditLog{{
+	// Audits slice → the repo tx (BE-016: audit in the same tx as the state
+	// write). Supersede-on-create carries TWO rows (port contract
+	// direction_repository.go:27-29, ADR-BE-018 §3): 'created' on the new row
+	// + 'superseded' on the flipped target — Phase 19 history filters on the
+	// 'superseded' event must never find it missing (CR-02).
+	audits := []*audit.AuditLog{{
 		OrgID:      orgID,
 		EntityType: directiondomain.AuditEntityDirection,
 		EntityID:   row.ID,
 		Action:     directiondomain.AuditActionCreated,
 		ActorID:    &actor,
 		CreatedAt:  time.Now().UTC(),
-	}})
+	}}
+	if req.SupersedesID != nil {
+		audits = append(audits, &audit.AuditLog{
+			OrgID:      orgID,
+			EntityType: directiondomain.AuditEntityDirection,
+			EntityID:   *req.SupersedesID, // the target row being flipped to superseded
+			Action:     directiondomain.AuditActionSuperseded,
+			ActorID:    &actor,
+			CreatedAt:  time.Now().UTC(),
+		})
+	}
+	created, err := s.repo.Create(ctx, orgID, row, req.SupersedesID, audits)
 	if err != nil {
 		return nil, nil, err
 	}
