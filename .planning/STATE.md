@@ -5,15 +5,15 @@ milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 12
 current_phase_name: Coverage Backend — The Allocation Loop
 status: executing
-stopped_at: Completed 12-01-PLAN.md
-last_updated: "2026-08-08T08:59:22.089Z"
+stopped_at: Completed 12-02-PLAN.md
+last_updated: "2026-08-08T09:04:32.990Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 16
   completed_phases: 1
   total_plans: 15
-  completed_plans: 9
+  completed_plans: 10
   percent: 6
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 ## Current Position
 
 Phase: 12 (Coverage Backend — The Allocation Loop) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 12 execution started
 
@@ -84,6 +84,9 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 12]: source_type stays nullable: the 3VL guard CHECK (source_type IS NULL OR ...) is the enforcement, not a NOT NULL clause — legacy all-NULL rows pass (mirrors 015 origin_type / 016 contract_type) — source_type stays nullable: the 3VL guard CHECK (source_type IS NULL OR ...) is the enforcement, not a NOT NULL clause — legacy all-NULL rows pass (mirrors 015 origin_type / 016 contract_type)
 - [Phase 12]: coverage_allocations.entry_id has no FK (polymorphic D-K); entry_type CHECK ('time') + 12-04 service branch are the costed belt-and-braces pair — coverage_allocations.entry_id has no FK (polymorphic D-K); entry_type CHECK ('time') + 12-04 service branch are the costed belt-and-braces pair
 - [Phase 12]: 020 has no UNIQUE(org_id, period_start, period_end): duplicate-close rejection is a repo-level in-tx check returning 409 (A6) — 020 has no UNIQUE(org_id, period_start, period_end): duplicate-close rejection is a repo-level in-tx check returning 409 (A6)
+- [Phase 12-coverage-backend-the-allocation-loop]: ADR-P-012 accepted 2026-08-07; D-1..D-6 operationalized via ADR-BE-017; snapshot-not-lock implemented as the frozen period-close snapshot (D-10/D-11/D-12) — ADR-P-012 accepted 2026-08-07; D-1..D-6 operationalized via ADR-BE-017; snapshot-not-lock implemented as the frozen period-close snapshot (D-10/D-11/D-12)
+- [Phase 12-coverage-backend-the-allocation-loop]: ADR-BE-017 pins: zero-value predicate contract_type=project AND sold_hours IS NOT DISTINCT FROM 0 (A3), raw bucket balance without period scaling (A8), duplicate close rejected with 409 (A6), audit vocabulary entity_type=coverage_allocation + actions allocations-set/coverage-closed (A7) — ADR-BE-017 pins: zero-value predicate contract_type=project AND sold_hours IS NOT DISTINCT FROM 0 (A3), raw bucket balance without period scaling (A8), duplicate close rejected with 409 (A6), audit vocabulary entity_type=coverage_allocation + actions allocations-set/coverage-closed (A7)
+- [Phase 12-coverage-backend-the-allocation-loop]: D-K polymorphic validation cost stated honestly in ADR-BE-017: one service branch rejecting entry_type != time + the entry_type CHECK; COV-06 (expense) needs an additive ALTER + service rule change, not a redesign — D-K polymorphic validation cost stated honestly in ADR-BE-017: one service branch rejecting entry_type != time + the entry_type CHECK; COV-06 (expense) needs an additive ALTER + service rule change, not a redesign
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -133,11 +136,12 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 11-foundations-schema-origins-tickets-backend P07 | 15min | 3 tasks | 3 files |
 | Phase 11 P08 | 3h 50m | 2 tasks | 6 files |
 | Phase 12 P01 | 6min | 2 tasks | 11 files |
+| Phase 12-coverage-backend-the-allocation-loop P02 | 4min | 2 tasks | 4 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T08:59:15.224Z
-Stopped at: Completed 12-01-PLAN.md
+Last session: 2026-08-08T09:04:25.716Z
+Stopped at: Completed 12-02-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 

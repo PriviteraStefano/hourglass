@@ -112,7 +112,7 @@ Plans:
 **Wave 1**
 
 - [x] 12-01-PLAN.md — Migrations 018-020 (beneficiary unit, allocation ledger, snapshots) + teardown + cycle tests (3VL + mandatory-field CHECK assertions)
-- [ ] 12-02-PLAN.md — ADRs: ADR-P-012 accepted + ADR-BE-017 coverage encoding (D-K cost, pinned OQ resolutions) + index updates
+- [x] 12-02-PLAN.md — ADRs: ADR-P-012 accepted + ADR-BE-017 coverage encoding (D-K cost, pinned OQ resolutions) + index updates
 - [ ] 12-04-PLAN.md — Coverage domain + ports.CoverageRepository + MockCoverageRepo (contracts all plans compile against)
 
 **Wave 2** *(blocked on Wave 1 completion)*
