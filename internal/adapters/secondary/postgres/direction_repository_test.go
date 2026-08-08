@@ -115,6 +115,51 @@ func cancelReasonPayload(t *testing.T, pool *pgxpool.Pool, entityID uuid.UUID) m
 	return payload
 }
 
+// seedAvailabilityWindow inserts an availability_windows row (migration 012
+// schema: the employee column is user_id; hours NULL = full absence; status
+// declared|confirmed).
+func seedAvailabilityWindow(t *testing.T, pool *pgxpool.Pool, orgID, userID uuid.UUID, kind string, startsOn, endsOn time.Time, hours *float64, status string, now time.Time) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO availability_windows (id, org_id, user_id, kind, starts_on, ends_on, hours, status, created_by, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $3, $9)`,
+		id, orgID, userID, kind, startsOn, endsOn, hours, status, now)
+	require.NoError(t, err)
+	return id
+}
+
+// seedOrgSettings upserts an org_settings row (migration 022) — e.g.
+// planning_daily_hours for the coverage capacity denominator (D-13-24).
+func seedOrgSettings(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, key string, value float64, now time.Time) {
+	t.Helper()
+	v, err := json.Marshal(value)
+	require.NoError(t, err)
+	_, err = pool.Exec(context.Background(),
+		`INSERT INTO org_settings (org_id, key, value, updated_at) VALUES ($1, $2, $3::jsonb, $4)`,
+		orgID, key, string(v), now)
+	require.NoError(t, err)
+}
+
+// planRowIDs extracts the row ids in ListPlan order — the compact assertion
+// shape for ordering/selection tests.
+func planRowIDs(rows []directiondomain.PlanRow) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+	}
+	return ids
+}
+
+// planRowByID indexes ListPlan rows for per-row derived-state assertions.
+func planRowByID(rows []directiondomain.PlanRow) map[uuid.UUID]directiondomain.PlanRow {
+	m := make(map[uuid.UUID]directiondomain.PlanRow, len(rows))
+	for _, r := range rows {
+		m[r.ID] = r
+	}
+	return m
+}
+
 // ---------------------------------------------------------------------------
 // Task 1 — Create (plain + supersede-on-create tx)
 // ---------------------------------------------------------------------------
@@ -965,4 +1010,252 @@ func TestDirectionClaim_SupersedeCancelReclaim(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 8.0, claimSum(t, pool, wgRowID), "re-claim succeeds — Σ back to fully_claimed")
 	require.Equal(t, directiondomain.StatusDraft, reclaim.Status)
+}
+
+// ---------------------------------------------------------------------------
+// Task 1 (13-06) — ListPlan read-model: row selection + derived states
+// (done/lapsed/claim spectrum) + queued ordering
+// ---------------------------------------------------------------------------
+
+// TestDirectionRepository_ListPlan_PeriodAndScope proves the ListPlan row
+// selection (D-13-27): only draft|active rows; scheduled rows with
+// planned_date inside [periodStart, periodEnd]; queued rows (planned_date
+// NULL) with due_date inside the period OR no due_date at all (the queue is
+// part of the plan view); superseded/cancelled rows never appear (history —
+// D-13-08); employeeID filters to one employee, nil = org-wide.
+func TestDirectionRepository_ListPlan_PeriodAndScope(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	otherID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	periodStart, periodEnd := today.AddDate(0, 0, -3), today.AddDate(0, 0, 3)
+
+	// Scheduled rows.
+	schedIn := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, ptr(today.AddDate(0, 0, 1)), ptr(4.0), "active", now)
+	_ = seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, ptr(today.AddDate(0, 0, -5)), ptr(4.0), "active", now) // out of period
+	otherEmp := seedDirectionRow(t, pool, orgID, managerID, &otherID, nil, activityID, ptr(today.AddDate(0, 0, 1)), ptr(4.0), "active", now.Add(-1*time.Hour))
+
+	// Queued rows (planned_date NULL).
+	queuedNoDue := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "draft", now)
+	queuedDueIn := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "draft", now)
+	queuedDueOut := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "draft", now)
+	_, err := pool.Exec(ctx, `UPDATE direction SET due_date = $1 WHERE id = $2`, today.AddDate(0, 0, 2), queuedDueIn)
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, `UPDATE direction SET due_date = $1 WHERE id = $2`, today.AddDate(0, 0, 10), queuedDueOut)
+	require.NoError(t, err)
+
+	// History rows — never appear (D-13-08).
+	_ = seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, ptr(today.AddDate(0, 0, 1)), ptr(4.0), "superseded", now)
+	_ = seedDirectionRowCancelled(t, pool, orgID, managerID, &employeeID, activityID, "no longer needed", now)
+
+	// Employee-scoped view: scheduled in-period + queued rows (due in range or
+	// no due); no history rows, no other-employee rows.
+	rows, err := repo.ListPlan(ctx, orgID, &employeeID, periodStart, periodEnd)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{schedIn, queuedDueIn, queuedNoDue}, planRowIDs(rows),
+		"scheduled in-period first (planned_date set), then queued: due_date set before due_date NULL; history/other-employee rows excluded")
+
+	// Org-wide view includes the other employee's row.
+	rowsAll, err := repo.ListPlan(ctx, orgID, nil, periodStart, periodEnd)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{otherEmp, schedIn, queuedDueIn, queuedNoDue}, planRowIDs(rowsAll))
+}
+
+// TestDirectionRepository_ListPlan_Ordering proves the pinned queued ordering
+// (D-13-06, probe DIR-01 — stable order for equal keys): priority ASC (lower
+// = higher) NULLS LAST → due_date ASC NULLS LAST → created_at ASC.
+func TestDirectionRepository_ListPlan_Ordering(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	// All queued (planned_date NULL). created_at differs per seed.
+	a := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "active", now.Add(-5*time.Hour))
+	b := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "active", now.Add(-3*time.Hour))
+	c := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "active", now.Add(-4*time.Hour))
+	d := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "active", now.Add(-2*time.Hour))
+	e := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, activityID, nil, ptr(4.0), "active", now.Add(-1*time.Hour))
+
+	setQueued := func(id uuid.UUID, priority *int, due *time.Time) {
+		t.Helper()
+		_, err := pool.Exec(ctx, `UPDATE direction SET priority = $1, due_date = $2 WHERE id = $3`, priority, due, id)
+		require.NoError(t, err)
+	}
+	setQueued(a, ptr(1), ptr(today.AddDate(0, 0, 1)))
+	setQueued(b, ptr(1), ptr(today.AddDate(0, 0, 2)))
+	setQueued(c, ptr(1), ptr(today.AddDate(0, 0, 2))) // same priority+due as b → created_at tiebreak
+	setQueued(d, ptr(2), ptr(today.AddDate(0, 0, 3)))
+	setQueued(e, nil, ptr(today.AddDate(0, 0, 3))) // priority NULL → last
+
+	periodStart, periodEnd := today.AddDate(0, 0, -3), today.AddDate(0, 0, 3)
+	rows, err := repo.ListPlan(ctx, orgID, nil, periodStart, periodEnd)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{a, c, b, d, e}, planRowIDs(rows),
+		"priority 1 first (lower = higher), then 2, NULL last; equal priority → due_date ASC; equal both → created_at ASC")
+}
+
+// TestDirectionRepository_DerivedStates_DoneLapsed proves the derived
+// done/lapsed states (D-13-09, ADR-BE-018 §2): done = the Phase 11
+// terminal-activity CTE re-anchored at activities.id with the semantic
+// inversion (NOT EXISTS of non-terminal entries on the subtree); lapsed =
+// the row's date (planned_date, or due_date for queued) in the past AND no
+// non-deleted entries of ANY status on the subtree (OQ2/A3 — a draft entry
+// kills lapsed: "work started").
+func TestDirectionRepository_DerivedStates_DoneLapsed(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	yesterday := today.AddDate(0, 0, -1)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	employeeID := seedUser(t, pool, now)
+	unitID := seedUnit(t, pool, orgID, now)
+
+	// One activity per scenario so subtree entries stay independent.
+	actFuture := seedActivity(t, pool, orgID, "engagement", nil, now)
+	actLapsed := seedActivity(t, pool, orgID, "engagement", nil, now)
+	actDraft := seedActivity(t, pool, orgID, "engagement", nil, now)
+	actApproved := seedActivity(t, pool, orgID, "engagement", nil, now)
+	actQueuedLapsed := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	// (a) future planned_date, empty subtree → done, not lapsed.
+	futureID := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, actFuture, ptr(today.AddDate(0, 0, 1)), ptr(4.0), "active", now)
+	// (b) past planned_date, empty subtree → done + lapsed.
+	lapsedID := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, actLapsed, ptr(yesterday), ptr(4.0), "active", now)
+	// (c) past planned_date + a DRAFT entry on a child (subtree) → not done + not lapsed (A3).
+	draftChildID := seedActivity(t, pool, orgID, "engagement", &actDraft, now)
+	draftID := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, actDraft, ptr(yesterday), ptr(4.0), "active", now)
+	seedTimeEntry(t, pool, orgID, employeeID, draftChildID, unitID, 2.0, yesterday, "draft", now)
+	// (d) past planned_date + only an APPROVED (terminal) entry → done + not lapsed (entries exist).
+	approvedID := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, actApproved, ptr(yesterday), ptr(4.0), "active", now)
+	seedTimeEntry(t, pool, orgID, employeeID, actApproved, unitID, 3.0, yesterday, "approved", now)
+	// (e) queued row with a past due_date, empty subtree → lapsed (due_date governs).
+	queuedLapsedID := seedDirectionRow(t, pool, orgID, managerID, &employeeID, nil, actQueuedLapsed, nil, ptr(4.0), "active", now)
+	_, err := pool.Exec(ctx, `UPDATE direction SET due_date = $1 WHERE id = $2`, yesterday, queuedLapsedID)
+	require.NoError(t, err)
+
+	periodStart, periodEnd := today.AddDate(0, 0, -3), today.AddDate(0, 0, 3)
+	rows, err := repo.ListPlan(ctx, orgID, nil, periodStart, periodEnd)
+	require.NoError(t, err)
+	byID := planRowByID(rows)
+
+	require.True(t, byID[futureID].Done, "empty subtree → done")
+	require.False(t, byID[futureID].Lapsed, "future date → not lapsed")
+	require.True(t, byID[lapsedID].Done, "empty subtree → done")
+	require.True(t, byID[lapsedID].Lapsed, "past planned_date + no entries → lapsed")
+	require.False(t, byID[draftID].Done, "a draft entry on the subtree is non-terminal → not done")
+	require.False(t, byID[draftID].Lapsed, "A3: a draft entry on the subtree kills lapsed (work started)")
+	require.True(t, byID[approvedID].Done, "only terminal entries → done")
+	require.False(t, byID[approvedID].Lapsed, "entries exist (even approved) → not lapsed")
+	require.True(t, byID[queuedLapsedID].Done, "empty subtree → done")
+	require.True(t, byID[queuedLapsedID].Lapsed, "queued row: past due_date governs lapsed")
+}
+
+// TestDirectionRepository_ListPlan_ClaimSpectrum proves the D-13-15 claim
+// spectrum on WG rows: budget NULL → not_claimed until claims exist, then
+// partially_claimed (never fully — D-13-14); budget set → not_claimed →
+// partially_claimed → fully_claimed (Σ == budget); cancelled claims release
+// their hours; a superseded claim row drops out of the Σ while its
+// superseding row (origin_direction_id carried) counts the same hours — the
+// spectrum stays fully_claimed through the chain (checker fix, ADR-BE-018
+// §5).
+func TestDirectionRepository_ListPlan_ClaimSpectrum(t *testing.T) {
+	pool := TestPool(t)
+	SetupTestSchema(t, pool)
+	t.Cleanup(func() { TeardownTestSchema(t, pool) })
+
+	repo := NewDirectionRepository(pool)
+	ctx := context.Background()
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	now := time.Now().UTC()
+	orgID := seedOrg(t, pool, now)
+	managerID := seedUser(t, pool, now)
+	memberID := seedUser(t, pool, now)
+	activityID := seedActivity(t, pool, orgID, "engagement", nil, now)
+
+	wgID := seedWorkingGroup(t, pool, orgID, activityID, managerID, now)
+	unitID := seedUnit(t, pool, orgID, now)
+	seedWgMember(t, pool, wgID, memberID, unitID)
+	wgRowID := seedDirectionRow(t, pool, orgID, managerID, nil, ptr(wgID), activityID, nil, ptr(8.0), "active", now)
+
+	uncappedWgID := seedWorkingGroup(t, pool, orgID, activityID, managerID, now)
+	seedWgMember(t, pool, uncappedWgID, memberID, unitID)
+	uncappedRowID := seedDirectionRow(t, pool, orgID, managerID, nil, ptr(uncappedWgID), activityID, nil, nil, "active", now)
+
+	periodStart, periodEnd := today.AddDate(0, 0, -3), today.AddDate(0, 0, 3)
+	spectrum := func(rowID uuid.UUID) string {
+		t.Helper()
+		rows, err := repo.ListPlan(ctx, orgID, nil, periodStart, periodEnd)
+		require.NoError(t, err)
+		byID := planRowByID(rows)
+		row, ok := byID[rowID]
+		require.True(t, ok, "WG row must appear in the plan view")
+		return row.ClaimState
+	}
+
+	// 1. No claims → not_claimed.
+	require.Equal(t, directiondomain.ClaimStateNotClaimed, spectrum(wgRowID))
+
+	// 2. Claim 3 of 8 → partially_claimed.
+	claim1 := seedClaimRow(t, pool, orgID, managerID, memberID, wgRowID, activityID, 3.0, nil, nil, now)
+	require.Equal(t, directiondomain.ClaimStatePartiallyClaimed, spectrum(wgRowID))
+
+	// 3. Claim 5 more → fully_claimed.
+	claim2 := seedClaimRow(t, pool, orgID, managerID, memberID, wgRowID, activityID, 5.0, nil, nil, now)
+	require.Equal(t, directiondomain.ClaimStateFullyClaimed, spectrum(wgRowID))
+
+	// 4. Cancel one claim → Σ 5 → partially_claimed (hours released, D-13-16).
+	_, err := repo.Cancel(ctx, orgID, claim2, "dropping part of the claim",
+		directionAudit(orgID, claim2, memberID, directiondomain.AuditActionCancelled, map[string]any{"reason": "dropping part of the claim"}, now))
+	require.NoError(t, err)
+	require.Equal(t, directiondomain.ClaimStatePartiallyClaimed, spectrum(wgRowID))
+
+	// 5. Re-claim the freed hours → fully_claimed again.
+	_ = seedClaimRow(t, pool, orgID, managerID, memberID, wgRowID, activityID, 5.0, nil, nil, now)
+	require.Equal(t, directiondomain.ClaimStateFullyClaimed, spectrum(wgRowID))
+
+	// 6. Supersede the 3h claim row: the superseded row drops out, the
+	//    superseding row (origin carried) counts the same 3h — Σ stays 8,
+	//    spectrum stays fully_claimed (chain consistency, checker fix).
+	superseding, err := repo.Create(ctx, orgID, &directiondomain.Direction{
+		ID: uuid.New(), DirectedBy: managerID, DirectedTo: &memberID,
+		ActivityID: activityID, EstHours: ptr(3.0),
+	}, &claim1, []*audit.AuditLog{
+		directionAudit(orgID, uuid.New(), managerID, directiondomain.AuditActionCreated, nil, now),
+		directionAudit(orgID, claim1, managerID, directiondomain.AuditActionSuperseded, nil, now),
+	})
+	require.NoError(t, err)
+	require.Equal(t, wgRowID, *superseding.OriginDirectionID)
+	require.Equal(t, 8.0, claimSum(t, pool, wgRowID), "supersede must not strand or double-count budget")
+	require.Equal(t, directiondomain.ClaimStateFullyClaimed, spectrum(wgRowID))
+
+	// 7. Uncapped WG row (budget NULL): claims exist → partially_claimed,
+	//    never fully_claimed (D-13-14).
+	require.Equal(t, directiondomain.ClaimStateNotClaimed, spectrum(uncappedRowID))
+	_ = seedClaimRow(t, pool, orgID, managerID, memberID, uncappedRowID, activityID, 10.0, nil, nil, now)
+	require.Equal(t, directiondomain.ClaimStatePartiallyClaimed, spectrum(uncappedRowID))
 }
