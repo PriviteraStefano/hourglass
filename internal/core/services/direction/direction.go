@@ -475,6 +475,15 @@ func (s *Service) Claim(ctx context.Context, orgID, actorID uuid.UUID, role stri
 	if wg.Status != directiondomain.StatusActive {
 		return nil, directiondomain.ErrWgRowNotActive
 	}
+	// CR-01 guard: a user-targeted row (DirectedTo set, WgID nil) is not
+	// claimable — the repo's lock predicate pins the WG shape (wg_id IS NOT
+	// NULL, direction_repository.go:441) and returns ErrDirectionNotFound;
+	// the service must fail identically BEFORE the deref instead of
+	// panicking. Sits after the status fast-fail so an active user row
+	// reaches it (a draft user row still fast-fails as not active).
+	if wg.WgID == nil {
+		return nil, directiondomain.ErrDirectionNotFound
+	}
 	members, err := s.wgRepo.ListMembers(ctx, *wg.WgID)
 	if err != nil {
 		return nil, err

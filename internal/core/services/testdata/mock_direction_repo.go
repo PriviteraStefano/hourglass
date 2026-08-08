@@ -169,6 +169,12 @@ func (m *MockDirectionRepo) Claim(ctx context.Context, orgID, wgRowID, claimantI
 	if !ok || wg.OrgID != orgID {
 		return nil, directiondomain.ErrDirectionNotFound
 	}
+	// Mirror of the authoritative repo shape (direction_repository.go:441 —
+	// the lock predicate wg_id IS NOT NULL pins the WG shape): a user row is
+	// not claimable through the mock either (CR-01).
+	if wg.WgID == nil {
+		return nil, directiondomain.ErrDirectionNotFound
+	}
 	// A8 claim row: draft, queued (planned_date NULL), copying
 	// priority/due_date from the WG row; directed_by = WG creator
 	// (manager attribution preserved, D-13-11).
