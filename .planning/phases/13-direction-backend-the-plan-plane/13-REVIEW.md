@@ -1,17 +1,18 @@
 ---
 phase: 13-direction-backend-the-plan-plane
-reviewed: 2026-08-08T12:00:00Z
+reviewed: 2026-08-08T00:00:00Z
 depth: standard
-files_reviewed: 36
+files_reviewed: 38
 files_reviewed_list:
   - cmd/server/main.go
   - cmd/server/main_test.go
+  - hourglass-vault/decisions/backend/_index.md
+  - hourglass-vault/decisions/project/_index.md
   - internal/adapters/primary/http/direction_handler.go
   - internal/adapters/primary/http/direction_handler_test.go
   - internal/adapters/primary/http/handler_test_helper.go
   - internal/adapters/primary/http/org_settings_handler.go
   - internal/adapters/primary/http/org_settings_handler_test.go
-  - internal/adapters/secondary/postgres/activity_ontology_migration_test.go
   - internal/adapters/secondary/postgres/direction_ontology_migrations_test.go
   - internal/adapters/secondary/postgres/direction_repository.go
   - internal/adapters/secondary/postgres/direction_repository_test.go
@@ -36,13 +37,14 @@ files_reviewed_list:
   - internal/core/services/orgsettings/orgsettings_test.go
   - internal/core/services/testdata/mock_direction_repo.go
   - internal/core/services/testdata/mock_org_settings_repo.go
-  - migrations/021_direction_rows.up.sql
+  - internal/core/services/testdata/mocks.go
   - migrations/021_direction_rows.down.sql
-  - migrations/022_org_settings.up.sql
+  - migrations/021_direction_rows.up.sql
   - migrations/022_org_settings.down.sql
+  - migrations/022_org_settings.up.sql
 findings:
-  critical: 2
-  warning: 3
+  critical: 0
+  warning: 5
   info: 4
   total: 9
 status: issues_found
@@ -50,113 +52,101 @@ status: issues_found
 
 # Phase 13: Code Review Report
 
-**Reviewed:** 2026-08-08T12:00:00Z
+**Reviewed:** 2026-08-08T00:00:00Z
 **Depth:** standard
-**Files Reviewed:** 36
+**Files Reviewed:** 38
 **Status:** issues_found
 
 ## Summary
 
-The phase implements the plan plane per ADR-P-015/ADR-BE-018: migrations 021/022 (direction + org_settings), the direction repository (mutator txs with FOR UPDATE re-validation, Σ-cents claim guard, read-models), the direction service (gate chain, warning overlay, read gates), the org_settings vertical slice, the activity origin fallback, and full wiring. The codebase is exceptionally well-documented and the test suite is deep (concurrent claim battery, supersede-chain Σ invariants, migration up/down/up cycles). The core design — in-tx audit writes, CR-01 lock closures, cents arithmetic, org-scoped reads — is sound and consistently applied.
+Reviewed the full direction plan-plane stack (ADR-P-015 / ADR-BE-018): migrations 021/022, the postgres `DirectionRepository` + `OrgSettingsRepository`, the direction/orgsettings domain + services, the two HTTP handlers, the shared routing/orgsettings seams, the activity-service origin-fallback integration, the `cmd/server` wiring, and the complete test surface (unit, integration, up/down/up migration cycles, handler e2e).
 
-Two critical defects were found: a nil-pointer panic in the Claim fast-fail path (triggerable by any authenticated user with a user-targeted row id), and the missing `superseded` audit row on supersede-on-create (the service passes one audit row where the port contract and ADR pin two). Three warnings cover the missing same-org check on `directed_to`, an unvalidated absurd-value path that turns client input into a 500 (DB numeric overflow), and audit-vocabulary drift (`unclaimed` never written). Four info items note minor robustness/consistency gaps.
+**Overall assessment:** strong implementation. The 13-09/13-10 gap-closure hardening is real and correctly covered: supersede-on-create writes both audit rows in-tx (CR-02, asserted at service, repo and e2e level), the nil-WgID claim guard mirrors the repo's `wg_id IS NOT NULL` lock predicate (CR-01, trap-tested), `wholeCent` caps at the DECIMAL(8,2) ceiling (WR-02, boundary-tested at 999999.99/1000000), the directed_to active-membership gate runs before any mode/routing decision (WR-01, 400-tested for nil/inactive membership), and `AuditActionUnclaimed` is aligned across domain/service/tests. The FOR UPDATE + in-tx Σ cents guard with the 5-way concurrent claim battery is the right concurrency closure. All hermetic service tests pass (`go test` on direction/orgsettings/activity packages), `go build ./...` and `go vet` are clean, and the handler fixture mirrors the production wiring.
 
-## Critical Issues
-
-### CR-01: Claim fast-fail dereferences nil `WgID` — panic on user-targeted row
-
-**File:** `internal/core/services/direction/direction.go:462`
-**Issue:** `Service.Claim` reads the row, checks only `wg.Status != StatusActive`, then calls `s.wgRepo.ListMembers(ctx, *wg.WgID)`. When the claimed row is a **user-targeted row** (`wg_id` NULL — including any claim row or any activated personal row), `wg.WgID` is nil and the dereference panics. The repo's lock query guards with `AND wg_id IS NOT NULL` (returns `ErrDirectionNotFound`), but the service-level fast-fail crashes first. Any authenticated user can trigger this by `POST /direction/claims` with a user row id. `http.Server` recovers the panic by dropping the connection — the client gets no 4xx and the request logs a stack trace. The mock repo's `Claim` has the same shape (mock_direction_repo.go:168), so unit tests never exercise the deref.
-**Fix:**
-```go
-// direction.go, Service.Claim — after the Get + status fast-fail:
-if wg.WgID == nil {
-    return nil, directiondomain.ErrDirectionNotFound // mirrors the repo predicate (wg_id IS NOT NULL)
-}
-members, err := s.wgRepo.ListMembers(ctx, *wg.WgID)
-```
-
-### CR-02: Supersede-on-create writes no `superseded` audit row
-
-**File:** `internal/core/services/direction/direction.go:303-310`
-**Issue:** `Service.Create` hands the repo a single audit row (`created`). When `req.SupersedesID` is set, the repo flips the target to `superseded` in the same tx (direction_repository.go:227-238) but nothing writes the target's audit event. This violates three pinned contracts at once: ADR-BE-018 §1 ("Every transition writes an `audit_logs` row in the same tx"), §3 (the `superseded` action is pinned verbatim "so Phase 19 history reads filter deterministically — T-13-06"), and the port doc itself (`ports/direction_repository.go:27-29`: "two audit rows: created + superseded"). The repo test `TestDirectionRepository_Create_Supersede` proves the repo accepts both rows — the service just never sends the second. `directiondomain.AuditActionSuperseded` is dead code in the real path, and a Phase 19 history filter on `superseded` will return nothing for actual supersedes.
-**Fix:**
-```go
-// direction.go, Service.Create — build the second row when superseding:
-audits := []*audit.AuditLog{{
-    OrgID: orgID, EntityType: directiondomain.AuditEntityDirection,
-    EntityID: row.ID, Action: directiondomain.AuditActionCreated,
-    ActorID: &actor, CreatedAt: time.Now().UTC(),
-}}
-if req.SupersedesID != nil {
-    targetID := *req.SupersedesID
-    audits = append(audits, &audit.AuditLog{
-        OrgID: orgID, EntityType: directiondomain.AuditEntityDirection,
-        EntityID: targetID, Action: directiondomain.AuditActionSuperseded,
-        ActorID: &actor, CreatedAt: time.Now().UTC(),
-    })
-}
-created, err := s.repo.Create(ctx, orgID, row, req.SupersedesID, audits)
-```
+Findings below are edge/robustness defects the current tests do not catch — no critical issues found, but five warnings deserve attention before Phase 19 consumes these read-models.
 
 ## Warnings
 
-### WR-01: `directed_to` ref is never validated same-org
+### WR-01: Coverage `scope=unit` accepts a non-UUID `scope_id` → 500 (client input path)
 
-**File:** `internal/core/services/direction/direction.go:251-268`
-**Issue:** ADR-BE-018 §Security: "`directed_to`/`wg_id`/`activity_id` refs validated same-org at the service (house style)". The Create gate chain validates the activity (same-org) and the WG (same-org + scope), but never checks that `*req.DirectedTo` is an active member of `orgID`. In manager-planned mode a manager whose routing resolution passes (or a role-gated org manager) can create rows directed at users of other orgs — the FK on `directed_to` is to `users(id)` only, so the insert succeeds. The direction row is org-scoped so reads stay contained, but the cross-org reference is exactly what the ADR pins against.
-**Fix:** in the `req.DirectedTo != nil` branch, before the mode gate:
-```go
-m, err := s.orgRepo.GetMembership(ctx, *req.DirectedTo, orgID)
-if err != nil {
-    return nil, nil, err
-}
-if m == nil || !m.IsActive {
-    return nil, nil, directiondomain.ErrInvalidRequest
-}
-```
-
-### WR-02: Absurd `est_hours` not rejected at the service → DB numeric overflow → 500
-
-**File:** `internal/core/services/direction/direction.go:206-211`
-**Issue:** ADR-BE-018 §6: "Service rejects `est_hours <= 0` (and absurd values) at write (D-13-03 hard per-row validation)". The service validates only positive whole-cent. `est_hours` ≥ 1,000,000 passes the gate chain and then fails inside the repo insert as PG error 22003 (`DECIMAL(8,2)` overflow); `wrapPGError` (postgres.go:16-30) does not map 22003, so the handler's `writeError` default returns a 500 — violating the "never a 500 for client input" boundary contract (T-13-29/32).
+**File:** `internal/core/services/direction/direction.go:678-701` (case "unit" in `resolveScopeEmployees`)
+**Issue:** The `employee` and `wg` scope branches validate `scope_id` with `uuid.Parse` → `ErrInvalidRequest` (400), but the `unit` branch passes the raw string straight into `s.unitRepo.ListMembers(ctx, scopeID)` and `s.unitRepo.GetDescendants(ctx, scopeID)`. The postgres adapter parses it (`unit_member_repository.go:25-29` — `uuid.Parse(unitID)` → raw `fmt.Errorf`), so `GET /direction/coverage?scope=unit&scope_id=garbage` surfaces a raw parse error → handler default → **500**, violating the phase's own T-13-32 contract ("no 500 path for client input"). The unit test at `direction_test.go:1052-1054` only exercises the mock (which returns empty without parsing), so the 500 path is untested. Secondary: `scope_id` is never org-validated for unit/wg scopes, so a manager can probe another org's unit/wg membership ids — the resulting "Outside validity period" warnings leak cross-org membership existence (low impact, but inconsistent with the same-org discipline applied everywhere else in this phase).
 **Fix:**
 ```go
-func wholeCent(hours float64) bool {
-    return hours > 0 && hours <= 999999.99 && math.Round(hours*100) == hours*100
+case "unit":
+	if role != string(models.RoleManager) {
+		return nil, directiondomain.ErrForbidden
+	}
+	unitID, err := uuid.Parse(scopeID)
+	if err != nil {
+		return nil, directiondomain.ErrInvalidRequest
+	}
+	members, err := s.unitRepo.ListMembers(ctx, unitID.String())
+	if err != nil {
+		return nil, err
+	}
+	// ... descendants with the parsed id
+```
+
+### WR-02: WG-row lifecycle permission is asymmetric with create (A10 not applied in `lifecycleAllowed`)
+
+**File:** `internal/core/services/direction/direction.go:372-386` vs `:227-253,290`
+**Issue:** Create routes WG rows on the WG's **anchored** activity (A10 — `wgActivityID = g.SubprojectID`, `managerReach(... wgActivityID ...)`), so a WG delegate in the approver set can create a WG row whose `activity_id` is a *descendant* of the anchor. But `lifecycleAllowed` resolves manager reach on **`d.ActivityID`** (the row's own activity, possibly the descendant): `ResolveManagerStage` then finds no WG anchored on the descendant, and for a commercial descendant returns `ErrActivityNotLoggable` → `ErrForbidden`, or degrades to the role-gated terminal stage. A delegate who legitimately created the row (and is in the anchored WG's approver set) gets **403 on Activate/Cancel** of that same row. The doc comment ("the routing degrades to the anchored-WG approver set") is only true when the row's activity is the anchor itself. Claim rows (origin inherited, activity = WG row's activity) inherit the same asymmetry on the Unclaim/lifecycle path.
+**Fix:** resolve the lifecycle gate on the anchored activity for WG rows — fetch the WG by `*d.WgID` and use its `SubprojectID` in `managerReach`, mirroring the create path (A10).
+
+### WR-03: Reversed period bounds (`period_start` > `period_end`) silently return empty data
+
+**File:** `internal/adapters/primary/http/direction_handler.go:283-298` (`parsePeriod`), impact in `direction_repository.go:744-803` and `direction.go:860`
+**Issue:** `parsePeriod` validates presence and format but not ordering. A reversed period (`period_start=2026-08-20&period_end=2026-08-10`) passes the boundary, `generate_series($3::date, $4::date)` produces zero days, `ListPlan`'s range predicate matches nothing, and `computeWarnings`' day loop never iterates — the API answers **200 with an empty plan/coverage**, which reads as "no work planned / no uncovered days" rather than a client error. A UI typo silently looks like a real (empty) plan. (An unbounded multi-year period also produces a very large `generate_series` + per-day loop — the ordering check plus a reasonable horizon guard would close both.)
+**Fix:**
+```go
+if start.After(end) {
+	return time.Time{}, time.Time{}, errors.New("period_start must be <= period_end")
 }
 ```
 
-### WR-03: Audit vocabulary drift — `unclaimed` action pinned by ADR but never written
+### WR-04: Create commits the row before the warnings overlay — a warnings-read failure returns 500 after commit (duplicate-on-retry risk)
 
-**File:** `internal/core/services/direction/direction.go:431-439`; `internal/core/domain/direction/direction.go:168`
-**Issue:** ADR-BE-018 §3 pins the direction audit actions as `created / activated / cancelled / superseded / claimed / unclaimed` "pinned verbatim so Phase 19 history reads filter deterministically (T-13-06)". The domain exports `AuditActionUnclaimed = "unclaimed"` but no code path ever writes it — `Service.Unclaim` writes `AuditActionCancelled`, and the port doc (direction_repository.go:66-67) says "One 'cancelled' audit row". Either the ADR's vocabulary is wrong (unclaim should be `cancelled`, and the constant should be deleted) or the unclaim path should write `unclaimed` — as written, a Phase 19 filter on the pinned action set silently merges unclaims into cancels, and the exported constant is a trap for the next implementer.
-**Fix:** pick one and pin it: write `directiondomain.AuditActionUnclaimed` from `Service.Unclaim` (and the repo tests), or remove the constant and amend ADR-BE-018 §3.
+**File:** `internal/core/services/direction/direction.go:351-359`
+**Issue:** `repo.Create` (with audit rows) commits first; only then does step 8 compute the warnings overlay via `computeWarnings` (which calls `AbsenceWindows` + `Coverage` + per-day `GetMembership`). If any of those reads fail (DB hiccup, connection drop), `Create` returns an error **after the row is durable** and the handler maps it to 500. An API client retrying the create will insert a duplicate direction row (supersede chains, claim budgets and the plan view all treat rows as distinct facts — D-W/D-AA multiplicity makes duplicates invisible to uniqueness checks). Either compute warnings from the pre-write pool reads, return the row with warnings best-effort on read failure, or document that 500-on-create is a may-have-committed response.
+**Fix (minimal):** degrade warnings-read failures to an empty/partial overlay with the row still returned:
+```go
+if req.PlannedDate != nil && req.DirectedTo != nil {
+	warnings, _ = s.computeWarnings(ctx, orgID, []uuid.UUID{*req.DirectedTo}, *req.PlannedDate, *req.PlannedDate)
+}
+```
+(audit the failure; the write already committed — a 500 would trigger retries)
+
+### WR-05: Org-settings multi-key PUT is not atomic across keys
+
+**File:** `internal/core/services/orgsettings/orgsettings.go:140-170`
+**Issue:** The service validates the full key set up front ("an invalid batch never partially commits" — true for validation), but each key is then upserted in its **own** transaction (`org_settings_repository.go:84-110`). A repo-level failure on the second key (connection loss, constraint edge) leaves the first key committed — a partial batch write, each half with its own audit row. The doc comment promises batch atomicity that the implementation does not deliver.
+**Fix:** either loop the writes through a single shared tx (extend the port with a batch upsert), or downgrade the comment to per-key atomicity and document the partial-commit semantics.
 
 ## Info
 
-### IN-01: Create-response over-capacity warning silently misses non-midnight `planned_date`
+### IN-01: Non-manager coverage self-view is a case-sensitive string compare
 
-**File:** `internal/core/services/direction/direction.go:318-323, 828-830`
-**Issue:** `computeWarnings` iterates from `start = *req.PlannedDate` (arbitrary JSON time-of-day) and looks up `coverageByDay[dayKey{emp, d}]`, but repo coverage rows are normalized to UTC midnight (normalizeDay). A client sending `"planned_date":"2026-08-10T10:30:00Z"` gets a warning miss for that day's over-capacity check (away/partial still work — date-only). Harmless for the read-model paths (bounds parsed as `2006-01-02` → midnight), and warnings are advisory — but the create contract (D-13-03) claims the overlay rides every create. Fix: normalize `d` to UTC midnight before the map lookup.
+**File:** `internal/core/services/direction/direction.go:670`
+**Issue:** `scopeID != actorID.String()` compares the raw query string before `uuid.Parse`. `uuid.Parse` accepts uppercase/mixed-case hex, so a non-manager passing their own UUID in a different case is 403'd for a legitimate self-view. Compare after parsing, or lowercase both sides.
 
-### IN-02: Create commits before warning computation — a warning error yields 500 with a persisted row
+### IN-02: Duplicate membership fetch in the create gate chain
 
-**File:** `internal/core/services/direction/direction.go:315-324`
-**Issue:** `repo.Create` commits, then `computeWarnings` runs; if it errors (e.g., a transient DB failure on the coverage/absence read), the handler returns 500 while the row exists. A client retrying on the 500 creates a duplicate row. Acceptable for advisory overlay, but consider degrading warning-computation errors to empty warnings on the create path.
+**File:** `internal/core/services/direction/direction.go:265-272` + `internal/core/services/orgsettings/orgsettings.go:62-64`
+**Issue:** `Create` calls `orgRepo.GetMembership` for the active-membership gate and `ResolvePlanningMode` immediately fetches the same membership again. Two pool round-trips per create for one row. Harmless but redundant — pass the already-fetched membership (or a mode resolver taking it) into the mode resolution.
 
-### IN-03: Multi-key settings PUT is not atomic across keys
+### IN-03: Cancel/unclaim reason is not trimmed — whitespace-only passes
 
-**File:** `internal/core/services/orgsettings/orgsettings.go:140-170`
-**Issue:** Each key's `Upsert` runs in its own transaction. The service doc correctly scopes the claim to validation ("an invalid batch never partially commits" — true, validation precedes writes), but a runtime error on key 2 (e.g., transient pool failure) leaves key 1 committed and the handler 500s. If batch atomicity is desired, the port would need a multi-key tx; otherwise document the per-key behavior.
+**File:** `internal/core/services/direction/direction.go:419,459` and `direction_repository.go:340`
+**Issue:** `reason == ""` accepts `"   "` — a whitespace-only reason is persisted and audited as a "reason". Trim before the emptiness check (both service and repo boundary).
 
-### IN-04: `membershipValid` ignores `IsActive`
+### IN-04: `SetupTestSchema` swallows migration failures
 
-**File:** `internal/core/services/direction/direction.go:731-745`
-**Issue:** Deactivated members (is_active=false) with an open employment-validity window are treated as valid employees for coverage and remain eligible in unit/WG member lists feeding scope resolution, so they keep surfacing as planned/covered. The ADR's validity semantics are the employment window (D-13-31), but an inactive membership is arguably the stronger signal; worth a decision note for Phase 19.
+**File:** `internal/adapters/secondary/postgres/exported_test_helpers.go:60-75`
+**Issue:** Migration errors are `t.Logf`'d, not `require.NoError`'d. A broken migration silently leaves a partial schema and every subsequent test fails with cryptic "relation does not exist" errors instead of pointing at the migration. Making this fatal converts whole-suite confusion into one actionable failure. (Pre-existing pattern, but this file is part of the phase's test surface.)
 
 ---
 
-_Reviewed: 2026-08-08T12:00:00Z_
+_Reviewed: 2026-08-08T00:00:00Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
