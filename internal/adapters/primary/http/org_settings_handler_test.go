@@ -123,3 +123,167 @@ func TestOrgSettingsHandler(t *testing.T) {
 	status, _ = h.doJSON(t, http.MethodPut, "/organizations/settings", `{"planning_daily_hours": 8.0}`)
 	require.Equal(t, http.StatusForbidden, status, "employee PUT should return 403")
 }
+
+// newOrgSettingsFixture spins up a fresh schema + fixture for one battery
+// test (each test owns its schema lifecycle).
+func newOrgSettingsFixture(t *testing.T) (*orgSettingsAPIHelper, uuid.UUID) {
+	t.Helper()
+	pool := postgres.SetupPackageContainer(t)
+	postgres.SetupTestSchema(t, pool)
+	t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
+
+	f := newHandlerFixture(t, pool)
+	h := &orgSettingsAPIHelper{f: f}
+	mgrLogin := f.registerAndLogin(t, "os-mgr-"+uuid.New().String()[:8]+"@test.com", "osmgr", "TestPass123!", "OrgSettingsOrg")
+	orgID, err := uuid.Parse(mgrLogin.Organization.ID)
+	require.NoError(t, err)
+	return h, orgID
+}
+
+// TestOrgSettingsHandler_RouteCoexistence is the Pitfall 6 regression lock
+// (D-13-23): the literal GET/PUT /organizations/settings routes (no id) hit
+// the NEW org_settings handler while GET /organizations/{uuid}/settings still
+// resolves to the TYPED organization_settings surface — ServeMux
+// most-specific-wins, both registrations kept.
+func TestOrgSettingsHandler_RouteCoexistence(t *testing.T) {
+	h, orgID := newOrgSettingsFixture(t)
+
+	// Literal route → the new handler: org_settings map shape with the
+	// code-level default for the absent key (D-13-24).
+	status, env := h.doJSON(t, http.MethodGet, "/organizations/settings", "")
+	require.Equal(t, http.StatusOK, status, "literal GET should return 200: %v", env)
+	data, ok := env["data"].(map[string]any)
+	require.True(t, ok, "literal GET must carry a data object: %v", env)
+	require.Equal(t, 8.0, data["planning_daily_hours"], "new handler applies the planning_daily_hours default")
+
+	// Typed wildcard route → the legacy typed surface: organization_settings
+	// row (auto-created by the org trigger), Go field-name serialization.
+	status, env = h.doJSON(t, http.MethodGet, "/organizations/"+orgID.String()+"/settings", "")
+	require.Equal(t, http.StatusOK, status, "typed GET should return 200: %v", env)
+	data, ok = env["data"].(map[string]any)
+	require.True(t, ok, "typed GET must carry a data object: %v", env)
+	require.Equal(t, "EUR", data["Currency"], "typed surface serializes organization_settings fields")
+	require.Equal(t, float64(1), data["WeekStartDay"])
+	_, hasSnake := data["planning_daily_hours"]
+	require.False(t, hasSnake, "typed surface must NOT carry org_settings keys (different handler)")
+
+	// The literal PUT still lands in org_settings, not the typed table.
+	status, env = h.doJSON(t, http.MethodPut, "/organizations/settings", `{"planning_daily_hours": 7.5}`)
+	require.Equal(t, http.StatusOK, status, "literal PUT should return 200: %v", env)
+	data, ok = env["data"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, 7.5, data["planning_daily_hours"])
+
+	status, env = h.doJSON(t, http.MethodGet, "/organizations/"+orgID.String()+"/settings", "")
+	require.Equal(t, http.StatusOK, status, "typed GET still resolves after the literal PUT")
+	data, ok = env["data"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "EUR", data["Currency"], "typed row untouched by the literal route")
+	_, hasSnake = data["planning_daily_hours"]
+	require.False(t, hasSnake)
+}
+
+// TestOrgSettingsHandler_RequiresAuth — GET/PUT are JWT-gated (401 without
+// a session cookie; T-13-10 trust boundary).
+func TestOrgSettingsHandler_RequiresAuth(t *testing.T) {
+	pool := postgres.SetupPackageContainer(t)
+	postgres.SetupTestSchema(t, pool)
+	t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
+
+	f := newHandlerFixture(t, pool)
+	// A client with no cookie jar — no auth context at all.
+	anonResp, err := f.Client.Get(f.ServerURL + "/organizations/settings")
+	require.NoError(t, err)
+	anonResp.Body.Close()
+	require.Equal(t, http.StatusUnauthorized, anonResp.StatusCode, "anonymous GET must be 401")
+
+	req, err := http.NewRequest(http.MethodPut, f.ServerURL+"/organizations/settings", strings.NewReader(`{"planning_daily_hours": 8.0}`))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	anonPut, err := f.Client.Do(req)
+	require.NoError(t, err)
+	anonPut.Body.Close()
+	require.Equal(t, http.StatusUnauthorized, anonPut.StatusCode, "anonymous PUT must be 401")
+}
+
+// TestOrgSettingsHandler_PutOneOrManyKeys — PUT accepts a single key or a
+// multi-key batch, both validated and stored (D-13-18).
+func TestOrgSettingsHandler_PutOneOrManyKeys(t *testing.T) {
+	h, _ := newOrgSettingsFixture(t)
+
+	// Single key.
+	status, env := h.doJSON(t, http.MethodPut, "/organizations/settings", `{"planning_deadline": "2026-12-31"}`)
+	require.Equal(t, http.StatusOK, status, "single-key PUT should return 200: %v", env)
+
+	// Many keys in one body.
+	status, env = h.doJSON(t, http.MethodPut, "/organizations/settings", `{"planning_horizon": "week", "planning_mode": "self_planned"}`)
+	require.Equal(t, http.StatusOK, status, "multi-key PUT should return 200: %v", env)
+	data, ok := env["data"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "week", data["planning_horizon"])
+	require.Equal(t, "self_planned", data["planning_mode"])
+
+	// GET reflects the accumulated post-state.
+	status, env = h.doJSON(t, http.MethodGet, "/organizations/settings", "")
+	require.Equal(t, http.StatusOK, status)
+	data, ok = env["data"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "2026-12-31", data["planning_deadline"])
+	require.Equal(t, "week", data["planning_horizon"])
+	require.Equal(t, "self_planned", data["planning_mode"])
+}
+
+// TestOrgSettingsHandler_ValidationMatrix — the D-13-18/T-13-11 value gates:
+// zero/negative daily hours and out-of-vocabulary horizon → 400, nothing
+// written.
+func TestOrgSettingsHandler_ValidationMatrix(t *testing.T) {
+	h, _ := newOrgSettingsFixture(t)
+
+	for _, body := range []string{
+		`{"planning_daily_hours": 0}`,
+		`{"planning_daily_hours": -1}`,
+		`{"planning_horizon": "year"}`,
+		`{"planning_mode": "autonomous"}`,
+	} {
+		status, _ := h.doJSON(t, http.MethodPut, "/organizations/settings", body)
+		require.Equal(t, http.StatusBadRequest, status, "invalid value %s must be 400", body)
+	}
+
+	// Nothing was written by the rejected batch.
+	status, env := h.doJSON(t, http.MethodGet, "/organizations/settings", "")
+	require.Equal(t, http.StatusOK, status)
+	data, ok := env["data"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, 8.0, data["planning_daily_hours"], "default remains — rejected values never land")
+	_, hasHorizon := data["planning_horizon"]
+	require.False(t, hasHorizon, "rejected key must not be stored")
+}
+
+// TestOrgSettingsHandler_PermissionMatrix — manager+ only (T-13-10): the
+// finance role is 403 on PUT, matching the employee gate.
+func TestOrgSettingsHandler_PermissionMatrix(t *testing.T) {
+	h, orgID := newOrgSettingsFixture(t)
+
+	finID := h.registerUserInOrg(t, "os-fin-"+uuid.New().String()[:8]+"@test.com", "osfin", "TestPass123!", orgID.String(), "finance")
+	require.NotEmpty(t, finID)
+	status, _ := h.doJSON(t, http.MethodPut, "/organizations/settings", `{"planning_daily_hours": 8.0}`)
+	require.Equal(t, http.StatusForbidden, status, "finance PUT should return 403 (manager+ only)")
+
+	// The finance attempt wrote nothing.
+	status, env := h.doJSON(t, http.MethodGet, "/organizations/settings", "")
+	require.Equal(t, http.StatusOK, status)
+	data, ok := env["data"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, 8.0, data["planning_daily_hours"], "finance rejection must not change the store")
+}
+
+// TestOrgSettingsHandler_MalformedBody — a body that is not a JSON object of
+// key/value pairs → 400 before any service call.
+func TestOrgSettingsHandler_MalformedBody(t *testing.T) {
+	h, _ := newOrgSettingsFixture(t)
+
+	for _, body := range []string{`{not json`, `[]`, `""`, `{}`} {
+		status, _ := h.doJSON(t, http.MethodPut, "/organizations/settings", body)
+		require.Equal(t, http.StatusBadRequest, status, "malformed body %q must be 400", body)
+	}
+}
