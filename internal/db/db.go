@@ -47,7 +47,18 @@ func NewPool() (*pgxpool.Pool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.New(ctx, connStr)
+	connConfig, err := pgxpool.ParseConfig(connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse database config: %w", err)
+	}
+	// WR-06: pin the session timezone so ::date casts on TIMESTAMPTZ are
+	// UTC-deterministic (the coverage period-close predicates included).
+	// Without this the server's zone applied — a non-UTC VPS silently
+	// shifted period closes by one day. The handler parses period bounds as
+	// UTC midnights, so UTC is the only correct comparison zone.
+	connConfig.ConnConfig.RuntimeParams["timezone"] = "UTC"
+
+	pool, err := pgxpool.NewWithConfig(ctx, connConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}

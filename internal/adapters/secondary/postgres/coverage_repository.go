@@ -337,11 +337,16 @@ func (r *CoverageRepository) ClosePeriod(ctx context.Context, orgID uuid.UUID, p
 
 	// 1. In-tx overlap check (A6): inclusive-overlap predicate — any period
 	// sharing even one day with an existing close for the org is rejected.
+	// WR-06: the parameter casts are UTC-explicit so the predicate is
+	// session-timezone-independent (the caller parses period bounds as UTC
+	// midnights; a raw ::date cast would shift the window on a non-UTC
+	// session).
 	var overlap bool
 	err = tx.QueryRow(ctx,
 		`SELECT EXISTS (
 			SELECT 1 FROM coverage_period_closes
-			WHERE org_id = $1 AND period_start <= $3::date AND period_end >= $2::date
+			WHERE org_id = $1 AND period_start <= ($3 AT TIME ZONE 'UTC')::date
+			  AND period_end >= ($2 AT TIME ZONE 'UTC')::date
 		 )`, orgID, periodStart, periodEnd).Scan(&overlap)
 	if err != nil {
 		return nil, wrapPGError(err, "check overlapping close period")
@@ -363,7 +368,7 @@ func (r *CoverageRepository) ClosePeriod(ctx context.Context, orgID uuid.UUID, p
 	entryRows, err := tx.Query(ctx,
 		`SELECT id, user_id, entry_date, activity_id FROM time_entries
 		 WHERE org_id = $1 AND status = 'approved' AND is_deleted = false
-		   AND entry_date::date BETWEEN $2::date AND $3::date
+		   AND (entry_date AT TIME ZONE 'UTC')::date BETWEEN ($2 AT TIME ZONE 'UTC')::date AND ($3 AT TIME ZONE 'UTC')::date
 		 FOR UPDATE`, orgID, periodStart, periodEnd)
 	if err != nil {
 		return nil, wrapPGError(err, "lock period entries for close")
@@ -382,11 +387,12 @@ func (r *CoverageRepository) ClosePeriod(ctx context.Context, orgID uuid.UUID, p
 	}
 	entryRows.Close()
 
-	// 3. Insert the header (id = caller-supplied closeID).
+	// 3. Insert the header (id = caller-supplied closeID). WR-06: UTC-explicit
+	// casts for the same session-timezone independence as the predicates.
 	now := time.Now().UTC()
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO coverage_period_closes (id, org_id, period_start, period_end, closed_by, closed_at)
-		 VALUES ($1, $2, $3::date, $4::date, $5, $6)`,
+		 VALUES ($1, $2, ($3 AT TIME ZONE 'UTC')::date, ($4 AT TIME ZONE 'UTC')::date, $5, $6)`,
 		closeID, orgID, periodStart, periodEnd, closedBy, now); err != nil {
 		return nil, wrapPGError(err, "insert close header")
 	}
