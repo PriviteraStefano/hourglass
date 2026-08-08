@@ -7,7 +7,7 @@ tags: ["adr", "backend", "schema", "direction", "org-settings", "audit"]
 **Status:** Proposed
 **Date:** 2026-08-08
 **Code:** `migrations/021…022`, `internal/core/domain/direction/`, `internal/core/domain/orgsettings/`, `internal/core/services/`, `internal/core/ports/`, `internal/adapters/primary/http/`, `internal/adapters/secondary/postgres/`
-**Operationalizes:** [[ADR-P-015 — Direction: The Plan Plane]] (D-1..D-11, three-plane ontology) · **Basis:** [[research/2026-08-01 — Origins, Tickets & Coverage — Ontology Extension Research]] (Parts 14–15, D-R…D-AA) · **Extends:** [[ADR-BE-016 — Origins Tickets & Audit Schema Encoding]] (3VL CHECK house rule, in-tx synchronous audit writes) · **Gates on:** [[ADR-BE-014 — Approval-Routing Precedence & Activity-Chain Resolution]] (manager reach for direction creation + WG-row gate) · **Resolves:** Phase 13 semantic resolutions (research OQ1…OQ8), locked decisions D-13-01…D-13-34, assumptions A1…A10
+**Operationalizes:** [[ADR-P-015 — Direction, The Plan Plane]] (D-1..D-11, three-plane ontology) · **Basis:** [[research/2026-08-01 — Origins, Tickets & Coverage — Ontology Extension Research]] (Parts 14–15, D-R…D-AA) · **Extends:** [[ADR-BE-016 — Origins Tickets & Audit Schema Encoding]] (3VL CHECK house rule, in-tx synchronous audit writes) · **Gates on:** [[ADR-BE-014 — Approval-Routing Precedence & Activity-Chain Resolution]] (manager reach for direction creation + WG-row gate) · **Resolves:** Phase 13 semantic resolutions (research OQ1…OQ8), locked decisions D-13-01…D-13-34, assumptions A1…A10
 
 ---
 
@@ -115,7 +115,7 @@ Per-employee override: nullable `planning_mode` column on `organization_membersh
 
 ## Related
 
-- [[ADR-P-015 — Direction: The Plan Plane]] — the idea-layer record this ADR operationalizes (D-1..D-11)
+- [[ADR-P-015 — Direction, The Plan Plane]] — the idea-layer record this ADR operationalizes (D-1..D-11)
 - [[ADR-BE-016 — Origins Tickets & Audit Schema Encoding]] — 3VL CHECK house rule, in-tx synchronous audit precedent (017)
 - [[ADR-BE-014 — Approval-Routing Precedence & Activity-Chain Resolution]] — `routing.ResolveManagerStage`, the direction-creation/WG-row gate
 - [[ADR-BE-004 — Database Migrations]] (append-only rule) · [[ADR-BE-012 — Audit Log Writes]] (scope note)
