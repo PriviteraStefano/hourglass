@@ -27,8 +27,7 @@ CREATE TABLE direction (
     est_hours           DECIMAL(8,2),                          -- required on scheduled; optional queued budget (D-13-02)
     priority            INT,                                   -- queued ordering, lower = higher (D-13-06)
     due_date            DATE,                                  -- queued ordering (D-13-06)
-    status              VARCHAR(20) NOT NULL DEFAULT 'draft'
-                        CHECK (status IN ('draft','active','superseded','cancelled')),  -- D-13-07
+    status              VARCHAR(20) NOT NULL DEFAULT 'draft',                       -- vocab: direction_status_check (D-13-07)
     supersedes_id       UUID REFERENCES direction(id),         -- replanning chain (D-13-04/08)
     origin_direction_id UUID REFERENCES direction(id),         -- claim chain: WG row → claim row (D-13-11)
     reason              TEXT,                                  -- mandatory for cancel/unclaim (D-13-10/16)
