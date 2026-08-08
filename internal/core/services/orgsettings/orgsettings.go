@@ -51,6 +51,49 @@ func NewService(repo ports.OrgSettingsRepository, orgRepo ports.OrganizationRepo
 	return &Service{repo: repo, orgRepo: orgRepo}
 }
 
+// ResolvePlanningMode resolves the effective planning mode for one employee
+// in an org (D-13-19, ADR-BE-018 §8): the membership planning_mode override
+// wins, then the org default planning_mode key, then the conservative
+// ModeManagerPlanned fallback when neither is set. This is the seam the
+// direction service mode gate (13-07) consumes. Stored values must be in the
+// closed mode vocabulary — a mismatched value is ErrInvalidValue (the store
+// is JSONB-unvalidated, T-13-11); the resolution surfaces it rather than
+// silently defaulting.
+func (s *Service) ResolvePlanningMode(ctx context.Context, orgID, employeeID uuid.UUID) (string, error) {
+	m, err := s.orgRepo.GetMembership(ctx, employeeID, orgID)
+	if err != nil {
+		return "", err
+	}
+	if m != nil && m.PlanningMode != nil {
+		mode := *m.PlanningMode
+		switch mode {
+		case orgsettings.ModeManagerPlanned, orgsettings.ModeSelfPlanned:
+			return mode, nil
+		}
+		return "", orgsettings.ErrInvalidValue
+	}
+
+	raw, err := s.repo.Get(ctx, orgID, orgsettings.KeyPlanningMode)
+	if err != nil {
+		return "", err
+	}
+	if raw != nil {
+		var mode string
+		if err := json.Unmarshal(raw, &mode); err != nil {
+			return "", orgsettings.ErrInvalidValue
+		}
+		switch mode {
+		case orgsettings.ModeManagerPlanned, orgsettings.ModeSelfPlanned:
+			return mode, nil
+		}
+		return "", orgsettings.ErrInvalidValue
+	}
+
+	// D-13-19/D-13-20 conservative reading: the org is manager-planned
+	// when nothing is set (ADR-BE-018 §8).
+	return orgsettings.ModeManagerPlanned, nil
+}
+
 // Get returns the org's settings with code-level defaults applied for absent
 // known keys (D-13-24, ADR-BE-018 §8.3): planning_daily_hours defaults to
 // DefaultDailyHours; other absent keys are omitted (no seed rows needed).
