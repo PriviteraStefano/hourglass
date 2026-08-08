@@ -143,10 +143,16 @@ func (r *CoverageRepository) ReplaceAllocations(ctx context.Context, orgID, entr
 		return nil, wrapPGError(err, "delete allocations for replace")
 	}
 
-	// 4. INSERT the full set (1..N rows). The DB CHECKs (019) backstop the
+	// 4. INSERT the full set (1..N rows). The boundary DTO never carries
+	// allocation ids (D-07), so every row's id is generated here — the PK is
+	// table-wide, and a uuid.Nil id would collide with the first row inserted
+	// anywhere in the ledger (CR-01). The DB CHECKs (019) backstop the
 	// refs-to-type and mandatory-field vocabularies as a third line.
 	now := time.Now().UTC()
 	for _, a := range allocs {
+		if a.ID == uuid.Nil {
+			a.ID = uuid.New()
+		}
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO coverage_allocations (id, org_id, entry_type, entry_id, source_type,
 				contract_id, unit_id, hours, reason, justification, created_at, updated_at)
