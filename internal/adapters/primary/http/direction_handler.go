@@ -86,6 +86,9 @@ func (h *DirectionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, err)
 		return
 	}
+	if warnings == nil {
+		warnings = []directiondomain.Warning{} // the create contract always carries the array (D-13-03)
+	}
 	api.RespondWithJSON(w, http.StatusOK, CreateResponse{Row: row, Warnings: warnings})
 }
 
@@ -221,6 +224,9 @@ func (h *DirectionHandler) ListPlan(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, err)
 		return
 	}
+	if plan.Warnings == nil {
+		plan.Warnings = []directiondomain.Warning{} // read-model contract: warnings is an array (D-13-28)
+	}
 	api.RespondWithJSON(w, http.StatusOK, plan)
 }
 
@@ -251,6 +257,9 @@ func (h *DirectionHandler) Coverage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.writeError(w, err)
 		return
+	}
+	if coverage.Warnings == nil {
+		coverage.Warnings = []directiondomain.Warning{} // read-model contract: warnings is an array (D-13-28)
 	}
 	api.RespondWithJSON(w, http.StatusOK, coverage)
 }

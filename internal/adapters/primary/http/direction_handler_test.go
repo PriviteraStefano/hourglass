@@ -66,6 +66,18 @@ func (h *directionAPIHelper) registerUserInOrg(t *testing.T, email, username, pa
 	return userID
 }
 
+// switchToOrg posts the switch-organization request (a fresh loginUser issues
+// a token for the user's PRIMARY org — the switched org is re-established
+// here).
+func (h *directionAPIHelper) switchToOrg(t *testing.T, orgID string) {
+	t.Helper()
+	switchBody := fmt.Sprintf(`{"organization_id":"%s"}`, orgID)
+	resp, err := h.f.Client.Post(h.f.ServerURL+"/auth/switch-organization", "application/json", strings.NewReader(switchBody))
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, "switch-organization should return 200")
+}
+
 // seedWorkingGroup inserts a working group anchored to the activity (the
 // WG-scope predicate D-13-17: activity == the WG's anchored activity).
 func (h *directionAPIHelper) seedWorkingGroup(t *testing.T, orgID, activityID, managerID uuid.UUID) uuid.UUID {
@@ -86,7 +98,8 @@ func (h *directionAPIHelper) seedWorkingGroupMember(t *testing.T, orgID, wgID, u
 	var unitID uuid.UUID
 	err := h.f.Pool.QueryRow(context.Background(),
 		`INSERT INTO units (id, org_id, name, code, created_at, updated_at)
-		 VALUES (gen_random_uuid(), $1, 'DirUnit', 'DU', NOW(), NOW()) RETURNING id`, orgID).Scan(&unitID)
+		 VALUES (gen_random_uuid(), $1, 'DirUnit', $2, NOW(), NOW()) RETURNING id`,
+		orgID, "DU"+uuid.New().String()[:6]).Scan(&unitID)
 	require.NoError(t, err)
 	_, err = h.f.Pool.Exec(context.Background(),
 		`INSERT INTO wg_members (id, wg_id, user_id, unit_id) VALUES (gen_random_uuid(), $1, $2, $3)`,
@@ -176,6 +189,8 @@ func TestDirectionHandler(t *testing.T) {
 	t.Run("wg claim by non-member is forbidden", func(t *testing.T) {
 		wgID := h.seedWorkingGroup(t, orgUUID, mustParse(t, activityID), ownerUUID)
 		h.seedWorkingGroupMember(t, orgUUID, wgID, ownerUUID)
+		// The jar is on an employee from the previous subtest — back to owner.
+		f.loginUser(t, ownerEmail, "TestPass123!")
 
 		status, env := h.doJSON(t, http.MethodPost, "/direction",
 			fmt.Sprintf(`{"wg_id":"%s","activity_id":"%s","est_hours":8}`, wgID.String(), activityID))
@@ -193,9 +208,11 @@ func TestDirectionHandler(t *testing.T) {
 
 	t.Run("claim over budget is 409", func(t *testing.T) {
 		wgID := h.seedWorkingGroup(t, orgUUID, mustParse(t, activityID), ownerUUID)
-		member := h.registerUserInOrg(t, "dir-mem-"+uuid.New().String()[:8]+"@test.com", "dirmem", "TestPass123!", orgID, "employee")
+		memberEmail := "dir-mem-" + uuid.New().String()[:8] + "@test.com"
+		member := h.registerUserInOrg(t, memberEmail, "dirmem", "TestPass123!", orgID, "employee")
 		memberUUID := mustParse(t, member)
 		h.seedWorkingGroupMember(t, orgUUID, wgID, memberUUID)
+		f.loginUser(t, ownerEmail, "TestPass123!") // WG-row create is the manager's
 
 		status, env := h.doJSON(t, http.MethodPost, "/direction",
 			fmt.Sprintf(`{"wg_id":"%s","activity_id":"%s","est_hours":8}`, wgID.String(), activityID))
@@ -203,6 +220,9 @@ func TestDirectionHandler(t *testing.T) {
 		wgRowID := env["data"].(map[string]any)["row"].(map[string]any)["id"].(string)
 		status, env = h.doJSON(t, http.MethodPost, "/direction/"+wgRowID+"/activate", "")
 		require.Equal(t, http.StatusOK, status, "activate wg row: %v", env)
+
+		f.loginUser(t, memberEmail, "TestPass123!") // the claim is the member's
+		h.switchToOrg(t, orgID)
 
 		status, env = h.doJSON(t, http.MethodPost, "/direction/claims",
 			fmt.Sprintf(`{"wg_row_id":"%s","est_hours":8}`, wgRowID))
@@ -214,6 +234,7 @@ func TestDirectionHandler(t *testing.T) {
 	})
 
 	t.Run("activate a cancelled row is 409", func(t *testing.T) {
+		f.loginUser(t, ownerEmail, "TestPass123!")
 		status, env := h.doJSON(t, http.MethodPost, "/direction",
 			fmt.Sprintf(`{"directed_to":"%s","activity_id":"%s","est_hours":4}`, ownerUUID.String(), activityID))
 		require.Equal(t, http.StatusOK, status, "create: %v", env)
@@ -239,6 +260,7 @@ func TestDirectionHandler(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	t.Run("sentinel mapping: 404 unknown id / 400 reason-less cancel / 400 malformed body", func(t *testing.T) {
+		f.loginUser(t, ownerEmail, "TestPass123!")
 		status, env := h.doJSON(t, http.MethodPost, "/direction/"+uuid.New().String()+"/activate", "")
 		require.Equal(t, http.StatusNotFound, status, "unknown activate target: %v", env)
 
@@ -259,6 +281,7 @@ func TestDirectionHandler(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	t.Run("create-with-supersedes flips the target to superseded (history via GET /direction)", func(t *testing.T) {
+		f.loginUser(t, ownerEmail, "TestPass123!")
 		status, env := h.doJSON(t, http.MethodPost, "/direction",
 			fmt.Sprintf(`{"directed_to":"%s","activity_id":"%s","est_hours":4}`, ownerUUID.String(), activityID))
 		require.Equal(t, http.StatusOK, status, "row1 create: %v", env)
@@ -283,9 +306,11 @@ func TestDirectionHandler(t *testing.T) {
 
 	t.Run("superseding a claim-row target carries origin_direction_id", func(t *testing.T) {
 		wgID := h.seedWorkingGroup(t, orgUUID, mustParse(t, activityID), ownerUUID)
-		member := h.registerUserInOrg(t, "dir-cs-"+uuid.New().String()[:8]+"@test.com", "dircs", "TestPass123!", orgID, "employee")
+		memberEmail := "dir-cs-" + uuid.New().String()[:8] + "@test.com"
+		member := h.registerUserInOrg(t, memberEmail, "dircs", "TestPass123!", orgID, "employee")
 		memberUUID := mustParse(t, member)
 		h.seedWorkingGroupMember(t, orgUUID, wgID, memberUUID)
+		f.loginUser(t, ownerEmail, "TestPass123!")
 
 		status, env := h.doJSON(t, http.MethodPost, "/direction",
 			fmt.Sprintf(`{"wg_id":"%s","activity_id":"%s","est_hours":8}`, wgID.String(), activityID))
@@ -294,19 +319,22 @@ func TestDirectionHandler(t *testing.T) {
 		status, env = h.doJSON(t, http.MethodPost, "/direction/"+wgRowID+"/activate", "")
 		require.Equal(t, http.StatusOK, status, "activate wg row: %v", env)
 
+		f.loginUser(t, memberEmail, "TestPass123!")
+		h.switchToOrg(t, orgID)
 		status, env = h.doJSON(t, http.MethodPost, "/direction/claims",
 			fmt.Sprintf(`{"wg_row_id":"%s","est_hours":4}`, wgRowID))
 		require.Equal(t, http.StatusOK, status, "claim: %v", env)
-		claimRowID := env["data"].(map[string]any)["row"].(map[string]any)["id"].(string)
+		claimRowID := env["data"].(map[string]any)["id"].(string) // the claim returns the row directly
 
 		// The manager supersedes the claim row with a new user-targeted row:
 		// the repo tx inherits origin_direction_id (ADR-BE-018 §5).
+		f.loginUser(t, ownerEmail, "TestPass123!")
 		status, env = h.doJSON(t, http.MethodPost, "/direction",
 			fmt.Sprintf(`{"directed_to":"%s","activity_id":"%s","est_hours":4,"supersedes_id":"%s"}`,
 				member, activityID, claimRowID))
 		require.Equal(t, http.StatusOK, status, "supersede claim row: %v", env)
 		row := env["data"].(map[string]any)["row"].(map[string]any)
-		require.Equal(t, wgID.String(), row["origin_direction_id"], "claim lineage carries origin_direction_id")
+		require.Equal(t, wgRowID, row["origin_direction_id"], "claim lineage carries origin_direction_id (ADR-BE-018 §5)")
 	})
 
 	// ---------------------------------------------------------------------
@@ -331,7 +359,8 @@ func TestDirectionHandler(t *testing.T) {
 
 		status, env = h.doJSON(t, http.MethodGet, "/direction?employee_id="+emp+"&"+period, "")
 		require.Equal(t, http.StatusOK, status, "non-manager self-view: %v", env)
-		require.NotNil(t, env["data"].(map[string]any)["warnings"])
+		_, hasWarnings := env["data"].(map[string]any)["warnings"]
+		require.True(t, hasWarnings, "warnings ride the plan read response (D-13-28)")
 	})
 
 	t.Run("read gates: coverage employee scope self-only for non-managers", func(t *testing.T) {
@@ -349,6 +378,7 @@ func TestDirectionHandler(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	t.Run("coverage scope=employee returns rows + totals + warnings", func(t *testing.T) {
+		f.loginUser(t, ownerEmail, "TestPass123!")
 		status, env := h.doJSON(t, http.MethodGet,
 			"/direction/coverage?scope=employee&scope_id="+ownerUUID.String()+"&"+periodDay, "")
 		require.Equal(t, http.StatusOK, status, "coverage read: %v", env)
@@ -360,6 +390,7 @@ func TestDirectionHandler(t *testing.T) {
 	})
 
 	t.Run("coverage scope=unknown is 400", func(t *testing.T) {
+		f.loginUser(t, ownerEmail, "TestPass123!")
 		status, env := h.doJSON(t, http.MethodGet,
 			"/direction/coverage?scope=bogus&scope_id="+ownerUUID.String()+"&"+periodDay, "")
 		require.Equal(t, http.StatusBadRequest, status, "unknown scope: %v", env)
