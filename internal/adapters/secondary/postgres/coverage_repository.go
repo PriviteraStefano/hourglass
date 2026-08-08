@@ -313,12 +313,27 @@ func roundCents(v float64) float64 {
 // contained, partial, and wider-than-existing closes, not just identical
 // bounds. No UNIQUE constraint exists on 020; this in-tx check is
 // authoritative (409 at the handler).
+//
+// WR-03: the check is made concurrency-safe by a per-org advisory xact lock
+// taken BEFORE it — without it, two concurrent closes of the same period
+// both observe "no overlap" at READ COMMITTED (no header exists yet), then
+// serialize only on the entry FOR UPDATE (step 2, after the check) and both
+// commit. The xact lock serializes closes for the org: the loser's check
+// runs only after the winner's tx committed, so it sees the committed
+// header and returns 409. (Closes are rare manager-only operations, so
+// per-org serialization is free.)
 func (r *CoverageRepository) ClosePeriod(ctx context.Context, orgID uuid.UUID, periodStart, periodEnd time.Time, closeID, closedBy uuid.UUID, auditLog *audit.AuditLog) (*coverage.PeriodClose, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("begin close period: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	// 0. WR-03: serialize closes per org — released automatically at tx end.
+	if _, err := tx.Exec(ctx,
+		`SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`, orgID); err != nil {
+		return nil, wrapPGError(err, "acquire close serialization lock")
+	}
 
 	// 1. In-tx overlap check (A6): inclusive-overlap predicate — any period
 	// sharing even one day with an existing close for the org is rejected.
