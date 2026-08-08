@@ -131,14 +131,14 @@ func TestService_Create(t *testing.T) {
 		assert.Equal(t, parent.ID, *created.ParentID)
 	})
 
-	t.Run("missing contract rejected (D-3)", func(t *testing.T) {
+	t.Run("missing contract rejected (D-3, WR-05)", func(t *testing.T) {
 		svc, repo, _, _ := setupService(t)
 		repo.Kinds = map[string]bool{orgID.String() + ":engagement": true}
 
 		req := validCreateReq()
 		req.ContractID = ptr(uuid.New())
 		created, err := svc.Create(context.Background(), string(models.RoleFinance), orgID, uuid.New(), req)
-		assert.ErrorIs(t, err, contractdomain.ErrContractNotFound)
+		assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)
 		assert.Nil(t, created)
 	})
 
@@ -296,6 +296,71 @@ func TestService_UpdateParentValidation(t *testing.T) {
 		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, root.ID, &activitydomain.UpdateActivityRequest{ParentID: ptr(uuid.New())})
 		assert.ErrorIs(t, err, activitydomain.ErrActivityNotFound)
 		assert.Nil(t, updated)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestService_UpdateRefValidation — WR-04/WR-05: the update path validates
+// kind/governance/contract refs exactly like Create, mapping every violation
+// to ErrInvalidRequest (400) instead of a raw FK/CHECK 500.
+// ---------------------------------------------------------------------------
+
+func TestService_UpdateRefValidation(t *testing.T) {
+	orgID := uuid.New()
+
+	t.Run("kind not in catalog rejected on update (WR-04)", func(t *testing.T) {
+		svc, repo, _, _ := setupService(t)
+		repo.Kinds = map[string]bool{orgID.String() + ":engagement": true}
+		a := seedActivity(repo, func(a *activitydomain.ActivityResponse) { a.OrgID = orgID; a.CreatedByOrgID = orgID })
+
+		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, a.ID, &activitydomain.UpdateActivityRequest{Kind: "bogus"})
+		assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)
+		assert.Nil(t, updated)
+	})
+
+	t.Run("invalid governance model rejected on update (WR-04)", func(t *testing.T) {
+		svc, repo, _, _ := setupService(t)
+		a := seedActivity(repo, func(a *activitydomain.ActivityResponse) { a.OrgID = orgID; a.CreatedByOrgID = orgID })
+
+		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, a.ID, &activitydomain.UpdateActivityRequest{GovernanceModel: "anarchy"})
+		assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)
+		assert.Nil(t, updated)
+	})
+
+	t.Run("missing contract rejected on update (WR-05)", func(t *testing.T) {
+		svc, repo, _, _ := setupService(t)
+		a := seedActivity(repo, func(a *activitydomain.ActivityResponse) { a.OrgID = orgID; a.CreatedByOrgID = orgID })
+
+		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, a.ID, &activitydomain.UpdateActivityRequest{ContractID: ptr(uuid.New())})
+		assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)
+		assert.Nil(t, updated)
+	})
+
+	t.Run("cross-org contract rejected on update (WR-05)", func(t *testing.T) {
+		svc, repo, contractRepo, _ := setupService(t)
+		a := seedActivity(repo, func(a *activitydomain.ActivityResponse) { a.OrgID = orgID; a.CreatedByOrgID = orgID })
+		otherOrgID := uuid.New()
+		cid := uuid.New()
+		contractRepo.Contracts = map[uuid.UUID]*contractdomain.ContractResponse{
+			cid: {Contract: contractdomain.Contract{ID: cid, CreatedByOrgID: otherOrgID}},
+		}
+
+		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, a.ID, &activitydomain.UpdateActivityRequest{ContractID: &cid})
+		assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)
+		assert.Nil(t, updated)
+	})
+
+	t.Run("same-org contract accepted on update (WR-05)", func(t *testing.T) {
+		svc, repo, contractRepo, _ := setupService(t)
+		a := seedActivity(repo, func(a *activitydomain.ActivityResponse) { a.OrgID = orgID; a.CreatedByOrgID = orgID })
+		cid := uuid.New()
+		contractRepo.Contracts = map[uuid.UUID]*contractdomain.ContractResponse{
+			cid: {Contract: contractdomain.Contract{ID: cid, CreatedByOrgID: orgID}},
+		}
+
+		updated, err := svc.Update(context.Background(), string(models.RoleFinance), orgID, a.ID, &activitydomain.UpdateActivityRequest{ContractID: &cid})
+		require.NoError(t, err)
+		require.NotNil(t, updated)
 	})
 }
 
