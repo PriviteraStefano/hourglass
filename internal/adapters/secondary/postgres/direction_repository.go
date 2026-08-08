@@ -712,3 +712,127 @@ func (r *DirectionRepository) ListPlan(ctx context.Context, orgID uuid.UUID, emp
 	}
 	return planRows, nil
 }
+
+// normalizeDay returns the date-only instant (UTC midnight) of a scanned DATE
+// column. PostgreSQL DATE columns scan back in the SESSION timezone (e.g.
+// Local — a `2026-08-08` value reads `2026-08-08T02:00:00+02:00` on a
+// +02:00 session), which makes day-key comparisons (maps, dedup) and JSON
+// serialization nondeterministic. The read-model's day semantics are
+// timezone-free — the read-model normalizes, the mutator scans stay as-is.
+func normalizeDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// Coverage returns the direction-coverage read-model (DIR-06, D-13-25/26):
+// one row per (employee, day) for every day in the period — zero rows are
+// still surfaced (an uncovered day is planned 0, gap == capacity; D-13-26 —
+// the SERVICE owns the surfacing policy, e.g. excluding fully-absent days
+// and validity-outside employees, this repo owns the math).
+//
+// Capacity per day = planning_daily_hours (org_settings key, COALESCE'd to
+// the 8.0 default — ADR-BE-018 consequence: the default is code-level, never
+// a seed row) − that day's absence hours: a full window (hours NULL,
+// declared|confirmed) covering the day zeroes it (away); a partial window
+// subtracts its hours; overlapping windows both subtract; the result floors
+// at 0 (Pitfall 10 — a zeroed day is an away-day, never negative capacity
+// that would fake over-capacity). planned = Σ est_hours of draft|active rows
+// for that employee on that exact day (superseded/cancelled history rows can
+// never inflate the Σ — T-13-19); gap = capacity − planned (negative =
+// over-capacity). employeeIDs is the resolved employee set — scope
+// resolution lives in the service (D-13-25 flagged assumption).
+func (r *DirectionRepository) Coverage(ctx context.Context, orgID uuid.UUID, employeeIDs []uuid.UUID, periodStart, periodEnd time.Time) ([]directiondomain.CoverageRow, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT e.employee_id, d.day,
+		        CASE WHEN full_abs.day IS NOT NULL THEN 0.0
+		             ELSE GREATEST(daily.daily_hours - COALESCE(partial_abs.hours, 0.0), 0.0)
+		        END AS capacity,
+		        COALESCE(planned.hours, 0.0) AS planned
+		 FROM unnest($2::uuid[]) AS e(employee_id)
+		 CROSS JOIN generate_series($3::date, $4::date, '1 day') AS d(day)
+		 CROSS JOIN (SELECT COALESCE((SELECT value::text::numeric FROM org_settings
+		                               WHERE org_id = $1 AND key = 'planning_daily_hours'), 8.0) AS daily_hours) daily
+		 LEFT JOIN (
+			SELECT directed_to AS employee_id, planned_date AS day, SUM(est_hours) AS hours
+			FROM direction
+			WHERE org_id = $1 AND status IN ('draft','active')
+			  AND planned_date >= $3::date AND planned_date <= $4::date
+			GROUP BY directed_to, planned_date
+		 ) planned ON planned.employee_id = e.employee_id AND planned.day = d.day
+		 LEFT JOIN (
+			SELECT aw.user_id AS employee_id, gs.day, SUM(aw.hours) AS hours
+			FROM availability_windows aw
+			CROSS JOIN LATERAL generate_series(GREATEST(aw.starts_on, $3::date), LEAST(aw.ends_on, $4::date), '1 day') AS gs(day)
+			WHERE aw.org_id = $1 AND aw.user_id = ANY($2)
+			  AND aw.status IN ('declared','confirmed') AND aw.hours IS NOT NULL
+			GROUP BY aw.user_id, gs.day
+		 ) partial_abs ON partial_abs.employee_id = e.employee_id AND partial_abs.day = d.day
+		 LEFT JOIN (
+			SELECT aw.user_id AS employee_id, gs.day
+			FROM availability_windows aw
+			CROSS JOIN LATERAL generate_series(GREATEST(aw.starts_on, $3::date), LEAST(aw.ends_on, $4::date), '1 day') AS gs(day)
+			WHERE aw.org_id = $1 AND aw.user_id = ANY($2)
+			  AND aw.status IN ('declared','confirmed') AND aw.hours IS NULL
+			GROUP BY aw.user_id, gs.day
+		 ) full_abs ON full_abs.employee_id = e.employee_id AND full_abs.day = d.day
+		 ORDER BY e.employee_id, d.day`,
+		orgID, employeeIDs, periodStart, periodEnd)
+	if err != nil {
+		return nil, wrapPGError(err, "compute coverage read-model")
+	}
+	defer rows.Close()
+
+	var coverage []directiondomain.CoverageRow
+	for rows.Next() {
+		var c directiondomain.CoverageRow
+		if err := rows.Scan(&c.EmployeeID, &c.Date, &c.Capacity, &c.Planned); err != nil {
+			return nil, fmt.Errorf("scan coverage row: %w", err)
+		}
+		c.Date = normalizeDay(c.Date)
+		// Cents-rounded render (Pitfall 6: DECIMAL arithmetic in SQL is
+		// exact; the float64 split only renders the read model).
+		c.Capacity = roundCents(c.Capacity)
+		c.Planned = roundCents(c.Planned)
+		c.Gap = roundCents(c.Capacity - c.Planned)
+		coverage = append(coverage, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate coverage rows: %w", err)
+	}
+	return coverage, nil
+}
+
+// AbsenceWindows returns availability_windows rows with status IN
+// ('declared','confirmed') — BOTH statuses per D-13-29 (Phase 14 tightens to
+// confirmed-only) — overlapping [start, end], org-scoped, for the given
+// employees. Kind + hours + starts_on + ends_on feed the service-side warning
+// formatting (13-07): hours NULL = full absence, set = partial-day permit.
+// The schema column is user_id (migration 012) — mapped to
+// direction.AbsenceWindow.EmployeeID.
+func (r *DirectionRepository) AbsenceWindows(ctx context.Context, orgID uuid.UUID, employeeIDs []uuid.UUID, start, end time.Time) ([]directiondomain.AbsenceWindow, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT user_id, kind, starts_on, ends_on, hours FROM availability_windows
+		 WHERE org_id = $1 AND user_id = ANY($2)
+		   AND status IN ('declared','confirmed')
+		   AND starts_on <= $4::date AND ends_on >= $3::date
+		 ORDER BY user_id, starts_on`,
+		orgID, employeeIDs, start, end)
+	if err != nil {
+		return nil, wrapPGError(err, "list absence windows")
+	}
+	defer rows.Close()
+
+	var windows []directiondomain.AbsenceWindow
+	for rows.Next() {
+		var w directiondomain.AbsenceWindow
+		if err := rows.Scan(&w.EmployeeID, &w.Kind, &w.StartsOn, &w.EndsOn, &w.Hours); err != nil {
+			return nil, fmt.Errorf("scan absence window: %w", err)
+		}
+		w.StartsOn = normalizeDay(w.StartsOn)
+		w.EndsOn = normalizeDay(w.EndsOn)
+		windows = append(windows, w)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate absence windows: %w", err)
+	}
+	return windows, nil
+}
