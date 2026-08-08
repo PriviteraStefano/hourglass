@@ -1,247 +1,166 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-06-08
+**Analysis Date:** 2026-08-08
 
-## Naming Patterns
+Two distinct stacks with separate conventions: a Go backend (`/internal`, `/cmd`, `/pkg`) and a TypeScript/React frontend (`/web`). Rules below are split by stack.
+
+## Backend (Go)
+
+### Naming Patterns
 
 **Files:**
-- **Go backend:** `snake_case.go` — e.g., `auth.go`, `time_entry.go`, `working_group.go`, `exported_test_helpers.go`
-- **Frontend (React/TypeScript):** kebab-case for components and pages — e.g., `app-shell.tsx`, `status-badge.tsx`, `theme-provider.tsx`, `time-entries.tsx`
-- **Frontend API modules:** camelCase file names — e.g., `auth.ts`, `time-entries.ts`, `query-client.ts`
-- **Frontend types:** camelCase file names — e.g., `api.ts`, `models.ts`, `unit.ts`
-- **Go test files:** `*_test.go` co-located with source — e.g., `auth_test.go` next to `auth.go`
-- **Frontend test files:** `*.test.ts` in `__tests__/` directories — e.g., `auth.test.ts`, `api.test.ts`
-- **E2E tests:** `*.spec.ts` — e.g., `auth.spec.ts`, `time-entries.spec.ts`
+- Snake case: `time_entry_repository.go`, `handler_test_helper.go`, `exported_test_helpers.go`
+- Feature files per bounded context: `internal/adapters/primary/http/auth.go`, `internal/core/services/activity/activity.go`, `internal/core/domain/activity/activity.go`
 
-**Functions:**
-- **Go:** PascalCase for exported functions, camelCase for unexported. Handler methods use `(h *Handler)` receiver pattern:
-  ```go
-  func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) { ... }
-  func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) { ... }
-  ```
-- **Go service constructors:** `NewService(...)` returning `*Service`
-- **Go test functions:** PascalCase with `Test` prefix — `TestService_Register`, `TestRepository_Add_GetByID`
-- **Frontend:** camelCase for functions and methods — `api<T>()`, `useIsMobile()`, `setupTestServer()`
+**Packages:**
+- Short lowercase names: `http`, `postgres`, `activity`, `testdata`
+- Domain packages aliased at import with a `<context>domain` suffix to disambiguate: `activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"` (see `internal/core/services/activity/activity.go`)
+- Service packages use the short service name: `tesvc "github.com/stefanoprivitera/hourglass/internal/core/services/time_entry"` (see `internal/adapters/primary/http/handler_test_helper.go`)
 
-**Variables:**
-- **Go:** camelCase — `userRepo`, `orgRepo`, `tokenSvc`, `pwHasher`
-- **Frontend:** camelCase — `queryClient`, `server`, `mockData`
-- **Frontend constants:** UPPER_SNAKE_CASE for env keys — `API_BASE`, `MOBILE_BREAKPOINT`
+**Types & functions:**
+- Constructors: `NewService(...)`, `NewHandler(...)`, `New<X>Repository(pool)` — always return `*X`
+- Handlers: struct `XHandler` with exported method per action: `func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request)` (`internal/adapters/primary/http/auth.go`)
+- Services: struct `Service` holding `ports.XRepository` interfaces, methods take `ctx context.Context` first, then role/org/user identifiers: `func (s *Service) Create(ctx context.Context, role string, orgID, userID uuid.UUID, req *activitydomain.CreateActivityRequest)` (`internal/core/services/activity/activity.go`)
+- Repository interfaces named `<Domain>Repository` in `internal/core/ports/` (`internal/ports/activity_repository.go`)
+- Compile-time interface assertions on every repository: `var _ ports.ActivityRepository = (*ActivityRepository)(nil)` (`internal/adapters/secondary/postgres/activity_repository.go:25`)
 
-**Types:**
-- **Go:** PascalCase — `Role`, `EntryStatus`, `GovernanceModel`, `TimeEntry`, `UserWithMembership`
-- **Frontend (TypeScript):** PascalCase for interfaces and types — `AuthResponse`, `LoginRequest`, `CreateTimeEntryRequest`
-- **Frontend Zod schemas:** PascalCase with `Schema` suffix — `CreateUnitRequestSchema`, `UnitSchema`
+### Error Handling
 
-## Code Style
+**Sentinel errors everywhere** — no typed error hierarchies, no error wrapping chains:
+- Domain sentinels: `var ErrInvalidRequest = errors.New("invalid request")` defined per bounded context (`internal/core/domain/activity/activity.go:14`)
+- Service-level sentinels in a dedicated `errors.go` file (e.g., `internal/core/services/auth/errors.go`)
+- Generic port sentinels: `ErrNotFound`, `ErrConflict`, `ErrForeignKey` in `internal/core/ports/errors.go`
 
-**Formatting:**
-- **Go:** Uses standard `gofmt` (no `.golangci.yml` detected). Standard library `net/http` for HTTP server, `encoding/json` for JSON handling.
-- **Frontend:** ESLint via `web/eslint.config.js` with `typescript-eslint` recommended, `eslint-plugin-react-hooks`, and `eslint-plugin-react-refresh`. No Prettier config detected — formatting governed by ESLint only.
-- **Frontend:** Single quotes for imports (ESLint default), semicolons used.
+**Propagation pattern:**
+1. Service validates and returns `nil, domain.ErrX` for rule violations — never raw `fmt.Errorf`
+2. Repositories normalize driver errors to port sentinels (`errors.Is(err, pgx.ErrNoRows)` → `ports.ErrNotFound`) — see `internal/adapters/secondary/postgres/activity_repository.go`
+3. Cross-domain sentinels are normalized at the service boundary with `errors.Is`: a missing contract repo sentinel maps to the activity `ErrInvalidRequest` (`internal/core/services/activity/activity.go:113`)
+4. Handlers switch on the sentinel to pick the HTTP status (`internal/adapters/primary/http/auth.go:66-73`); anything not matched falls to `http.StatusBadRequest` or a 500 default
 
-**Linting:**
-- **Go:** No golangci-lint config found. Standard `go vet` expected from `Makefile` test target.
-- **Frontend:** ESLint 9+ flat config (`web/eslint.config.js`):
-  ```
-  import js from '@eslint/js'
-  import globals from 'globals'
-  import reactHooks from 'eslint-plugin-react-hooks'
-  import reactRefresh from 'eslint-plugin-react-refresh'
-  import tseslint from 'typescript-eslint'
-  ```
-- **Frontend command:** `cd web && bun run lint` (runs `eslint .`)
+**Assertion style:** always `assert.ErrorIs(t, err, activitydomain.ErrInvalidRequest)` in tests — never string matching.
 
-**TypeScript Configuration:**
-- `web/tsconfig.json`: Strict mode enabled, `ES2022` target, `bundler` module resolution, `react-jsx` JSX transform. Path alias `@/` → `./src/*`.
-- Key strict settings: `strict: true`, `noFallthroughCasesInSwitch: true`, `isolatedModules: true`
-- No unused locals/parameters: `noUnusedLocals: false`, `noUnusedParameters: false` (relaxed)
+### HTTP Response Envelope
 
-## Import Organization
+Every response goes through `pkg/api/response.go`:
+- Success: `api.RespondWithJSON(w, http.StatusOK, payload)` → `{"data": ...}`
+- Failure: `api.RespondWithError(w, http.StatusBadRequest, "message")` → `{"error": ...}`
+- Handlers never write JSON directly; they set `Content-Type: application/json` only via the `api` package
 
-**Go:**
-1. Standard library packages (e.g., `"encoding/json"`, `"net/http"`, `"testing"`)
-2. Third-party packages (e.g., `"github.com/google/uuid"`, `"github.com/stretchr/testify/assert"`)
-3. Internal project packages (e.g., `"github.com/stefanoprivitera/hourglass/internal/core/services/auth"`)
-Groups separated by blank lines. Example from `internal/adapters/primary/http/auth.go`:
-```go
-import (
-	"encoding/json"
-	"net/http"
-	"strings"
-	"time"
+### Validation
 
-	"github.com/google/uuid"
-	"github.com/stefanoprivitera/hourglass/internal/cookies"
-	"github.com/stefanoprivitera/hourglass/internal/core/services/auth"
-	"github.com/stefanoprivitera/hourglass/internal/core/services/invitation"
-	"github.com/stefanoprivitera/hourglass/internal/middleware"
-	"github.com/stefanoprivitera/hourglass/pkg/api"
-)
-```
+- `internal/adapters/primary/http/validate.go` provides `validateStringLengths(w, lengthField("email", req.Email, MaxEmailLength), ...)` — a variadic field-length validator that writes the 400 response itself and returns false
+- Handlers call it immediately after body decode, before service calls (`internal/adapters/primary/http/auth.go:45-54`)
+- Length constants (`MaxEmailLength`, `MaxNameLength`, `MaxPasswordLength`, `MaxShortStringLength`) live in `internal/adapters/primary/http/validate.go`
+- Deeper rule validation (kinds catalog, governance model, cross-org refs) is service-side, returning domain sentinels
 
-**Frontend:**
-1. React/hooks imports (e.g., `import {StrictMode} from 'react'`)
-2. Library/framework imports (e.g., `import {createFileRoute} from '@tanstack/react-router'`)
-3. Internal path aliases using `@/` (e.g., `import {api} from "@/lib/api.ts"`)
-4. Type imports using `import type { ... }` syntax
-Groups separated by blank lines. Example from `web/src/api/auth.ts`:
-```typescript
-import {mutationOptions, queryOptions} from '@tanstack/react-query'
-import {api} from "@/lib/api.ts";
-import type {AuthResponse, LoginRequest, ...} from "@/types";
-```
+### Comments & Documentation
 
-**Path Aliases:**
-- `@/` maps to `web/src/` — used throughout frontend: `@/lib/api.ts`, `@/types`, `@/api/auth.ts`
+- Every exported service/repository type and non-trivial method carries a doc comment; comments routinely cite ADR numbers and plan IDs: `// Service implements the activity business rules (ADR-P-007 D-2/D-3/D-5/D-8, ADR-P-013 origins)` (`internal/core/services/activity/activity.go:19`)
+- "Why" comments for subtle behavior, e.g. the `sync.Once` container lifetime warning in `internal/adapters/secondary/postgres/test_setup.go:52-56`
+- Test files use `// ------...` banner separators around suites (`internal/core/services/activity/activity_test.go:46-48`)
+- Comment style: full sentences with the subject named ("UnitRepository is wired per the R-4 visibility axis"), not imperative fragments
 
-## Error Handling
+### Logging
 
-**Go:**
-- **Sentinel errors** using `errors.New("...")` declared as package-level `var`:
-  ```go
-  var (
-      ErrEmailExists        = errors.New("email already registered")
-      ErrInvalidCreds       = errors.New("invalid credentials")
-      ErrAccountDeactivated = errors.New("account is deactivated")
-  )
-  ```
-- **Error matching** uses `errors.Is()` in assertions: `assert.ErrorIs(t, err, tt.wantErr)`
-- **Switch on error type** in handlers to map to HTTP status codes:
-  ```go
-  if err != nil {
-      switch err {
-      case auth.ErrInvalidCreds:
-          api.RespondWithError(w, http.StatusUnauthorized, "invalid credentials")
-      case auth.ErrAccountDeactivated:
-          api.RespondWithError(w, http.StatusForbidden, "account is deactivated")
-      default:
-          api.RespondWithError(w, http.StatusInternalServerError, "login failed")
-      }
-      return
-  }
-  ```
-- **Error wrapping** not observed (direct `err` comparison used)
-- **Response envelope** via `pkg/api/response.go`: `{ data: ... }` on success, `{ error: ... }` on failure
+- Standard library `log` only: `log.Printf`, `log.Println`, `log.Fatal` — no structured logging, no logging library
+- Request logging is a middleware: `log.Printf("%s %s %d %dms", r.Method, r.URL.Path, rw.statusCode, duration.Milliseconds())` (`internal/middleware/middleware.go:153`)
+- Startup/init logs with severity prefixes: `log.Fatal("FATAL: ...")`, `log.Println("WARNING: ...")` (`cmd/server/main.go:38-40`)
+- Services do not log; only adapters/middleware/entry points do
 
-**Frontend:**
-- API errors thrown as `new Error(...)` with message from server response:
-  ```typescript
-  if (!res.ok) {
-      const error = await res.json().catch(() => ({message: 'Request failed'})) as ApiError
-      throw new Error(error.message || error.error || 'Request failed')
-  }
-  ```
-- Validation uses **Zod schemas** (`web/src/types/unit.ts`, route-level schemas) with `.safeParse()`
-- React Query `mutationOptions` `onError` handlers redirect on failure: `location.href = '/login'`
-- Catch-all `try/catch` with redirect in auth hydration:
-  ```typescript
-  try {
-      const profile = await client.fetchQuery(AuthApis.profileQueryOpts)
-      return { profile }
-  } catch {
-      throw redirect({ to: '/login' })
-  }
-  ```
+### Imports
 
-## Logging
+- Standard group order enforced by `gofmt`: stdlib → external (`github.com/google/uuid`) → project (`github.com/stefanoprivitera/hourglass/...`)
+- Within the project group, internal/core/domain imports precede services imports (see `internal/adapters/primary/http/handler_test_helper.go`)
 
-**Go:**
-- `testing.TB.Logf` used in tests for debug output
-- No dedicated logging library detected in source handlers; standard `log` package expected
-- Request logging middleware in `internal/middleware/logging_test.go` indicates structured logging middleware exists
+## Frontend (TypeScript / React)
 
-**Frontend:**
-- No structured logging framework detected. `console` usage not lint-restricted.
-- `sonner` library (`^2.0.7`) available in dependencies for toast notifications
+### Naming Patterns
 
-## Comments
+**Files:**
+- kebab-case for components, hooks, libs, api modules: `app-shell.tsx`, `status-badge.tsx`, `use-download.ts`, `query-client.ts`, `time-entries.ts`
+- Test files: `<name>.test.ts` / `<name>.test.tsx` (never `.spec.ts` for unit tests) in a sibling `__tests__/` directory
+- E2E files: `<name>.spec.ts` under `web/e2e/`
+- Route-local components live in `-components/` folders: `web/src/routes/_authenticated/time-entries/-components/time-entries-page.tsx`
 
-**Go:**
-- **Section marker comments** with dash separators in test files:
-  ```go
-  // ---------------------------------------------------------------------------
-  // TestService_Register
-  // ---------------------------------------------------------------------------
-  ```
-- **t.Helper()** marker comment for test helper functions: `// seedContract creates a test contract linked to an org.`
-- **Standard Go doc comments** for exported functions and types
+**Functions & variables:** camelCase; boolean flags `isActive`, `hasX` style.
 
-**Frontend:**
-- Comments used sparingly. Schema sections annotated with comment dividers:
-  ```typescript
-  // ── Exported schemas from @/types/unit ──────────────────────────────────
-  const tabsSchema = z.enum(['owned', 'adopted', 'all'])
-  ```
+**Components & types:** PascalCase components (`TimeEntriesPage`); interfaces `ApiResponse<T>`, `UserWithMembership` in `web/src/types/api.ts` and `web/src/types/models.ts`, re-exported from `web/src/types/index.ts`.
 
-## Function Design
+**Query option exports:** each domain module in `web/src/api/` exports a single `XApis` object grouping `queryOptions`/`mutationOptions` — `export const AuthApis = { profileQueryOpts, loginMutationOpts, ... }` (`web/src/api/auth.ts:182`). Component files consume `AuthApis.profileQueryOpts`.
 
-**Size:**
-- **Go handlers:** Thin, typically 30-80 lines. Example from `auth.go` — `Register` is ~30 lines.
-- **Go services:** Moderate, typically 50-150 lines per method. `auth.go` service is 539 lines total across all methods.
-- **Frontend API modules:** Each `queryOptions`/`mutationOptions` is a standalone 5-15 line declaration.
-- **Frontend page components:** Very thin, typically 10-30 lines. Route files use inline arrow functions.
+### Code Style
 
-**Parameters:**
-- **Go:** Handler functions use `(w http.ResponseWriter, r *http.Request)` signature
-- **Go:** Service functions use `ctx context.Context` as first parameter followed by request struct
-- **Frontend:** Query/mutation options defined as functions or constants, using TypeScript generics `<T>`
+**Formatting (oxfmt, `web/.oxfmtrc.json`):**
+- printWidth 80, tabWidth 2, spaces (no tabs), semicolons, double quotes, trailingComma es5
+- Run: `cd web && bun run fmt` / `bun run fmt:check`
 
-**Return Values:**
-- **Go services:** Return `(resp *ResponseType, err error)` tuple
-- **Go handlers:** Write response directly via `api.RespondWithJSON(w, status, payload)`
-- **Frontend `api<T>()`:** Returns `Promise<T>` — unwraps `{ data: T }` envelope
+**Linting (oxlint, `web/.oxlintrc.json`):**
+- Plugins: typescript, react, jsx-a11y, unicorn, import; type-aware mode on
+- `correctness` category set to `warn` (does not fail lint)
+- `web/src/routeTree.gen.ts`, `**/*.gen.ts`, `e2e/`, `dist/` are ignored
+- Run: `cd web && bun run lint` (type-aware), `bun run lint:fix`
+- Typecheck: `bun run typecheck` (`tsc -b`); `bun run build` runs it too
 
-## Module Design
+### Import Organization
 
-**Exports:**
-- **Go handlers:** Exported `*Handler` struct, unexported fields, constructor `New*Handler()` returns pointer
-- **Go services:** Exported `*Service` struct, unexported fields, constructor `NewService()` returns pointer
-- **Frontend API modules:** Export an `*Apis` object aggregating all query/mutation options:
-  ```typescript
-  export const AuthApis = {
-      profileQueryOpts,
-      loginMutationOpts,
-      registerMutationOpts,
-      // ...
-  }
-  ```
-- **Frontend types:** Export interfaces/types and aggregated barrel file `web/src/types/index.ts`:
-  ```typescript
-  export * from './models'
-  export * from './api'
-  ```
+1. External packages first (react, @tanstack/*, zod)
+2. `@/` alias imports (maps to `web/src` via tsconfig/vite/vitest aliases)
+3. Relative imports for local siblings
 
-**Barrel Files:**
-- `web/src/types/index.ts` re-exports from `models.ts` and `api.ts`
-- `web/src/components/ui/` components are individually imported — no barrel file for shadcn UI
+**Critical convention — explicit file extensions on all local imports:** `import { api } from "@/lib/api.ts"`, `import { TimeEntriesPage } from "@/routes/.../-components/time-entries-page.tsx"`, `import type { ... } from "@/types"` (via `types/index.ts` barrel). Follow this even though bundlers tolerate extensionless paths.
 
-## Test Conventions
+**Type-only imports:** `import type { ... } from "..."` used consistently for types (`web/src/api/auth.ts:3`).
 
-**Go:**
-- **Table-driven tests** are the standard pattern for service tests:
-  ```go
-  tests := []struct {
-      name    string
-      req     RegisterRequest
-      setup   func(*testdata.MockUserRepo)
-      wantErr error
-  }{ ... }
-  for _, tt := range tests {
-      t.Run(tt.name, func(t *testing.T) { ... })
-  }
-  ```
-- **Subtests** via `t.Run()` for each test case
-- **`require.NoError`** used for fatal assertions, **`assert`** for non-fatal checks
-- **`t.Helper()`** called in all helper/seed functions
-- **Sentinel error comparison** via `assert.ErrorIs(t, err, tt.wantErr)`
+### React Query Patterns
 
-**Frontend:**
-- **Vitest + MSW** for HTTP mocking in API tests
-- **Describe/it blocks** with BDD-style naming
-- **beforeAll/afterAll/afterEach** lifecycle for MSW server management
-- **Testing Library** (`@testing-library/react`, `@testing-library/jest-dom`) for component tests
+- All server state flows through `queryOptions`/`mutationOptions` defined in `web/src/api/*.ts`; route loaders call `client.ensureQueryData(...)`, components use `useQuery`/`useMutation` or `useSuspenseQuery`
+- Query keys are kebab-case arrays with scoping segments: `["auth", "me"]`, `["auth", "memberships"]`, `["invitations", "code", code]`, `["time-entries"]`
+- Shared client in `web/src/lib/query-client.ts` (`retry: false`, `staleTime: 30000`, `refetchOnWindowFocus: false`); injected into the router as `context.client` in `web/src/main.tsx`
+- `onSuccess` writes into the query cache with `client.setQueryData(["auth", "me"], ...)` instead of separate cache-write helpers (`web/src/api/auth.ts:27-35`)
+- Mutations invalidate: `queryClient.invalidateQueries({ queryKey: ["time-entries"] })`
+
+### HTTP Client (`web/src/lib/api.ts`)
+
+- Single `api<T>(path, options?)` helper — fetch wrapper with:
+  - `credentials: "include"` always
+  - `Content-Type: application/json` default
+  - 401 → single-flight refresh (`POST /auth/refresh` guarded by module-level `refreshPromise`) then one retry; `AUTH_PATHS` excluded to prevent recursion
+  - Unwraps the `{ data }` envelope; throws `Error(error.message || error.error)` on non-OK
+  - `204` returns `undefined` (all DELETE handlers)
+  - Throws `UnauthorizedError` when refresh fails — route guards catch it and `redirect()` to `/login`. **The client never navigates itself.**
+- New API calls must go through `api<T>()`; do not call `fetch` directly elsewhere
+
+### Forms & Validation
+
+- zod v4 for all validation; `validateSearch: z.object({...})` in every route with search params (`web/src/routes/_authenticated/time-entries/index.tsx:10`)
+- Shared schema helpers in `web/src/lib/list-filters.ts` (e.g. `listStatusesSchema`, `entryStatusSchema`) reused across routes
+- react-hook-form + `@hookform/resolvers` for complex forms; TanStack Form for newer forms
+
+### Error Handling (Frontend)
+
+- Loader errors → route `errorComponent: RouteError` (`web/src/components/layout/route-error.tsx`), registered per-route not just at layout level so the error boundary resets on navigation
+- `UnauthorizedError` is the only custom error class (`web/src/lib/api.ts:11`)
+- Mutation errors surface via sonner toasts in components; no global toast plumbing
+- Deliberately empty `onError` callbacks are documented with an explanatory comment (`web/src/api/auth.ts:82-84`)
+
+### Comments
+
+- JSDoc `/** ... */` for module-level invariants and non-obvious client behavior — see `web/src/lib/api.ts:5-16` and `web/e2e/helpers.ts:3-19`
+- Inline `//` comments explain "why", frequently referencing plan/ADR ids: `// Leaf-level boundary (P0-4): the error attaches to THIS match...` (`web/src/routes/_authenticated/time-entries/index.tsx:30`)
+- No TODO/FIXME litter; unresolved work is tracked in plan documents, not code comments
+
+### Logging
+
+- No console logging in `web/src/` (no `console.log`/`console.error` usage found). Debugging output should not be committed; use devtools.
+
+## Shared / Cross-Cutting
+
+- **Routing registration** (backend): Go 1.22+ method patterns on `http.ServeMux`: `mux.HandleFunc("POST /time-entries", handler.Create)` in `cmd/server/main.go`; protected routes wrap `middleware.Auth(authSvc, handler.X)`. Keep the fixture in `internal/adapters/primary/http/handler_test_helper.go` in sync when routes change.
+- **Route/URL naming:** kebab-case everywhere (`/time-entries`, `/working-groups`), JSON fields snake_case, Go struct fields PascalCase.
+- **Auth state:** HttpOnly `auth_token`/`refresh_token` cookies (helpers in `internal/cookies`); the frontend never touches tokens directly.
+- **Docs:** conventions are additionally documented in `AGENTS.md` and `openwiki/` (see `openwiki/testing/README.md`, `openwiki/architecture/README.md`); verification scripts in `scripts/verify-*.mjs` check wiki/README claims against the codebase — keep them passing when changing behavior described there.
+- **Static analysis (backend):** no golangci-lint config; `qodana.yaml` uses the `qodana.starter` profile, wired into CI via `.github/workflows/qodana_code_quality.yml`. `go vet` passes as part of normal `go test`.
 
 ---
 
-*Convention analysis: 2026-06-08*
+*Convention analysis: 2026-08-08*

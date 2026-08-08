@@ -1,368 +1,220 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-06-08
+**Analysis Date:** 2026-08-08
 
 ## Tech Debt
 
-### Dual Model Layer — Duplicated Type Definitions
+**SurrealDB legacy dead code:**
+- Issue: `internal/models/surreal_models.go` (251 lines) contains SurrealDB-era record types, status constants, and org schema structs. Nothing in the repo imports it (`rg "surreal" internal/` returns zero non-test hits). The SurrealDB migration is complete (PostgreSQL via pgxpool is the only storage path), yet the file remains.
+- Files: `internal/models/surreal_models.go`
+- Impact: Confusion for agents/engineers grepping for canonical types; risk of someone accidentally wiring legacy types into new code.
+- Fix approach: Delete the file (plus tracked root artifacts `.graphify_cached.json`, `.graphify_semantic_new.json`, `.graphify_uncached.txt`, `scratch.surql`, and stale plans `plans/surrealdb-handler-migration.md`, `plans/old/surrealdb-implementation-plan.md`, `hourglass-vault/LEGACY/old/design/files/surrealdb-schema.sql`).
 
-**Issue:** Models are defined in three overlapping layers (`internal/models/models.go`, `internal/models/surreal_models.go`, and `internal/core/domain/*/*.go`), causing duplication and drift risk. The `surreal_models.go` file (251 lines) is a cleanup remnant from the SurrealDB era — no longer supported — and contains types (e.g., `SurrOrganization`, `SurrTimeEntry`, `SurrExpense`) never referenced by the PostgreSQL stack. Some domain-specific types and request structs in `models.go` (e.g., `PendingEntryGroup`, `BatchApproveRequest`) are also duplicated by domain models in `internal/core/domain/`.
+**Dead legacy DB layer (`database/sql` + lib/pq):**
+- Issue: `internal/db/db.go` defines `DB` (wrapping `*sql.DB`), `New()`, and `Close()` built on `github.com/lib/pq`. `New()` has zero callers — every repository uses the pgxpool path (`NewPool()`), which is the only one wired in `cmd/server/main.go:46`. `lib/pq` remains in `go.mod` as a direct dependency solely for this dead path.
+- Files: `internal/db/db.go`, `go.mod`
+- Impact: Dead code + an unnecessary direct dependency; `internal/db` has no test files.
+- Fix approach: Remove `DB`, `New()`, `Close()`, the `database/sql` + `lib/pq` imports, and drop `github.com/lib/pq` from `go.mod` (`go mod tidy`).
 
-**Files:**
-- `internal/models/models.go` (476 lines)
-- `internal/models/surreal_models.go` (251 lines)
-- `internal/core/domain/*/*.go` (14 domain packages)
+**Committed build binaries at repo root:**
+- Issue: `server` (24 MB) and `migrate` (7.8 MB) compiled binaries are tracked in git. `.gitignore` covers `main` and `bin/` but not these two.
+- Files: `server`, `migrate`, `.gitignore`
+- Impact: 30+ MB of binary churn in history, merge noise, and a pattern that encourages committing build output.
+- Fix approach: `git rm --cached server migrate`, add them to `.gitignore`, add a Makefile clean target.
 
-**Impact:** When a field is added to one model but not its counterpart, silent data corruption or deserialization errors occur. The SurrealDB types are dead code that increases maintenance surface.
+**`uploads/` directory not gitignored:**
+- Issue: Receipt uploads are written to `uploads/receipts/{org_id}/{expense_id}/` (`internal/adapters/primary/http/expense.go:514-522`), but `uploads/` is absent from `.gitignore`. Any developer running the server and uploading a receipt will see the file in `git status` — risk of committing real user documents (receipts) to the repo.
+- Files: `uploads/`, `.gitignore`, `internal/adapters/primary/http/expense.go`
+- Impact: Privacy incident if a receipt is committed; repo bloat.
+- Fix approach: Add `uploads/` (with a `.gitkeep`) to `.gitignore`.
 
-**Fix approach:** Remove `internal/models/surreal_models.go`. Consolidate all domain types into `internal/core/domain/` and remove overlapping types from `internal/models/models.go`. Migrate the few unique request types (e.g., `CreateUnitRequest`, `BatchApproveRequest`) to their respective domain packages or keep only in appropriate handler packages if truly handler-specific.
+**Dual model layers (transitional):**
+- Issue: Services import both `internal/models` (legacy constants/structs — e.g., `models.RoleFinance`, `models.StatusSubmitted` in `internal/core/services/activity/activity.go:173`) and `internal/core/domain/*` (new per-aggregate domain types). The same concepts (roles, statuses) exist in both worlds; new features must know which one is canonical.
+- Files: `internal/models/models.go`, `internal/core/domain/*`, `internal/core/services/*`
+- Impact: Constant drift risk (two sources of truth for role/status strings); unclear guidance for new code.
+- Fix approach: Track role/status constants into `internal/core/domain/` and re-export (or migrate call sites) from `internal/models` until the legacy file is emptied.
 
-### Migration Cleanup Remnant — `surreal_models.go` (unsupported)
+**`cmd/server/main.go` manual wiring monolith:**
+- Issue: 318 lines of hand-rolled dependency construction and `mux.HandleFunc` registration for ~70 routes across 13 feature areas. Every new feature appends to it; there is no route registry or per-feature wiring table.
+- Files: `cmd/server/main.go`
+- Impact: Merge conflicts, registration drift (a route added in the handler but forgotten in `main.go` fails silently), and 0% test coverage of the wiring.
+- Fix approach: Extract per-feature `RegisterRoutes(mux, deps)` functions or a small `wire` package; add a smoke test that asserts every handler is registered.
 
-**Issue:** The entire `internal/models/surreal_models.go` file (251 lines) contains SurrealDB-specific type definitions (string-based RecordIDs, simplified status constants `SurrStatus*`, entry/action/actor constants). These types are never imported by any production code path. SurrealDB is no longer supported.
+**Broken `make db-init` target + migration numbering gaps:**
+- Issue: `Makefile` `db-init` runs `psql < migrations/001_init.up.sql`, but no `001_init.up.sql` exists — migration numbers jump from `000_full_schema` to `004_...` (001, 002, 003, 007 were removed/renamed during development). The only schema source is `000_full_schema.up.sql` plus 17 patch migrations.
+- Files: `Makefile`, `migrations/`
+- Impact: `make db-init` fails; anyone reading migration numbering could think migrations are missing.
+- Fix approach: Delete the stale `db-init` target or point it at `000_full_schema.up.sql`.
 
-**Files:** `internal/models/surreal_models.go`
+**Unused frontend dependency:**
+- Issue: `@tanstack/react-form` is declared in `web/package.json` but never imported — all forms use `react-hook-form` (8 files) or `@tanstack/react-form` is absent (zero matches).
+- Files: `web/package.json`
+- Impact: Bundle-size surface and dependency confusion (two form libraries listed).
+- Fix approach: Remove `@tanstack/react-form`; keep `react-hook-form` + `zod` as the form stack.
 
-**Impact:** Dead code that misleads developers about the current data model. Constants like `ActorRoleWGManager = "wg_manager"` in one file differ from role strings in the middleware layer.
-
-**Fix approach:** Delete the file after verifying no references exist. Domain-specific constants should live in their respective domain packages.
-
-### Duplicate Project Type Column in Schema
-
-**Issue:** The `projects` table in `migrations/000_full_schema.up.sql` has both a `project_type` column (line 164) and a `type` column (line 165), both with the same CHECK constraint `('billable', 'internal')`. This is a schema design error where two columns store the same concept.
-
-**Files:** `migrations/000_full_schema.up.sql` (lines 164-165)
-
-**Impact:** Ambiguity in which column to use. The domain model (`internal/core/domain/project/project.go`) uses `Type` but the repository could be reading/writing either column.
-
-**Fix approach:** Consolidate to a single column. Create a migration to drop the redundant column after verifying which one the repositories actually query.
-
-### In-Memory Only Rate Limiting
-
-**Issue:** The rate limiter at `internal/middleware/ratelimit.go` uses an in-memory `map[string]*clientInfo` with a `sync.RWMutex`. It counts requests per minute per IP/user but resets to zero on server restart. There is no sharing across multiple server instances.
-
-**Files:** `internal/middleware/ratelimit.go` (86 lines)
-
-**Impact:** Ineffective in multi-instance deployments (e.g., Docker orchestration). An attacker can exhaust rate limit budget per instance. Also, the map grows unbounded as unique IPs accumulate, though entries expire after 1 minute.
-
-**Fix approach:** Use a Redis-backed or database-backed rate limiter for production deployments.
-
-### Refresh Token Lacks Rotation
-
-**Issue:** When a refresh token is used to obtain new access tokens (via `POST /auth/refresh`), the old refresh token is not rotated (not revoked and replaced). The `Refresh` method in `internal/core/services/auth/auth.go` (line 317) only reads the token hash but never issues a new refresh token or revokes the old one.
-
-**Files:** `internal/core/services/auth/auth.go` (lines 317-355, `Refresh` method), `internal/adapters/primary/http/auth.go` (lines 172-196)
-
-**Impact:** If a refresh token is stolen, it can be used indefinitely (up to its 7-day TTL) without detection. There is no token family or reuse detection.
-
-**Fix approach:** Rotate refresh tokens on each refresh: revoke the old hash, generate a new refresh token, store only the new hash. Optionally implement refresh token reuse detection per NIST guidelines.
-
-### Cookie Name Mismatch Between Code Paths
-
-**Issue:** `internal/cookies/cookies.go` defines cookie name constants `AccessTokenCookieName = "access_token"` and `RefreshTokenCookieName = "refresh_token"`, but `internal/adapters/primary/http/auth.go` hard-codes cookie names as `"auth_token"` and `"refresh_token"` directly. The refresh token name happens to match, but the access token name does not (`"access_token"` vs `"auth_token"`).
-
-**Files:**
-- `internal/cookies/cookies.go` (line 8-9)
-- `internal/adapters/primary/http/auth.go` (lines 123, 133, 151, 161)
-
-**Impact:** The helper functions in `cookies.go` (`SetAccessTokenCookie`, `ClearAuthCookies`, etc.) are unused dead code, or if used in future code, they will set a differently-named cookie than the one the middleware reads in `middleware.go` (line 25: `r.Cookie("auth_token")`).
-
-**Fix approach:** Either unify all handlers to use the `cookies.go` helpers and remove the hardcoded strings, or update `cookies.go` constants and delete the helper functions if they are deliberately unused.
-
-### Fire-and-Forget Audit Log Goroutine
-
-**Issue:** `internal/core/services/time_entry/time_entry.go` line 199 spawns `go s.auditRepo.Create(ctx, auditLog)` to write audit logs asynchronously. The goroutine captures the request context, which may be cancelled after the HTTP response is sent. Errors from `auditRepo.Create` are silently discarded.
-
-**Files:** `internal/core/services/time_entry/time_entry.go` (line 199)
-
-**Impact:** Audit log entries are silently dropped on database write failures. Using a cancelled context will cause the write to fail with `context.Canceled`. There is no retry, back-pressure, or fallback logging mechanism.
-
-**Fix approach:** Use a proper background task queue with a context that outlives the request (e.g., `context.Background()`), add error logging, and consider a retry mechanism for critical audit data.
-
-### Password Reset Code Leaked in Response Body
-
-**Issue:** The password reset endpoint at `internal/adapters/primary/http/password_reset.go` line 54-58 returns the generated reset code directly in the response body: `"code": code`. The reset code is a 3-digit numeric string generated via `crypto/rand` in `internal/core/services/password_reset/password_reset.go` (line 101-108).
-
-**Files:**
-- `internal/adapters/primary/http/password_reset.go` (lines 54-58)
-- `internal/core/services/password_reset/password_reset.go` (lines 101-108)
-
-**Impact:** Exposing the reset code in the response body means anyone who can read the API response (or who intercepts the response) can reset the user's password. Even in development, this is a bad pattern that should be replaced — the code should only be delivered out-of-band (e.g., email). Additionally, a 3-digit numeric code (1000 combinations) is trivially brute-forceable.
-
-**Fix approach:** Never return the reset code in the response body. Deliver it via email/SMS only. Increase code entropy to 6+ alphanumeric characters and rate-limit verification attempts.
-
-### `/auth/refresh` Lacks Auth Middleware
-
-**Issue:** `POST /auth/refresh` at `cmd/server/main.go` line 80 is registered without `middleware.Auth()`. This is correct because refresh needs to work with a potentially expired access token. However, the handler reads the refresh token from the cookie and does not verify any additional CSRF protection or client fingerprint.
-
-**Files:** `cmd/server/main.go` (line 80), `internal/adapters/primary/http/auth.go` (lines 172-196)
-
-**Impact:** The refresh endpoint is a single-point-of-failure for session security. Without client fingerprinting or rotation, a stolen refresh cookie grants permanent access.
-
-**Fix approach:** Implement refresh token rotation (see above) and optionally bind refresh tokens to client fingerprints (e.g., `User-Agent` + IP hash).
+**Ignored errors in export writer:**
+- Issue: `internal/adapters/primary/http/export.go:277-281` discards csv.Writer errors (`_ = writer.Write(...)`, `_ = writer.Write(header)`) and `writeXLSX` ignores `excelize` errors — a mid-stream write failure produces a truncated download that looks successful.
+- Files: `internal/adapters/primary/http/export.go`
+- Impact: Silent data loss on partial downloads (disk full, client disconnect).
+- Fix approach: Check `writer.Error()` after `Flush()` and surface a 500 when non-nil.
 
 ## Known Bugs
 
-### Time Entry DB Status Constraint Mismatch
+**Register "join with invite code" flow is broken end-to-end:**
+- Symptoms: A user choosing "Join an existing organization with an invite code" on the register form gets an account with NO organization and NO session. The UI navigates to `/` (`web/src/routes/_auth/register/-components/register-form.tsx` onSubmit → `navigate({ to: "/", replace: true })`), the `/auth/me` guard 401s, and the user is bounced to `/login`, where login succeeds but there is no membership — a dead-end account. No error is ever surfaced.
+- Files: `internal/adapters/primary/http/auth.go:62` (`OrgID: req.InviteCode`), `internal/core/services/auth/auth.go:170-171` (`parsed, _ := uuid.Parse(req.OrgID)` — error swallowed), `internal/core/services/invitation/invitation.go:98-105` (`generateInviteCode` returns 6-char alphanumeric, never a UUID), `web/src/routes/_auth/register/-components/register-form.tsx:35-108`
+- Trigger: Register with `invite_code` set. `uuid.Parse` always fails → `orgID = uuid.Nil` → membership skipped, token/refresh never issued.
+- Workaround: None via UI. The separate `POST /invitations/accept` endpoint exists (`internal/adapters/primary/http/invitation.go`) but is not wired into the register form.
+- Fix approach: Pass `InviteCode` through to a real invite validation path (or remove the "join" branch from the UI until the backend supports it). At minimum: validate the invite in `Register` and attach the user to the invited org with the invited role.
 
-**Symptoms:** The database schema in `migrations/000_full_schema.up.sql` line 281 defines the status column constraint as: `CHECK (status IN ('draft', 'submitted', 'approved'))`. However, `internal/models/models.go` lines 166-172 defines `EntryStatus` constants including `StatusPendingManager = "pending_manager"`, `StatusPendingFinance = "pending_finance"`, `StatusRejected = "rejected"`. The service layer in `internal/core/services/time_entry/time_entry.go` line 176 sets rejected entries back to `StatusDraft` rather than a `Rejected` state.
+**Second 401 after refresh throws the wrong error type:**
+- Symptoms: In `web/src/lib/api.ts`, after a successful `/auth/refresh`, the retried request that still returns 401 falls into the generic `!res.ok` branch and throws a plain `Error`, not `UnauthorizedError`. Route guards catch `UnauthorizedError` to redirect to `/login`; a plain `Error` surfaces via the error boundary instead.
+- Files: `web/src/lib/api.ts:72-87`
+- Trigger: Access token refreshed, then the retried call still 401s (e.g., user deactivated between calls).
+- Workaround: None; user must manually navigate to `/login`.
+- Fix approach: Re-check `res.status === 401` after the retry and throw `UnauthorizedError`.
 
-**Files:**
-- `migrations/000_full_schema.up.sql` (line 281)
-- `internal/models/models.go` (lines 166-172)
-- `internal/core/services/time_entry/time_entry.go` (line 176)
-
-**Trigger:** Attempting to set a time entry status to `pending_manager`, `pending_finance`, or `rejected` via direct DB updates or future workflow steps will fail with a CHECK constraint violation.
-
-**Workaround:** The `Reject` method sets status to `draft` rather than `rejected`, masking the issue. The approval workflow with `pending_manager`/`pending_finance` states exists in the model layer but cannot be persisted to the database.
-
-### Bogus Error on Register with Bad OrgID
-
-**Symptoms:** In `internal/core/services/auth/auth.go` line 183, `uuid.Parse(req.OrgID)` silently ignores parse errors — the parsed UUID is the zero value `uuid.Nil` when `uuid.Parse()` fails. This means an invalid invite code will not create an org (because `orgID == uuid.Nil` check at line 194) but also does not return an error.
-
-**Files:** `internal/core/services/auth/auth.go` (lines 182-184)
-
-**Trigger:** Registering with a malformed `OrgID` (invite code) silently falls through to no-org behavior without telling the user.
-
-**Workaround:** Pass a valid UUID as invite code.
-
-### Unhandled JSON Decode Error in Time Entry Reject Handler
-
-**Symptoms:** `internal/adapters/primary/http/time_entry.go` line 423 calls `json.NewDecoder(r.Body).Decode(&req)` and discards the error return value. If the body contains malformed JSON, `req.Reason` will be an empty string, and the reject proceeds without a reason.
-
-**Files:** `internal/adapters/primary/http/time_entry.go` (line 423)
-
-**Trigger:** Sending malformed JSON to `POST /time-entries/{id}/reject`.
-
-**Workaround:** The rejection succeeds but without a reason comment.
-
-### `MockOrgRepo.GetMembership` Always Returns nil
-
-**Symptoms:** In `internal/core/services/testdata/mocks.go` lines 252-254, `MockOrgRepo.GetMembership` always returns `(nil, nil)`. This means any test using this mock that exercises the `ErrMembershipNotFound` path cannot do so, and the `SwitchOrganization` flow is never tested with a valid membership.
-
-**Files:** `internal/core/services/testdata/mocks.go` (lines 252-254)
-
-**Trigger:** Any test path that requires an existing organization membership through `MockOrgRepo` will silently get nil.
-
-**Workaround:** Tests must set up membership through a different mock if they need realistic membership responses.
+**Bootstrap TOCTOU race:**
+- Symptoms: `POST /auth/bootstrap` (unauthenticated, unrate-limited, `cmd/server/main.go:95`) checks `AnyExists` in the service (`internal/core/services/auth/auth.go:411`) and fails only if a user exists at check time. Two concurrent bootstraps can both pass the check and create two "bootstrap" orgs/admin users.
+- Files: `internal/core/services/auth/auth.go:404-417`, `internal/adapters/primary/http/auth.go:199-229`
+- Trigger: Two simultaneous bootstrap requests against a fresh DB.
+- Impact: Duplicate bootstrap orgs — confusing initial state; low severity (deployment-time only).
+- Workaround: Bootstrappers are typically run once; acceptable for now.
+- Fix approach: Serialize with a DB unique constraint on the first user or an advisory lock (same pattern as WR-03 period-close lock).
 
 ## Security Considerations
 
-### Development-Only Default JWT Secret
+**Access tokens outlive membership/deactivation changes:**
+- Risk: `middleware.Auth` (`internal/middleware/middleware.go:23-44`) validates only JWT signature + expiry; it never checks the user's active flag or membership status. A deactivated user keeps calling APIs for up to 15 minutes, and role changes only take effect after token refresh. The refresh path DOES re-check membership (`internal/core/services/auth/auth.go:377-391`) — so the hole is bounded to the access-token window, but every org/role-sensitive check ultimately relies on 15-minute-old claims.
+- Files: `internal/middleware/middleware.go`, `internal/core/services/auth/auth.go`
+- Current mitigation: 15-minute access token TTL (`internal/auth/auth.go:15`); refresh-time membership revalidation.
+- Recommendations: For high-sensitivity actions (approve/reject, role changes, deactivate), re-fetch member status in the service; or add an `is_active` + membership-version claim check in `Auth` when a DB lookup is acceptable.
 
-**Risk:** `cmd/server/main.go` lines 31-37 fall back to `"dev-secret-change-in-production"` when `JWT_SECRET` is not set and the environment is not production/staging. If a staging server is accidentally started without the env var, JWTs can be forged.
+**Default JWT secret ships in compose:**
+- Risk: `cmd/server/main.go:40-41` falls back to `"dev-secret-change-in-production"`, and `docker-compose.yml:27` sets `JWT_SECRET` to the same value. Anyone deploying via `docker-compose up` without overriding the env var runs with a publicly known signing key — attacker can forge access tokens for any user/role.
+- Files: `cmd/server/main.go`, `docker-compose.yml`, `deploy/demo/docker-compose.yml`
+- Current mitigation: Hard fatal when `GO_ENV=production|staging` and `JWT_SECRET` is empty (`cmd/server/main.go:36-39`).
+- Recommendations: Make `docker-compose.yml` (and `deploy/demo/docker-compose.yml`) read `JWT_SECRET` from the environment with no default; fail loudly at startup regardless of `GO_ENV`.
 
-**Files:** `cmd/server/main.go` (lines 31-37), `internal/auth/auth.go` (line 38)
+**Rate limiter state never evicted (unbounded memory):**
+- Risk: `internal/middleware/ratelimit.go` keeps one `clientInfo` per unique IP/user key forever (`rl.requests` map); entries are only created, never deleted. An attacker rotating IPs (or simply organic traffic over time) grows the map without bound. A single global mutex also serializes every request's bookkeeping.
+- Files: `internal/middleware/ratelimit.go`
+- Current mitigation: None — no eviction, no cap.
+- Recommendations: Evict entries whose `windowEnd` is in the past during `allow()` (opportunistic sweep every N requests), cap map size, and shard by key hash.
 
-**Current mitigation:** The env var check rejects `GO_ENV=production` or `staging` without a JWT_SECRET. The warning log is printed for other environments.
+**Receipt uploads: extension-only validation, no lifecycle:**
+- Risk: `ReceiptUpload` (`internal/adapters/primary/http/expense.go:479-530`) validates only the file extension (`.pdf/.jpg/.jpeg/.png`), not magic bytes/MIME; no virus scanning; files are stored on the app filesystem and never deleted when the expense is deleted (check `Delete` in `internal/core/services/expense/expense.go` — no upload cleanup path).
+- Files: `internal/adapters/primary/http/expense.go`, `internal/core/services/expense/expense.go`
+- Current mitigation: 10 MB `MaxBytesReader`, allowlisted extensions, UUID-renamed files, org-scoped directories, path components are server-generated UUIDs (no traversal).
+- Recommendations: Verify content magic bytes, delete the directory on expense delete, and consider offloading to object storage.
 
-**Recommendations:** Log a warning regardless of environment, and require explicit opt-in (e.g., `JWT_SECRET=dev`) for accepting the default secret.
+**Open self-registration:**
+- Risk: `POST /auth/register` is public and lets anyone create an org (spam vector, org-name squatting). Invite-gated onboarding exists (`internal/adapters/primary/http/invitation.go`) but is not required — registration bypasses invitations entirely.
+- Files: `cmd/server/main.go:90`, `internal/core/services/auth/auth.go:133-151`
+- Current mitigation: Per-IP rate limit 5/min on `/auth/register` and `/auth/login` (`cmd/server/main.go:87`).
+- Recommendations: Acceptable for the current demo-stage product; flag for when the product opens up.
 
-### CORS Allows Wildcard Origin
-
-**Risk:** `internal/middleware/cors.go` lines 15-16 treat `"*"` as a valid CORS origin in the allowed list. If `ALLOWED_ORIGINS=*` is set, any website can make credentialed requests to the API.
-
-**Files:** `internal/middleware/cors.go` (lines 15-16)
-
-**Current mitigation:** The default config only allows `http://localhost:3000`. The risk is only in production misconfiguration.
-
-**Recommendations:** Remove the `"*"` wildcard match from the CORS middleware. If any origin is needed, use explicit validation against a whitelist only.
-
-### No Input Length Validation on String Fields
-
-**Risk:** Several handlers accept string fields that map to `VARCHAR(255)` database columns without length validation. Truncation or SQL errors can occur. The Register handler in `internal/adapters/primary/http/auth.go` does not validate `FirstName`, `LastName`, `OrganizationName` lengths.
-
-**Files:**
-- `internal/adapters/primary/http/auth.go` (type `RegisterRequest`, lines 27-35)
-- `internal/adapters/primary/http/unit.go` 
-- `internal/adapters/primary/http/working_group.go` (type `CreateWorkingGroupRequest`, lines 22-31)
-- `internal/adapters/primary/http/customer.go`
-
-**Current mitigation:** Domain value objects like `authdomain.NewEmail`, `authdomain.NewPassword`, `authdomain.NewUsername` validate format and emptiness, but not maximum length.
-
-**Recommendations:** Add explicit max-length checks in all handler validation before sending data to the service layer.
-
-### No Rate Limiting on Auth Endpoints
-
-**Risk:** The rate limiter middleware is applied globally in `cmd/server/main.go` line 212 as the outermost layer, but the limits (20 anonymous, 100 authenticated per minute) apply uniformly across all endpoints. Auth-specific endpoints like login and password reset need stricter limits but are not differentiated.
-
-**Files:** `cmd/server/main.go` (line 212), `internal/middleware/ratelimit.go` (lines 25-30)
-
-**Current mitigation:** Global rate limiting exists but does not differentiate auth endpoints.
-
-**Recommendations:** Apply a separate, stricter rate limiter (e.g., 5 req/min for login, 3 req/min for password reset) in front of auth routes, or check path patterns in the rate limiter middleware.
+**`/auth/bootstrap` exposed without auth or rate limit:**
+- Files: `cmd/server/main.go:95-96`
+- Risk: Low (gated by `AnyExists`), but a publicly reachable bootstrap endpoint invites probing; no rate limit means unlimited attempts.
+- Recommendation: Move bootstrap behind an env-var token (`BOOTSTRAP_TOKEN`) or a startup-only flag.
 
 ## Performance Bottlenecks
 
-### Inefficient Mock Repositories with Mutex on Every Method
+**Exports buffer everything in memory, and the date range is unlimited:**
+- Problem: `ExportHandler.writeCSV` (`internal/adapters/primary/http/export.go:266-282`) and `writeXLSX` (135-181) fetch ALL rows into `[]ports.ExportRow`, convert to `[]csvRow`, and only then stream. `parseExportRange` (`export.go:284-299`) accepts any `from`/`to` — a 5-year range over a large org loads the whole result set into RAM (times 2 for the XLSX workbook, which excelize builds fully in memory).
+- Files: `internal/adapters/primary/http/export.go`, `internal/adapters/secondary/postgres/export_repository.go` (`Timesheets`/`Expenses`/`Combined` return full slices)
+- Cause: Repository APIs return `[]ports.ExportRow`; no cursor/iterator interface.
+- Improvement path: Add a streaming repository method (`QueryRow`-based iteration) or hard-cap the export range (e.g., max 1 year per request) and stream rows with a chunked writer. The `/exports/*/count` endpoints exist precisely because clients should paginate — recommend the frontend use them.
 
-**Problem:** Every mock repository method in `internal/core/services/testdata/mocks.go` (772 lines) acquires and releases `sync.Mutex` even for pure read operations. Test suites running these mocks have unnecessary lock contention.
+**Rate limiter contention:**
+- Problem: Every request takes the global `rl.mu` lock twice (key lookup + `allow`). Fine at current scale; a bottleneck under heavy traffic behind a shared IP.
+- Files: `internal/middleware/ratelimit.go`
+- Improvement path: Shard the map by key hash (16-64 shards) when the app needs it.
 
-**Files:** `internal/core/services/testdata/mocks.go` (all mock methods use `mu.Lock()`)
-
-**Cause:** All mock repository methods use `m.mu.Lock()` instead of `m.mu.RLock()` for read-only operations.
-
-**Improvement path:** Use `RLock()`/`RUnlock()` for read-only mock methods (e.g., `List`, `GetByID`, `GetByEmail`, `GetByUsername`).
-
-### No Pagination on List Endpoints
-
-**Problem:** Several list endpoints return all results without pagination: `GET /time-entries`, `GET /units`, `GET /working-groups`, `GET /customers`. As data grows, these requests will consume increasing memory and response time.
-
-**Files:**
-- `internal/adapters/primary/http/time_entry.go` (line 81, `List`)
-- `internal/adapters/primary/http/unit.go` (handler)
-- `internal/adapters/primary/http/working_group.go` (line 62, `List`)
-- `internal/adapters/primary/http/customer.go` (handler)
-
-**Cause:** Repositories query without `LIMIT`/`OFFSET` clauses and return all matching rows.
-
-**Improvement path:** Add pagination parameters (page/limit or cursor-based) to list handlers and repositories.
-
-### Unbounded Rate Limiter Map
-
-**Problem:** `internal/middleware/ratelimit.go` stores every unique client key in an in-memory map without eviction. While entries expire after 1 minute (no longer checked after the window), the map grows with every unique IP that makes a request.
-
-**Files:** `internal/middleware/ratelimit.go` (lines 29-30, 76-79)
-
-**Cause:** No cleanup goroutine removes expired entries from `rl.requests`.
-
-**Improvement path:** Add a periodic cleanup goroutine that removes entries whose `windowEnd` has passed, or use a fixed-size LRU cache.
+**No N+1 in hot paths (verified):**
+- Repository methods use recursive CTEs (`GetAncestry` in `internal/adapters/secondary/postgres/activity_repository.go:196-205`) and batch queries; service loops iterate already-fetched slices (e.g., `internal/core/services/expense/expense.go:390-394`). This is a strength, not a concern — keeping it as a documented invariant.
 
 ## Fragile Areas
 
-### Working Group Creation: OrgID from Request Body Instead of Middleware
+**`activity_repository.go` / `ticket_repository.go` (835 / 861 lines):**
+- Files: `internal/adapters/secondary/postgres/activity_repository.go`, `internal/adapters/secondary/postgres/ticket_repository.go`
+- Why fragile: Each bundles 20+ hand-written SQL statements (multi-join, CTEs, upserts) for the most complex aggregates; single-file edits risk subtle SQL regressions. Activity repo also owns the synchronous audit-log-in-transaction writes (ADR-BE-016 invariant).
+- Safe modification: Add tests per query; keep the transactional audit-log invariant (state + event commit or roll back together — see `internal/core/services/activity/activity.go:407-419`).
+- Test coverage: 73.9% package-wide for postgres — decent, but the deepest SQL (ancestry joins, proposal approval transaction) deserves targeted coverage.
 
-**Files:** `internal/adapters/primary/http/working_group.go` (lines 113-117)
+**Shared routing service invariant (D-08/D-G):**
+- Files: `internal/core/services/routing/routing.go`, `cmd/server/main.go:134`
+- Why fragile: One shared `routingSvc` instance is passed to time-entry, activity, coverage (and planned proposals). Comments in `main.go:129-136` document that a second instance would let entry and proposal routing drift. Any refactor that changes resolution semantics ripples across three services.
+- Safe modification: Only change routing via the documented resolution contract; add service-level regression tests (there is 1 test file for routing).
 
-**Why fragile:** The `Create` handler reads `OrgID` from the request body (`req.OrgID`) instead of from the JWT claims via `middleware.GetOrganizationID(ctx)`. A user could potentially specify a different `org_id` in the body and create a working group in a different organization. Although the middleware auth wrapper ensures the user is authenticated, there is no server-side check that the caller belongs to the target org.
+**Coverage period-close serialization:**
+- Files: `internal/core/services/coverage/coverage.go` (WR-03 advisory xact lock), `internal/adapters/secondary/postgres/coverage_repository.go`
+- Why fragile: Correctness depends on advisory locking + UTC session pinning (`internal/db/db.go:64-66` timezone pin — WR-06). These are subtle cross-cutting invariants that a "small" change can silently break (the git log shows WR-01..WR-06 fixes landed recently for exactly this).
+- Safe modification: Keep the UTC-timezone pool pin; write regression tests for concurrent closes and non-UTC server timezones.
 
-**Safe modification:** Always use `middleware.GetOrganizationID(ctx)` for the org context and remove `org_id` from the request body. Validate the user has a membership in the target org.
+**Migration history with gaps:**
+- Files: `migrations/` (000 + 17 pairs; 001-003, 007 removed), `scripts/seed_demo.sql`
+- Why fragile: Fresh-DB correctness depends on `000_full_schema.up.sql` staying in sync with the 17 patches; seed scripts (Makefile `seed`, `seed-demo`) must match current schema. `make db-init` already references a missing file.
+- Safe modification: For any schema change, add a new numbered pair (`021_...`); never edit applied migrations; verify `make migrate-all` + `make seed` on a clean database.
 
-### Unused Legacy Handler Pattern Coexistence
-
-**Files:** `internal/handlers/health_handler.go`, `internal/middleware/logging_test.go`, `internal/middleware/version.go`
-
-**Why fragile:** The codebase has a mix of old handler patterns (e.g., `healthHandler.ServeHTTP(w, r)` at `cmd/server/main.go` line 52) and the hexagonal adapter pattern (`hexTEHandler.List(w, r)`). Some legacy files (like `internal/handlers/` and `internal/models/` structs) remain as glue. New developers may accidentally add new code to the wrong layer.
-
-**Test coverage:** The health handler has a test (`internal/handlers/health_test.go`) but no integration tests verify the correct wiring.
-
-### `MockPasswordResetRepo` Returns Not Found for Any User
-
-**Files:** `internal/core/services/testdata/mocks.go` (lines 688-690)
-
-**Why fragile:** `MockPasswordResetRepo.FindActiveByUserID` always returns `nil, pwdomain.ErrResetNotFound`. This means all password reset flow tests that need an existing reset will fail unless they bypass the mock entirely.
-
-**Test coverage:** The password reset service test (`internal/core/services/password_reset/password_reset_test.go`) exists but coverage of the `Verify` path is limited by this mock behavior.
-
-### Mock Repositories Return Null for Most Nested Queries
-
-**Files:** `internal/core/services/testdata/mocks.go`
-
-**Why fragile:** Several mock methods return `nil, nil` unconditionally, making them unsuitable for testing any real business logic path:
-- `MockOrgRepo.GetMembership` → always `(nil, nil)`
-- `MockUnitRepo.GetDescendants` → always `(nil, nil)`
-- `MockUnitRepo.ListMembers` → always `(nil, nil)`
-- `MockWorkingGroupRepo.ListMembers` → always `(nil, nil)`
+**No CI test pipeline:**
+- Files: `.github/workflows/` — only `docs-check.yml` (warnings allowed, `continue-on-error: true`) and `qodana_code_quality.yml` (static analysis only).
+- Why fragile: 79 Go test files, 16 Vitest files, and 11 Playwright specs exist but run nowhere automated on PRs. `go test`, `bun run lint`, `bun run build`, `bunx playwright test` are all manual.
+- Safe modification: Add a workflow running `go test ./...`, `go vet`, `cd web && bun install && bun run lint && bun run build`, and the e2e suite on PRs to `main`/`develop`.
 
 ## Scaling Limits
 
-### Single-Database Connection Pool
-
-**Current capacity:** `internal/db/pgpool.go` configures `MaxConns = 25` with `MaxConnLifetime = 30min`. The pool uses a global singleton via `sync.Once`.
-
-**Limit:** At 25 concurrent database connections, the application will queue requests once exhausted. With a single PostgreSQL instance, read replicas cannot be used without application changes.
-
-**Scaling path:** Add read/write connection splitting, connection pool per tenant, or horizontal read replicas. The `pgxpool.Pool` setup supports multiple pools but the app currently creates only one.
-
-### No Caching Layer
-
-**Current capacity:** All data is fetched from PostgreSQL on every request. No Redis or in-memory cache exists.
-
-**Limit:** Frequently accessed data (user profile, memberships, organization settings) is queried on nearly every request. The `GetProfile` handler at `GET /auth/me` queries the database on every call.
-
-**Scaling path:** Add a caching layer (e.g., Redis) for auth data and organization metadata. Use cache-aside or write-through patterns.
+**Rate limiter map:** unbounded entries per unique IP/user key → memory growth proportional to distinct client addresses (see Security above). Current capacity: fine at demo scale; breaks under address rotation or long uptimes.
+**Exports:** full-result-set buffering → OOM risk once a large org exports a wide date range (see Performance). No row-count cap today.
+**Monolithic `main.go` wiring:** ~70 routes in one file; each new feature adds ~15 lines of wiring. Not a runtime limit, but a maintainability ceiling.
 
 ## Dependencies at Risk
 
-### `golang-jwt/jwt/v5`
+**`github.com/lib/pq` (v1.10.9):**
+- Risk: Used only by the dead `database/sql` path in `internal/db/db.go`.
+- Impact: None today; a second Postgres driver confuses audits.
+- Migration plan: Delete usage + dependency (`go mod tidy`).
 
-**Risk:** This is the JWT library used by the auth system. If a vulnerability is found in the JWT parsing, all tokens are compromised.
+**`github.com/xuri/excelize/v2` (v2.11.0):**
+- Risk: Heavy dependency (mscfb, efp, nfp transitive) used only for export; in-memory workbook building.
+- Impact: Export memory (see Performance); large binary size in the Go image.
+- Migration plan: Keep if XLSX export is required; stream via CSV or a lighter writer otherwise.
 
-**Impact:** Complete authentication bypass.
+**Bleeding-edge frontend toolchain:**
+- Files: `web/package.json` — TypeScript 7.0.2, Vite ^8.1.5, Vitest ^4.1.10, React 19.2, oxlint ^1.76.
+- Risk: Fast-moving majors; plugin/ecosystem lag possible; TS 7 (Go-based) is a major rewrite with tooling ripple risk.
+- Impact: Upgrade breakage on minor pins; `recharts` is already pinned at exactly `3.8.0`, suggesting a known compatibility issue.
+- Mitigation: Keep lockfile (`bun.lock`) committed; pin aggressively for the build chain.
 
-**Migration plan:** Pin the version in `go.mod` and monitor for advisories. The library is well-maintained but is a critical security dependency.
-
-### `@xyflow/react` in Org Hierarchy Page
-
-**Risk:** The org hierarchy flow visualization uses `@xyflow/react` (formerly react-flow-renderer) which is a large external dependency. Version updates may break the custom `BUNode` component or layout algorithm in `dagre-layout.ts`.
-
-**Files:** `web/src/routes/_authenticated/org-hierarchy/-components/org-hierarchy-page.tsx`
-
-**Impact:** Org hierarchy UI breaks on upgrade.
-
-**Migration plan:** Maintain a pinned version. Write integration tests for key interactions (node click, drag, expand/collapse).
+**`testcontainers` (v0.42.0):**
+- Risk: Pulls ~30 indirect deps (docker, otel, gopsutil) into `go.mod`; only used by integration tests.
+- Impact: Build/CI environment weight; docker-in-CI requirement for postgres integration tests.
+- Mitigation: Acceptable; ensure CI (when added) exposes a Docker daemon.
 
 ## Missing Critical Features
 
-### Expense Workflow Is Incomplete
+**No automated regression pipeline (highest-impact gap):** the codebase has exceptional test volume but zero CI enforcement — see Fragile Areas. Blocks: safe refactoring of the large repositories; catching `make db-init`-class breakage.
 
-**Problem:** The codebase has expense model definitions (`internal/models/models.go` lines 277-368, `migrations/000_full_schema.up.sql` lines 316-342), expense approval types (lines 392-401), mock repository (`internal/adapters/secondary/postgres/expense_repository_test.go`), and export repo interface (`internal/core/ports/expense_repository.go`). However, there is no expense HTTP handler, no expense service, and no expense frontend pages.
+**Expense receipt lifecycle:** uploads exist but there is no download-by-URL endpoint? (uploads are served by the app?) — verify serving path; no delete-on-expense-delete, no storage abstraction. Blocks: moving to object storage, compliance retention policies.
 
-**Blocks:** Users cannot create, submit, approve, or manage expenses through the application.
-
-**Files:**
-- `internal/core/ports/expense_repository.go` — Interface exists
-- `internal/adapters/secondary/postgres/expense_repository_test.go` — Tests exist
-- But no expense handler or service implementation
-- `web/src/routes/_authenticated/time-entries/` — No expense routes
-
-### Subproject Management Has No Frontend
-
-**Problem:** Subprojects exist in the database schema (`migrations/000_full_schema.up.sql` lines 212-224) and are referenced by working groups, but there is no handler or frontend for CRUD operations on subprojects.
-
-**Blocks:** Users cannot create, edit, or delete subprojects through the UI.
-
-### No Webhook or Integration System
-
-**Problem:** There is no webhook system for external integrations. Notifications for approvals, rejections, or submissions must be handled in-band.
-
-**Blocks:** External systems cannot react to time entry or expense events in real time.
+**User-initiated session revocation:** logout revokes the current refresh-token family, but there is no "log out all sessions" or per-device session listing for users; deactivation (`DELETE /organizations/members/{id}`) revokes refresh tokens via `RevokeAllByUser` (`internal/adapters/secondary/postgres/refresh_token_repo.go:63-69`) — verify this is actually called by the deactivate flow; access tokens still live 15 minutes.
 
 ## Test Coverage Gaps
 
-### Frontend Component Tests Missing
+**Lowest-coverage Go packages:**
+- `internal/core/services/organization` — 41.9% (org settings, membership role management, invite flows)
+- `internal/core/services/unit` — 47.4% (tree building, member management)
+- `internal/adapters/primary/http` — 47.0% overall (handlers exist but many branches untested)
+- `internal/core/services/expense` — 68.7% (approval transitions, receipt upload untested)
+- `internal/middleware` — 69.2%
+- `cmd/server` — 0.0% (wiring untested); `cmd/migrate` — 15.0%
+- Priority: High — the register/invite bug above sits exactly in a 47% area; handler-level tests would have caught the `InviteCode→OrgID` mapping.
 
-**What's not tested:** The frontend has 7 API-layer tests (`web/src/api/__tests__/`) and 6 Playwright e2e specs (`web/e2e/`). There are zero component-level tests for the 80+ UI components in `web/src/components/ui/` and `web/src/routes/*/-components/`. The complex org hierarchy page (342 lines) with ReactFlow nodes, dialogs, and state management has no component tests.
-
-**Files:**
-- `web/src/components/ui/*.tsx` (50+ shadcn-style components) — No tests
-- `web/src/routes/_authenticated/org-hierarchy/-components/org-hierarchy-page.tsx` — No tests
-- `web/src/routes/_authenticated/time-entries/-components/entry-row.tsx` — No tests
-
-**Risk:** UI regressions in the approval flow, org hierarchy, and time entry forms will not be caught.
-
-**Priority:** Medium
-
-### Integration Tests Skip Real Database
-
-**What's not tested:** All 51 Go test files use in-memory mocks (`internal/core/services/testdata/mocks.go`). There are no integration tests that test against an actual PostgreSQL instance (e.g., using testcontainers or a test database).
-
-**Files:** All `*_test.go` files
-
-**Risk:** SQL query errors, constraint violations, and repository-layer logic bugs are only caught at runtime.
-
-**Priority:** Medium
-
-### Auth Refresh Rotation Not Tested
-
-**What's not tested:** The refresh token flow (`POST /auth/refresh`) has no test coverage for token reuse detection, expiry, or revocation scenarios.
-
-**Files:** `internal/adapters/primary/http/auth_test.go` — Tests login and register but not refresh behavior
-
-**Risk:** A refresh token theft vulnerability could go undetected.
-
-**Priority:** High
+**Frontend:**
+- 16 Vitest files vs 71 route files; `__tests__` exist only for time-entries, approvals, today-page, and layout components. Auth forms (login/register/password-reset/invite/bootstrap) have no component tests — the broken register "join" branch is untested.
+- 11 Playwright specs cover the main flows (`web/e2e/`) but run only manually.
 
 ---
 
-*Concerns audit: 2026-06-08*
+*Concerns audit: 2026-08-08*

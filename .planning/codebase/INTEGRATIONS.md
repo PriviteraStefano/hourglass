@@ -1,122 +1,95 @@
 # External Integrations
 
-**Analysis Date:** 2026-06-08
+**Analysis Date:** 2026-08-08
 
 ## APIs & External Services
 
-**None detected.** The application operates as a self-contained system with no external HTTP APIs, SaaS services, or third-party platform integrations. All business logic, authentication, data storage, and export capabilities are implemented in-house.
+**Third-party SaaS APIs:**
+- None. The application makes no outbound calls to external APIs. No payment, email, SMS, or cloud-service SDKs are used (verified: no `stripe`, `supabase`, `aws`, `smtp` imports in `cmd/`, `internal/`, or `web/src/`).
+
+**Outbound HTTP:**
+- None from backend code. Frontend fetches only the Hourglass backend via `web/src/lib/api.ts` (`api<T>()` helper with `credentials: "include"`).
 
 ## Data Storage
 
 **Databases:**
-- **PostgreSQL 15** — Single database for all application data (users, organizations, time entries, contracts, projects, invitations, customers, work units, working groups, audit logs, approvals, refresh tokens, password reset tokens).
-  - Connection: `DATABASE_URL` environment variable.
-  - Client: `github.com/jackc/pgx/v5` with `pgxpool` connection pooling (`internal/db/pgpool.go`).
-  - Pool config: 25 max connections, 30min max lifetime, 5min max idle time.
-  - Migrations: Raw SQL files in `migrations/` directory, applied via `cmd/migrate/main.go`.
-  - Seed data: `migrations/003_seed.up.sql`.
+- PostgreSQL (sole data store for all application data)
+  - Connection: `DATABASE_URL` env var (`internal/db/db.go`, `cmd/migrate/main.go`)
+  - Client: `jackc/pgx/v5` pgxpool for the server; `lib/pq` + `database/sql` for the migrate CLI and legacy `internal/db.New()`
+  - Driver config: pool pins `timezone=UTC` on connections for deterministic date handling (`internal/db/db.go:59`)
+  - Extension: `pgcrypto` (used in `migrations/000_full_schema.up.sql`)
+  - Schema: versioned SQL migrations `migrations/*.up.sql`/`*.down.sql` applied by `cmd/migrate/main.go` (runbook: `make migrate-up`, `make setup`)
+  - Local dev: postgres:15-alpine via `docker-compose.yml`; demo: postgres:17-alpine via `deploy/demo/docker-compose.yml`
+  - Integration tests: ephemeral Postgres containers via testcontainers-go (`internal/adapters/secondary/postgres/test_setup.go`)
 
 **File Storage:**
-- **Local filesystem only** — Receipt/file uploads stored at `/app/uploads/receipts` (created in Dockerfile at line 25). No cloud storage (S3, GCS, etc.) configured.
+- Local filesystem only. Expense receipts uploaded to `uploads/receipts/{org_id}/{expense_id}/{uuid}{ext}` (`internal/adapters/primary/http/expense.go:513`)
+  - 10 MB max upload (`http.MaxBytesReader`, `expense.go:492`)
+  - Allowed types: `.pdf`, `.jpg`, `.jpeg`, `.png` (extension check, `expense.go:504`)
+  - No object storage (S3/GCS) integration
+  - Receipt URLs are served by the app (mounted volume `/app/uploads` in `docker-compose.yml`)
 
 **Caching:**
-- **None** — No Redis, Memcached, or any caching layer. React Query provides client-side caching (30s stale time, `staleTime: 30000` in `web/src/lib/query-client.ts`). Rate limiting state is in-memory (`internal/middleware/ratelimit.go`).
+- None (no Redis/memcached). No server-side cache; frontend relies on TanStack Query `staleTime: 30000` (`web/src/lib/query-client.ts`)
 
 ## Authentication & Identity
 
 **Auth Provider:**
-- **Custom JWT-based authentication** — No external identity provider (no Google, GitHub, Auth0, Clerk, etc.).
-  - Access token: 15-minute expiry, HS256-signed JWT with claims (UserID, OrganizationID, Role, Email) stored in HttpOnly `auth_token` cookie.
-  - Refresh token: 7-day expiry, opaque UUID stored as HttpOnly `refresh_token` cookie; hashed with SHA-256 in database.
-  - Password hashing: bcrypt with cost factor 12 (`golang.org/x/crypto`).
-  - Implementation: `internal/auth/auth.go` (Service), `internal/auth/token_service.go` (port adapter), `internal/auth/password_hasher.go` (bcrypt wrapper).
-
-**Password Reset:**
-- **Custom code-based flow** — No email service integration. Reset requests go through:
-  - `POST /auth/password-reset/request` — Generates a reset code stored in `password_resets` table.
-  - `POST /auth/password-reset/verify` — Validates code and updates password.
-  - Service: `internal/core/services/password_reset/service.go`
-  - Repository: `internal/adapters/secondary/postgres/password_reset_repository.go`
-
-**Invitations:**
-- **Self-managed invitation system** — No external invitation provider. Organizations invite users via:
-  - `POST /invitations` — Creates invitation record with code and token.
-  - `GET /invitations/validate/code/{code}` / `validate/token/{token}` — Validates pending invitations.
-  - `POST /invitations/accept` — Accepts invitation, creates membership.
-  - Service: `internal/core/services/invitation/service.go`
-  - Repository: `internal/adapters/secondary/postgres/invitation_repository.go`
-
-**Bootstrap:**
-- `POST /auth/bootstrap` — First-time setup endpoint for creating initial organization and admin user. Checked via `GET /auth/bootstrap-check`.
+- Custom in-house implementation (no third-party IdP, no OAuth/OIDC)
+  - Implementation: `internal/auth/auth.go` - HS256 JWT access tokens (15 min expiry, claims: `user_id`, `organization_id`, `role`, `email`); bcrypt cost-12 password hashing; refresh tokens as random UUIDs, stored hashed (SHA-256) with rotation + reuse detection (`migrations/010_refresh_token_reuse_detection.up.sql`, `internal/adapters/secondary/postgres/refresh_token_repo.go`)
+  - Session transport: HttpOnly `auth_token`/`refresh_token` cookies, SameSite=Strict, Secure on TLS (`internal/cookies/cookies.go`); refresh via `POST /auth/refresh`, auto-retried once on 401 by `web/src/lib/api.ts`
+  - Password reset + org invitations: token-based codes delivered **in the API response** (no email/SMS delivery - frontend displays them); endpoints `POST /auth/password-reset/request|verify`, `/invitations/*` in `cmd/server/main.go`
+  - Rate limiting on auth endpoints: in-memory token-bucket-style limiter (`internal/middleware/ratelimit.go`), configurable via `RATE_LIMIT`/`ANONYMOUS_RATE_LIMIT`
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- **None** — No Sentry, Datadog, or similar error monitoring integration.
+- None (no Sentry/Bugsnag). Errors surface via `log` + HTTP JSON error envelope
 
 **Logs:**
-- **Standard library `log` package** — Structured-ish logging in `internal/middleware/middleware.go` (method, path, status, duration in ms). All other logging uses `log.Printf` / `log.Fatal`. No structured logging library (zerolog, slog) detected.
+- Go standard library `log` (`cmd/server/main.go`, `internal/middleware/middleware.go` Logging middleware) - request logging middleware wraps the mux; no structured logging library, no log shipping
+- Demo compose uses docker json-file logging with 10m/3-file rotation (`deploy/demo/docker-compose.yml`)
+
+**Metrics:**
+- None (no Prometheus/metrics endpoint)
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- **Docker-based** — Multi-stage `Dockerfile` produces an Alpine-based image exposing port 8080. Suitable for any container runtime (Docker, Kubernetes, ECS, etc.). No specific cloud provider targeting detected.
+- Demo deployment: self-hosted Docker host; public ingress via Cloudflare Quick Tunnel (`cloudflare/cloudflared:2025.7.0`, `deploy/demo/docker-compose.yml`) with Caddy (v2-style Caddyfile, `deploy/demo/Caddyfile`) serving the built SPA and reverse-proxying `/api/*` → `app:8080`
+- Local: docker-compose (`docker-compose.yml`) - postgres:15-alpine + app
 
 **CI Pipeline:**
-- **None detected** — No `.github/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile`, or similar CI configuration found. No GitHub Actions workflows.
+- GitHub Actions (`.github/workflows/`):
+  - `docs-check.yml` - documentation completeness checks (docs-check.sh, mermaid validation) on PR/push, warnings only
+  - `qodana_code_quality.yml` - Qodana static analysis on PR/push to main (requires `QODANA_TOKEN` secret)
+  - No build/test/deploy pipeline for Go or frontend code; no artifact registry
 
 ## Environment Configuration
 
 **Required env vars:**
-| Variable | Default | Required In | Set By |
-|----------|---------|-------------|--------|
-| `DATABASE_URL` | `postgres://hourglass:hourglass@localhost:5432/hourglass?sslmode=disable` | Always | `cmd/server/main.go` |
-| `JWT_SECRET` | `dev-secret-change-in-production` | Production/Staging | `cmd/server/main.go` |
-| `PORT` | `8080` | When not 8080 | `cmd/server/main.go` |
-| `ALLOWED_ORIGINS` | `http://localhost:3000` | When not localhost | `cmd/server/main.go` |
-| `GO_ENV` | empty | Production validation | `cmd/server/main.go` |
-| `VITE_API_URL` | `/api` | When proxy not used | `web/src/lib/api.ts` |
+- `DATABASE_URL` - PostgreSQL connection string (server + migrate)
+- `JWT_SECRET` - JWT signing secret (REQUIRED when `GO_ENV=production|staging`; server exits if missing)
+- Optional: `PORT`, `ALLOWED_ORIGINS`, `RATE_LIMIT`, `ANONYMOUS_RATE_LIMIT`, `GO_ENV`, `TZ` (demo)
+- Frontend: `VITE_API_URL`
 
 **Secrets location:**
-- `JWT_SECRET` — Passed via environment variable (referenced in `docker-compose.yml` for dev).
-- Database credentials — In `DATABASE_URL` environment variable.
-- No `.env` files committed; no secrets management (Vault, AWS Secrets Manager, etc.) configured.
+- No committed secrets. Demo deployment reads `JWT_SECRET`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` from compose `.env` interpolation (`deploy/demo/docker-compose.yml`); dev uses defaults in `docker-compose.yml` (dev-only credentials)
+- `.env` files are gitignored; none exist in the repo
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- **None** — No webhook endpoints registered.
+- None (no third-party webhook receivers)
 
 **Outgoing:**
-- **None** — No outgoing webhooks to external systems.
+- None
 
-## Email Service
+## Other Notable Integrations
 
-**None detected.** The invitation and password reset systems generate codes/tokens stored in the database but have no email dispatch mechanism. No SMTP configuration, email templates, or email provider SDKs (SendGrid, Postmark, Resend, Mailgun) found in any source file or dependency.
-
----
-
-## Deployment Architecture (Docker Compose)
-
-```
-┌──────────────┐     TCP:8080      ┌──────────────┐
-│              │ ◄──────────────── │              │
-│  Go Backend  │                   │  Frontend    │
-│  (port 8080) │                   │  (port 3000) │
-│              │ ────────────────► │  Vite Dev    │
-└──────┬───────┘   proxy /api      └──────────────┘
-       │
-       │ TCP:5432
-       ▼
-┌──────────────┐
-│  PostgreSQL  │
-│  (port 5432) │
-│  postgres:15 │
-└──────────────┘
-```
-
-The application has no external service dependencies beyond PostgreSQL. All auth, storage, and business logic is self-contained.
+- **Exports**: CSV (stdlib `encoding/csv`) and XLSX (`xuri/excelize/v2`) downloads generated server-side (`internal/adapters/primary/http/export.go`) - not an external integration, but the only "file artifact" pipeline
+- **Migrations CLI**: `cmd/migrate/main.go` applies `.up.sql`/`.down.sql` against PostgreSQL via `DATABASE_URL` (`go run ./cmd/migrate -all -dir migrations`)
 
 ---
 
-*Integration audit: 2026-06-08*
+*Integration audit: 2026-08-08*
