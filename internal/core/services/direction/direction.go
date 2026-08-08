@@ -110,11 +110,17 @@ func contains(ids []uuid.UUID, id uuid.UUID) bool {
 	return false
 }
 
+// maxEstHours is the DECIMAL(8,2) column ceiling (ADR-BE-018 §6): the
+// largest whole-cent value that survives the repo insert without PG 22003.
+// Values above it are client error (400), never a 500 (WR-02, T-13-32).
+const maxEstHours = 999999.99
+
 // wholeCent reports whether hours is a positive whole-cent value (D-13-03,
 // coverage precedent — sub-cent values would corrupt the repo's cents
-// arithmetic and violate the DECIMAL(8,2) column).
+// arithmetic and violate the DECIMAL(8,2) column) at or below the column
+// ceiling (WR-02 — client input must never reach the repo overflow).
 func wholeCent(hours float64) bool {
-	return hours > 0 && math.Round(hours*100) == hours*100
+	return hours > 0 && hours <= maxEstHours && math.Round(hours*100) == hours*100
 }
 
 // primaryUnitID resolves the employee's primary unit membership (A9/OQ7
