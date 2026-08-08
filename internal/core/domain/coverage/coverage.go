@@ -62,16 +62,16 @@ type CoverageProposal struct {
 // D-04 default-source decision function) is attached service-side (D-06 — the
 // repo only supplies raw uncovered rows).
 type ToCoverQueueRow struct {
-	EntryID         uuid.UUID         `json:"entry_id"`
-	EmployeeID      uuid.UUID         `json:"employee_id"`
-	EmployeeName    string            `json:"employee_name"`
-	EntryDate       time.Time         `json:"entry_date"`
-	ActivityID      uuid.UUID         `json:"activity_id"`
-	ActivityName    string            `json:"activity_name"`
-	Hours           float64           `json:"hours"`
-	CoveredHours    float64           `json:"covered_hours"`
-	UncoveredHours  float64           `json:"uncovered_hours"`
-	Proposal        *CoverageProposal `json:"proposal,omitempty"`
+	EntryID        uuid.UUID         `json:"entry_id"`
+	EmployeeID     uuid.UUID         `json:"employee_id"`
+	EmployeeName   string            `json:"employee_name"`
+	EntryDate      time.Time         `json:"entry_date"`
+	ActivityID     uuid.UUID         `json:"activity_id"`
+	ActivityName   string            `json:"activity_name"`
+	Hours          float64           `json:"hours"`
+	CoveredHours   float64           `json:"covered_hours"`
+	UncoveredHours float64           `json:"uncovered_hours"`
+	Proposal       *CoverageProposal `json:"proposal,omitempty"`
 }
 
 // PeriodClose is the frozen snapshot of a closed reporting period
@@ -147,7 +147,7 @@ const (
 // Exported so the repo and service can never drift from the pinned
 // vocabulary (Phase 17 history reads rely on it).
 const (
-	AuditActionAllocationsSet  = "allocations-set"
-	AuditActionCoverageClosed  = "coverage-closed"
+	AuditActionAllocationsSet     = "allocations-set"
+	AuditActionCoverageClosed     = "coverage-closed"
 	AuditEntityCoverageAllocation = "coverage_allocation"
 )
