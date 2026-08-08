@@ -2,12 +2,16 @@ package coveragesvc
 
 import (
 	"context"
+	"errors"
+	"math"
+	"time"
 
 	"github.com/google/uuid"
 	activitydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/activity"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/audit"
 	contractdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/contract"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/coverage"
+	time_entrydomain "github.com/stefanoprivitera/hourglass/internal/core/domain/time_entry"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
 	"github.com/stefanoprivitera/hourglass/internal/models"
@@ -237,4 +241,241 @@ func (s *Service) ListHistory(ctx context.Context, orgID, entryID uuid.UUID, rol
 		return nil, coverage.ErrForbidden
 	}
 	return s.repo.ListHistory(ctx, orgID, entryID)
+}
+
+// ---------------------------------------------------------------------------
+// ReplaceAllocations — the atomic replace-set write (D-07, COV-01)
+// ---------------------------------------------------------------------------
+
+// validAbsorptionReason reports whether the reason is in the closed
+// absorption vocabulary (COV-02 — mirrors the 019 reason_vocab_check).
+func validAbsorptionReason(reason string) bool {
+	switch reason {
+	case coverage.AbsorptionReasonWarrantyBug, coverage.AbsorptionReasonUnderEstimate, coverage.AbsorptionReasonGoodwill:
+		return true
+	}
+	return false
+}
+
+// contains reports whether id is in ids (time_entry service helper analog).
+func contains(ids []uuid.UUID, id uuid.UUID) bool {
+	for _, v := range ids {
+		if v == id {
+			return true
+		}
+	}
+	return false
+}
+
+// ReplaceAllocations atomically replaces the full allocation set for an
+// entry (D-07): the service validates everything the user can observe and
+// maps every violation to a sentinel BEFORE any repo call — the repo's
+// in-tx re-validation under the FOR UPDATE entry lock (CR-01) is the
+// authoritative last line, and the 019 CHECKs the DB-backed belt-and-braces.
+//
+// Step order (each gate maps to its sentinel — 400/403/404, never 500):
+//
+//  1. Entry fetch + scope: entryRepo.GetByID (not org-scoped) then
+//     e.OrgID == orgID; must be approved and not deleted (D-09) →
+//     coverage.ErrEntryNotCoverable.
+//  2. D-K branch: every allocation's entry_type must be 'time' →
+//     coverage.ErrInvalidRequest (the costed polymorphic-validation branch).
+//  3. Σ fast-fail in cents (math.Round avoids float64 artifacts): the
+//     request sum must equal the entry hours; an empty set never sums to
+//     hours > 0 → coverage.ErrAllocationSumMismatch.
+//  4. D-08 gate — mandatory, no optional role path (Pattern 6, A9):
+//     allowed = actor ∈ ApproverIDs OR (res.RoleGated && role == "manager").
+//     The owner is structurally forbidden before resolution; the
+//     ApproverIDs path accepts WG manager/delegate in any role claim
+//     (exactly as they may approve); the RoleGated terminal branch
+//     (org root without a unit manager) requires the org role claim to be
+//     exactly 'manager' — finance/employee/customer never pass on any path.
+//  5. Per-row vocabulary + ref pinning (source_type ∈ {contract,absorption,
+//     transfer}; absorption needs a vocabulary reason; exactly one pinned
+//     ref per type) → coverage.ErrInvalidRequest.
+//  6. Ref resolution + org-visibility: contract refs via contractRepo.Get
+//     (not org-scoped — the service gate is
+//     CreatedByOrgID == orgID || (IsShared && IsAdopted)); absorption unit
+//     refs via unitRepo.GetByID + OrgID compare; transfer needs a
+//     justification → coverage.ErrInvalidRequest.
+//  7. Audit: full-set payload (A7) handed to the repo for the in-tx write
+//     (BE-016 — never fire-and-forget), then the repo call.
+func (s *Service) ReplaceAllocations(ctx context.Context, orgID, entryID uuid.UUID, req []*coverage.CoverageAllocation, userID, role string) ([]*coverage.CoverageAllocation, error) {
+	// 1. Entry fetch + scope (GetByID is not org-scoped — the compare is).
+	e, err := s.entryRepo.GetByID(ctx, entryID)
+	if err != nil {
+		return nil, err
+	}
+	if e == nil || e.OrgID != orgID {
+		return nil, coverage.ErrEntryNotCoverable
+	}
+	if e.Status != time_entrydomain.StatusApproved || e.IsDeleted {
+		return nil, coverage.ErrEntryNotCoverable
+	}
+
+	actor, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, coverage.ErrInvalidRequest
+	}
+
+	// 2. D-K branch: 'time' is the only coverable entry type in v0.2.
+	for _, a := range req {
+		if a.EntryType != coverage.EntryTypeTime {
+			return nil, coverage.ErrInvalidRequest
+		}
+	}
+
+	// 3. Σ fast-fail in cents; the empty set can never equal hours > 0.
+	var sum int64
+	for _, a := range req {
+		sum += int64(math.Round(a.Hours * 100))
+	}
+	if len(req) == 0 || sum != int64(math.Round(e.Hours*100)) {
+		return nil, coverage.ErrAllocationSumMismatch
+	}
+
+	// 4. D-08 gate — mandatory (Pattern 6). Structural self-barrier first:
+	// the owner can never allocate their own coverage (A9).
+	if e.UserID == actor {
+		return nil, coverage.ErrForbidden
+	}
+	res, err := s.routing.ResolveManagerStage(ctx, e.OrgID, e.ActivityID, e.UnitID, e.UserID)
+	if err != nil {
+		if errors.Is(err, activitydomain.ErrActivityNotLoggable) {
+			// Commercial activity without an anchored WG — no legitimate
+			// manager-stage writer exists (mirrors Approve).
+			return nil, coverage.ErrForbidden
+		}
+		return nil, err
+	}
+	if !res.RoleGated && !contains(res.ApproverIDs, actor) {
+		return nil, coverage.ErrForbidden
+	}
+	// RoleGated terminal state (org root without a unit manager): the org
+	// role claim MUST be exactly 'manager' — no optional role path.
+	if res.RoleGated && role != string(models.RoleManager) {
+		return nil, coverage.ErrForbidden
+	}
+
+	// 5. Per-row vocabulary + ref pinning — every row checked before the
+	// repo call (violations → 400; check_violation 23514 is unmapped in
+	// wrapPGError and would otherwise surface as 500).
+	for _, a := range req {
+		if a.Hours <= 0 {
+			return nil, coverage.ErrInvalidRequest
+		}
+		switch a.SourceType {
+		case coverage.SourceTypeContract:
+			if a.ContractID == nil || a.UnitID != nil {
+				return nil, coverage.ErrInvalidRequest
+			}
+		case coverage.SourceTypeAbsorption:
+			if a.UnitID == nil || a.ContractID != nil {
+				return nil, coverage.ErrInvalidRequest
+			}
+			if a.Reason == nil || !validAbsorptionReason(*a.Reason) {
+				return nil, coverage.ErrInvalidRequest
+			}
+		case coverage.SourceTypeTransfer:
+			if a.ContractID == nil || a.UnitID != nil {
+				return nil, coverage.ErrInvalidRequest
+			}
+			if a.Justification == nil || *a.Justification == "" {
+				return nil, coverage.ErrInvalidRequest
+			}
+		default:
+			return nil, coverage.ErrInvalidRequest
+		}
+	}
+
+	// 6. Ref validation: existence + org-visibility on every ref before the
+	// repo call (T-12-10).
+	for _, a := range req {
+		switch a.SourceType {
+		case coverage.SourceTypeContract, coverage.SourceTypeTransfer:
+			c, err := s.contractRepo.Get(ctx, orgID, *a.ContractID)
+			if err != nil || c == nil {
+				return nil, coverage.ErrInvalidRequest
+			}
+			// Get filters only by c.id (orgID feeds the is_adopted
+			// subquery) — this predicate is the actual visibility gate,
+			// matching BucketBalance's pre-check in 12-06.
+			if c.CreatedByOrgID != orgID && !(c.IsShared && c.IsAdopted) {
+				return nil, coverage.ErrInvalidRequest
+			}
+		case coverage.SourceTypeAbsorption:
+			u, err := s.unitRepo.GetByID(ctx, a.UnitID.String())
+			if err != nil || u == nil || u.OrgID != orgID {
+				return nil, coverage.ErrInvalidRequest
+			}
+		}
+	}
+
+	// 7. Audit + repo call: the full allocation set in the payload (A7);
+	// the repo writes the row IN THE SAME TX as the replace (BE-016).
+	allocsPayload := make([]map[string]any, 0, len(req))
+	for _, a := range req {
+		row := map[string]any{
+			"source_type": a.SourceType,
+			"hours":       a.Hours,
+		}
+		if a.ContractID != nil {
+			row["contract_id"] = a.ContractID.String()
+		}
+		if a.UnitID != nil {
+			row["unit_id"] = a.UnitID.String()
+		}
+		if a.Reason != nil {
+			row["reason"] = *a.Reason
+		}
+		if a.Justification != nil {
+			row["justification"] = *a.Justification
+		}
+		allocsPayload = append(allocsPayload, row)
+	}
+	return s.repo.ReplaceAllocations(ctx, orgID, entryID, req, &audit.AuditLog{
+		OrgID:      orgID,
+		EntityType: coverage.AuditEntityCoverageAllocation,
+		EntityID:   entryID,
+		Action:     coverage.AuditActionAllocationsSet,
+		ActorID:    &actor,
+		Payload:    map[string]any{"allocations": allocsPayload},
+		CreatedAt:  time.Now().UTC(),
+	})
+}
+
+// ---------------------------------------------------------------------------
+// ClosePeriod — the frozen snapshot orchestration (D-10/D-12, COV-04)
+// ---------------------------------------------------------------------------
+
+// ClosePeriod freezes the period's allocation state into an immutable
+// snapshot (D-10/D-11): the service generates the close id and the
+// coverage-closed audit log, then hands both to the repo for the single-tx
+// close (BE-016) — header insert + frozen rows + audit row commit together.
+// The repo's in-tx overlap re-check is authoritative (A6): an overlapping
+// close surfaces coverage.ErrPeriodAlreadyClosed (409 at the handler).
+//
+// Write gate: manager only. The period is org-scoped with no entry chain to
+// resolve, so the gate is purely the org role claim — finance/employee/
+// customer never close (no optional/approver-resolution branch). The frozen
+// snapshot is the only coverage write that does not touch live allocations:
+// they stay editable indefinitely (D-F snapshot-not-lock).
+func (s *Service) ClosePeriod(ctx context.Context, orgID uuid.UUID, periodStart, periodEnd time.Time, userID uuid.UUID, role string) (*coverage.PeriodClose, error) {
+	if role != string(models.RoleManager) {
+		return nil, coverage.ErrForbidden
+	}
+	closeID := uuid.New()
+	actor := userID
+	return s.repo.ClosePeriod(ctx, orgID, periodStart, periodEnd, closeID, userID, &audit.AuditLog{
+		OrgID:      orgID,
+		EntityType: coverage.AuditEntityCoverageAllocation,
+		EntityID:   closeID,
+		Action:     coverage.AuditActionCoverageClosed,
+		ActorID:    &actor,
+		Payload: map[string]any{
+			"period_start": periodStart.Format("2006-01-02"),
+			"period_end":   periodEnd.Format("2006-01-02"),
+		},
+		CreatedAt: time.Now().UTC(),
+	})
 }

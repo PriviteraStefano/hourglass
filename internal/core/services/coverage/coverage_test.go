@@ -358,3 +358,373 @@ func TestService_ListHistory(t *testing.T) {
 	_, err = f.svc.ListHistory(context.Background(), orgID, entryID, "employee", uuid.New().String())
 	require.ErrorIs(t, err, coverage.ErrForbidden)
 }
+
+// ---------------------------------------------------------------------------
+// TestService_ReplaceAllocations — Σ + D-K + gate + refs + audit
+// ---------------------------------------------------------------------------
+
+// contractAllocation is a valid single-row request for an 8h entry.
+func contractAllocation(entryID, contractID uuid.UUID) *coverage.CoverageAllocation {
+	return &coverage.CoverageAllocation{
+		EntryType:  coverage.EntryTypeTime,
+		EntryID:    entryID,
+		SourceType: coverage.SourceTypeContract,
+		ContractID: &contractID,
+		Hours:      8,
+	}
+}
+
+func TestService_ReplaceAllocations(t *testing.T) {
+	orgID := uuid.New()
+	owner := uuid.New()
+	approver := uuid.New()
+	manager := uuid.New()
+	finance := uuid.New()
+	contractID := uuid.New()
+
+	// The happy-path fixture: an approved 8h entry whose WG manager is
+	// `approver`, with a same-org contract the single allocation references.
+	setupHappy := func(t *testing.T) (*coverageFixture, *time_entrydomain.TimeEntry) {
+		f := setupCoverage(t)
+		e := f.seedEntry(orgID, func(e *time_entrydomain.TimeEntry) {
+			e.UserID = owner
+			e.ActivityID = uuid.New()
+			e.Hours = 8
+		})
+		f.seedWG(orgID, e.ActivityID, approver)
+		f.seedContract(orgID, func(c *contractdomain.ContractResponse) { c.ID = contractID })
+		return f, e
+	}
+
+	t.Run("approver in ApproverIDs replaces the set and audits allocations-set", func(t *testing.T) {
+		f, e := setupHappy(t)
+		req := []*coverage.CoverageAllocation{contractAllocation(e.ID, contractID)}
+
+		stored, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, approver.String(), "employee")
+		require.NoError(t, err)
+		require.Len(t, stored, 1)
+		require.Len(t, f.repo.Audits, 1)
+		audit := f.repo.Audits[0]
+		assert.Equal(t, coverage.AuditActionAllocationsSet, audit.Action)
+		assert.Equal(t, coverage.AuditEntityCoverageAllocation, audit.EntityType)
+		assert.Equal(t, e.ID, audit.EntityID)
+		require.NotNil(t, audit.Payload)
+		allocs, ok := audit.Payload["allocations"].([]map[string]any)
+		require.True(t, ok, "payload must carry the full allocation set")
+		require.Len(t, allocs, 1)
+		assert.Equal(t, coverage.SourceTypeContract, allocs[0]["source_type"])
+		assert.Equal(t, 8.0, allocs[0]["hours"])
+	})
+
+	t.Run("owner is structurally forbidden even as approver", func(t *testing.T) {
+		f, e := setupHappy(t)
+		// WG manager = owner would make routing return the owner in
+		// ApproverIDs — the self-barrier fires before resolution.
+		req := []*coverage.CoverageAllocation{contractAllocation(e.ID, contractID)}
+
+		_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, owner.String(), "manager")
+		require.ErrorIs(t, err, coverage.ErrForbidden)
+	})
+
+	t.Run("non-approver manager is rejected", func(t *testing.T) {
+		f, e := setupHappy(t)
+		req := []*coverage.CoverageAllocation{contractAllocation(e.ID, contractID)}
+
+		_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, manager.String(), "manager")
+		require.ErrorIs(t, err, coverage.ErrForbidden)
+	})
+
+	t.Run("finance outside the approver set is rejected", func(t *testing.T) {
+		f, e := setupHappy(t)
+		req := []*coverage.CoverageAllocation{contractAllocation(e.ID, contractID)}
+
+		_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, finance.String(), "finance")
+		require.ErrorIs(t, err, coverage.ErrForbidden)
+	})
+
+	t.Run("RoleGated terminal state: employee claim rejected, manager accepted", func(t *testing.T) {
+		// No WG and no unit manager → routing returns RoleGated=true.
+		f := setupCoverage(t)
+		e := f.seedEntry(orgID, func(e *time_entrydomain.TimeEntry) {
+			e.UserID = owner
+			e.Hours = 8
+		})
+		f.seedContract(orgID, func(c *contractdomain.ContractResponse) { c.ID = contractID })
+		f.activityRepo.ResolveCommercialContextFn = func(ctx context.Context, activityID uuid.UUID) (*activitydomain.CommercialContext, error) {
+			return &activitydomain.CommercialContext{}, nil // personal tree — no ErrActivityNotLoggable
+		}
+		req := []*coverage.CoverageAllocation{contractAllocation(e.ID, contractID)}
+
+		_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, manager.String(), "employee")
+		require.ErrorIs(t, err, coverage.ErrForbidden)
+
+		stored, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, manager.String(), "manager")
+		require.NoError(t, err)
+		require.Len(t, stored, 1)
+	})
+
+	t.Run("commercial activity without anchored WG maps to forbidden", func(t *testing.T) {
+		f := setupCoverage(t)
+		e := f.seedEntry(orgID, func(e *time_entrydomain.TimeEntry) {
+			e.UserID = owner
+			e.Hours = 8
+		})
+		f.seedContract(orgID, func(c *contractdomain.ContractResponse) { c.ID = contractID })
+		f.activityRepo.ResolveCommercialContextFn = func(ctx context.Context, activityID uuid.UUID) (*activitydomain.CommercialContext, error) {
+			return &activitydomain.CommercialContext{ContractID: &contractID}, nil
+		}
+		req := []*coverage.CoverageAllocation{contractAllocation(e.ID, contractID)}
+
+		_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, manager.String(), "manager")
+		require.ErrorIs(t, err, coverage.ErrForbidden)
+	})
+
+	t.Run("Σ mismatch and empty set return ErrAllocationSumMismatch", func(t *testing.T) {
+		f, e := setupHappy(t)
+		bad := []*coverage.CoverageAllocation{contractAllocation(e.ID, contractID), {
+			EntryType:  coverage.EntryTypeTime,
+			EntryID:    e.ID,
+			SourceType: coverage.SourceTypeContract,
+			ContractID: &contractID,
+			Hours:      1,
+		}}
+		_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, bad, approver.String(), "manager")
+		require.ErrorIs(t, err, coverage.ErrAllocationSumMismatch)
+
+		_, err = f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, []*coverage.CoverageAllocation{}, approver.String(), "manager")
+		require.ErrorIs(t, err, coverage.ErrAllocationSumMismatch)
+	})
+
+	t.Run("non-time entry_type is rejected by the D-K branch", func(t *testing.T) {
+		f, e := setupHappy(t)
+		req := []*coverage.CoverageAllocation{contractAllocation(e.ID, contractID)}
+		req[0].EntryType = "expense"
+
+		_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, approver.String(), "manager")
+		require.ErrorIs(t, err, coverage.ErrInvalidRequest)
+	})
+
+	t.Run("draft or deleted entry is not coverable", func(t *testing.T) {
+		f, e := setupHappy(t)
+		req := []*coverage.CoverageAllocation{contractAllocation(e.ID, contractID)}
+		e.Status = time_entrydomain.StatusSubmitted
+		_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, approver.String(), "manager")
+		require.ErrorIs(t, err, coverage.ErrEntryNotCoverable)
+		e.Status = time_entrydomain.StatusApproved
+		e.IsDeleted = true
+		_, err = f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, approver.String(), "manager")
+		require.ErrorIs(t, err, coverage.ErrEntryNotCoverable)
+	})
+
+	t.Run("malformed rows are rejected before any repo call", func(t *testing.T) {
+		cases := []struct {
+			name   string
+			mutate func(a *coverage.CoverageAllocation)
+			// extraRows adds a compensating 8h row so a mutated row's hours
+			// change still leaves Σ == entry hours — the per-row check (step
+			// 5) must fire, not the Σ fast-fail (step 3).
+			extraRows func(e *time_entrydomain.TimeEntry) []*coverage.CoverageAllocation
+		}{
+			{"hours zero", func(a *coverage.CoverageAllocation) { a.Hours = 0 }, func(e *time_entrydomain.TimeEntry) []*coverage.CoverageAllocation {
+				return []*coverage.CoverageAllocation{{
+					EntryType:  coverage.EntryTypeTime,
+					EntryID:    e.ID,
+					SourceType: coverage.SourceTypeContract,
+					ContractID: &contractID,
+					Hours:      8,
+				}}
+			}},
+			{"source type outside vocabulary", func(a *coverage.CoverageAllocation) { a.SourceType = "bogus" }, nil},
+			{"contract row with both refs pinned", func(a *coverage.CoverageAllocation) { a.UnitID = &uuid.UUID{} }, nil},
+			{"contract row with no ref pinned", func(a *coverage.CoverageAllocation) { a.ContractID = nil }, nil},
+			{"absorption with contract ref instead of unit", func(a *coverage.CoverageAllocation) {
+				a.SourceType = coverage.SourceTypeAbsorption
+				a.ContractID = &contractID
+				a.UnitID = nil
+				a.Reason = strPtr(coverage.AbsorptionReasonGoodwill)
+			}, nil},
+			{"absorption without reason", func(a *coverage.CoverageAllocation) {
+				a.SourceType = coverage.SourceTypeAbsorption
+				a.UnitID = &uuid.UUID{}
+				a.ContractID = nil
+				a.Reason = nil
+			}, nil},
+			{"absorption with reason outside vocabulary", func(a *coverage.CoverageAllocation) {
+				a.SourceType = coverage.SourceTypeAbsorption
+				a.UnitID = &uuid.UUID{}
+				a.ContractID = nil
+				a.Reason = strPtr("PlainInternal")
+			}, nil},
+			{"transfer without justification", func(a *coverage.CoverageAllocation) {
+				a.SourceType = coverage.SourceTypeTransfer
+				a.ContractID = &contractID
+				a.UnitID = nil
+				a.Justification = nil
+			}, nil},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				f, e := setupHappy(t)
+				req := []*coverage.CoverageAllocation{contractAllocation(e.ID, contractID)}
+				tc.mutate(req[0])
+				if tc.extraRows != nil {
+					req = append(req, tc.extraRows(e)...)
+				}
+
+				_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, approver.String(), "manager")
+				require.ErrorIs(t, err, coverage.ErrInvalidRequest)
+				assert.Empty(t, f.repo.Audits, "no audit must be written for a rejected set")
+			})
+		}
+	})
+
+	t.Run("contract ref visibility matrix", func(t *testing.T) {
+		otherOrg := uuid.New()
+		cases := []struct {
+			name      string
+			contract  func() *contractdomain.ContractResponse
+			wantError bool
+		}{
+			{"same-org contract accepted", func() *contractdomain.ContractResponse {
+				c := &contractdomain.ContractResponse{Contract: testdata.NewContract()}
+				c.CreatedByOrgID = orgID
+				return c
+			}, false},
+			{"shared and adopted contract accepted", func() *contractdomain.ContractResponse {
+				c := &contractdomain.ContractResponse{Contract: testdata.NewContract()}
+				c.CreatedByOrgID = otherOrg
+				c.IsShared = true
+				c.IsAdopted = true
+				return c
+			}, false},
+			{"cross-org non-shared contract rejected", func() *contractdomain.ContractResponse {
+				c := &contractdomain.ContractResponse{Contract: testdata.NewContract()}
+				c.CreatedByOrgID = otherOrg
+				return c
+			}, true},
+			{"shared but not adopted rejected", func() *contractdomain.ContractResponse {
+				c := &contractdomain.ContractResponse{Contract: testdata.NewContract()}
+				c.CreatedByOrgID = otherOrg
+				c.IsShared = true
+				c.IsAdopted = false
+				return c
+			}, true},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				f, e := setupHappy(t)
+				c := tc.contract()
+				c.ID = uuid.New()
+				f.contractRepo.Contracts[c.ID] = c
+				req := []*coverage.CoverageAllocation{contractAllocation(e.ID, c.ID)}
+
+				_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, approver.String(), "manager")
+				if tc.wantError {
+					require.ErrorIs(t, err, coverage.ErrInvalidRequest)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("missing contract ref is rejected", func(t *testing.T) {
+		f, e := setupHappy(t)
+		req := []*coverage.CoverageAllocation{contractAllocation(e.ID, uuid.New())}
+
+		_, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, approver.String(), "manager")
+		require.ErrorIs(t, err, coverage.ErrInvalidRequest)
+	})
+
+	t.Run("absorption unit must exist and belong to the org", func(t *testing.T) {
+		f, e := setupHappy(t)
+		unitID := uuid.New()
+		f.seedUnit(orgID, unitID)
+		okReq := []*coverage.CoverageAllocation{{
+			EntryType:  coverage.EntryTypeTime,
+			EntryID:    e.ID,
+			SourceType: coverage.SourceTypeAbsorption,
+			UnitID:     &unitID,
+			Hours:      8,
+			Reason:     strPtr(coverage.AbsorptionReasonWarrantyBug),
+		}}
+		stored, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, okReq, approver.String(), "manager")
+		require.NoError(t, err)
+		require.Len(t, stored, 1)
+
+		crossOrgUnitID := uuid.New()
+		f.seedUnit(uuid.New(), crossOrgUnitID)
+		badReq := []*coverage.CoverageAllocation{{
+			EntryType:  coverage.EntryTypeTime,
+			EntryID:    e.ID,
+			SourceType: coverage.SourceTypeAbsorption,
+			UnitID:     &crossOrgUnitID,
+			Hours:      8,
+			Reason:     strPtr(coverage.AbsorptionReasonWarrantyBug),
+		}}
+		_, err = f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, badReq, approver.String(), "manager")
+		require.ErrorIs(t, err, coverage.ErrInvalidRequest)
+	})
+
+	t.Run("transfer requires justification and an org-visible target contract", func(t *testing.T) {
+		f, e := setupHappy(t)
+		targetID := uuid.New()
+		f.seedContract(orgID, func(c *contractdomain.ContractResponse) { c.ID = targetID })
+		req := []*coverage.CoverageAllocation{{
+			EntryType:     coverage.EntryTypeTime,
+			EntryID:       e.ID,
+			SourceType:    coverage.SourceTypeTransfer,
+			ContractID:    &targetID,
+			Hours:         8,
+			Justification: strPtr("reallocated scope"),
+		}}
+		stored, err := f.svc.ReplaceAllocations(context.Background(), orgID, e.ID, req, approver.String(), "manager")
+		require.NoError(t, err)
+		require.Len(t, stored, 1)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestService_ClosePeriod — manager-only gate + audit + 409 propagation
+// ---------------------------------------------------------------------------
+
+func TestService_ClosePeriod(t *testing.T) {
+	orgID := uuid.New()
+	manager := uuid.New()
+	periodStart := time.Now().AddDate(0, -1, 0)
+	periodEnd := time.Now()
+
+	t.Run("employee and finance are forbidden", func(t *testing.T) {
+		f := setupCoverage(t)
+		_, err := f.svc.ClosePeriod(context.Background(), orgID, periodStart, periodEnd, manager, "employee")
+		require.ErrorIs(t, err, coverage.ErrForbidden)
+		_, err = f.svc.ClosePeriod(context.Background(), orgID, periodStart, periodEnd, manager, "finance")
+		require.ErrorIs(t, err, coverage.ErrForbidden)
+	})
+
+	t.Run("manager closes and passes the coverage-closed audit", func(t *testing.T) {
+		f := setupCoverage(t)
+
+		got, err := f.svc.ClosePeriod(context.Background(), orgID, periodStart, periodEnd, manager, "manager")
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, got.ID, "the service must generate the close id")
+		require.Len(t, f.repo.Audits, 1)
+		assert.Equal(t, coverage.AuditActionCoverageClosed, f.repo.Audits[0].Action)
+		assert.Equal(t, coverage.AuditEntityCoverageAllocation, f.repo.Audits[0].EntityType)
+		assert.Equal(t, got.ID, f.repo.Audits[0].EntityID)
+		require.NotNil(t, f.repo.Audits[0].ActorID)
+		assert.Equal(t, manager, *f.repo.Audits[0].ActorID)
+		require.NotNil(t, f.repo.Audits[0].Payload)
+		_, hasStart := f.repo.Audits[0].Payload["period_start"]
+		_, hasEnd := f.repo.Audits[0].Payload["period_end"]
+		assert.True(t, hasStart && hasEnd, "payload carries the closed period")
+	})
+
+	t.Run("overlapping close propagates ErrPeriodAlreadyClosed", func(t *testing.T) {
+		f := setupCoverage(t)
+		f.repo.ClosePeriodOverlapping = true
+
+		_, err := f.svc.ClosePeriod(context.Background(), orgID, periodStart, periodEnd, manager, "manager")
+		require.ErrorIs(t, err, coverage.ErrPeriodAlreadyClosed)
+	})
+}
