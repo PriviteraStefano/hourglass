@@ -197,3 +197,57 @@ func seedUnit(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, now time.Time) 
 	require.NoError(t, err)
 	return id
 }
+
+// seedCoverageContract creates a contract owned by the org (016 columns:
+// contract_type + sold_hours + sold_period, nullable — pass "" / nil for
+// legacy-shaped rows; support contracts need sold_period per
+// contracts_sold_check). Named seedCoverageContract to avoid the pre-existing
+// seedContract (time_entry_repository_test.go) which lacks the 016 columns.
+func seedCoverageContract(t *testing.T, pool *pgxpool.Pool, orgID uuid.UUID, name, contractType string, soldHours *float64, isShared bool, now time.Time) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	var soldPeriod any
+	if contractType == "support" {
+		soldPeriod = "monthly"
+	}
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO contracts (id, name, governance_model, created_by_org_id, is_shared, is_active,
+			contract_type, sold_hours, sold_period, created_at, updated_at)
+		 VALUES ($1, $2, 'creator_controlled', $3, $4, true, $5, $6, $7, $8, $8)`,
+		id, name, orgID, isShared, nullableStr(contractType), soldHours, soldPeriod, now)
+	require.NoError(t, err)
+	return id
+}
+
+// seedContractAdoption adopts a shared contract into an org (the adoption-aware
+// visibility predicate on BucketBalance and 12-05 contract refs).
+func seedContractAdoption(t *testing.T, pool *pgxpool.Pool, contractID, orgID uuid.UUID, now time.Time) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO contract_adoptions (id, contract_id, organization_id, created_at)
+		 VALUES ($1, $2, $3, $4)`,
+		uuid.New(), contractID, orgID, now)
+	require.NoError(t, err)
+}
+
+// seedTimeEntry creates an approved time entry on the given activity/unit
+// (post-011 shape: activity_id only, no project/wg columns).
+func seedTimeEntry(t *testing.T, pool *pgxpool.Pool, orgID, userID, activityID, unitID uuid.UUID, hours float64, entryDate time.Time, status string, now time.Time) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO time_entries (id, org_id, user_id, activity_id, unit_id, hours, description, entry_date, status, is_deleted, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, $10, $10)`,
+		id, orgID, userID, activityID, unitID, hours, "Coverage test entry", entryDate, status, now)
+	require.NoError(t, err)
+	return id
+}
+
+// nullableStr returns nil for an empty string — the SQL NULL a nullable
+// column expects in seeds.
+func nullableStr(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
