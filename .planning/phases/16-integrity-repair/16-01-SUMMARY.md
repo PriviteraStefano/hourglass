@@ -201,6 +201,14 @@ Smoke evidence: `.planning/phases/16-integrity-repair/16-01-SMOKE.md`
 
 None - no external service configuration required.
 
+## Self-Check: PASSED
+
+- SUMMARY.md exists at `.planning/phases/16-integrity-repair/16-01-SUMMARY.md`
+- All 8 task commits present on `gsd/phase-16-integrity-repair` (23eb9a9, 0f9979d, 819226c, 0ba280e, 2993ebc, c7c6669, dd43811, aa0d7b2) + prerequisite test-suite commit cf6f507
+- `go test ./...` green across all 26 packages (postgres suite uses testcontainers, no manual DB needed)
+- Phase 12 smokes recorded with evidence in `16-01-SMOKE.md` (not silently dropped)
+- No UI / sketch / new endpoints introduced beyond the repaired paths
+
 ## Next Phase Readiness
 
 - All v0.2 integrity repairs landed on `gsd/phase-16-integrity-repair`; full backend suite green.
