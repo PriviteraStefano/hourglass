@@ -52,6 +52,7 @@ import (
 	directiondomain "github.com/stefanoprivitera/hourglass/internal/core/domain/direction"
 	"github.com/stefanoprivitera/hourglass/internal/core/domain/orgsettings"
 	unitdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/unit"
+	wgdomain "github.com/stefanoprivitera/hourglass/internal/core/domain/working_group"
 	"github.com/stefanoprivitera/hourglass/internal/core/ports"
 	orgsettingssvc "github.com/stefanoprivitera/hourglass/internal/core/services/orgsettings"
 	"github.com/stefanoprivitera/hourglass/internal/core/services/routing"
@@ -679,6 +680,19 @@ func (s *Service) resolveScopeEmployees(ctx context.Context, orgID, actorID uuid
 		if role != string(models.RoleManager) {
 			return nil, directiondomain.ErrForbidden
 		}
+		// WR-05: the unit scope must belong to the requesting org. A
+		// missing unit degrades to an empty set (existing contract); a
+		// foreign unit is denied with no cross-org existence oracle.
+		u, err := s.unitRepo.GetByID(ctx, scopeID)
+		if err != nil {
+			if errors.Is(err, unitdomain.ErrUnitNotFound) {
+				return []uuid.UUID{}, nil
+			}
+			return nil, directiondomain.ErrForbidden
+		}
+		if u.OrgID != orgID {
+			return nil, directiondomain.ErrForbidden
+		}
 		members, err := s.unitRepo.ListMembers(ctx, scopeID)
 		if err != nil {
 			return nil, err
@@ -706,6 +720,19 @@ func (s *Service) resolveScopeEmployees(ctx context.Context, orgID, actorID uuid
 		wgID, err := uuid.Parse(scopeID)
 		if err != nil {
 			return nil, directiondomain.ErrInvalidRequest
+		}
+		// WR-05: the WG scope must belong to the requesting org. A missing
+		// WG degrades to an empty set; a foreign WG is denied with no
+		// cross-org existence oracle.
+		g, err := s.wgRepo.GetByID(ctx, wgID)
+		if err != nil {
+			if errors.Is(err, wgdomain.ErrWorkingGroupNotFound) {
+				return []uuid.UUID{}, nil
+			}
+			return nil, directiondomain.ErrForbidden
+		}
+		if g.OrgID != orgID {
+			return nil, directiondomain.ErrForbidden
 		}
 		members, err := s.wgRepo.ListMembers(ctx, wgID)
 		if err != nil {
