@@ -258,7 +258,7 @@ Plans:
   7. Phase 12 multi-row allocation + concurrent period-close smokes executed and recorded (or explicitly waived with evidence)
   8. No UI / sketch / new endpoints beyond the repaired paths
 
-**Plans**: 1/1 plans executed
+**Plans**: 1/1 plans complete
 
 - [x] 16-01-PLAN.md
 
@@ -427,7 +427,7 @@ Plans:
 | 13. Direction Backend | v0.2 | 10/10 | Complete    | 2026-08-08 |
 | 14. Availability Backend | v0.2 | 11/11 | Complete    | 2026-08-12 |
 | 15. UX Foundation | v0.2 | 0/4 | Not started | - |
-| 16. Availability FE | v0.2 | 1/1 | In Progress|  |
+| 16. Availability FE | v0.2 | 1/1 | Complete   | 2026-08-24 |
 | 17. Coverage Surfaces | v0.2 | 0/TBD | Not started | - |
 | 18. Today+Tickets Surfaces | v0.2 | 0/TBD | Not started | - |
 | 19. Direction Surfaces | v0.2 | 0/TBD | Not started | - |
