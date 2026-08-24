@@ -71,6 +71,13 @@ func (s *Service) Create(ctx context.Context, req *expense.CreateExpenseRequest)
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
+	// Map the requested unit_id through to the persisted record. The postgres
+	// repo already inserts unit_id (expense_repository.go); previously the
+	// handler/service never supplied it, so it was silently dropped (Phase 16
+	// known bug).
+	if req.UnitID != nil {
+		e.UnitID = *req.UnitID
+	}
 
 	return s.repo.Create(ctx, e)
 }

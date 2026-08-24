@@ -55,6 +55,7 @@ func TestExpenseRepository_Create_GetByID(t *testing.T) {
 	require.Equal(t, userID, created.UserID)
 	require.Equal(t, activityID, created.ActivityID)
 	require.Equal(t, "mileage", created.Category)
+	require.Equal(t, unitID, created.UnitID)
 	require.Equal(t, 150.50, created.Amount)
 	require.NotNil(t, created.KmDistance)
 	require.Equal(t, 45.0, *created.KmDistance)

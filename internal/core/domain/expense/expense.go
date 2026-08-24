@@ -96,6 +96,7 @@ type CreateExpenseRequest struct {
 	OrgID       uuid.UUID `json:"org_id"`
 	UserID      uuid.UUID `json:"user_id"`
 	ActivityID  uuid.UUID `json:"activity_id"`
+	UnitID      *uuid.UUID `json:"unit_id,omitempty"`
 	Category    string    `json:"category"`
 	Amount      float64   `json:"amount"`
 	KmDistance  *float64  `json:"km_distance,omitempty"`

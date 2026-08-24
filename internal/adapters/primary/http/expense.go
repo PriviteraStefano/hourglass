@@ -32,6 +32,7 @@ func NewExpenseHandler(service *expsvc.Service) *ExpenseHandler {
 
 type CreateExpenseRequest struct {
 	ActivityID  string   `json:"activity_id"`
+	UnitID      string   `json:"unit_id,omitempty"`
 	Category    string   `json:"category"`
 	Amount      float64  `json:"amount"`
 	KmDistance  *float64 `json:"km_distance,omitempty"`
@@ -178,10 +179,23 @@ func (h *ExpenseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// unit_id is optional on create; when present it is mapped through to the
+	// persisted expense (Phase 16 known bug — was previously dropped).
+	var unitID *uuid.UUID
+	if req.UnitID != "" {
+		u, err := uuid.Parse(req.UnitID)
+		if err != nil {
+			api.RespondWithError(w, http.StatusBadRequest, "invalid unit_id")
+			return
+		}
+		unitID = &u
+	}
+
 	svcReq := &expense.CreateExpenseRequest{
 		OrgID:       orgID,
 		UserID:      userID,
 		ActivityID:  activityID,
+		UnitID:      unitID,
 		Category:    req.Category,
 		Amount:      req.Amount,
 		KmDistance:  req.KmDistance,
