@@ -1,256 +1,263 @@
-<!-- refreshed: 2026-08-08 -->
+<!-- refreshed: 2026-08-12 -->
 # Architecture
 
-**Analysis Date:** 2026-08-08
+**Analysis Date:** 2026-08-12
 
 ## System Overview
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     Frontend — React SPA (web/src/)                     │
-│   TanStack Router file-based routes → XxxApis query/mutation options     │
-│   web/src/lib/api.ts (fetch + 401→refresh) — React Query client          │
-└──────────────────────────────────┬──────────────────────────────────────┘
-                                   │ HTTP /api/* (Vite dev proxy → :8080)
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│          Primary HTTP Adapters — internal/adapters/primary/http/         │
-│   Thin handlers (parse → delegate → format { data | error } envelope)    │
-│   Middleware chain: CORS → APIVersion → Logging → RateLimiter →          │
-│                     TryAuth/Auth (JWT claims into request context)       │
-└───────────────┬───────────────────────────────┬─────────────────────────┘
-                │ calls                          │ implements (via DI in
-                ▼                                │  cmd/server/main.go)
-┌─────────────────────────────────────────────────────────────────────────┐
-│              Core (hexagonal inner) — internal/core/                     │
-│   domain/   — pure models + behavior, one dir per bounded context        │
-│   ports/    — repository/service interfaces the core requires            │
-│   services/ — application logic; routing/ shared approval resolution     │
-└───────────────┬─────────────────────────────────────────────────────────┘
-                │ SQL via pgx/v5 pool
-                ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│           Secondary Adapters — internal/adapters/secondary/postgres/     │
-│   Repository implementations (implements ports.*), pgxpool, SQL          │
-│                                  │                                       │
-│                                  ▼                                       │
-│                       PostgreSQL (migrations/*.sql)                      │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Frontend SPA (web/)                           │
+│   React 19 · Vite · TanStack Router v1 · TanStack Query v5           │
+│   web/src/main.tsx · web/src/routes/ · web/src/api/                 │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │ fetch() credentials:include
+                                │ 401 → single-flight POST /auth/refresh
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              HTTP API (Go stdlib net/http, ServeMux)                │
+│   cmd/server/main.go (composition root + ~130 route registrations)  │
+│   middleware chain: TryAuth → RateLimiter → Logging → APIVersion →  │
+│                     CORS → mux; per-route middleware.Auth           │
+├─────────────────────────────────────────────────────────────────────┤
+│                    PRIMARY ADAPTER (driving)                         │
+│   internal/adapters/primary/http/*.go  — thin handlers              │
+│   parse → auth context → delegate → envelope response               │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      HEXAGONAL CORE                                  │
+│   domain  internal/core/domain/<bounded-context>/  (pure entities)  │
+│   ports   internal/core/ports/*.go               (interfaces)       │
+│   services internal/core/services/<context>/     (business logic,   │
+│                                                   depends on ports) │
+│   routing internal/core/services/routing/         (SHARED service)  │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   SECONDARY ADAPTER (driven)                         │
+│   internal/adapters/secondary/postgres/*_repository.go              │
+│   pgxpool → PostgreSQL (migrations/ NNN_*.up|down.sql)              │
+│   internal/auth (JWT + bcrypt) · internal/cookies (HttpOnly)        │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+Two feature generations coexist:
+- **v0.1 (full-stack):** auth, units, working groups, customers, contracts, activities, time entries, expenses, exports, organizations, invitations, password reset — all have a frontend in `web/src/`.
+- **v0.2 (backend-only):** tickets, coverage (allocation), direction (plan plane), availability (absences), orgsettings, contract types — implemented in Go only; no frontend routes consume them yet.
 
 ## Component Responsibilities
 
 | Component | Responsibility | File |
 |-----------|----------------|------|
-| Server composition root | Reads env, builds pool, instantiates repos → services → handlers, wires routes + middleware | `cmd/server/main.go` |
-| Migration CLI | Applies `migrations/*.up.sql` / `*.down.sql` in order | `cmd/migrate/main.go` |
-| Domain models | Pure structs + behavior methods (`CanEdit()`, `IsOwner()`); sentinel errors per context | `internal/core/domain/<context>/*.go` |
-| Ports | Interfaces the core needs from the outside (repos, token service, hasher, finder) | `internal/core/ports/*.go` |
-| Services | Business logic: CRUD gates, approval workflow, validation against domain rules | `internal/core/services/<context>/*.go` |
-| Routing service | Resolves the manager approval stage (WG manager/delegates or unit-tree walk) — shared by entries, proposals, coverage | `internal/core/services/routing/routing.go` |
-| HTTP handlers | Parse request, extract auth context, call service, write envelope | `internal/adapters/primary/http/<resource>.go` |
-| Postgres repositories | SQL implementations of ports; pgx/v5 pool | `internal/adapters/secondary/postgres/*.go` |
-| JWT/auth | Token generation/validation (HS256), bcrypt hashing, refresh-token service | `internal/auth/auth.go`, `internal/auth/token_service.go`, `internal/auth/password_hasher.go` |
-| Middleware | Auth/TryAuth/RequireRole, CORS, rate limit, logging, API version header | `internal/middleware/*.go` |
-| Shared legacy models | Enums + DTOs still imported by some migrated contexts (see Anti-Patterns) | `internal/models/models.go` |
-| Response envelope | `{ "data": ... }` / `{ "error": ... }` JSON contract | `pkg/api/response.go` |
-| Frontend HTTP client | `api<T>()` fetch wrapper: credentials, envelope unwrap, single-flight 401 refresh | `web/src/lib/api.ts` |
-| Frontend API modules | `XxxApis` objects of `queryOptions`/`mutationOptions` consumed by routes | `web/src/api/<resource>.ts` |
+| Composition root | Builds every service/handler/repo, registers every route, middleware chain | `cmd/server/main.go` |
+| Auth (legacy JWT svc) | Validate/sign JWT for `middleware.Auth` | `internal/auth/auth.go` |
+| Token service | Access + refresh token issuance (JWT) | `internal/auth/token_service.go` |
+| Password hasher | bcrypt hash/compare | `internal/auth/password_hasher.go` |
+| Cookie helpers | HttpOnly `auth_token`/`refresh_token` cookies | `internal/cookies/cookies.go` |
+| Auth service | Register/login/logout/refresh/bootstrap/switch-org/memberships | `internal/core/services/auth/auth.go` |
+| Time entry service | CRUD, submit, approve, reject, period lock | `internal/core/services/time_entry/time_entry.go` |
+| Expense service | CRUD, submit, approve, reject, receipt upload | `internal/core/services/expense/expense.go` |
+| Routing service (shared) | Resolves manager approval stage (WG chain / unit-tree walk / role gate) | `internal/core/services/routing/routing.go` |
+| Activity service | Recursive activity CRUD, origin axis, ancestry/commercial/billability | `internal/core/services/activity/activity.go` |
+| Coverage service | Allocation replace-set, proposals, to-cover queue, bucket balance, period close | `internal/core/services/coverage/coverage.go` |
+| Direction service | Plan-plane create/activate/cancel/claim + read models | `internal/core/services/direction/direction.go` |
+| Availability service | Window lifecycle, certificate attach, contract-type CRUD, capacity | `internal/core/services/availability/availability.go` |
+| Orgsettings service | Org policy key/value store, planning-mode fallback | `internal/core/services/orgsettings/orgsettings.go` |
+| Organization service | Org CRUD, invites, member roles, schedule override | `internal/core/services/organization/organization.go` |
+| Contract service | CRUD, adopt, mileage recalculation | `internal/core/services/contract/contract.go` |
+| Customer / Unit / Working-group / Ticket / Invitation / Password-reset / Export services | CRUD + lifecycle per domain | `internal/core/services/{customer,unit,working_group,ticket,invitation,password_reset,export}/*.go` |
+| HTTP handlers (primary) | Parse request, read middleware claims, delegate, respond | `internal/adapters/primary/http/*.go` |
+| Postgres repositories (secondary) | Raw SQL via pgxpool, scan into domain types, map `pgx.ErrNoRows` → domain sentinel errors | `internal/adapters/secondary/postgres/*_repository.go` |
+| DB pool | `pgxpool.Pool` from `DATABASE_URL` | `internal/db/db.go` |
+| Health handler (legacy) | `GET /health` | `internal/handlers/health_handler.go` |
+| Response envelope | `{data: ...}` / `{error: ...}` | `pkg/api/response.go` |
+| Frontend HTTP client | `api<T>()` fetch wrapper, single-flight refresh, `UnauthorizedError` | `web/src/lib/api.ts` |
+| Frontend API modules | `queryOptions`/`mutationOptions` per domain, invalidate + toast | `web/src/api/*.ts` |
+| Route guards | Profile hydration + redirect | `web/src/routes/_authenticated.tsx`, `web/src/routes/_auth.tsx` |
 
 ## Pattern Overview
 
-**Overall:** Hexagonal architecture (ports & adapters) on the backend; TanStack Router + React Query data-first composition on the frontend. The backend migration is mid-flight: `internal/core/domain|ports|services` is the target structure (see `plans/hexagonal-migration.md`), with several bounded contexts still referencing `internal/models`.
+**Overall:** Hexagonal (ports & adapters) architecture, per the migration plan in `plans/hexagonal-migration.md`. Domain → ports → services → adapters → composition-root wiring. Only `cmd/server/main.go` knows concrete types; everything below depends on interfaces or concrete ports.
 
 **Key Characteristics:**
-- Manual dependency injection in a single composition root (`cmd/server/main.go`) — repos built from `*pgxpool.Pool`, passed into service constructors, then into handler constructors
-- Services depend only on `ports.*` interfaces, never on concrete adapters (except the shared `routing.Service`, injected concretely)
-- Handlers are thin: no business rules; they read `middleware.GetUserID/GetOrganizationID/GetRole` from context
-- Go 1.22+ stdlib `http.ServeMux` with method+pattern routes (`mux.HandleFunc("GET /time-entries", ...)`); no router framework
-- Every route registered per-handler-method; auth-gated via `middleware.Auth(...)` wrapping, role gates inside services
-- Frontend server state lives entirely in React Query; route guards hydrate auth before render
-- Numbered SQL migrations (`000`–`020+`), each with `.up.sql`/`.down.sql`, applied by `cmd/migrate`
+- One `internal/core/domain/<context>/` package per bounded context — pure entities, value objects, sentinel errors, zero external dependencies (except `uuid`, `time`, `internal/models`)
+- One `ports.<X>Repository` interface per aggregate; implementations in `internal/adapters/secondary/postgres/`
+- Services hold only ports and *shared* service singletons (see Constraints)
+- Handlers are thin and per-domain; route registration lives entirely in `cmd/server/main.go`
+- Frontend mirrors the domain split: `web/src/api/<domain>.ts` + `web/src/routes/_authenticated/<domain>/` + types in `web/src/types/`
 
 ## Layers
 
-**Composition / Entry (`cmd/`):**
-- Purpose: Process entry points and all wiring
-- Location: `cmd/server/main.go`, `cmd/migrate/main.go`
-- Contains: `main()`, env parsing, pool creation, route registration, middleware stack
-- Depends on: `internal/adapters/*`, `internal/core/services/*`, `internal/auth`, `internal/db`, `internal/middleware`, `internal/handlers`
-- Used by: runtime only
+**Domain:**
+- Purpose: Pure business entities, request structs, sentinel errors
+- Location: `internal/core/domain/<context>/` (e.g. `internal/core/domain/activity/activity.go`)
+- Contains: Entity structs with `json:` tags, `*Request` structs, `Err*` vars, domain constants
+- Depends on: `internal/models` (legacy shared constants like `models.RoleFinance`, `models.GovernanceModel`)
+- Used by: services, ports, postgres adapters (scan targets)
 
-**Domain (`internal/core/domain/`):**
-- Purpose: Pure business models, no external deps beyond `google/uuid`
-- Location: `internal/core/domain/<bounded-context>/` (14 contexts: `auth`, `organization`, `unit`, `working_group`, `activity`, `contract`, `customer`, `time_entry`, `expense`, `invitation`, `password_reset`, `ticket`, `coverage`, `audit`)
-- Contains: structs with JSON tags, status/role constants, behavior methods (e.g. `time_entry.CanEdit()`), sentinel errors (e.g. `ErrPeriodLocked`)
-- Depends on: `github.com/google/uuid`, stdlib
-- Used by: `internal/core/services/*`, `internal/core/ports/*`
+**Ports:**
+- Purpose: Interfaces the core requires from the outside world (persistence, token, hashing)
+- Location: `internal/core/ports/` — `*_repository.go`, `token_service.go`, `password_hasher.go`, `user_finder.go`, `refresh_token_repo.go`, `errors.go` (`ErrNotFound`, `ErrConflict`, `ErrForeignKey`)
+- Depends on: domain types (method signatures reference them)
+- Used by: services (dependency injection)
 
-**Ports (`internal/core/ports/`):**
-- Purpose: Interfaces the core requires from the outside world
-- Location: `internal/core/ports/*.go` (21 files: `*_repository.go`, `token_service.go`, `password_hasher.go`, `user_finder.go`, `errors.go`)
-- Contains: repository interfaces, `ListFilters` struct, shared error sentinels (`ErrNotFound`, `ErrConflict`)
-- Depends on: domain packages
-- Used by: services (consume), postgres adapters (implement)
+**Services:**
+- Purpose: All business logic — authorization checks, state transitions, workflow orchestration
+- Location: `internal/core/services/<context>/`
+- Contains: `Service` struct with port + shared-service fields; `NewService(...)` constructor; methods per use case
+- Depends on: ports, sibling service singletons (injected), domain
+- Used by: HTTP handlers, other services (via shared instances)
 
-**Services (`internal/core/services/`):**
-- Purpose: Application business logic — all validation, workflow state transitions, authorization
-- Location: `internal/core/services/<context>/*.go` (15 packages + `routing/` + `testdata/`)
-- Contains: `type Service struct{ repo ports.XRepository; ... }`, `NewService(...)`, methods returning domain types
-- Depends on: `internal/core/ports`, `internal/core/domain`, other services (`routing`); **not** adapters
-- Used by: HTTP handlers (primary adapters), integration tests
+**Primary HTTP Adapters:**
+- Purpose: HTTP boundary — parse, authorize (from middleware claims), validate length caps, delegate, envelope
+- Location: `internal/adapters/primary/http/`
+- Contains: `*Handler` structs (`{service *x.Service}`), request DTOs, `validate.go` (shared string-length validation), `handler_test_helper.go`
+- Depends on: services, `internal/middleware` (claim getters), `pkg/api`
+- Used by: `cmd/server/main.go` route registration
 
-**Primary HTTP Adapters (`internal/adapters/primary/http/`):**
-- Purpose: Translate HTTP ↔ service calls
-- Location: `internal/adapters/primary/http/<resource>.go` (+ `validate.go` request validation helpers)
-- Contains: `XxxHandler` structs, request DTOs with `json:` tags, `func (h *XxxHandler) List/Create/Get/Update/Delete/...`
-- Depends on: services, middleware (context getters), `pkg/api` (envelope), domain errors for `errors.Is` mapping
-- Used by: `cmd/server/main.go`
+**Secondary Adapters:**
+- Purpose: Persistence — raw SQL against PostgreSQL
+- Location: `internal/adapters/secondary/postgres/`
+- Contains: `*Repository` structs over `*pgxpool.Pool`, `scan*` helpers, `test_setup.go` (testcontainers), `exported_test_helpers.go`
+- Depends on: domain types (return them), `pkg/...`, pgx
+- Used by: composition root (`cmd/server/main.go`)
 
-**Secondary PostgreSQL Adapters (`internal/adapters/secondary/postgres/`):**
-- Purpose: Persistence for every port interface
-- Location: `internal/adapters/secondary/postgres/*.go`
-- Contains: `NewXxxRepository(pool)` constructors, SQL statements, `pgxpool` queries
-- Depends on: `internal/core/ports`, `internal/core/domain` (or `internal/models` — transitional)
-- Used by: `cmd/server/main.go` (DI)
-
-**Support packages (non-hexagonal glue):**
-- `internal/auth/` — legacy JWT/bcrypt service consumed by middleware and `auth.NewTokenService`
-- `internal/middleware/` — `Auth`, `TryAuth`, `RequireRole`, `CORS`, `NewRateLimiter`, `Logging`, `APIVersion`
-- `internal/cookies/` — cookie construction for `auth_token` / `refresh_token`
-- `internal/db/` — `pgxpool` pool creation + legacy `sql.DB` helper
-- `internal/handlers/` — health handler (only remaining legacy handler)
-- `internal/models/` — shared legacy models/enums (being migrated into `core/domain`)
+**Shared Infrastructure:**
+- `internal/auth/` — JWT validate (used by middleware) + bcrypt + token service
+- `internal/middleware/` — `Auth` (strict), `TryAuth` (best-effort), `RequireRole`, `CORS`, `RateLimiter`, `Logging`, `APIVersion`, claim getters/setters (`GetUserID`, `GetOrganizationID`, `GetRole`, `GetEmail`)
+- `pkg/api/` — response envelope + receipt upload helpers
+- `internal/db/` — pgx pool construction
 
 ## Data Flow
 
-### Primary Request Path (e.g., create a time entry)
+### Primary Request Path (authenticated CRUD)
 
-1. Browser → Vite dev server proxies `/api/*` → `http://localhost:8080` (`web/vite.config.ts:21-27`); production serves the SPA and API from the same origin
-2. Middleware chain runs outside-in: `CORS` → `APIVersion` → `Logging` → `RateLimiter` → `TryAuth`; route-level `middleware.Auth` validates the JWT and injects `UserID`/`OrganizationID`/`Role`/`Email` context keys (`internal/middleware/middleware.go:23-44`)
-3. ServeMux matches `POST /time-entries` (`cmd/server/main.go:267`) → `TimeEntryHandler.Create` (`internal/adapters/primary/http/time_entry.go:121`)
-4. Handler decodes JSON body, pulls claims from context, calls `teService.Create(ctx, req)` (`internal/core/services/time_entry/time_entry.go:43`)
-5. Service enforces domain rules: `IsPeriodLocked` check, parses date, builds `time_entry.TimeEntry` with `StatusDraft`, calls `s.repo.Create` (port)
-6. `postgres.TimeEntryRepository.Create` executes INSERT against the pool (`internal/adapters/secondary/postgres/time_entry_repository.go`)
-7. Handler writes `{ "data": {...} }` via `api.RespondWithJSON` (`pkg/api/response.go:14-23`)
+1. Browser fetch → `api<T>()` in `web/src/lib/api.ts` with `credentials: "include"`; 401 triggers single-flight `POST /auth/refresh`, then one retry; navigation is never performed here (`web/src/lib/api.ts`)
+2. Route loader/mutation → query options from `web/src/api/<domain>.ts`; `beforeLoad` in `web/src/routes/_authenticated.tsx` hydrates `AuthApis.profileQueryOpts` first
+3. Go middleware chain: `TryAuth` populates context claims if cookie valid; `middleware.Auth` rejects with 401 otherwise (`internal/middleware/middleware.go`)
+4. Handler parses `r.PathValue("id")`, query params, JSON body; validates string lengths (`internal/adapters/primary/http/validate.go`); reads `middleware.GetOrganizationID(ctx)` / `GetRole(ctx)`
+5. Service applies business rules and calls ports (e.g. `customer.Service.Create` checks `role != finance → ErrForbidden`, `internal/core/services/customer/customer.go`)
+6. Repository runs SQL, maps `pgx.ErrNoRows` → domain sentinel (`internal/adapters/secondary/postgres/customer_repository.go`)
+7. Handler switches on sentinel errors → HTTP status via `api.RespondWithError` / `api.RespondWithJSON` (`pkg/api/response.go`); frontend unwraps `{data}` from the envelope
 
-### Authentication Flow
+### Time Entry Approval Workflow
 
-1. `POST /auth/login` (`cmd/server/main.go:91`, rate-limited 5/min) → `AuthHandler.Login` (`internal/adapters/primary/http/auth.go:89`)
-2. Hexagonal `authsvc.Service` validates credentials via `password_hasher`, issues access + refresh tokens, stores refresh token hash (reuse detection, migration `010`)
-3. Cookies set via `internal/cookies/cookies.go`; frontend `web/src/lib/api.ts` sends `credentials: "include"` and on 401 performs a single-flight `POST /auth/refresh` (guarded against auth-path recursion), then retries the original request once
-4. Route guards hydrate auth: `web/src/routes/_authenticated.tsx:8-18` calls `client.fetchQuery(AuthApis.profileQueryOpts)` in `beforeLoad`; failure → `redirect({ to: "/login" })`. `_auth.tsx` does the inverse (redirect to `/` if profile succeeds)
+1. `POST /time-entries/{id}/submit` → `TimeEntryHandler.Submit` (`internal/adapters/primary/http/time_entry.go`) → `tesvc.Submit` (`internal/core/services/time_entry/time_entry.go`)
+2. Service calls the **shared** `routing.Service.ResolveManagerStage` (`internal/core/services/routing/routing.go`): WG-anchored R-1 chain (WG manager + delegates, D-11 skip-to-finance if owner is in approver set) → commercial-without-WG rejection (`ErrActivityNotLoggable`, R-2) → personal-activity unit-manager upward walk → role-gated terminal case
+3. Status transitions: `draft → submitted → pending_manager → pending_finance → approved/rejected`; each step appends an immutable row to the `*_approvals` tables; `currentApproverRole` drives who may act
+4. Frontend reads status via `TimeEntriesApis` queries; `web/src/lib/role-visibility.ts` + `web/src/components/approval/*` gate UI
 
-### Approval Workflow (time entries & expenses)
+### Coverage Allocation (v0.2)
 
-1. `POST /time-entries/{id}/submit` → `TimeEntryHandler.Submit` (`time_entry.go:305`) → `tesvc.Service.Submit` (`time_entry.go:129`)
-2. Service calls `routing.Service.ResolveManagerStage` (`internal/core/services/routing/routing.go:57`): R-1 chain (activity's anchored WG → manager + delegates), D-11 skip (owner is in approver set → straight to `pending_finance`), R-2 fallback (personal activity → unit manager walk up the tree)
-3. Entry transitions `draft → pending_manager → pending_finance → approved/rejected`; `currentApproverRole` tracks the stage; each action appends an immutable row to `*_approvals` tables and `audit_logs` (migrations `006`, `017`)
-4. Coverage allocation writers (`internal/core/services/coverage/coverage.go`) consume the **same shared** `routing.Service` so entry and allocation routing cannot drift (ADR-BE-014 D-G/D-08)
-5. Frontend: approvals page (`web/src/routes/_authenticated/approvals/`) lists pending entries per role stage; mutation `onSuccess` invalidates `["time-entries"]` queries (`web/src/api/time-entries.ts:42-44`)
+1. `PUT /time-entries/{id}/allocations` → `coverageHandler.PutAllocations` (`internal/adapters/primary/http/coverage_handler.go`) → `coveragesvc` (`internal/core/services/coverage/coverage.go`)
+2. Allocation writers resolve the manager stage through the **same** shared `routing` service that approved the entry (D-08 parity — no second instance); period close (`POST /coverage/close`) freezes snapshots
+3. Ledger/snapshot tables from migrations `019_coverage_allocations`, `020_coverage_snapshots`
 
-### Frontend Data Flow
+### Auth Hydration & Refresh
 
-1. `web/src/main.tsx` creates the router with the shared `queryClient` in context (`web/src/lib/query-client.ts`: `retry: false`, `staleTime: 30000`)
-2. Route `beforeLoad`/loaders pre-fetch via `client.ensureQueryData/fetchQuery(queryOpts)`; page components consume the same `queryOpts` through `useSuspenseQuery`
-3. Writes go through `mutationOptions` (`web/src/api/*.ts`), which invalidate related query keys in `onSuccess` and surface `sonner` toasts
+1. Login sets HttpOnly `auth_token` (15 min) + `refresh_token` cookies (`internal/cookies/cookies.go`); refresh tokens rotate with reuse detection (`internal/adapters/secondary/postgres/refresh_token_repo.go`)
+2. `_authenticated.tsx` `beforeLoad` → `client.fetchQuery(AuthApis.profileQueryOpts)` (`GET /auth/me`) → failure clears `["auth","me"]` cache and `redirect({ to: "/login", replace: true })`
+3. `_auth.tsx` best-effort check: logged-in users are redirected to `/`; 401 is swallowed (breaks the historical infinite redirect loop)
+
+**State Management:**
+- Backend: stateless requests; identity in JWT claims injected into `context.Context` by middleware; authoritative state in PostgreSQL; no in-memory domain state
+- Frontend: TanStack Query server cache (shared `queryClient`, `retry:false`, `staleTime:30000`, `refetchOnWindowFocus:false` in `web/src/lib/query-client.ts`); URL search state via `validateSearch` zod schemas (ADR-FE-017); mutations invalidate `queryKey` prefixes
 
 ## Key Abstractions
 
-**Port Interfaces:**
-- Purpose: Inversion-of-control boundary between services and persistence
-- Examples: `ports.TimeEntryRepository` (`internal/core/ports/time_entry_repository.go:10-18`), `ports.ActivityRepository`, `ports.TokenService`
-- Pattern: Interface defined by consumer (core), implemented by secondary adapter
+**Ports (repository interfaces):**
+- Purpose: Persistence contracts per aggregate — `internal/core/ports/*_repository.go`
+- Examples: `ports.TimeEntryRepository`, `ports.ActivityRepository`, `ports.ExportRepository`
+- Pattern: Methods return domain types and domain sentinel errors; implemented by `internal/adapters/secondary/postgres/*_repository.go`
 
-**Domain Aggregates with Behavior:**
-- Purpose: Encapsulate state transitions so services cannot corrupt workflow invariants
-- Examples: `time_entry.TimeEntry` with `CanEdit()`, `IsOwner()` (`internal/core/domain/time_entry/time_entry.go`); status constants `draft → submitted → pending_manager → pending_finance → approved/rejected`
-- Pattern: Sentinel errors (`ErrEntryNotDraft`, `ErrPeriodLocked`, ...) returned from domain methods, mapped to HTTP statuses in handlers
+**Shared services (D-G parity):**
+- Purpose: Single-instance service singletons consumed by multiple domains so routing/planning rules cannot drift
+- Examples: `routing.Service` (shared by time_entry, coverage, activity, direction, availability), `orgsettings.Service` (mode gate shared by direction, availability)
+- Pattern: Injected as concrete `*Service` pointers via constructors in `cmd/server/main.go`; the file's comments explicitly forbid second instances (`main.go:135-136, 182-186`)
 
-**routing.Service:**
-- Purpose: Single shared resolver for the manager approval stage (ADR-BE-014)
-- Examples: injected into `tesvc.NewService`, `activitysvc.NewService` (proposal approval), `coveragesvc.NewService` (`cmd/server/main.go:134-162`)
-- Pattern: Concrete cross-service dependency (not a port) — deliberate single instance (D-G parity)
+**Response envelope:**
+- Purpose: Uniform JSON contract `{data: ...}` success / `{error: ...}` failure
+- Location: `pkg/api/response.go`; unwrapped client-side in `web/src/lib/api.ts` (`(await res.json() as ApiResponse<T>).data`)
 
-**Frontend Query Options (frontend):**
-- Purpose: Declarative, reusable server-state definitions shared by loaders and components
-- Examples: `TimeEntriesApis` (`web/src/api/time-entries.ts:95-105`), `AuthApis.profileQueryOpts` consumed in `_authenticated.tsx`
-- Pattern: `queryOptions`/`mutationOptions` factories + namespace export object; `queryKey` helpers as `as const` tuples
-
-**api<T>() HTTP Client (frontend):**
-- Purpose: Single place for cookies, envelope unwrapping, and 401-refresh semantics
-- Location: `web/src/lib/api.ts:36-95`
-- Pattern: Throws `UnauthorizedError` on permanent 401 (route guards redirect); never navigates itself
+**Frontend API option modules:**
+- Purpose: Query/mutation definitions with query keys, staleTime, invalidation, toasts
+- Examples: `web/src/api/activities.ts` (`activitiesQueryKey`, `activitiesQueryOpts`, `createActivityMutationOpts`, exported as `ActivitiesApis`)
+- Pattern: Route loaders call `client.ensureQueryData(...)`; mutations invalidate prefix keys and toast on success/failure
 
 ## Entry Points
 
-**Backend server:**
-- Location: `cmd/server/main.go`
-- Triggers: `go run ./cmd/server` / Docker / `make run`
-- Responsibilities: Env validation (fatal if `JWT_SECRET` missing in production), pool init, full DI graph, route table (~100 routes), middleware stack, `ListenAndServe` on `:8080`
+**`cmd/server/main.go`** — the composition root:
+- Triggers: `go run ./cmd/server` (or Docker); listens on `PORT` (default 8080)
+- Responsibilities: env validation (`JWT_SECRET` fatal in prod/staging), pool construction, build every repo → service → handler, register all ~130 routes with Go 1.22+ `mux.HandleFunc("METHOD /path", ...)`, middleware chain, CORS allowlist from `ALLOWED_ORIGINS`
+- Construction order is load-bearing: `routingSvc` before time_entry/coverage/direction/availability; orgsettings before direction/availability; availability before organization (org schedule validates contract_type through it) — `cmd/server/main.go:135-202`
 
-**Migration CLI:**
-- Location: `cmd/migrate/main.go`
-- Triggers: `go run ./cmd/migrate -up|-down -dir migrations`
-- Responsibilities: Apply/rollback numbered `.up.sql`/`.down.sql` files via `database/sql` + `lib/pq`
+**`cmd/migrate/main.go`** — migration CLI:
+- Triggers: `go run ./cmd/migrate -up|-down [-dir migrations]`
+- Responsibilities: applies `migrations/*.up.sql` sorted / rolls back `*.down.sql` reversed; idempotent via "already exists"/"does not exist" skip
 
-**Frontend:**
-- Location: `web/src/main.tsx`
-- Triggers: `bun run dev` / `bun run build` (Vite)
-- Responsibilities: Router construction with `routeTree.gen.ts`, QueryClient injection, `RouterProvider` render
+**`web/src/main.tsx`** — SPA bootstrap:
+- Creates the TanStack Router with `context: { client: queryClient }`, renders `QueryClientProvider` + `RouterProvider`; `web/src/routeTree.gen.ts` is generated by the Vite TanStack plugin
+
+**`web/src/routes/**`** — file-based route tree:
+- `__root.tsx` root layout, `_authenticated.tsx` guard + `AppShell`, `_auth.tsx` guard, feature routes with zod-validated search, loaders, `errorComponent: RouteError`, `pendingMs`
+
+**`web/e2e/*.spec.ts`** — Playwright E2E entry points against the running dev stack.
 
 ## Architectural Constraints
 
-- **Threading:** Single-process Go server, stdlib `net/http` (one goroutine per request); no background workers, queues, or cron jobs. `db.NewPool` defaults: max 25 open / 5 idle conns (`internal/db/db.go`). Frontend: single React Query client, single-flight refresh (`refreshPromise` in `web/src/lib/api.ts:34`).
-- **Global state:** `web/src/lib/query-client.ts` exports a module-level `queryClient` singleton (must stay the same instance across `main.tsx` and route context). Module-level `refreshPromise` guards concurrent 401 refreshes.
-- **DI discipline:** All object graphs constructed in `cmd/server/main.go`; services receive ports, handlers receive concrete services. No DI framework, no global registries in Go.
-- **DB access:** Only `internal/adapters/secondary/postgres/*` touches SQL; services go through `ports.*`. Exception: `activityHandler` holds `activityRepo` directly for derived detail reads (`cmd/server/main.go:147`).
-- **Route/auth discipline:** Role gates live in services (D-15/D-11 gates for tickets, coverage), not only in middleware; `RequireRole` middleware exists but route-level role gating is done by services reading context.
-- **Migration order:** New migrations must be numbered sequentially after `020` and ship `.up.sql` + `.down.sql` pairs.
-- **Append-only streams:** Approval history, ticket comments/history, and audit logs are immutable — no update/delete routes (see comments at `cmd/server/main.go:226-228`).
+- **Singleton services / no second instances:** `routing`, `orgsettings`, and per-domain repos must be constructed once and shared (`cmd/server/main.go` comments; D-G parity). The wiring is compile-forced: services take `*routing.Service`, not an interface.
+- **Threading:** Standard Go net/http goroutine-per-request; shared state is limited to the in-memory rate limiter maps (`internal/middleware/ratelimit.go`, guarded by `sync.RWMutex`) and the single-flight `refreshPromise` in `web/src/lib/api.ts`. No worker pools or background goroutines in the server process.
+- **Rate limiting is in-memory** (`internal/middleware/ratelimit.go`) — assumes a single server instance; multi-instance deploys would need a shared store.
+- **ServeMux most-specific-wins:** literal `/organizations/settings` routes coexist with typed `/organizations/{id}/settings` wildcards; the literals must not be removed (`cmd/server/main.go:254-257`, Pitfall 6).
+- **Domain purity:** domain packages must not import services/adapters; `internal/models` is the one tolerated legacy import (shared constants).
+- **Immutable/append-only histories:** `*_approvals` rows and ticket comments/history are never updated or deleted; tickets deliberately have no `DELETE` route (`cmd/server/main.go:272-274`).
+- **No hard navigation from the HTTP client:** redirects only happen in route guards via TanStack `redirect()` — `web/src/lib/api.ts` throws `UnauthorizedError` instead (root cause of the historical infinite loop).
+- **API versioning:** `Accept: application/json; version=v1` parsed by `internal/middleware/version.go`; v1 default.
 
 ## Anti-Patterns
 
-### Dual Model Sources (migration in progress)
+### Legacy `internal/models` shared constants in hex domain packages
 
-**What happens:** Several bounded contexts define structs in both `internal/core/domain/<ctx>/` and legacy `internal/models/models.go`; services/adapters for `organization`, `contract`, `activity`, `customer`, `ticket`, `coverage` still import `internal/models` (`grep -l "internal/models" internal/ --include="*.go"` matches those packages).
-**Why it's wrong:** Two sources of truth for the same entity drift (JSON tags, validation, enum sets); mixed imports make the hexagonal boundary blurry.
-**Do this instead:** Follow the completed contexts (`time_entry`, `unit`, `working_group`, `expense`) as the target pattern: domain struct in `core/domain`, port in `core/ports`, adapter implementing it. Track against `plans/hexagonal-migration.md`.
+**What happens:** Hex domain/services import `internal/models` for role/status/governance constants (e.g. `models.RoleFinance` in `internal/core/services/customer/customer.go`, `models.GovernanceModel` in `internal/core/domain/customer/customer.go`), while newer domains define their own constants in-domain (`internal/core/domain/activity/activity.go`).
+**Why it's wrong:** Two vocabularies for the same concept; `internal/models/models.go` (477 lines) is an unmigrated legacy surface documented in `plans/hexagonal-migration.md` as legacy glue.
+**Do this instead:** New domains define constants locally (activity/coverage/direction already do); `internal/models` should shrink as domains migrate.
 
-### Handlers Holding Repositories
+### Pass-through services
 
-**What happens:** `http.NewActivityHandler(activityService, activityRepo)` (`cmd/server/main.go:147`) — the handler reaches past the service for derived reads.
-**Why it's wrong:** Breaks the thin-handler rule; handler now depends on both service and adapter, complicating handler unit tests.
-**Do this instead:** Add the derived-read method to the service (which already holds the repo), or introduce a read-model port.
+**What happens:** Some services only delegate: `customer.Service.List` → `repo.ListByOrg`, `export.Service.Timesheets` → `repo.Timesheets` (`internal/core/services/customer/customer.go`, `internal/core/services/export/export.go`).
+**Why it's wrong:** An extra hop with no logic; the hex boundary's value is the enforcement and orchestration that richer services (time_entry, coverage) demonstrate.
+**Do this instead:** Fine while the service is a stable seam for future policy; don't add more layers of delegation when a handler could call a port directly — but keep the pattern consistent while it exists.
 
-### Untyped Filter Struct Field
+### Handler 500 fallthrough for unknown service errors
 
-**What happens:** `ListFilters.OrgID interface{}` (`internal/core/ports/time_entry_repository.go:21`).
-**Why it's wrong:** Erases compile-time safety at the core boundary.
-**Do this instead:** `OrgID uuid.UUID` (omit where unused).
+**What happens:** Handlers `switch` on known sentinels and fall through to `http.StatusInternalServerError` with a generic message for anything else (`internal/adapters/primary/http/customer.go:105-107`).
+**Why it's wrong:** Real failures (constraint violations, conflicts) surface to clients as opaque 500s instead of actionable 4xx.
+**Do this instead:** Map `ports.ErrNotFound/ErrConflict/ErrForeignKey` (`internal/core/ports/errors.go`) centrally, or return richer domain errors from services.
 
-### Dual Auth Packages
+### Stale worktree snapshot in-tree
 
-**What happens:** Legacy `internal/auth.Service` (JWT validate for middleware) coexists with hexagonal `internal/core/services/auth` + `ports.TokenService` adapter (`internal/auth/token_service.go`).
-**Why it's wrong:** Two paths to the same capability; middleware cannot use the port interface without touching adapters.
-**Do this instead:** Migrate middleware to validate via a port-backed service once `internal/auth` is folded into `core` (or accept as documented transitional state — see `plans/hexagonal-migration.md`).
+**What happens:** `.gsd-worktrees/M001/` contains an older full snapshot of the repo (including its own `.planning/`), `main`, `server`, `migrate` binaries, and `web/dist`/`web/node_modules` are committed/left in place.
+**Why it's wrong:** Confuses navigation (duplicate `internal/`, `web/` trees) and bloats the working tree.
+**Do this instead:** Remove or archive the worktree directory; rely on git.
 
 ## Error Handling
 
-**Strategy:** Sentinel errors per domain package + `errors.Is` mapping in handlers; single JSON error envelope.
+**Strategy:** Domain sentinel errors (`errors.New` vars exported per package, e.g. `customer.ErrForbidden`, `activity.ErrActivityNotLoggable`) + a shared trio in `internal/core/ports/errors.go` (`ErrNotFound`, `ErrConflict`, `ErrForeignKey`). Repositories translate `pgx.ErrNoRows` → `ErrXxxNotFound`. Handlers map sentinels → HTTP status with user-facing messages; unknown errors → 500.
 
 **Patterns:**
-- Domain/service errors: package-level `var Err... = errors.New(...)` (`internal/core/domain/time_entry/time_entry.go:10-19`); shared port errors `ports.ErrNotFound`, `ports.ErrConflict` (`internal/core/ports/errors.go`)
-- Handler mapping: switch/`errors.Is` → `api.RespondWithError(w, status, msg)`; unexpected errors degrade to 500 with generic message (`internal/adapters/primary/http/time_entry.go:77-80`)
-- Validation: `internal/adapters/primary/http/validate.go` for request-shape checks; domain enum validation + DB CHECK constraints for value ranges
-- Frontend: `api<T>()` throws `Error(error.message || error.error)` from the envelope (`web/src/lib/api.ts:82-87`); `UnauthorizedError` for unrecoverable auth; `sonner` toasts in mutation options
+- Service methods return `(value, error)`; never panic for expected failures
+- Handler error mapping: `switch err { case domain.ErrForbidden: 403; case domain.ErrNotFound: 404; default: 500 }`
+- Frontend: `api<T>()` throws `Error` with the server message or `UnauthorizedError` for failed refresh; mutations `toast.error(...)` in `onError`
 
 ## Cross-Cutting Concerns
 
-**Logging:** `middleware.Logging` logs `METHOD path status duration` per request (`internal/middleware/middleware.go:145-154`); stdlib `log` elsewhere. Frontend surfaces user feedback via `sonner` toasts, not console.
-**Validation:** Request DTOs + `validate.go`; domain-level invariants in services; DB CHECK constraints (statuses, roles); `models`/domain enum constants (`Role`, `EntryStatus`, `GovernanceModel`, `ProjectType`, `ExpenseCategory`, `ApprovalAction`).
-**Authentication:** JWT HS256 access token (15 min) + refresh token (7 days) in HttpOnly cookies; refresh-token rotation with reuse detection (migration `010`); bcrypt cost 12; org-switching via `POST /auth/switch-organization`; `TryAuth` for anonymous endpoints; rate limiting on auth routes (5/min login/register, 3/min password-reset, outer 20/min anonymous / 100/min authenticated).
+**Logging:** stdlib `log` in the server; `middleware.Logging` logs `METHOD path status durationMs` per request (`internal/middleware/middleware.go:145-155`); no structured logging library.
+**Validation:** Boundary-level length caps in `internal/adapters/primary/http/validate.go` (`MaxNameLength` etc.); domain-level format/value checks in services; DB CHECK constraints as the final guard (migrations).
+**Authentication:** `middleware.Auth` wraps every protected route; claims (userID, orgID, role, email) flow through `context.Context`; `middleware.TryAuth` is the outermost layer for best-effort identity; role gates are re-checked inside services (handler-level `RequireRole` exists but service-level checks dominate).
+**CORS:** Allowlist from `ALLOWED_ORIGINS` with `Access-Control-Allow-Credentials: true` (`internal/middleware/cors.go`).
+**Rate limiting:** Three limiter instances: auth endpoints (default 5/min, `RATE_LIMIT`), password reset (3/60s), outer anonymous limiter (default 20/min, `ANONYMOUS_RATE_LIMIT`, authenticated 100/min) (`cmd/server/main.go:84-91, 388-394`).
 
 ---
 
-*Architecture analysis: 2026-08-08*
+*Architecture analysis: 2026-08-12*

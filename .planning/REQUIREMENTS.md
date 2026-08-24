@@ -42,15 +42,15 @@ Requirements for milestone v0.2 — Ontology Extension (Origins, Tickets & Cover
 
 ### Availability
 
-- [ ] **AVAIL-01**: Employee can declare an absence with a type and date range (existing `availability_windows` schema); invalid or overlapping windows rejected
-- [ ] **AVAIL-02**: Manager/HR can confirm or reject absences (declared → confirmed/rejected); rejects carry a reason; HR curates medical absences with certificate_ref
+- [x] **AVAIL-01**: Employee can declare an absence with a type and date range (existing `availability_windows` schema); invalid or overlapping windows rejected
+- [x] **AVAIL-02**: Manager/HR can confirm or reject absences (declared → confirmed/rejected); rejects carry a reason; HR curates medical absences with certificate_ref
 - [ ] **AVAIL-03**: User can view an absence calendar (personal + team/org)
 - [ ] **AVAIL-04**: Manager can view capacity per activity/WG (weekly hours − confirmed absences, with workload from submitted+approved entries)
 - [ ] **AVAIL-05**: Availability surfaces in the People pillar with role-scoped visibility
 
 ### UX Foundation
 
-- [ ] **UXFD-01**: Design token foundation extended (status palette, state colors) and shared component set frozen before any surface/polish work
+- [x] **UXFD-01**: Design token foundation extended (status palette, state colors) and shared component set frozen before any surface/polish work
 - [ ] **UXFD-02**: Sketch-driven loop established: each surface/polish phase shows 2–3 gsd-sketch options, user agrees, UI-only plans, ≤3 sketch rounds
 
 ### Surfaces (prototype-driven, D-O leans)
@@ -145,9 +145,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DIR-04 | Phase 13 | Complete |
 | DIR-05 | Phase 13 | Complete |
 | DIR-06 | Phase 13 | Complete |
-| AVAIL-01 | Phase 14 | Pending |
-| AVAIL-02 | Phase 14 | Pending |
-| UXFD-01 | Phase 15 | Pending |
+| AVAIL-01 | Phase 14 | Complete |
+| AVAIL-02 | Phase 14 | Complete |
+| UXFD-01 | Phase 15 | Complete |
 | UXFD-02 | Phase 15 | Pending |
 | AVAIL-03 | Phase 16 | Pending |
 | AVAIL-04 | Phase 16 | Pending |

@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
-current_phase: 14
-current_phase_name: Availability Backend — Absences + Capacity
-status: planning
-stopped_at: Completed 13-10-PLAN.md
-last_updated: "2026-08-08T16:21:37.873Z"
-last_activity: 2026-08-08
-last_activity_desc: Phase 13 complete, transitioned to Phase 14
+current_phase: 15
+current_phase_name: ux-foundation-design-tokens-shared-components
+status: executing
+stopped_at: Completed 15-02-PLAN.md
+last_updated: "2026-08-17T14:01:08.532Z"
+last_activity: 2026-08-13
+last_activity_desc: Phase 15 execution started
 progress:
   total_phases: 16
-  completed_phases: 3
-  total_plans: 25
-  completed_plans: 25
-  percent: 19
+  completed_phases: 4
+  total_plans: 40
+  completed_plans: 39
+  percent: 25
 ---
 
 # Project State
@@ -25,14 +25,14 @@ See: .planning/PROJECT.md (updated 2026-08-02)
 
 **Core value:** Role-based approval workflows (employee → manager → finance) with hierarchical organization structures, contract/activity management, and export capabilities.
 
-**Current focus:** Phase 13 — direction-backend-the-plan-plane
+**Current focus:** Phase 15 — ux-foundation-design-tokens-shared-components
 
 ## Current Position
 
-Phase: 14 — Availability Backend — Absences + Capacity
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-08-08 — Phase 13 complete, transitioned to Phase 14
+Phase: 15 (ux-foundation-design-tokens-shared-components) — EXECUTING
+Plan: 4 of 4
+Status: Ready to execute
+Last activity: 2026-08-13 — Phase 15 execution started
 
 ## Accumulated Context
 
@@ -116,6 +116,32 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 13-09]: CR-01 handler regression activates the user-targeted row first: the nil-guard sits after the status fast-fail, so the 404 contract is only reachable for an ACTIVE user row — Plan's own unit behavior pinned status active; its abbreviated handler-test text omitted the activate step
 - [Phase 13-09]: wrapPGError untouched: with the service-side maxEstHours ceiling the PG 22003 path is unreachable for client input; a global 22003 mapping would alter unrelated repos (time entries) — Per plan Task 3 action; scope boundary honored
 - [Phase ?]: WR-03 reversal (13-10): Unclaim writes AuditActionUnclaimed ('unclaimed') — ADR-BE-018 §3 always pinned the vocabulary; the code drifted to 'cancelled'. Aligning code to the ADR makes unclaim events distinguishable from cancels for Phase 19 history filters and makes the exported constant live. Reverses the 13-05 note. Reversible: one line + docs.
+- [Phase 14-01]: 024 carries NO default-flag column on contract_types: the org default schedule is an org_settings key (D-14-18, research OQ4); header comment avoids the literal token so grep acceptance checks don't trip (Phase 13 'unique' lesson)
+- [Phase 14-01]: 023 down downgrades rejected/withdrawn rows to 'declared' before restoring the two-value CHECK (23514-safe restore); teardown FK-safe order: certificate_attachments before availability_windows, contract_types after organization_memberships
+- [Phase ?]: The D-14-21 behavioral proof lives at the repo boundary, not the service mock: MockDirectionRepo returns windows verbatim and the domain AbsenceWindow carries no status — the RED test asserts the SQL predicate directly — Service-level declared/confirmed distinction is mechanically inexpressible
+- [Phase ?]: Handler-level no-warning proof uses the coverage self-view, not the plan read: ListPlan derives its employee set from plan rows, so employees without rows get no warnings regardless of status — Coverage resolves employees by scope and runs the identical warning overlay
+- [Phase 14-availability-backend-absences-capacity]: Full-interface assertion lands in 14-03 via not-implemented stubs: the plan pins BOTH the assertion and the tracer fixture wiring in Task 1 while the port declares 14 methods owned by 14-05/06/07 — the Phase 13 deferral precedent (13-05) only worked because nothing wired the partial repo; the stubs fail every later plan's RED tests cleanly and no route can reach them — Full-interface assertion lands in 14-03 via not-implemented stubs: the plan pins BOTH the assertion and the tracer fixture wiring in Task 1 while the port declares 14 methods owned by 14-05/06/07 — the Phase 13 deferral precedent (13-05) only worked because nothing wired the partial repo; the stubs fail every later plan's RED tests cleanly and no route can reach them
+- [Phase 14-availability-backend-absences-capacity]: windowHoursValid exported as WindowHoursValid: the plan's service fast-fail names the domain helper, which 14-02 pinned unexported — exporting keeps single-source-of-truth (no re-implementation drift) — windowHoursValid exported as WindowHoursValid: the plan's service fast-fail names the domain helper, which 14-02 pinned unexported — exporting keeps single-source-of-truth (no re-implementation drift)
+- [Phase 14-availability-backend-absences-capacity]: Service sets the observable status (declared/confirmed) before the repo call; the repo re-derives from kind authoritatively — the mock-based unit test caught the empty-status gap — Service sets the observable status (declared/confirmed) before the repo call; the repo re-derives from kind authoritatively — the mock-based unit test caught the empty-status gap
+- [Phase 14-availability-backend-absences-capacity]: The confirmed audit row for medical is repo-internal: the port's Declare takes ONE audit row, so the 'two audit rows with actor id' assertion lives at the repo boundary battery (Task 2), not the service mock (mechanically inexpressible there — same class as the 14-04 RED-placement deviation) — The confirmed audit row for medical is repo-internal: the port's Declare takes ONE audit row, so the 'two audit rows with actor id' assertion lives at the repo boundary battery (Task 2), not the service mock (mechanically inexpressible there — same class as the 14-04 RED-placement deviation)
+- [Phase ?]: The orgsvc constructor's new dependency is the SHARED availability service: it validates contract_type_id same-org via ListContractTypes (no second repo) and pins the schedule audit vocabulary (D-14-29, D-G parity)
+- [Phase ?]: The {before, after} audit payloads are built REPO-side from the FOR UPDATE locked rows (contract-type update + membership schedule — the UpdateMedical shape): the service cannot know the before state
+- [Phase ?]: ScheduleRequest fields are optional but at least one must be present (no-op writes -> 400); a cross-org/missing contract_type_id -> 400 invalid request, not 404
+- [Phase ?]: default_contract_type_id is write-time-UUID-string + read-time-existence/org validated: the orgsettings validator only checks addressability, ResolveSchedule surfaces missing/wrong-org/unparsable as ErrInvalidValue (T-14g-19)
+- [Phase ?]: An override WITHOUT a contract type merges over the 8x5 fallback base (flagged-assumption discretion pinned with a test)
+- [Phase 14-availability-backend-absences-capacity]: The Service constructor gained the orgMgmtRepo dependency (ports.OrganizationManagementRepository): the org capacity scope needs ListMembers, which the pinned orgRepo (GetMembership only) cannot serve — all 4 wiring sites updated (Rule 3) — Plan mandates org -> orgRepo.ListMembers; the member list lives on the org-mgmt port
+- [Phase 14-availability-backend-absences-capacity]: The workload subtree CTE anchors at the org's root activities: the pinned Capacity signature carries no activity parameter, so the workload column is the employee's org-subtree Sum for every scope; the activity-scope universe comes from ActivityWorkloadEmployees (D-14-19/20) — Pinned port cannot change; recursion depth >= 2 repo battery proves the walk
+- [Phase 14-availability-backend-absences-capacity]: Month-without-matrix types resolve DayHours = nil through the membership path (never the 8x5 substitute): the nil matrix is the D-14-17 derivation signal; a week type with a nil matrix surfaces ErrInvalidValue — Task 3 RED caught the 8x5 substitute (8/day instead of 100/5=20/day); 14-06-pinned paths unchanged
+- [Phase 14-availability-backend-absences-capacity]: The writeError sentinel map needed no extension: the 14-03 map already covered every error the 14-08 handlers surface (ErrNotMedical/ErrRejectReasonRequired/ErrCertificateRequired -> 400, ErrOverlap/ErrInvalidTransition -> 409) — Plan text said writeError gains remaining sentinel cases; the map was already complete - no change needed
+- [Phase 14-availability-backend-absences-capacity]: Empty-string certificate_ref rejected at the service boundary (Declare parity, availability.go:106) AND nil/empty refused in-tx at the repo before UPDATE/audit — the D-14-05 invariant holds on every path (belt-and-braces per plan) — gap closure plan (CR-01/WR-01) — belt-and-braces placement of the D-14-05 invariant at service + repo boundaries
+- [Phase 14-availability-backend-absences-capacity]: WindowHoursValid epsilon is < 1e-9 — the review-verified shape — keeping 4.005/99.995 invalid while accepting binary-inexact cent values (0.29/1.15/2.30) — gap closure plan (CR-01/WR-01) — belt-and-braces placement of the D-14-05 invariant at service + repo boundaries
+- [Phase 14]: wrapPGError extended with a 22003 -> ports.ErrInvalidRequest case despite the Phase 13 13-09 scope note (wrapPGError untouched) — WR-03 mandates the mapping; effect on unrelated repos is strictly 500->400 on numeric overflow, the house rule's direction; no existing test asserts a 500 on 22003 — Client-input numeric ceilings validated in the service (fast-fail before any repo call); adapter still maps the overflow SQLSTATE as belt-and-braces so the surface can never 500
+- [Phase 14-availability-backend-absences-capacity]: Workload CTE period predicate mirrors the sibling columns verbatim (entry_date >= $3::date AND entry_date < $4::date + INTERVAL '1 day') — same args declared/partial_abs/full_abs consume, CTE order unchanged (WR-02) — Task 2's HTTP regression is committed as the proven end-to-end guard: its RED cannot fail after Task 1's GREEN lands the predicate; failure mode proven at repo level (22.0 vs 10.0) — same RED-placement class as 14-04
+- [Phase 15-ux-foundation-design-tokens-shared-components]: StatusBadgeProps export shape kept verbatim so all 7 consumer sites + time-entries re-export compile with zero edits (Pitfall 3); generic StatusBadge<S> + STATUS_ROLE_MAP covers all 5 vocabularies + D-15-04 warning keys with unknown→neutral fallback (Phase 15-01) — StatusBadgeProps export shape kept verbatim so all 7 consumer sites + time-entries re-export compile with zero edits (Pitfall 3); generic StatusBadge<S> + STATUS_ROLE_MAP covers all 5 vocabularies + D-15-04 warning keys with unknown→neutral fallback (Phase 15-01)
+- [Phase 15-ux-foundation-design-tokens-shared-components]: Role variant recipes are static per-role class literals (parenthesized custom-property alpha, bg-(--status-{role})/10) — compiled cleanly under the project Tailwind v4 setup, no bg-status-{role}/10 fallback needed (Phase 15-01) — Role variant recipes are static per-role class literals (parenthesized custom-property alpha, bg-(--status-{role})/10) — compiled cleanly under the project Tailwind v4 setup, no bg-status-{role}/10 fallback needed (Phase 15-01)
+- [Phase 15-ux-foundation-design-tokens-shared-components]: EmptyTitle 500→600 remap intentionally changes today-page/approvals-page empty-state appearance per the 2-weight typography contract (Pitfall 5); empty-state test negative assertion split-regex'd (/font-(medium)/) to keep the prohibition grep green (Phase 15-01) — EmptyTitle 500→600 remap intentionally changes today-page/approvals-page empty-state appearance per the 2-weight typography contract (Pitfall 5); empty-state test negative assertion split-regex'd (/font-(medium)/) to keep the prohibition grep green (Phase 15-01)
+- [Phase 15-ux-foundation-design-tokens-shared-components]: Frozen ConfirmDialog (D-15-07): controlled presentational destructive confirmation with required-reason gate mirroring the server 400 invariant (D-13-10/D-13-16); error semantics error!==undefined with empty fallback to the default copy; invalidateQueries marked void (TanStack v5 Promise); confirm Button uses variant="destructive" — Frozen ConfirmDialog (D-15-07): controlled presentational destructive confirmation with required-reason gate mirroring the server 400 invariant (D-13-10/D-13-16); error semantics error!==undefined with empty fallback to the default copy; invalidateQueries marked void (TanStack v5 Promise); confirm Button uses variant="destructive"
+- [Phase 15-ux-foundation-design-tokens-shared-components]: User-override: @tanstack/react-table pinned at ^9.1.2 (v9, published 2026-08-09) instead of the plan's ^8.21.3 v8 pin — approved at the Task 1 package gate; the DataTable is implemented entirely against the installed v9 API (useTable + tableFeatures slots + table.FlexRender); the plan's no-v9-leak prohibition is inverted to require the v9 surface while the data-lifecycle prohibition still holds; exports DataTableFeatures so consumers type ColumnDef<DataTableFeatures, T>[]
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -182,11 +208,24 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 | Phase 13-direction-backend-the-plan-plane P09 | 6min | 3 tasks | 5 files |
 | Phase 13-direction-backend-the-plan-plane P09 | 6min | 3 tasks | 5 files |
 | Phase 13-direction-backend-the-plan-plane P10 | 18 min | 2 tasks | 5 files |
+| Phase 14-availability-backend-absences-capacity P01 | 90min | 3 tasks | 9 files |
+| Phase 14-availability-backend-absences-capacity P04 | 9min | 2 tasks | 6 files |
+| Phase 14-availability-backend-absences-capacity P03 | 17min | 3 tasks | 10 files |
+| Phase 14-availability-backend-absences-capacity P05 | 30min | 3 tasks | 5 files |
+| Phase 14-availability-backend-absences-capacity P06 | 31min | 3 tasks | 23 files |
+| Phase 14-availability-backend-absences-capacity P07 | 25min | 3 tasks | 14 files |
+| Phase 14-availability-backend-absences-capacity P08 | 11min | 3 tasks | 4 files |
+| Phase 14-availability-backend-absences-capacity P09 | 15min | 3 tasks | 6 files |
+| Phase 14 P11 | 32 | 2 tasks | 7 files |
+| Phase 14-availability-backend-absences-capacity P14-10 | 11min | 2 tasks | 3 files |
+| Phase 15-ux-foundation-design-tokens-shared-components P15-01 | 23min | 3 tasks | 10 files |
+| Phase 15-ux-foundation-design-tokens-shared-components P15-03 | 25min | 3 tasks | 8 files |
+| Phase 15-ux-foundation-design-tokens-shared-components PP15-02 | 31min | 3 tasks | 6 files |
 
 ## Session Continuity
 
-Last session: 2026-08-08T16:04:14.472Z
-Stopped at: Completed 13-10-PLAN.md
+Last session: 2026-08-17T14:00:56.347Z
+Stopped at: Completed 15-02-PLAN.md
 Resume file: None
 Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
 

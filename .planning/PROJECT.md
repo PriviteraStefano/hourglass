@@ -10,7 +10,7 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 
 ## Current State
 
-**Shipped:** v0.1 MVP Consolidation (2026-08-01) — 16 phases, 62 plans, 138 tasks + **Phase 11 v0.2 foundations** (2026-08-07) — 8 plans: origins + sold_hours + tickets backend + **Phase 12 coverage backend** (2026-08-08) — 7 plans: allocation ledger + **Phase 13 direction backend** (2026-08-08) — 10 plans: the plan plane
+**Shipped:** v0.1 MVP Consolidation (2026-08-01) — 16 phases, 62 plans, 138 tasks + **Phase 11 v0.2 foundations** (2026-08-07) — 8 plans: origins + sold_hours + tickets backend + **Phase 12 coverage backend** (2026-08-08) — 7 plans: allocation ledger + **Phase 13 direction backend** (2026-08-08) — 10 plans: the plan plane + **Phase 14 availability backend** (2026-08-12) — 11 plans: absences + capacity
 
 - Full PostgreSQL stack: 24-table schema, 18 repos, testcontainers-go integration tests, ~30 Go package suites green
 - Auth: JWT HttpOnly cookies, refresh-token rotation with reuse detection + family revocation, rate limiting, password reset hardening
@@ -42,7 +42,8 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 
 - [ ] Coverage — allocation ledger per entry, funding sources (contract budget / support bucket / service request / internal absorption / cross-project transfer), to-cover queue, monthly rhythm, snapshot-not-lock (COV-01..05)
 - [x] Direction — the plan plane: scheduled/queued modes, claim model, lifecycle, org policy, direction-coverage read-model (DIR-01..06) — Validated in Phase 13: Direction Backend — The Plan Plane
-- [ ] Availability — employee absences UI + capacity views per activity/WG (AVAIL-01..05)
+- [x] Availability backend — absence declare/confirm/reject lifecycle, HR medical curation, capacity queries over availability_windows (AVAIL-01..02) — Validated in Phase 14: Availability Backend — Absences + Capacity
+- [ ] Availability frontend — employee absences UI + capacity views per activity/WG (AVAIL-04..05)
 - [ ] Surfaces — prototype-driven: allocation screen + to-cover queue, buckets + per-unit report, Today both shapes, direction scheduler (SURF-01..08)
 - [ ] Per-page UX polish — one phase per page, gsd-sketch-driven, folding v0.1 UAT debt (POLS-01..11)
 - [ ] UX foundation — design tokens + shared components + sketch loop contract (UXFD-01..02)
@@ -140,4 +141,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-08-08 after Phase 13 completion (Direction backend — the plan plane)*
+*Last updated: 2026-08-12 after Phase 14 completion (Availability backend — absences + capacity)*

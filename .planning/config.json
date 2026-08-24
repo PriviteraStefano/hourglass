@@ -1,5 +1,19 @@
 {
   "workflow": {
-    "_auto_chain_active": false
+    "_auto_chain_active": false,
+    "research_before_questions": true,
+    "tdd_mode": true,
+    "use_worktrees": true
+  },
+  "model_profile": "adaptive",
+  "git": {
+    "branching_strategy": "phase"
+  },
+  "intel": {
+    "enabled": true
+  },
+  "graphify": {
+    "enabled": true,
+    "auto_update": true
   }
 }

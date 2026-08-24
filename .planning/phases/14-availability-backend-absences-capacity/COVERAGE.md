@@ -1,0 +1,3 @@
+# Phase 14 — API Coverage Declaration
+
+**No external API integration.** Phase 14 builds first-party HTTP endpoints over PostgreSQL (house pattern since Phase 11): the `/availability` REST surface (declare/withdraw/confirm/reject/HR medical edit/certificate attach/org-wide windows read/capacity read/contract-types CRUD) plus the membership-schedule extension on the org endpoint family. Every dependency (Go stdlib net/http 1.22+ ServeMux, pgx v5, google/uuid, testify, testcontainers-go) is already pinned in go.mod by Phases 11–13 — no external API, SDK, or service is integrated, and zero new packages are installed (see 14-RESEARCH.md Package Legitimacy Audit).
