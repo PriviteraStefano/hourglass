@@ -82,8 +82,12 @@ func (rl *RateLimiter) allow(key string, limit int) bool {
 	}
 
 	info.count++
-	if limit > info.limit {
-		info.limit = limit
-	}
-	return info.count <= info.limit
+	// The limit for the current request is the limit of the CURRENT request's
+	// tier, recomputed per request. We must NOT permanently inflate the stored
+	// limit to the highest tier ever seen in the window: doing so would let a
+	// key keep an elevated limit after reverting to a lower tier (e.g. an
+	// anonymous client that briefly presented an auth tier). The window's
+	// count is cumulative, but each request is judged against its own tier.
+	info.limit = limit
+	return info.count <= limit
 }

@@ -157,3 +157,30 @@ func TestRateLimit_AnonymousThenAuthenticated_RatchetsLimitUp(t *testing.T) {
 		t.Error("request 6 (authenticated, limit 5): expected rejected (count 6 > limit 5), got allowed")
 	}
 }
+
+// TestRateLimit_NoPermanentLimitInflation is a regression test for the
+// "permanent limit inflation" bug: a key that briefly presents a higher
+// (authenticated) tier must NOT keep that inflated limit after reverting to
+// the anonymous tier. Subsequent anonymous requests are limited by the
+// anonymous tier, not the previously-seen higher tier.
+func TestRateLimit_NoPermanentLimitInflation(t *testing.T) {
+	limiter := NewRateLimiter(2, 5)
+	const key = "ip:192.168.1.1"
+
+	// 1st request opens the window at the anonymous limit (2).
+	if !limiter.allow(key, 2) {
+		t.Fatal("request 1 (anonymous, limit 2): expected allowed")
+	}
+
+	// A transient higher-tier (authenticated) request arrives.
+	if !limiter.allow(key, 5) {
+		t.Fatal("request 2 (authenticated, limit 5): expected allowed")
+	}
+
+	// Reverting to anonymous: the 3rd request (count=3) must be judged
+	// against the anonymous limit (2), not the previously-seen higher tier
+	// (5). count 3 > 2 => rejected.
+	if limiter.allow(key, 2) {
+		t.Error("request 3 (anonymous, limit 2): expected rejected after reverting from higher tier; stored limit must not stay inflated at 5")
+	}
+}
