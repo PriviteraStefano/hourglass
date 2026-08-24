@@ -271,6 +271,7 @@ func main() {
 	mux.HandleFunc("PUT /time-entries/{id}/allocations", middleware.Auth(authService, coverageHandler.PutAllocations))
 	mux.HandleFunc("GET /time-entries/{id}/allocations", middleware.Auth(authService, coverageHandler.GetAllocations))
 	mux.HandleFunc("GET /coverage/proposals/{entry_id}", middleware.Auth(authService, coverageHandler.GetProposal))
+	mux.HandleFunc("GET /coverage/own/{entry_id}", middleware.Auth(authService, coverageHandler.GetOwn))
 	mux.HandleFunc("GET /coverage/to-cover", middleware.Auth(authService, coverageHandler.GetToCoverQueue))
 	mux.HandleFunc("GET /coverage/buckets/{contract_id}/balance", middleware.Auth(authService, coverageHandler.GetBucketBalance))
 	mux.HandleFunc("POST /coverage/close", middleware.Auth(authService, coverageHandler.PostClose))

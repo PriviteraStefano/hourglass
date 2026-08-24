@@ -263,6 +263,75 @@ func TestService_Propose(t *testing.T) {
 // TestService_ToCoverQueue
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// TestService_GetOwnCoverage — the employee self-read path (Phase 16, Task 1)
+// ---------------------------------------------------------------------------
+
+func TestService_GetOwnCoverage(t *testing.T) {
+	orgID := uuid.New()
+	owner := uuid.New()
+	otherUser := uuid.New()
+
+	t.Run("employee reads their own entry's coverage", func(t *testing.T) {
+		f := setupCoverage(t)
+		e := f.seedEntry(orgID, func(e *time_entrydomain.TimeEntry) {
+			e.UserID = owner
+			e.ActivityID = uuid.New()
+			e.Hours = 8
+		})
+		contractID := uuid.New()
+		project := "project"
+		f.activityRepo.ResolveFundingContextFn = func(ctx context.Context, activityID uuid.UUID) (*activitydomain.FundingContext, error) {
+			return &activitydomain.FundingContext{ContractID: &contractID, ContractType: &project, SoldHours: f64(40)}, nil
+		}
+		f.repo.Allocations = map[uuid.UUID][]*coverage.CoverageAllocation{
+			e.ID: {{ID: uuid.New(), OrgID: orgID, EntryType: coverage.EntryTypeTime, EntryID: e.ID, SourceType: coverage.SourceTypeContract, ContractID: &contractID, Hours: 8}},
+		}
+
+		proposal, allocs, err := f.svc.GetOwnCoverage(context.Background(), orgID, e.ID, owner.String())
+		require.NoError(t, err)
+		require.NotNil(t, proposal)
+		assert.Equal(t, coverage.SourceTypeContract, proposal.SourceType)
+		assert.Equal(t, 8.0, proposal.Hours)
+		assert.Len(t, allocs, 1)
+	})
+
+	t.Run("employee is forbidden from reading another user's entry", func(t *testing.T) {
+		f := setupCoverage(t)
+		e := f.seedEntry(orgID, func(e *time_entrydomain.TimeEntry) {
+			e.UserID = owner
+			e.ActivityID = uuid.New()
+		})
+
+		_, _, err := f.svc.GetOwnCoverage(context.Background(), orgID, e.ID, otherUser.String())
+		require.ErrorIs(t, err, coverage.ErrForbidden)
+	})
+
+	t.Run("cross-org entry is not coverable", func(t *testing.T) {
+		f := setupCoverage(t)
+		e := f.seedEntry(uuid.New(), func(e *time_entrydomain.TimeEntry) {
+			e.UserID = owner
+		})
+
+		_, _, err := f.svc.GetOwnCoverage(context.Background(), orgID, e.ID, owner.String())
+		require.ErrorIs(t, err, coverage.ErrEntryNotCoverable)
+	})
+
+	t.Run("manager|finance read behavior is unchanged (Propose still gated)", func(t *testing.T) {
+		f := setupCoverage(t)
+		e := f.seedEntry(orgID, func(e *time_entrydomain.TimeEntry) {
+			e.UserID = owner
+			e.ActivityID = uuid.New()
+		})
+
+		// Propose still requires manager|finance and is unaffected.
+		_, _, err := f.svc.Propose(context.Background(), orgID, e.ID, "employee", uuid.New().String())
+		require.ErrorIs(t, err, coverage.ErrForbidden)
+		_, _, err = f.svc.Propose(context.Background(), orgID, e.ID, "manager", owner.String())
+		require.NoError(t, err)
+	})
+}
+
 func TestService_ToCoverQueue(t *testing.T) {
 	orgID := uuid.New()
 

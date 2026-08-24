@@ -154,6 +154,32 @@ func (h *CoverageHandler) GetAllocations(w http.ResponseWriter, r *http.Request)
 	api.RespondWithJSON(w, http.StatusOK, allocs)
 }
 
+// GetOwn handles GET /coverage/own/{entry_id}: the employee self-read path
+// (Phase 16). The caller may only read coverage on an entry they own; the
+// service enforces the self-scope + org gate, so this never widens the
+// manager|finance read paths.
+func (h *CoverageHandler) GetOwn(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	orgID := middleware.GetOrganizationID(ctx)
+	userID := middleware.GetUserID(ctx)
+
+	entryID, err := uuid.Parse(r.PathValue("entry_id"))
+	if err != nil {
+		api.RespondWithError(w, http.StatusBadRequest, "invalid entry id")
+		return
+	}
+
+	proposal, allocs, err := h.service.GetOwnCoverage(ctx, orgID, entryID, userID.String())
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	api.RespondWithJSON(w, http.StatusOK, map[string]any{
+		"proposal":    proposal,
+		"allocations": allocs,
+	})
+}
+
 // GetProposal handles GET /coverage/proposals/{entry_id}: the computed-on-
 // read D-04 default proposal (D-I) plus the entry's current allocations.
 func (h *CoverageHandler) GetProposal(w http.ResponseWriter, r *http.Request) {
