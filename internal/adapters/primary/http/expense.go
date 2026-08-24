@@ -494,6 +494,8 @@ func (h *ExpenseHandler) ListPending(w http.ResponseWriter, r *http.Request) {
 func (h *ExpenseHandler) ReceiptUpload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	orgID := middleware.GetOrganizationID(ctx)
+	userID := middleware.GetUserID(ctx)
+	role := middleware.GetRole(ctx)
 	expenseIDStr := r.PathValue("id")
 
 	expenseID, err := uuid.Parse(expenseIDStr)
@@ -549,10 +551,14 @@ func (h *ExpenseHandler) ReceiptUpload(w http.ResponseWriter, r *http.Request) {
 	receiptURL := filepath.Join("uploads", "receipts", orgID.String(), expenseID.String(), filename)
 
 	// Update expense with receipt URL via service
-	e, err := h.service.SetReceiptURL(ctx, expenseID, receiptURL)
+	e, err := h.service.SetReceiptURL(ctx, orgID, userID, role, expenseID, receiptURL)
 	if err != nil {
 		if err == expense.ErrExpenseNotFound {
 			api.RespondWithError(w, http.StatusNotFound, "expense not found")
+			return
+		}
+		if err == expense.ErrForbidden {
+			api.RespondWithError(w, http.StatusForbidden, "can only manage receipts for own expenses or as manager/finance")
 			return
 		}
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to update receipt url")

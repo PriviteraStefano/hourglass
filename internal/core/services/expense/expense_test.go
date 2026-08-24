@@ -749,6 +749,80 @@ func TestExpenseService_Reject(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// TestExpenseService_SetReceiptURL_Authorization — Phase 16-01 integrity repair
+// ---------------------------------------------------------------------------
+
+func TestExpenseService_SetReceiptURL_Authorization(t *testing.T) {
+	orgID := uuid.New()
+	ownerID := uuid.New()
+	receiptURL := "uploads/receipts/" + uuid.New().String() + ".pdf"
+
+	t.Run("owner in same org succeeds", func(t *testing.T) {
+		f := setupService(t)
+		e := f.seedExpense(func(ex *expense.Expense) {
+			ex.OrgID = orgID
+			ex.UserID = ownerID
+		})
+
+		updated, err := f.svc.SetReceiptURL(context.Background(), orgID, ownerID, "employee", e.ID, receiptURL)
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+		require.NotNil(t, updated.ReceiptURL)
+		assert.Equal(t, receiptURL, *updated.ReceiptURL)
+	})
+
+	t.Run("manager in same org succeeds", func(t *testing.T) {
+		f := setupService(t)
+		e := f.seedExpense(func(ex *expense.Expense) {
+			ex.OrgID = orgID
+			ex.UserID = ownerID
+		})
+
+		updated, err := f.svc.SetReceiptURL(context.Background(), orgID, uuid.New(), "manager", e.ID, receiptURL)
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+		assert.Equal(t, receiptURL, *updated.ReceiptURL)
+	})
+
+	t.Run("finance in same org succeeds", func(t *testing.T) {
+		f := setupService(t)
+		e := f.seedExpense(func(ex *expense.Expense) {
+			ex.OrgID = orgID
+			ex.UserID = ownerID
+		})
+
+		updated, err := f.svc.SetReceiptURL(context.Background(), orgID, uuid.New(), "finance", e.ID, receiptURL)
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+		assert.Equal(t, receiptURL, *updated.ReceiptURL)
+	})
+
+	t.Run("non-owner employee in same org is forbidden", func(t *testing.T) {
+		f := setupService(t)
+		e := f.seedExpense(func(ex *expense.Expense) {
+			ex.OrgID = orgID
+			ex.UserID = ownerID
+		})
+
+		updated, err := f.svc.SetReceiptURL(context.Background(), orgID, uuid.New(), "employee", e.ID, receiptURL)
+		assert.ErrorIs(t, err, expense.ErrForbidden)
+		assert.Nil(t, updated)
+	})
+
+	t.Run("wrong org is not found (no existence leak)", func(t *testing.T) {
+		f := setupService(t)
+		e := f.seedExpense(func(ex *expense.Expense) {
+			ex.OrgID = orgID
+			ex.UserID = ownerID
+		})
+
+		updated, err := f.svc.SetReceiptURL(context.Background(), uuid.New(), ownerID, "employee", e.ID, receiptURL)
+		assert.ErrorIs(t, err, expense.ErrExpenseNotFound)
+		assert.Nil(t, updated)
+	})
+}
+
+// ---------------------------------------------------------------------------
 // TestExpenseService_ListPending — R-4 visibility pass-through
 // ---------------------------------------------------------------------------
 
