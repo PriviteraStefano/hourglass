@@ -35,7 +35,7 @@
 - [x] **Phase 13: Direction Backend** - Plan plane: direction entity, lifecycle, claim model, org policy, coverage read-model; ADR-P-015 + BE encoding (completed 2026-08-08)
 - [x] **Phase 14: Availability Backend** - Absence declare/confirm/reject + capacity queries over availability_windows (completed 2026-08-12)
 - [ ] **Phase 15: UX Foundation** - Design tokens + shared components frozen; sketch loop contract established
-- [ ] **Phase 16: Availability Frontend** - Absence calendars + capacity grid in People pillar
+- [x] **Phase 16: Integrity Repair** - Repair-only backend close: own-coverage read, expense unit_id + receipt auth, WR-05 capacity org-isolation, two rate-limiter defects
 - [ ] **Phase 17: Coverage Surfaces** - Week-1 allocation screen, to-cover queue, own-coverage, buckets, per-unit report (4a+4b)
 - [ ] **Phase 18: Today + Tickets Surfaces** - Today both shapes + tickets surface in Track/Today (4c)
 - [ ] **Phase 19: Direction Surfaces** - Scheduler calendar + direction queue + coverage read-model (4d)
@@ -242,20 +242,27 @@ Plans:
 
 **UI hint**: yes
 
-### Phase 16: Availability Frontend
+### Phase 16: Integrity Repair
 
-**Goal**: Availability and capacity are usable surfaces in the People pillar: absence request/confirm UI, personal + team/org calendars, and a custom date-fns/Tailwind capacity grid per activity/WG (AVAIL-03/04/05).
-**Depends on**: Phase 14 (backend), Phase 15 (tokens)
-**Requirements**: AVAIL-03, AVAIL-04, AVAIL-05
+**Goal**: Repair-only close of v0.2 — land the Phase 12 leftovers (employee own-coverage read, two unrun smokes) and the selected Known Bugs (expense `unit_id`, receipt auth, WR-05 capacity org-isolation, two rate-limiter defects). No UI, no Availability Frontend, no sketch.
+**Depends on**: Phase 12 (coverage backend), Phase 14 (availability backend)
+**Requirements**: (none newly mapped — repair-only)
 **Success Criteria** (what must be TRUE):
 
-  1. Employee can request an absence from the UI and view personal + team/org absence calendars (AVAIL-03)
-  2. Manager/HR can confirm or reject absences from the UI with distinct status badges (declared → confirmed/rejected) (UI half of AVAIL-02)
-  3. Manager can view capacity per activity/WG as a capacity-vs-workload grid (custom date-fns + Tailwind, not a calendar library) (AVAIL-04)
-  4. Availability and capacity entries appear in the People pillar sidebar with role-scoped visibility (AVAIL-05)
+  1. Employee can read coverage allocations on their own entries (self-scoped, no manager/finance grant)
+  2. POST /expenses persists the requested `unit_id` (previously dropped)
+  3. `SetReceiptURL` refuses writes when actor/org is not authorized (→ 403)
+  4. Capacity unit/WG scope IDs are organization-isolated (WR-05 closed)
+  5. Rate limiter stored limit is not permanently raised to the highest tier seen in the window
+  6. Anonymous traffic behind a proxy is not collapsed into one shared bucket
+  7. Phase 12 multi-row allocation + concurrent period-close smokes executed and recorded (or explicitly waived with evidence)
+  8. No UI / sketch / new endpoints beyond the repaired paths
 
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 1/1 plans executed
+
+- [x] 16-01-PLAN.md
+
+**UI hint**: no
 
 ### Phase 17: Coverage Surfaces — Allocation Screen + Buckets + Reports (4a+4b)
 
@@ -420,7 +427,7 @@ Plans:
 | 13. Direction Backend | v0.2 | 10/10 | Complete    | 2026-08-08 |
 | 14. Availability Backend | v0.2 | 11/11 | Complete    | 2026-08-12 |
 | 15. UX Foundation | v0.2 | 0/4 | Not started | - |
-| 16. Availability FE | v0.2 | 0/TBD | Not started | - |
+| 16. Availability FE | v0.2 | 1/1 | In Progress|  |
 | 17. Coverage Surfaces | v0.2 | 0/TBD | Not started | - |
 | 18. Today+Tickets Surfaces | v0.2 | 0/TBD | Not started | - |
 | 19. Direction Surfaces | v0.2 | 0/TBD | Not started | - |
