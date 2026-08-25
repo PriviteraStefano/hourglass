@@ -7,7 +7,7 @@ status: completed
 stopped_at: Completed 16-01-PLAN.md
 last_updated: "2026-08-24T21:55:54.512Z"
 last_activity: 2026-08-25
-last_activity_desc: Completed quick task 260825-untrack-binaries — untrack binaries (#17); #16 covered by #7; remaining #10 #18 #19 #20
+last_activity_desc: Completed quick task 260825-remove-api-version — removed decorative APIVersion middleware
 progress:
   total_phases: 16
   completed_phases: 6
@@ -178,7 +178,7 @@ None new. See `.planning/todos/` for captured ideas.
 | 260825-server-timeouts | Add HTTP timeouts + graceful shutdown (CONCERNS #14) | 2026-08-25 | 815812b | [260825-server-timeouts](./quick/260825-server-timeouts/) |
 | 260825-db-pool-size | Configure pgxpool MaxConns from DB_MAX_CONNS (default 20) (CONCERNS #15) | 2026-08-25 | beeed42 | [260825-db-pool-size](./quick/260825-db-pool-size/) |
 | 260825-untrack-binaries | Untrack compiled server/migrate binaries from git (CONCERNS #17) | 2026-08-25 | 9cd1c8c | [260825-untrack-binaries](./quick/260825-untrack-binaries/) |
-| 260825-remove-api-version | Remove decorative APIVersion middleware (versioning concern) | 2026-08-25 | (see commit) | [260825-remove-api-version](./quick/260825-remove-api-version/) |
+| 260825-remove-api-version | Remove decorative APIVersion middleware (versioning concern) | 2026-08-25 | 0f423a7 | [260825-remove-api-version](./quick/260825-remove-api-version/) |
 
 ## Deferred Items
 
