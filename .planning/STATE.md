@@ -171,6 +171,7 @@ None new. See `.planning/todos/` for captured ideas.
 | 260825-no-error-leak | Stop leaking internal error strings to clients in auth handlers (CONCERNS #6) | 2026-08-25 | f4ee220 | [260825-no-error-leak](./quick/260825-no-error-leak/) |
 | 260825-export-streaming | Bound export memory — range cap, CSV/XLSX streaming, drop in-memory sort (CONCERNS #7) | 2026-08-25 | 8fe6a74 | [260825-export-streaming](./quick/260825-export-streaming/) |
 | 260825-body-size-limit | Add MaxBody middleware capping JSON request bodies (CONCERNS #8) | 2026-08-25 | 92e3b1a | [260825-body-size-limit](./quick/260825-body-size-limit/) |
+| 260825-ratelimit-evict | Evict expired rate-limiter entries to stop the map memory leak (CONCERNS #9) | 2026-08-25 | (see commit) | [260825-ratelimit-evict](./quick/260825-ratelimit-evict/) |
 
 ## Deferred Items
 

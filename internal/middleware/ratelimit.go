@@ -15,6 +15,7 @@ type RateLimiter struct {
 	authLimit      int
 	requests       map[string]*clientInfo
 	mu             sync.RWMutex
+	evictStop      chan struct{}
 }
 
 type clientInfo struct {
@@ -23,11 +24,43 @@ type clientInfo struct {
 	limit     int
 }
 
+// evictInterval controls how often expired client entries are reclaimed.
+const evictInterval = time.Minute
+
 func NewRateLimiter(anonymousLimit, authLimit int) *RateLimiter {
-	return &RateLimiter{
+	rl := &RateLimiter{
 		anonymousLimit: anonymousLimit,
 		authLimit:      authLimit,
 		requests:       make(map[string]*clientInfo),
+		evictStop:      make(chan struct{}),
+	}
+	go rl.sweep()
+	return rl
+}
+
+// sweep periodically removes client entries whose window has expired so the
+// requests map cannot grow unbounded (CONCERNS.md #9).
+func (rl *RateLimiter) sweep() {
+	ticker := time.NewTicker(evictInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-rl.evictStop:
+			return
+		case <-ticker.C:
+			rl.evictExpired()
+		}
+	}
+}
+
+func (rl *RateLimiter) evictExpired() {
+	now := time.Now()
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	for k, info := range rl.requests {
+		if now.After(info.windowEnd) {
+			delete(rl.requests, k)
+		}
 	}
 }
 
