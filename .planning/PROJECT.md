@@ -10,15 +10,19 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 
 ## Current State
 
-**Shipped:** v0.1 MVP Consolidation (2026-08-01) — 16 phases, 62 plans, 138 tasks + **Phase 11 v0.2 foundations** (2026-08-07) — 8 plans: origins + sold_hours + tickets backend + **Phase 12 coverage backend** (2026-08-08) — 7 plans: allocation ledger + **Phase 13 direction backend** (2026-08-08) — 10 plans: the plan plane + **Phase 14 availability backend** (2026-08-12) — 11 plans: absences + capacity
+**Shipped:** v0.1 MVP Consolidation (2026-08-01) — 16 phases, 62 plans, 138 tasks + **v0.2 Ontology Extension** (2026-08-25) — 6 phases, 41 plans, 108 tasks: origins + tickets, coverage ledger, direction plane, availability backend, UX foundation, integrity repair. Route-oriented Phases 17–26 cancelled unbuilt.
 
-- Full PostgreSQL stack: 24-table schema, 18 repos, testcontainers-go integration tests, ~30 Go package suites green
-- Auth: JWT HttpOnly cookies, refresh-token rotation with reuse detection + family revocation, rate limiting, password reset hardening
+- Full PostgreSQL stack: append-only migrations through 025, testcontainers-go integration tests, Go package suites green
+- Auth: JWT HttpOnly cookies, refresh-token rotation with reuse detection + family revocation, rate limiting, password reset hardening; Phase 16 closed two limiter defects (tier-limit inflation, proxy-aware anonymous buckets)
 - Org hierarchy: ReactFlow tree, unit CRUD, member management, edge-driven reparenting, delete protection
-- Customers (incl. internal customers), Contracts, Exports (CSV/XLSX)
-- **Activity ontology** (Phase 9): recursive `activities` table replaces projects/subprojects; commercial context + billability resolved via CTE; approval routing via activity → WG → manager/delegate
+- Customers (incl. internal customers), Contracts (incl. `sold_hours`), Exports (CSV/XLSX)
+- **Activity ontology** (Phase 9): recursive `activities` table; commercial context + billability via CTE; approval routing via activity → WG → manager/delegate
+- **Three-plane ontology** (v0.2): direction (plan) → facts (entries) → coverage (money label). Origins on activities; tickets first-class internal-only; coverage allocation ledger with Σ invariant; direction per-day rows + claim model
+- **Availability backend** (Phase 14): absence declare/confirm/reject, HR medical curation, capacity queries, work-schedule model
 - **Information architecture** (Phase 10): pillar sidebar (Today/Track/Work/People/Economics/Review/Reports/Admin), role-scoped visibility, Today landing, `/approvals` queue, Working Groups surface
-- Frontend: React 19, TanStack Router + Query v5, shadcn/ui, Tailwind; Playwright e2e + Vitest suites green
+- **UX foundation** (Phase 15): semantic status tokens, frozen shared components (PageHeader, FilterBar, DataTable v9, StatusBadge, EmptyState, ConfirmDialog), sketch-loop contract (stale applies-to 16–26 — amend in v0.2.1 if still ambiguous)
+- Frontend: React 19, TanStack Router + Query v5, shadcn/ui, Tailwind; Playwright e2e + Vitest suites
+- Integrity repair (Phase 16): employee own-coverage read, expense `unit_id` persistence, receipt-upload authorization, WR-05 capacity org-isolation
 
 ## Requirements
 
@@ -33,20 +37,26 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 - ✓ Filterable list views, `/customers` index, route error boundaries (P0-2/3/4) — v0.1
 - ✓ Working Groups surface (list/search/create/edit/members) — v0.1
 - ✓ Today landing + Approvals queue (stage-filtered Manager/Finance) — v0.1
-- ✓ Origins on activities — type + reference set (manager-assignment / employee-proposal / customer-ticket), proposal approval via activity routing (FND-01..04) — Validated in Phase 11: Foundations — Schema + Origins + Tickets backend
-- ✓ Tickets — first-class, internal-only: lifecycle + triage + reopen, kinds question/bug/change/evolution, ticket→activity→entries chain, concurrency-safe dismissal guard + server-rendered hours note (TICK-01..05) — Validated in Phase 11: Foundations — Schema + Origins + Tickets backend
+- ✓ Origins on activities — type + reference set (manager-assignment / employee-proposal / customer-ticket), proposal approval via activity routing (FND-01..04) — v0.2 Phase 11
+- ✓ Tickets — first-class, internal-only: lifecycle + triage + reopen, kinds question/bug/change/evolution, ticket→activity→entries chain, concurrency-safe dismissal guard + server-rendered hours note (TICK-01..05) — v0.2 Phase 11
+- ✓ Coverage — allocation ledger per entry, five funding sources, to-cover queue, proposals-on-read, one-step manager confirm, snapshot-not-lock (COV-01..05) — v0.2 Phase 12
+- ✓ Direction — the plan plane: scheduled/queued modes, claim model, lifecycle, org policy, direction-coverage read-model (DIR-01..06) — v0.2 Phase 13
+- ✓ Availability backend — absence declare/confirm/reject lifecycle, HR medical curation, capacity queries over availability_windows (AVAIL-01..02) — v0.2 Phase 14
+- ✓ UX foundation tokens + frozen shared components (UXFD-01) — v0.2 Phase 15
+- ✓ Integrity repair — own-coverage read, expense `unit_id`, receipt auth, WR-05, rate-limiter defects — v0.2 Phase 16
 
 ### Active
 
-<!-- Current scope: v0.2 Ontology Extension — Origins, Tickets & Coverage + Direction. Detailed REQ-IDs in REQUIREMENTS.md. -->
+<!-- Next milestone: v0.2.1 contract-first presentation. Fresh REQUIREMENTS.md is created by /gsd-new-milestone. Do not copy v0.2 SURF/POLS/route requirements blindly. -->
 
-- [ ] Coverage — allocation ledger per entry, funding sources (contract budget / support bucket / service request / internal absorption / cross-project transfer), to-cover queue, monthly rhythm, snapshot-not-lock (COV-01..05)
-- [x] Direction — the plan plane: scheduled/queued modes, claim model, lifecycle, org policy, direction-coverage read-model (DIR-01..06) — Validated in Phase 13: Direction Backend — The Plan Plane
-- [x] Availability backend — absence declare/confirm/reject lifecycle, HR medical curation, capacity queries over availability_windows (AVAIL-01..02) — Validated in Phase 14: Availability Backend — Absences + Capacity
-- [ ] Availability frontend — employee absences UI + capacity views per activity/WG (AVAIL-04..05)
-- [ ] Surfaces — prototype-driven: allocation screen + to-cover queue, buckets + per-unit report, Today both shapes, direction scheduler (SURF-01..08)
-- [ ] Per-page UX polish — one phase per page, gsd-sketch-driven, folding v0.1 UAT debt (POLS-01..11)
-- [ ] UX foundation — design tokens + shared components + sketch loop contract (UXFD-01..02)
+- [ ] Design-language contract
+- [ ] Chrome contract
+- [ ] Five role contracts: Employee, Manager, Finance, HR, Customer (Customer may conclude “no app surface”; customer portal out of scope)
+- [ ] One cross-role composition map (org tree belongs here as manager/HR composition, not Admin/Settings)
+- [ ] Reconcile/amend sketch-loop contract only if ambiguity remains after the contracts + map
+- [ ] Implement by job cluster, not current route/page structure — do not recreate Phases 17–26
+
+Historical v0.2 presentation leftovers (TICK-06, AVAIL-03..05, UXFD-02, SURF-01..08, POLS-01..11) are archived in `.planning/milestones/v0.2-REQUIREMENTS.md` as job-shaped **inputs**, not live route work.
 
 ### Out of Scope
 
@@ -63,7 +73,9 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 - Estimate-accuracy analytics (V5) — v0.2 stores the raw material (sold_hours + actuals); mining is V5
 - Warranty certification flow — warranty is declared at allocation time; the warranty-cost report is the control (D-H/D-C)
 - Full budget machinery — rates, money, per-activity estimates (ADR-P-010, V4); only `sold_hours` on contracts lands in v0.2 (D-N)
-- Customer-facing ticket portal — tickets are internal-only (D-E)
+- Customer-facing ticket portal — tickets are internal-only (D-E); v0.2.1 Customer contract may conclude “no app surface”
+- Admin/Settings work — out of v0.2.1 scope
+- Recreating deleted route-oriented Phases 17–26 — presentation is job-cluster, contract-first
 - SLA engine / escalation chains / email ingestion / KB — anti-features for v0.2, ITSM creep
 - Plan-adherence per-day-per-person metrics — aggregate-only per-period (D-U), never a surveillance number
 - Per-customer request counts for billing — billing story superseded by coverage allocations; request counts deferred
@@ -73,7 +85,7 @@ Role-based approval workflows (employee → manager → finance) with hierarchic
 
 Hourglass was originally built on SurrealDB; v0.1 fully ported to PostgreSQL (Phases Pg-1/Pg-2/Pg-3, ~7,300 lines deleted) and rebuilt the test infrastructure on testcontainers-go. The big-bang activity ontology migration (Phase 9) replaced the projects/subprojects model with a recursive activities tree; all approval routing was rewritten onto the activity chain. v0.1 shipped the Information Architecture phase (Phase 10) with the demo deployment topology documented (Compose + Caddy + cloudflared, ADR-BE-015).
 
-Known debt at close: 25 pending UAT scenarios, 3 human verification reviews, 2 quick tasks with unknown status — deferred to next milestone (see STATE.md).
+v0.2 closed 2026-08-25 with 4 acknowledged audit leftovers (see STATE.md Deferred Items). Route-oriented Phases 17–26 were cancelled unbuilt. Presentation continues in v0.2.1 as contract-first job clusters.
 
 **v0.2 ontology research round (2026-08-01/02):** a domain walkthrough surfaced two gaps in the accepted activity ontology (ADR-P-007): *origins* (where demand came from) and *coverage* (who pays). The research extended the model to three orthogonal planes — **direction** (the plan, mutable, manager/self-owned) → **facts** (time entries, immutable after approval) → **coverage** (the money label, mutable, snapshot-protected) — with the cardinal principle "the plan/decision never rewrites the fact". All decisions D-A…D-AA are closed; the vault note (`hourglass-vault/research/2026-08-01 — Origins, Tickets & Coverage — Ontology Extension Research.md`) is the record of truth. Formal ADRs (P-003 rev, P-013, P-014, P-015) are deferred and written as phases land; ADR-P-012 (coverage ledger) is drafted (Proposed) in the vault. No legacy-data migration is needed — Hourglass has never been deployed (P-007 D-6 big-bang landed pre-deploy).
 
@@ -84,7 +96,7 @@ Known debt at close: 25 pending UAT scenarios, 3 human verification reviews, 2 q
 - **[Auth]**: JWT in HttpOnly cookies (auth_token/refresh_token), bcrypt password hashing, strict reuse model with family revocation
 - **[Architecture]**: Hexagonal — services in `internal/core/services/*`, HTTP adapters in `internal/adapters/primary/http/*`, PostgreSQL adapters in `internal/adapters/secondary/postgres/*`
 - **[Domain]**: Captured effort is a fact, coverage is a decision, direction is a plan — the decision/plan never rewrites the fact (Σ allocations = entry hours; deviations are data, not violations)
-- **[UI]**: UI-last in v0.2 — all new surfaces are prototype-driven (gsd-sketch) against the complete backend; D-O IA leans validated in prototypes before any P-011 revision
+- **[UI]**: v0.2.1 is contract-first — design-language, chrome, five role contracts, then one composition map, then sketch, then implement by job cluster. Sketching does not precede contracts. Do not implement before the contract/map sequence is settled. D-O IA leans are inputs, not a P-011 revision until prototypes land.
 
 ## Key Decisions
 
@@ -105,22 +117,18 @@ Known debt at close: 25 pending UAT scenarios, 3 human verification reviews, 2 q
 | Coverage allocation ledger (P-012) | 4+4 split applied by editing entries would corrupt actual-effort truth; allocations are money-labeling with Σ invariant + to-cover queue | ✓ Good |
 | Tickets first-class, internal-only (P-003 rev) | Demand tracking (not task execution); ticket→activity→entries chain preserves single-FK capture (P-007 D-4); external intake is a future port | ✓ Good |
 | Direction in v0.2 ontology, build staged (P-015) | Retrofit after v0.2 would destroy drafted ADRs; additive pre-deploy big-bang, same logic as P-007 D-6 | ✓ Good |
-| Contracts carry `sold_hours` (D-N) | "Sold 4h, took 8h → next time sell 16" needs explicit sold figure; richer budget machinery stays at V4 (P-010) | — Pending |
+| Contracts carry `sold_hours` (D-N) | "Sold 4h, took 8h → next time sell 16" needs explicit sold figure; richer budget machinery stays at V4 (P-010) | ✓ Good |
 | ADRs deferred to phase landing | Pre-deploy, the only ADR consumer is the build process itself (Stefano's call) | ✓ Good |
 | Coverage allocations editable indefinitely (D-F) | Cutoff is a reporting snapshot, not a lock; realism over enforcement | ✓ Good |
+| v0.2.1 is contract-first job clusters, not route phases | Route-oriented Phases 17–26 would have implemented pages; presentation must be designed as jobs per role, then composed | — Pending |
 
-## Current Milestone: v0.2 Ontology Extension — Origins, Tickets & Coverage + Direction
+## Current Milestone: v0.2 archived — next is v0.2.1
 
-**Goal:** Extend the activity ontology into the three-plane model (direction → facts → coverage): tickets as the second capture layer with triage, origins on activities, coverage allocations with funding sources, and the direction plan plane — then surface them prototype-driven, and finish with per-page polish folding v0.1 UAT debt.
+**Shipped v0.2 goal (complete):** Extend the activity ontology into the three-plane model (direction → facts → coverage) server-side, freeze UX foundation tokens/components, and close integrity leaks. Presentation was **not** shipped as route/page phases.
 
-**Target features:**
-- Tickets: first-class, internal-only, lifecycle + triage + reopen, kinds question/bug/change/evolution, ticket→activity→entries chain, dismissal guard
-- Origins: activity carries origin type + reference set (assigned_by/assigned_to · proposed_by/reviewed_by · ticket_id), proposal approval via activity routing
-- Coverage: per-entry allocation ledger, funding sources (contract budget, support bucket, zero-value service request, internal absorption, cross-project transfer), to-cover queue, monthly rhythm, one-step manager confirm, snapshot-not-lock
-- Direction: scheduled/queued modes, claim model, lifecycle draft→active→superseded/cancelled, org policy, P-008 absence warnings, direction-coverage read-model
-- Availability: absences + capacity views (kept from original v0.2 scope)
-- Surfaces: prototype-driven — allocation screen + to-cover queue + own-coverage, buckets + per-unit non-billed report, Today both shapes, direction scheduler
-- Trailing: 7 per-page UX polish phases folding v0.1 UAT/verification debt
+**Next milestone (v0.2.1) — not yet initialized:** Contract-first presentation by job cluster. Sequence: design-language contract → chrome contract → five role contracts (Employee, Manager, Finance, HR, Customer) → one cross-role composition map → amend sketch-loop contract only if still ambiguous → sketch → implement by job cluster. No Admin/Settings. No customer portal. Do not recreate Phases 17–26. Do not implement before the contract/map sequence is settled.
+
+Start with `/gsd-new-milestone`.
 
 ## Evolution
 
@@ -141,4 +149,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-08-12 after Phase 14 completion (Availability backend — absences + capacity)*
+*Last updated: 2026-08-25 after v0.2 milestone close*

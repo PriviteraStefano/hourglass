@@ -4,35 +4,34 @@ milestone: v0.2
 milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
 current_phase: 16
 status: completed
-stopped_at: Completed 16-01-PLAN.md
-last_updated: "2026-08-24T21:55:54.512Z"
+stopped_at: v0.2 milestone completed and archived
+last_updated: "2026-08-25T19:23:40.632Z"
 last_activity: 2026-08-25
-last_activity_desc: Completed quick task 260825-remove-api-version — removed decorative APIVersion middleware
+last_activity_desc: v0.2 milestone completed and archived
 progress:
-  total_phases: 16
+  total_phases: 6
   completed_phases: 6
   total_plans: 41
   completed_plans: 41
-  percent: 38
-current_phase_name: ux-foundation-design-tokens-shared-components
+  percent: 100
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-02)
+See: .planning/PROJECT.md (updated 2026-08-25)
 
 **Core value:** Role-based approval workflows (employee → manager → finance) with hierarchical organization structures, contract/activity management, and export capabilities.
 
-**Current focus:** Phase 15 — ux-foundation-design-tokens-shared-components
+**Current focus:** v0.2 archived. Next: v0.2.1 contract-first presentation (job clusters). Do not recreate Phases 17–26.
 
 ## Current Position
 
-Phase: 16 — COMPLETE
-Plan: 4 of 4
-Status: Phase 16 complete
-Last activity: 2026-08-24 — Phase 16 marked complete
+Phase: Milestone v0.2 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-08-25 — Milestone v0.2 completed and archived
 
 ## Accumulated Context
 
@@ -148,14 +147,14 @@ Only proposed_by is required for employee proposals (research OQ1)
 - **Phase 11:** BE schema shape for origins refs (nullable FK columns vs EAV) and origin-refs validation rules; ticket tables shape (status vocabulary + kind-transition matrix); `sold_hours` column semantics (per what period? total contract?). ADR-P-003 rev + P-013 drafted here.
 - **Phase 12:** Funding-source polymorphic shape (tagged union vs one table per variant); proposal computation query shape; snapshot mechanics choice (frozen snapshot vs as-of-close reconstruction from BE-012 audit log — F is backend-only, both acceptable).
 - **Phase 13:** Direction entity schema (per-day rows), claim-model tables, org-policy storage shape; supersede-chaining read path.
-- **Phase 17/18:** D-O UI leans to validate in prototypes: allocation screen + to-cover queue → Review group; per-unit non-billed report → Reports; bucket setup + balance → Economics → Contracts; employee own-coverage → read-only yes. No P-011 revision until prototypes land.
+- **v0.2.1 presentation:** D-O UI leans remain inputs, not live route work. Allocation screen + to-cover queue → manager Review job; per-unit non-billed report → Reports job; bucket setup + balance → Economics/Contracts job; employee own-coverage → read-only. No P-011 revision until contracts + composition + sketches land. Do not recreate Phases 17–26.
 
 ### Blockers/Concerns
 
-- [Phase 18 planning] Tickets are internal-only in v0.2 (D-E); external desk intake is a future hexagonal port — do NOT build a customer-facing ticket portal (explicitly out of scope)
-- [Phase 12] Expense coverage is schema-ready only (D-K: polymorphic entry, `time` only allowed in v0.2) — the extra validation branch must be costed in the BE ADR and revisited if dead weight
-- [Polish phases] Playwright e2e specs are the contract for polish phases — change test + behavior in the same plan
-- UAT debt files (06/08/09/10-UAT, 08/09/10-VERIFICATION) are no longer on disk (archived at v0.1 close); STATE.md Deferred Items table below is the authoritative record — plan-phase should re-derive scenario details from phase plan archives under .planning/phases/
+- Tickets are internal-only (D-E); external desk intake is a future hexagonal port — do NOT build a customer-facing ticket portal. v0.2.1 Customer contract may conclude “no app surface”.
+- Expense coverage is schema-ready only (D-K: polymorphic entry, `time` only allowed in v0.2) — the extra validation branch was costed in ADR-BE-017; revisit only if expense-splitting need is demonstrated.
+- UAT debt files (06/08/09/10-UAT, 08/09/10-VERIFICATION) are no longer on disk (archived at v0.1 close); Deferred Items below is the authoritative record. Re-derive from phase plan archives if a v0.2.1 job cluster needs them.
+- Window #1 (`fmt:check` / oxfmt drift) remains open and is not a v0.2 close blocker. Do not pretend Phase 15 formatted the repo.
 
 ### Pending Todos
 
@@ -182,21 +181,30 @@ None new. See `.planning/todos/` for captured ideas.
 
 ## Deferred Items
 
-Adopted from v0.1 close (2026-08-01). Each polish phase folds in its own debt — never deferred to a trailing verification phase:
+Items acknowledged and deferred at v0.2 milestone close on 2026-08-25. Not silently marked complete.
 
-| Category | Item | Status | Folded Into |
+### Open at v0.2 close (audit-open = 4)
+
+| Category | Item | Status | Disposition |
 |----------|------|--------|-------------|
-| uat_gap | 06-UAT.md | 14 pending scenarios | Phase 21 (Track polish) |
-| uat_gap | 08-UAT.md | 4 pending scenarios | Phase 24 (Customers + Contracts polish) |
-| uat_gap | 09-UAT.md | 1 pending scenario | Phase 22 (Activities polish) |
-| uat_gap | 10-UAT.md | 6 pending scenarios | Phases 20 + 23 (Today, Approvals+WG polish) |
-| verification_gap | 08-VERIFICATION.md | human_needed | Phase 24 (Customers + Contracts polish) |
-| verification_gap | 09-VERIFICATION.md | human_needed | Phase 22 (Activities polish) |
-| verification_gap | 10-VERIFICATION.md | human_needed | Phases 20 + 23 (Today, Approvals+WG polish) |
-| quick_task | 260801-got-investigate-sidebar-collapsed-mode-hover | unknown | Triage during Phase 15/18 (UX Foundation, Today surfaces) |
-| quick_task | 260801-o06-failed-to-initialize-postgresql-pool-pas | unknown | Triage during Phase 11/14 (backend startup) |
+| uat_gap | 12-UAT.md (2 pending scenarios: multi-row/multi-entry allocation sets with nil IDs; concurrent period close for the same period) | testing | Equivalent smoke evidence recorded in 16-01-SMOKE.md (PASS). Original Phase 12 UAT file remains stale/deferred. |
+| verification_gap | 12-VERIFICATION.md (same two behaviors listed as human_needed) | human_needed | Equivalent smoke evidence recorded in 16-01-SMOKE.md (PASS). Original Phase 12 verification file remains stale/deferred. |
+| quick_task | 260801-got-investigate-sidebar-collapsed-mode-hover | unknown | User-approved 2026-08-24 and recorded in 15-04-SUMMARY.md (D2). Audit metadata remains unknown. |
+| quick_task | 260801-o06-failed-to-initialize-postgresql-pool-pas | unknown | Demo recovered; health check passed. Remaining migrate rerun limitation is deferred old debt. |
 
-Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
+### Inherited from v0.1 close (2026-08-01)
+
+UAT/verification files 06/08/09/10 are no longer on disk (archived at v0.1 close). Former fold-into Phases 20–24 were cancelled unbuilt with the rest of route-oriented Phases 17–26. Re-derive scenario details from phase plan archives under `.planning/phases/` if a v0.2.1 job cluster needs them. Do not recreate Phases 17–26.
+
+| Category | Item | Status | Notes |
+|----------|------|--------|-------|
+| uat_gap | 06-UAT.md | 14 pending scenarios | Historical; files archived at v0.1 close |
+| uat_gap | 08-UAT.md | 4 pending scenarios | Historical; files archived at v0.1 close |
+| uat_gap | 09-UAT.md | 1 pending scenario | Historical; files archived at v0.1 close |
+| uat_gap | 10-UAT.md | 6 pending scenarios | Historical; files archived at v0.1 close |
+| verification_gap | 08-VERIFICATION.md | human_needed | Historical; files archived at v0.1 close |
+| verification_gap | 09-VERIFICATION.md | human_needed | Historical; files archived at v0.1 close |
+| verification_gap | 10-VERIFICATION.md | human_needed | Historical; files archived at v0.1 close |
 
 ## Performance Metrics
 
@@ -244,10 +252,10 @@ Remediation: `/gsd-verify-work` (UAT + human verification) per polish phase.
 
 ## Session Continuity
 
-Last session: 2026-08-24T21:54:07.104Z
-Stopped at: Completed 16-01-PLAN.md
+Last session: 2026-08-25T19:23:40.632Z
+Stopped at: v0.2 milestone completed and archived
 Resume file: None
-Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets backend)
+Next step: `/gsd-new-milestone` — start v0.2.1 (contract-first job clusters). Do not recreate Phases 17–26.
 
 ## Performance Metrics
 
@@ -259,3 +267,7 @@ Next step: `/gsd-discuss-phase 11` (Foundations — schema + origins + tickets b
 | Phase 11-foundations-schema-origins-tickets-backend P04 | 7min | 2 tasks | 6 files |
 | Phase 11-foundations-schema-origins-tickets-backend P05 | 10min | 3 tasks | 21 files |
 | Phase 11-foundations-schema-origins-tickets-backend P06 | 44min | 3 tasks | 11 files |
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

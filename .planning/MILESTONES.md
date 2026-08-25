@@ -1,5 +1,35 @@
 # Milestones
 
+## v0.2 Ontology Extension — Origins, Tickets & Coverage + Direction (Shipped: 2026-08-25)
+
+**Phases completed:** 6 phases, 41 plans, 108 tasks
+
+**Known deferred items at close:** 4 (see STATE.md Deferred Items — Phase 12 UAT/verification leftovers with equivalent 16-01-SMOKE.md evidence; 2 quick tasks with unknown audit metadata)
+
+**Delivered:** Three-plane ontology backends (origins + tickets, coverage allocation ledger, direction plan plane, availability absences/capacity), UX foundation tokens/components, and a repair-only integrity close. Route-oriented Phases 17–26 were cancelled unbuilt.
+
+**Key accomplishments:**
+
+- Origins + tickets backend (Phase 11): set-once activity origins, sold_hours on contracts, ticket lifecycle with triage, dismissal guard, and in-tx TOCTOU hardening
+- Coverage allocation ledger (Phase 12): Σ invariant, five funding sources, proposals-on-read, one-step manager confirm, period-close snapshots (not locks)
+- Direction plan plane (Phase 13): per-day rows, claim model, org planning policy, absence-warning overlay, direction-coverage read-model, origin fallback
+- Availability backend (Phase 14): absence declare/confirm/reject + HR medical curation, capacity queries, work-schedule model
+- UX foundation (Phase 15): semantic status tokens, frozen shared components, sketch-loop contract (stale applies-to 16–26 still needs v0.2.1 amendment)
+- Integrity repair (Phase 16): employee own-coverage read, expense unit_id persistence, receipt auth, WR-05 capacity org-isolation, two rate-limiter defects; Phase 12 leftover smokes recorded in 16-01-SMOKE.md
+
+### Known Gaps
+
+Presentation requirements were never built as route/page phases and are **not** v0.2 completion blockers. They are historical inputs for v0.2.1 job clusters — do not recreate Phases 17–26.
+
+- TICK-06, AVAIL-03..05, UXFD-02 (partial — contract drafted, file stale), SURF-01..08, POLS-01..11
+- Customer-facing ticket portal remains out of scope (D-E)
+- Window #1 (`fmt:check` / oxfmt drift) remains open; not a close blocker
+
+**Git range:** v0.1 → HEAD (254 commits, 2026-08-01 → 2026-08-25)
+**Diff vs v0.1:** 509 files changed, +54989 / −43674
+
+---
+
 ## v0.1 MVP Consolidation (Shipped: 2026-08-01)
 
 **Phases completed:** 16 phases, 62 plans, 138 tasks
