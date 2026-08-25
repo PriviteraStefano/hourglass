@@ -157,3 +157,76 @@ func TestRateLimit_AnonymousThenAuthenticated_RatchetsLimitUp(t *testing.T) {
 		t.Error("request 6 (authenticated, limit 5): expected rejected (count 6 > limit 5), got allowed")
 	}
 }
+
+// TestRateLimit_NoPermanentLimitInflation is a regression test for the
+// "permanent limit inflation" bug: a key that briefly presents a higher
+// (authenticated) tier must NOT keep that inflated limit after reverting to
+// the anonymous tier. Subsequent anonymous requests are limited by the
+// anonymous tier, not the previously-seen higher tier.
+func TestRateLimit_NoPermanentLimitInflation(t *testing.T) {
+	limiter := NewRateLimiter(2, 5)
+	const key = "ip:192.168.1.1"
+
+	// 1st request opens the window at the anonymous limit (2).
+	if !limiter.allow(key, 2) {
+		t.Fatal("request 1 (anonymous, limit 2): expected allowed")
+	}
+
+	// A transient higher-tier (authenticated) request arrives.
+	if !limiter.allow(key, 5) {
+		t.Fatal("request 2 (authenticated, limit 5): expected allowed")
+	}
+
+	// Reverting to anonymous: the 3rd request (count=3) must be judged
+	// against the anonymous limit (2), not the previously-seen higher tier
+	// (5). count 3 > 2 => rejected.
+	if limiter.allow(key, 2) {
+		t.Error("request 3 (anonymous, limit 2): expected rejected after reverting from higher tier; stored limit must not stay inflated at 5")
+	}
+}
+
+// TestRateLimit_DistinctAnonymousBucketsBehindProxy is a regression test for
+// the "collapsed anonymous buckets" bug: anonymous traffic behind a shared
+// proxy all shares RemoteAddr, which collapsed every client into one bucket.
+// With proxy-aware keying, two requests sharing the same RemoteAddr but with
+// distinct X-Forwarded-For headers are counted in separate buckets; one
+// bucket's hits must not consume the other's limit.
+func TestRateLimit_DistinctAnonymousBucketsBehindProxy(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	limiter := NewRateLimiter(1, 100)
+	middleware := limiter.Middleware(handler)
+
+	// Client A behind the shared proxy.
+	reqA := httptest.NewRequest(http.MethodGet, "/test", nil)
+	reqA.RemoteAddr = "10.0.0.1:1234" // proxy IP, shared by both clients
+	reqA.Header.Set("X-Forwarded-For", "203.0.113.1")
+	recA := httptest.NewRecorder()
+	middleware.ServeHTTP(recA, reqA)
+	if recA.Code != http.StatusOK {
+		t.Fatalf("client A request 1: expected %d, got %d", http.StatusOK, recA.Code)
+	}
+
+	// Client A's 2nd request exhausts the anonymous limit (1) and is rejected.
+	reqA2 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	reqA2.RemoteAddr = "10.0.0.1:1234"
+	reqA2.Header.Set("X-Forwarded-For", "203.0.113.1")
+	recA2 := httptest.NewRecorder()
+	middleware.ServeHTTP(recA2, reqA2)
+	if recA2.Code != http.StatusTooManyRequests {
+		t.Errorf("client A request 2: expected %d (bucket exhausted), got %d", http.StatusTooManyRequests, recA2.Code)
+	}
+
+	// Client B shares the same RemoteAddr (proxy) but a distinct XFF hop, so
+	// it must get its own bucket and still be allowed.
+	reqB := httptest.NewRequest(http.MethodGet, "/test", nil)
+	reqB.RemoteAddr = "10.0.0.1:1234"
+	reqB.Header.Set("X-Forwarded-For", "203.0.113.2")
+	recB := httptest.NewRecorder()
+	middleware.ServeHTTP(recB, reqB)
+	if recB.Code != http.StatusOK {
+		t.Errorf("client B request 1: expected %d (separate bucket), got %d", http.StatusOK, recB.Code)
+	}
+}

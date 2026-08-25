@@ -3,6 +3,7 @@ package middleware
 import (
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,14 +46,26 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 }
 
 func (rl *RateLimiter) getClientKey(r *http.Request) string {
+	userID := GetUserID(r.Context())
+	if userID != (uuid.UUID{}) {
+		// Authenticated requests keep their user-scoped key regardless of
+		// proxy headers.
+		return "user:" + userID.String()
+	}
+
+	// Anonymous clients: prefer the first hop of X-Forwarded-For (the
+	// original client behind a shared proxy) so that distinct clients behind
+	// the same proxy are not collapsed into a single bucket. Fall back to
+	// RemoteAddr when no forwarder header is present.
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if clientIP := strings.TrimSpace(strings.SplitN(xff, ",", -1)[0]); clientIP != "" {
+			return "ip:" + clientIP
+		}
+	}
+
 	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 	if ip == "" {
 		ip = r.RemoteAddr
-	}
-
-	userID := GetUserID(r.Context())
-	if userID != (uuid.UUID{}) {
-		return "user:" + userID.String()
 	}
 	return "ip:" + ip
 }
@@ -82,8 +95,12 @@ func (rl *RateLimiter) allow(key string, limit int) bool {
 	}
 
 	info.count++
-	if limit > info.limit {
-		info.limit = limit
-	}
-	return info.count <= info.limit
+	// The limit for the current request is the limit of the CURRENT request's
+	// tier, recomputed per request. We must NOT permanently inflate the stored
+	// limit to the highest tier ever seen in the window: doing so would let a
+	// key keep an elevated limit after reverting to a lower tier (e.g. an
+	// anonymous client that briefly presented an auth tier). The window's
+	// count is cumulative, but each request is judged against its own tier.
+	info.limit = limit
+	return info.count <= limit
 }

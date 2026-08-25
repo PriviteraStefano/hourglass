@@ -33,9 +33,9 @@
 - [x] **Phase 11: Foundations** - Schema + origins + tickets backend: activity origin refs, sold_hours, ticket lifecycle with triage + dismissal guard; ADR-P-003 rev + P-013 (completed 2026-08-07)
 - [ ] **Phase 12: Coverage Backend** - Allocation ledger, funding sources, to-cover queue, proposals-on-read, one-step confirm, snapshot mechanics; ADR-P-012 + BE encoding
 - [x] **Phase 13: Direction Backend** - Plan plane: direction entity, lifecycle, claim model, org policy, coverage read-model; ADR-P-015 + BE encoding (completed 2026-08-08)
-- [ ] **Phase 14: Availability Backend** - Absence declare/confirm/reject + capacity queries over availability_windows
+- [x] **Phase 14: Availability Backend** - Absence declare/confirm/reject + capacity queries over availability_windows (completed 2026-08-12)
 - [ ] **Phase 15: UX Foundation** - Design tokens + shared components frozen; sketch loop contract established
-- [ ] **Phase 16: Availability Frontend** - Absence calendars + capacity grid in People pillar
+- [x] **Phase 16: Integrity Repair** - Repair-only backend close: own-coverage read, expense unit_id + receipt auth, WR-05 capacity org-isolation, two rate-limiter defects
 - [ ] **Phase 17: Coverage Surfaces** - Week-1 allocation screen, to-cover queue, own-coverage, buckets, per-unit report (4a+4b)
 - [ ] **Phase 18: Today + Tickets Surfaces** - Today both shapes + tickets surface in Track/Today (4c)
 - [ ] **Phase 19: Direction Surfaces** - Scheduler calendar + direction queue + coverage read-model (4d)
@@ -186,7 +186,35 @@ Plans:
   3. API returns capacity per activity/WG = weekly hours − confirmed absences, with workload from submitted+approved entries on the activity subtree (supports AVAIL-04 in Phase 16)
   4. Absence windows are consumable by the direction scheduler read path (DIR-05 dependency)
 
-**Plans**: TBD
+**Plans**: 10/11 plans executed
+Plans:
+
+- [x] 14-09-PLAN.md
+- [x] 14-10-PLAN.md
+- [x] 14-11-PLAN.md
+
+**Wave 1**
+
+- [x] 14-01-PLAN.md — Migrations 023/024/025 (status vocabulary + rejection_reason, contract_types + membership override, certificate attachments) + teardown + cycle tests
+- [x] 14-02-PLAN.md — ADR-P-008 revision + ADR-BE-019 + availability domain + ports + mocks + models.RoleHR
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 14-03-PLAN.md — Declare vertical (phase tracer, AVAIL-01): repo overlap-guard tx + service gates + handler + route + wiring + battery
+- [x] 14-04-PLAN.md — D-13-29 closure: direction read path confirmed-only + Phase 13 test seed flips
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 14-05-PLAN.md — Lifecycle mutators + orchestration (AVAIL-02): confirm/reject/withdraw/HR-edit/attach + unit-manager authority + self-confirm
+- [x] 14-06-PLAN.md — Contract types CRUD + ResolveSchedule fallback chain + membership override endpoint extension
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 14-07-PLAN.md — Read-models: org-wide windows read with D-14-24 field filtering + capacity query (scope params, confirmed-only, workload CTE)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 14-08-PLAN.md — HTTP surface completion: remaining /availability routes + certificate download + capacity endpoint + wiring + integration battery
 
 ### Phase 15: UX Foundation — Design Tokens + Shared Components
 
@@ -200,23 +228,41 @@ Plans:
   3. Each surface/polish phase follows the sketch loop: 2–3 gsd-sketch options shown, user agrees on one, UI-only plan, ≤3 sketch rounds (UXFD-02)
   4. Sidebar collapsed-mode quick task triaged here (quick_task 260801-got-investigate-sidebar)
 
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+**Wave 1**
+
+- [x] 15-01-PLAN.md — Design tokens + StatusBadge rewrite (tracer) + EmptyState + PageHeader + status type unions (UXFD-01)
+- [x] 15-03-PLAN.md — ConfirmDialog + consolidation of the 3 per-page delete dialogs (UXFD-01)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 15-02-PLAN.md — DataTable (@tanstack/react-table v9 — user-override of the ^8.21.3 pin, approved at the package gate) + FilterBar (UXFD-01)
+- [ ] 15-04-PLAN.md — SKETCH-LOOP-CONTRACT.md (UXFD-02) + sidebar collapsed-mode + dark-mode human verification (SC4)
+
 **UI hint**: yes
 
-### Phase 16: Availability Frontend
+### Phase 16: Integrity Repair
 
-**Goal**: Availability and capacity are usable surfaces in the People pillar: absence request/confirm UI, personal + team/org calendars, and a custom date-fns/Tailwind capacity grid per activity/WG (AVAIL-03/04/05).
-**Depends on**: Phase 14 (backend), Phase 15 (tokens)
-**Requirements**: AVAIL-03, AVAIL-04, AVAIL-05
+**Goal**: Repair-only close of v0.2 — land the Phase 12 leftovers (employee own-coverage read, two unrun smokes) and the selected Known Bugs (expense `unit_id`, receipt auth, WR-05 capacity org-isolation, two rate-limiter defects). No UI, no Availability Frontend, no sketch.
+**Depends on**: Phase 12 (coverage backend), Phase 14 (availability backend)
+**Requirements**: (none newly mapped — repair-only)
 **Success Criteria** (what must be TRUE):
 
-  1. Employee can request an absence from the UI and view personal + team/org absence calendars (AVAIL-03)
-  2. Manager/HR can confirm or reject absences from the UI with distinct status badges (declared → confirmed/rejected) (UI half of AVAIL-02)
-  3. Manager can view capacity per activity/WG as a capacity-vs-workload grid (custom date-fns + Tailwind, not a calendar library) (AVAIL-04)
-  4. Availability and capacity entries appear in the People pillar sidebar with role-scoped visibility (AVAIL-05)
+  1. Employee can read coverage allocations on their own entries (self-scoped, no manager/finance grant)
+  2. POST /expenses persists the requested `unit_id` (previously dropped)
+  3. `SetReceiptURL` refuses writes when actor/org is not authorized (→ 403)
+  4. Capacity unit/WG scope IDs are organization-isolated (WR-05 closed)
+  5. Rate limiter stored limit is not permanently raised to the highest tier seen in the window
+  6. Anonymous traffic behind a proxy is not collapsed into one shared bucket
+  7. Phase 12 multi-row allocation + concurrent period-close smokes executed and recorded (or explicitly waived with evidence)
+  8. No UI / sketch / new endpoints beyond the repaired paths
 
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 1/1 plans complete
+
+- [x] 16-01-PLAN.md
+
+**UI hint**: no
 
 ### Phase 17: Coverage Surfaces — Allocation Screen + Buckets + Reports (4a+4b)
 
@@ -379,9 +425,9 @@ Plans:
 | 11. Foundations | v0.2 | 8/8 | Complete    | 2026-08-07 |
 | 12. Coverage Backend | v0.2 | 7/7 | In Progress|  |
 | 13. Direction Backend | v0.2 | 10/10 | Complete    | 2026-08-08 |
-| 14. Availability Backend | v0.2 | 0/TBD | Not started | - |
-| 15. UX Foundation | v0.2 | 0/TBD | Not started | - |
-| 16. Availability FE | v0.2 | 0/TBD | Not started | - |
+| 14. Availability Backend | v0.2 | 11/11 | Complete    | 2026-08-12 |
+| 15. UX Foundation | v0.2 | 0/4 | Not started | - |
+| 16. Availability FE | v0.2 | 1/1 | Complete   | 2026-08-24 |
 | 17. Coverage Surfaces | v0.2 | 0/TBD | Not started | - |
 | 18. Today+Tickets Surfaces | v0.2 | 0/TBD | Not started | - |
 | 19. Direction Surfaces | v0.2 | 0/TBD | Not started | - |

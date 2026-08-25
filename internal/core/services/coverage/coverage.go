@@ -188,6 +188,54 @@ func (s *Service) Propose(ctx context.Context, orgID, entryID uuid.UUID, role, u
 	return proposal, allocs, nil
 }
 
+// GetOwnCoverage is the employee self-read path (Phase 16): an employee may
+// read the coverage proposal + allocations for an entry they own. It is
+// strictly scoped to e.UserID == actor && e.OrgID == orgID and does NOT
+// broaden the manager|finance read paths above (readAllowed) — it is a
+// sibling, employee-only, self-scoped read (SURF-03 read-only intent).
+func (s *Service) GetOwnCoverage(ctx context.Context, orgID, entryID uuid.UUID, userID string) (*coverage.CoverageProposal, []*coverage.CoverageAllocation, error) {
+	actor, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, nil, coverage.ErrInvalidRequest
+	}
+	e, err := s.entryRepo.GetByID(ctx, entryID)
+	if err != nil {
+		// Normalize the entry repo's sentinel to the coverage 404 (see
+		// Propose — a raw ErrTimeEntryNotFound must not surface as 500).
+		if errors.Is(err, time_entrydomain.ErrTimeEntryNotFound) {
+			return nil, nil, coverage.ErrEntryNotCoverable
+		}
+		return nil, nil, err
+	}
+	if e == nil || e.OrgID != orgID {
+		return nil, nil, coverage.ErrEntryNotCoverable
+	}
+	// Self-scope only: an employee reads their own allocations, never
+	// another user's — that path stays manager|finance via Propose.
+	if e.UserID != actor {
+		return nil, nil, coverage.ErrForbidden
+	}
+	chain, err := s.resolveChain(ctx, e.ActivityID)
+	if err != nil {
+		return nil, nil, err
+	}
+	sourceType, contractID, unitID, flagged, flagReason := DefaultSource(chain)
+	proposal := &coverage.CoverageProposal{
+		EntryID:    entryID,
+		SourceType: sourceType,
+		ContractID: contractID,
+		UnitID:     unitID,
+		Hours:      e.Hours,
+		Flagged:    flagged,
+		FlagReason: flagReason,
+	}
+	allocs, err := s.repo.ListByEntry(ctx, orgID, entryID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proposal, allocs, nil
+}
+
 // ToCoverQueue returns the org's to-cover queue (D-06, COV-01): every
 // approved, non-deleted 'time' entry with Σ allocations < entry hours,
 // enriched service-side with the D-04 proposal (hours = the uncovered

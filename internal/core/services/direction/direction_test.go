@@ -1112,6 +1112,7 @@ func TestService_Coverage(t *testing.T) {
 		f.seedMembership(empID, orgID, nil, nil, nil)
 		f.seedMembership(otherID, orgID, nil, nil, nil)
 		unitID, descID := "unit-1", "unit-2"
+		f.unitRepo.Units = map[string]*unit.Unit{unitID: {ID: unitID, OrgID: orgID, Name: "unit"}}
 		f.unitRepo.Descendants = map[string][]unit.Unit{unitID: {{ID: descID, OrgID: orgID, Name: "desc"}}}
 		f.seedUnitMember(unitID, empID, true)
 		f.seedUnitMember(descID, otherID, true)
@@ -1132,6 +1133,7 @@ func TestService_Coverage(t *testing.T) {
 		f.seedMembership(empID, orgID, nil, nil, nil)
 		f.seedMembership(otherID, orgID, nil, nil, nil)
 		wgID := uuid.New()
+		f.seedWG(wgID, orgID, uuid.New(), uuid.New())
 		f.seedWgMember(wgID, empID)
 		f.seedWgMember(wgID, otherID)
 		var captured [][]uuid.UUID
@@ -1144,6 +1146,31 @@ func TestService_Coverage(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, captured)
 		require.ElementsMatch(t, []uuid.UUID{empID, otherID}, captured[0])
+	})
+
+	// WR-05: a scope ID belonging to a different org must not resolve into the
+	// requesting org's capacity read. An actor in org A passing a unit/WG ID
+	// owned by org B is denied (no cross-org existence oracle).
+	t.Run("WR-05 cross-org unit scope is denied", func(t *testing.T) {
+		f := setup(t)
+		orgA, orgB := uuid.New(), uuid.New()
+		foreignUnitID := "foreign-unit"
+		f.unitRepo.Units = map[string]*unit.Unit{foreignUnitID: {ID: foreignUnitID, OrgID: orgB, Name: "foreign"}}
+		f.seedUnitMember(foreignUnitID, empID, true)
+
+		_, err := f.svc.Coverage(ctx, orgA, actorID, "manager", "unit", foreignUnitID, start, end)
+		require.ErrorIs(t, err, directiondomain.ErrForbidden)
+	})
+
+	t.Run("WR-05 cross-org wg scope is denied", func(t *testing.T) {
+		f := setup(t)
+		orgA, orgB := uuid.New(), uuid.New()
+		foreignWGID := uuid.New()
+		f.seedWG(foreignWGID, orgB, uuid.New(), uuid.New())
+		f.seedWgMember(foreignWGID, empID)
+
+		_, err := f.svc.Coverage(ctx, orgA, actorID, "manager", "wg", foreignWGID.String(), start, end)
+		require.ErrorIs(t, err, directiondomain.ErrForbidden)
 	})
 
 	t.Run("away day (capacity 0) is excluded from uncovered rows but the warning is present (D-13-26)", func(t *testing.T) {

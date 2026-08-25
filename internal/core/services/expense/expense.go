@@ -71,6 +71,13 @@ func (s *Service) Create(ctx context.Context, req *expense.CreateExpenseRequest)
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
+	// Map the requested unit_id through to the persisted record. The postgres
+	// repo already inserts unit_id (expense_repository.go); previously the
+	// handler/service never supplied it, so it was silently dropped (Phase 16
+	// known bug).
+	if req.UnitID != nil {
+		e.UnitID = *req.UnitID
+	}
 
 	return s.repo.Create(ctx, e)
 }
@@ -401,10 +408,29 @@ func (s *Service) IsWGManager(ctx context.Context, orgID uuid.UUID, userID strin
 }
 
 // SetReceiptURL sets or updates the receipt URL for an expense.
-func (s *Service) SetReceiptURL(ctx context.Context, id uuid.UUID, receiptURL string) (*expense.Expense, error) {
+//
+// Authorization (Phase 16-01 integrity repair): the actor must be operating
+// within the expense's owning org (org scoping — we return ErrExpenseNotFound
+// rather than ErrForbidden on a cross-org ID to avoid leaking existence), and
+// must either own the expense or hold an approver role (manager/finance) for
+// the org. Any other actor is rejected with ErrForbidden, which the HTTP layer
+// maps to 403.
+func (s *Service) SetReceiptURL(ctx context.Context, orgID, userID uuid.UUID, role string, id uuid.UUID, receiptURL string) (*expense.Expense, error) {
 	e, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+
+	// Org scoping: never operate across orgs. Return NotFound (not Forbidden)
+	// so a cross-org ID does not reveal that the expense exists.
+	if e.OrgID != orgID {
+		return nil, expense.ErrExpenseNotFound
+	}
+
+	// The actor must own the expense OR be a manager/finance approver for the
+	// org. Plain employees may only manage receipts on their own expenses.
+	if !e.IsOwner(userID) && role != "manager" && role != "finance" {
+		return nil, expense.ErrForbidden
 	}
 
 	e.ReceiptURL = &receiptURL

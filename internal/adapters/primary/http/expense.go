@@ -32,6 +32,7 @@ func NewExpenseHandler(service *expsvc.Service) *ExpenseHandler {
 
 type CreateExpenseRequest struct {
 	ActivityID  string   `json:"activity_id"`
+	UnitID      string   `json:"unit_id,omitempty"`
 	Category    string   `json:"category"`
 	Amount      float64  `json:"amount"`
 	KmDistance  *float64 `json:"km_distance,omitempty"`
@@ -178,10 +179,23 @@ func (h *ExpenseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// unit_id is optional on create; when present it is mapped through to the
+	// persisted expense (Phase 16 known bug — was previously dropped).
+	var unitID *uuid.UUID
+	if req.UnitID != "" {
+		u, err := uuid.Parse(req.UnitID)
+		if err != nil {
+			api.RespondWithError(w, http.StatusBadRequest, "invalid unit_id")
+			return
+		}
+		unitID = &u
+	}
+
 	svcReq := &expense.CreateExpenseRequest{
 		OrgID:       orgID,
 		UserID:      userID,
 		ActivityID:  activityID,
+		UnitID:      unitID,
 		Category:    req.Category,
 		Amount:      req.Amount,
 		KmDistance:  req.KmDistance,
@@ -480,6 +494,8 @@ func (h *ExpenseHandler) ListPending(w http.ResponseWriter, r *http.Request) {
 func (h *ExpenseHandler) ReceiptUpload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	orgID := middleware.GetOrganizationID(ctx)
+	userID := middleware.GetUserID(ctx)
+	role := middleware.GetRole(ctx)
 	expenseIDStr := r.PathValue("id")
 
 	expenseID, err := uuid.Parse(expenseIDStr)
@@ -535,10 +551,14 @@ func (h *ExpenseHandler) ReceiptUpload(w http.ResponseWriter, r *http.Request) {
 	receiptURL := filepath.Join("uploads", "receipts", orgID.String(), expenseID.String(), filename)
 
 	// Update expense with receipt URL via service
-	e, err := h.service.SetReceiptURL(ctx, expenseID, receiptURL)
+	e, err := h.service.SetReceiptURL(ctx, orgID, userID, role, expenseID, receiptURL)
 	if err != nil {
 		if err == expense.ErrExpenseNotFound {
 			api.RespondWithError(w, http.StatusNotFound, "expense not found")
+			return
+		}
+		if err == expense.ErrForbidden {
+			api.RespondWithError(w, http.StatusForbidden, "can only manage receipts for own expenses or as manager/finance")
 			return
 		}
 		api.RespondWithError(w, http.StatusInternalServerError, "failed to update receipt url")
