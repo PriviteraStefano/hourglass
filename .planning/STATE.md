@@ -165,7 +165,7 @@ None new. See `.planning/todos/` for captured ideas.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 260825-migration-ledger | Add schema_migrations ledger + per-file transactions to migration runner | 2026-08-25 | (see commit) | [260825-migration-ledger](./quick/260825-migration-ledger/) |
+| 260825-migration-ledger | Add schema_migrations ledger + per-file transactions to migration runner | 2026-08-25 | 8dc304d | [260825-migration-ledger](./quick/260825-migration-ledger/) |
 
 ## Deferred Items
 
