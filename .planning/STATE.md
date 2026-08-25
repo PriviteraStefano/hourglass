@@ -7,7 +7,7 @@ status: completed
 stopped_at: Completed 16-01-PLAN.md
 last_updated: "2026-08-24T21:55:54.512Z"
 last_activity: 2026-08-25
-last_activity_desc: Completed quick task 260825-ratelimit-evict — evict expired entries (#9); next #11 JWT secret fail-closed
+last_activity_desc: Completed quick task 260825-jwt-fail-closed — JWT fail-closed (#11); next #12 X-Forwarded-Proto
 progress:
   total_phases: 16
   completed_phases: 6
@@ -172,7 +172,7 @@ None new. See `.planning/todos/` for captured ideas.
 | 260825-export-streaming | Bound export memory — range cap, CSV/XLSX streaming, drop in-memory sort (CONCERNS #7) | 2026-08-25 | 8fe6a74 | [260825-export-streaming](./quick/260825-export-streaming/) |
 | 260825-body-size-limit | Add MaxBody middleware capping JSON request bodies (CONCERNS #8) | 2026-08-25 | 92e3b1a | [260825-body-size-limit](./quick/260825-body-size-limit/) |
 | 260825-ratelimit-evict | Evict expired rate-limiter entries to stop the map memory leak (CONCERNS #9) | 2026-08-25 | 30b2c0d | [260825-ratelimit-evict](./quick/260825-ratelimit-evict/) |
-| 260825-jwt-fail-closed | Require JWT_SECRET or explicit ALLOW_INSECURE_AUTH opt-in at boot (CONCERNS #11) | 2026-08-25 | (see commit) | [260825-jwt-fail-closed](./quick/260825-jwt-fail-closed/) |
+| 260825-jwt-fail-closed | Require JWT_SECRET or explicit ALLOW_INSECURE_AUTH opt-in at boot (CONCERNS #11) | 2026-08-25 | a8f5f95 | [260825-jwt-fail-closed](./quick/260825-jwt-fail-closed/) |
 
 ## Deferred Items
 
