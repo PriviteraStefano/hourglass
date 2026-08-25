@@ -2,7 +2,6 @@ package export
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,11 +33,35 @@ func (s *Service) Combined(ctx context.Context, orgID uuid.UUID, from, to time.T
 	if err != nil {
 		return nil, err
 	}
-	rows := append(timesheets, expenses...)
-	sort.Slice(rows, func(i, j int) bool {
-		return rows[i].Date.After(rows[j].Date)
-	})
+	rows := mergeExportRowsDesc(timesheets, expenses)
 	return rows, nil
+}
+
+// mergeExportRowsDesc merges two slices already ordered by Date ascending
+// (as returned by the repository) into a single descending-ordered slice
+// without an intermediate O(n log n) sort.
+func mergeExportRowsDesc(a, b []ports.ExportRow) []ports.ExportRow {
+	if len(a) == 0 && len(b) == 0 {
+		return nil
+	}
+	out := make([]ports.ExportRow, 0, len(a)+len(b))
+	i, j := len(a)-1, len(b)-1
+	for i >= 0 && j >= 0 {
+		if a[i].Date.After(b[j].Date) {
+			out = append(out, a[i])
+			i--
+		} else {
+			out = append(out, b[j])
+			j--
+		}
+	}
+	for ; i >= 0; i-- {
+		out = append(out, a[i])
+	}
+	for ; j >= 0; j-- {
+		out = append(out, b[j])
+	}
+	return out
 }
 
 func (s *Service) CountTimesheets(ctx context.Context, orgID uuid.UUID, from, to time.Time, role string, userID uuid.UUID) (int, error) {
