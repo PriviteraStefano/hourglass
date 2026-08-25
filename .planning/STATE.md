@@ -7,7 +7,7 @@ status: completed
 stopped_at: Completed 16-01-PLAN.md
 last_updated: "2026-08-24T21:55:54.512Z"
 last_activity: 2026-08-25
-last_activity_desc: Completed quick task 260825-body-size-limit — JSON body cap (#8); next #9 rate-limiter eviction
+last_activity_desc: Completed quick task 260825-ratelimit-evict — evict expired entries (#9); next #11 JWT secret fail-closed
 progress:
   total_phases: 16
   completed_phases: 6
@@ -171,7 +171,7 @@ None new. See `.planning/todos/` for captured ideas.
 | 260825-no-error-leak | Stop leaking internal error strings to clients in auth handlers (CONCERNS #6) | 2026-08-25 | f4ee220 | [260825-no-error-leak](./quick/260825-no-error-leak/) |
 | 260825-export-streaming | Bound export memory — range cap, CSV/XLSX streaming, drop in-memory sort (CONCERNS #7) | 2026-08-25 | 8fe6a74 | [260825-export-streaming](./quick/260825-export-streaming/) |
 | 260825-body-size-limit | Add MaxBody middleware capping JSON request bodies (CONCERNS #8) | 2026-08-25 | 92e3b1a | [260825-body-size-limit](./quick/260825-body-size-limit/) |
-| 260825-ratelimit-evict | Evict expired rate-limiter entries to stop the map memory leak (CONCERNS #9) | 2026-08-25 | (see commit) | [260825-ratelimit-evict](./quick/260825-ratelimit-evict/) |
+| 260825-ratelimit-evict | Evict expired rate-limiter entries to stop the map memory leak (CONCERNS #9) | 2026-08-25 | 30b2c0d | [260825-ratelimit-evict](./quick/260825-ratelimit-evict/) |
 
 ## Deferred Items
 
