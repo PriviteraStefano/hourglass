@@ -210,7 +210,7 @@ func main() {
 	}
 
 	log.Printf("Server starting on port %s", port)
-	handler := middleware.MaxBody(maxBodyBytes)(middleware.TryAuth(g.AuthService, g.RateLimiter.Middleware(middleware.Logging(middleware.APIVersion(middleware.CORS(allowedOrigins)(mux))))))
+	handler := middleware.Recovery(middleware.MaxBody(maxBodyBytes)(middleware.TryAuth(g.AuthService, g.RateLimiter.Middleware(middleware.Logging(middleware.APIVersion(middleware.CORS(allowedOrigins)(mux)))))))
 	if err := stdhttp.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}

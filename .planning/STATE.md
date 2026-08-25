@@ -174,6 +174,7 @@ None new. See `.planning/todos/` for captured ideas.
 | 260825-ratelimit-evict | Evict expired rate-limiter entries to stop the map memory leak (CONCERNS #9) | 2026-08-25 | 30b2c0d | [260825-ratelimit-evict](./quick/260825-ratelimit-evict/) |
 | 260825-jwt-fail-closed | Require JWT_SECRET or explicit ALLOW_INSECURE_AUTH opt-in at boot (CONCERNS #11) | 2026-08-25 | a8f5f95 | [260825-jwt-fail-closed](./quick/260825-jwt-fail-closed/) |
 | 260825-cookie-secure-flag | Derive cookie Secure flag from TLS/deployment flag, not X-Forwarded-Proto (CONCERNS #12) | 2026-08-25 | 6e7d9c4 | [260825-cookie-secure-flag](./quick/260825-cookie-secure-flag/) |
+| 260825-panic-recovery | Add Recovery middleware converting panics into clean 500 (CONCERNS #13) | 2026-08-25 | (see commit) | [260825-panic-recovery](./quick/260825-panic-recovery/) |
 
 ## Deferred Items
 
