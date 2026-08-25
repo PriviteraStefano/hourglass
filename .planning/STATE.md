@@ -6,8 +6,8 @@ current_phase: 16
 status: completed
 stopped_at: Completed 16-01-PLAN.md
 last_updated: "2026-08-24T21:55:54.512Z"
-last_activity: 2026-08-24
-last_activity_desc: Phase 16 marked complete
+last_activity: 2026-08-25
+last_activity_desc: Completed quick task 260825-migration-ledger — migration version ledger
 progress:
   total_phases: 16
   completed_phases: 6
@@ -160,6 +160,12 @@ Only proposed_by is required for employee proposals (research OQ1)
 ### Pending Todos
 
 None new. See `.planning/todos/` for captured ideas.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260825-migration-ledger | Add schema_migrations ledger + per-file transactions to migration runner | 2026-08-25 | (see commit) | [260825-migration-ledger](./quick/260825-migration-ledger/) |
 
 ## Deferred Items
 
