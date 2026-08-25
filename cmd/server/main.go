@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"log"
 	stdhttp "net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/stefanoprivitera/hourglass/internal/db"
 	"github.com/stefanoprivitera/hourglass/internal/handlers"
@@ -211,7 +215,30 @@ func main() {
 
 	log.Printf("Server starting on port %s", port)
 	handler := middleware.Recovery(middleware.MaxBody(maxBodyBytes)(middleware.TryAuth(g.AuthService, g.RateLimiter.Middleware(middleware.Logging(middleware.APIVersion(middleware.CORS(allowedOrigins)(mux)))))))
-	if err := stdhttp.ListenAndServe(":"+port, handler); err != nil {
+
+	srv := &stdhttp.Server{
+		Addr:         ":" + port,
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Graceful shutdown on SIGINT/SIGTERM: drain in-flight requests instead of
+	// dropping them (CONCERNS.md #14).
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+		<-sig
+		log.Println("Shutting down server...")
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
+			log.Printf("Server shutdown error: %v", err)
+		}
+	}()
+
+	if err := srv.ListenAndServe(); err != nil && err != stdhttp.ErrServerClosed {
 		log.Fatalf("Server failed: %v", err)
 	}
 }

@@ -175,6 +175,7 @@ None new. See `.planning/todos/` for captured ideas.
 | 260825-jwt-fail-closed | Require JWT_SECRET or explicit ALLOW_INSECURE_AUTH opt-in at boot (CONCERNS #11) | 2026-08-25 | a8f5f95 | [260825-jwt-fail-closed](./quick/260825-jwt-fail-closed/) |
 | 260825-cookie-secure-flag | Derive cookie Secure flag from TLS/deployment flag, not X-Forwarded-Proto (CONCERNS #12) | 2026-08-25 | 6e7d9c4 | [260825-cookie-secure-flag](./quick/260825-cookie-secure-flag/) |
 | 260825-panic-recovery | Add Recovery middleware converting panics into clean 500 (CONCERNS #13) | 2026-08-25 | 9737d88 | [260825-panic-recovery](./quick/260825-panic-recovery/) |
+| 260825-server-timeouts | Add HTTP timeouts + graceful shutdown (CONCERNS #14) | 2026-08-25 | (see commit) | [260825-server-timeouts](./quick/260825-server-timeouts/) |
 
 ## Deferred Items
 
