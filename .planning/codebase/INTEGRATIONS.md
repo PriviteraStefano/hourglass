@@ -1,89 +1,84 @@
 # External Integrations
 
-**Analysis Date:** 2026-08-12
+**Analysis Date:** 2026-08-25
 
 ## APIs & External Services
 
-**None in application code.** The backend is fully self-contained: no outbound HTTP calls to third-party APIs, no SaaS SDKs, no email/SMS providers, no payment processors. Grep of `internal/` and `cmd/` finds no `http.Client` usage outside tests (`internal/adapters/primary/http/handler_test_helper.go`).
+**None (no third-party HTTP/cloud APIs).**
+The backend makes no outbound calls to external SaaS/REST APIs. The only `http.Client` usage is in test helpers (`internal/adapters/primary/http/handler_test_helper.go:259`) for driving the local test server. No Stripe, SendGrid, AWS SDK, Twilio, Slack, or similar integrations are present.
 
-**Infrastructure-level services:**
-- Cloudflare (cloudflared) - HTTPS ingress for the demo deployment via a quick tunnel; pinned `cloudflare/cloudflared:2025.7.0` in `deploy/demo/docker-compose.yml`. No API/token integration used (quick tunnel mode).
-- GitHub Actions - CI workflows in `.github/workflows/` (docs-check, Qodana). Dev tooling only.
-- Qodana - JetBrains code-quality scanning in CI (`qodana_code_quality.yml`, token from `secrets.QODANA_TOKEN`). Dev tooling only.
+**Self-hosted HTTP API (the app's own surface):**
+- The Go `net/http` server exposes the REST API consumed by the SPA. Route table and wiring in `cmd/server/main.go`. Base path `/api` (proxied by Vite in dev, see `web/vite.config.ts:21-27`).
+- Contract format: JSON envelope `{ "data": ... }` / `{ "error": ... }` from `pkg/api/response.go`.
 
 ## Data Storage
 
 **Databases:**
-- PostgreSQL (primary and only datastore)
-  - Connection: `DATABASE_URL` env var (default `postgres://hourglass:hourglass@localhost:5432/hourglass?sslmode=disable`)
-  - Client: `github.com/jackc/pgx/v5` `pgxpool` for the server (`internal/db/db.go` → `NewPool()`); session `timezone=UTC` pinned at pool config
-  - Legacy path: `database/sql` via `github.com/lib/pq` (`internal/db/db.go` → `New()`)
-  - Migrations: 22 up/down pairs in `migrations/`, applied by `cmd/migrate/main.go` (`go run ./cmd/migrate -up -dir migrations`)
-  - Dev: postgres:15-alpine in `docker-compose.yml`; demo: postgres:17-alpine in `deploy/demo/docker-compose.yml`
-  - Seed: `scripts/seed_demo.sql` (via `make seed` / `make seed-demo`)
+- PostgreSQL 15 (provider: local/Docker; image `postgres:15-alpine` in `docker-compose.yml`)
+  - Connection: `DATABASE_URL` env var (`internal/db/db.go:42`)
+  - Driver/client: `github.com/jackc/pgx/v5/pgxpool` (`internal/db/db.go`), with `github.com/lib/pq` registered as a secondary `postgres` driver (`internal/db/db.go:11`)
+  - Pool tuning: max open 25, max idle 5, lifetime 5m (`internal/db/db.go:24-26`); session timezone pinned to UTC (`internal/db/db.go:59`)
+  - Repositories: `internal/adapters/secondary/postgres/*` (time entries, expenses, users, orgs, contracts, activities, tickets, coverage, units, working groups, customers, invitations, password resets, refresh tokens, exports, org settings, directions)
 
 **File Storage:**
-- Local filesystem only. Expense receipt uploads stored under `uploads/receipts/{org_id}/{expense_id}/` and served as relative URLs (`internal/adapters/primary/http/expense.go:479-544`). Docker volumes mount `./uploads` (dev) and the image pre-creates `/app/uploads/receipts` (demo Dockerfile).
+- Local filesystem for expense receipt uploads. Path layout: `uploads/receipts/{org_id}/{expense_id}/{filename}` (`internal/adapters/primary/http/expense.go:530-551`). Persisted via `os.Create`; the stored relative path is returned as `receiptURL`. In Docker, backed by the `./uploads` volume (`docker-compose.yml:35`). NO object store (S3/GCS) is used.
 
 **Caching:**
-- None. No Redis/memcached. Only in-memory token-bucket rate limiters (`internal/middleware/ratelimit.go`, per-process state).
+- None (no Redis/Memcached). React Query client-side caching only (`web/src/lib/query-client.ts`, `staleTime: 30000`, `retry: false`).
 
 ## Authentication & Identity
 
 **Auth Provider:**
-- Custom, self-implemented JWT auth (no external IdP, no OAuth/OIDC):
-  - Implementation: `internal/auth/auth.go` - HS256-signed JWTs, 15-minute access tokens, 7-day refresh tokens; claims: user_id, organization_id, role, email
-  - Password hashing: bcrypt cost 12 (`internal/auth/password_hasher.go`)
-  - Tokens delivered as HttpOnly cookies `auth_token`/`refresh_token`, SameSite=Strict, Secure flag when configured (`internal/cookies/cookies.go`)
-  - Refresh tokens persisted server-side in Postgres (`postgres.NewRefreshTokenRepository(pool)` in `cmd/server/main.go:70`)
-  - Session rotation/refresh: `POST /auth/refresh`; frontend auto-refreshes once on 401 (`web/src/lib/api.ts`)
-- Password reset: in-app token flow (no email delivery) - `POST /auth/password-reset/request` + `/verify` (`internal/core/services/password_reset/`)
-- Invitations: token/code-based flow, validated via `GET /invitations/validate/code/{code}` and `/validate/token/{token}` (`internal/core/services/invitation/`)
+- Custom JWT-based auth (no external IdP / OAuth provider).
+  - Implementation: HS256 JWTs via `github.com/golang-jwt/jwt/v5` (`internal/auth/auth.go`). Access token 15m, refresh token 7d (`internal/auth/auth.go:14-17`).
+  - Passwords hashed with bcrypt cost 12 (`internal/auth/password_hasher.go`, `internal/auth/auth.go:43`).
+  - Tokens delivered as HttpOnly cookies `auth_token` / `refresh_token`; middleware `middleware.Auth` / `middleware.TryAuth` validates on protected routes (`cmd/server/main.go:356`).
+  - Refresh tokens stored hashed (sha256) in `refresh_token` table via `postgres.NewRefreshTokenRepository` (`cmd/server/main.go:69`).
+  - Bootstrap flow (`POST /auth/bootstrap`, `GET /auth/bootstrap-check`) seeds a first org/user when none exist (`cmd/server/main.go:97-98`).
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- None (no Sentry, Datadog, etc.)
+- None (no Sentry/Datadog). Errors returned in JSON `error` envelope and logged via `log` package (stdout).
 
 **Logs:**
-- Go standard library `log` package; request logging middleware (`internal/middleware/middleware.go` → `Logging`); docker logging with rotation (`max-size: 10m`, `max-file: 3` in `deploy/demo/docker-compose.yml`)
-
-**Health:**
-- `GET /health` endpoint (`internal/handlers/`, registered in `cmd/server/main.go:60`)
+- Standard library `log` to stdout, wrapped by `middleware.Logging` (`cmd/server/main.go:356`). No structured/logrus sink in the server path (`logrus` appears only as a transitive testcontainers dependency).
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- Self-hosted demo deployment: Docker Compose stack (`deploy/demo/docker-compose.yml`) with `cloudflared` tunnel exposing the web container; no cloud platform (no AWS/GCP/Heroku/Netlify)
-- Production image: multi-stage `Dockerfile` (golang:1.26.1-alpine → alpine)
+- Containerized deployment: single image `hourglass:latest` from `Dockerfile`; compose stacks in repo root (`docker-compose.yml`) and demo env (`deploy/demo/docker-compose.yml`, referenced in `Makefile`).
+- Demo deploy automation: `make demo-up` / `demo-migrate` / `demo-seed` / `demo-redeploy` (`Makefile`).
 
 **CI Pipeline:**
-- GitHub Actions: `.github/workflows/docs-check.yml` (docs completeness + Mermaid validation, non-blocking warnings) and `.github/workflows/qodana_code_quality.yml` (Qodana scan, requires `QODANA_TOKEN` secret)
-- No automated test/build pipeline (no CI runs of `make test` or `bun run build`); `make demo-redeploy` (`git pull` + compose up) is the manual deploy path (`Makefile`)
+- No CI config files present in repo (no `.github/workflows`, no GitLab CI). Tests run locally via `make test` (`go test -v ./...`) and `cd web && bun run test`.
 
 ## Environment Configuration
 
-**Required env vars:**
-- `DATABASE_URL` - Postgres connection string (server + migrate + demo compose)
-- `JWT_SECRET` - mandatory in production/staging (`GO_ENV` gate in `cmd/server/main.go`)
-- `PORT` - server port (default 8080)
-- `ALLOWED_ORIGINS` - CORS allowlist (default `http://localhost:3000`)
-- `RATE_LIMIT`, `ANONYMOUS_RATE_LIMIT` - rate limiting knobs
-- `VITE_API_URL` - frontend API base (default `/api`)
-- Demo compose additionally: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `TZ=Europe/Rome`
+**Required env vars (backend):**
+- `DATABASE_URL` - Postgres connection (has safe default)
+- `JWT_SECRET` - token key (required in prod/staging, else dev default)
+- Optional: `GO_ENV`, `PORT`, `ALLOWED_ORIGINS`, `RATE_LIMIT`, `ANONYMOUS_RATE_LIMIT`
 
 **Secrets location:**
-- `deploy/demo/.env` (demo deployment; `.env.example` committed alongside it in `deploy/demo/`) - never read or commit contents
-- `JWT_SECRET` in production is required at startup; no secret manager integration
+- Supplied at runtime via environment / `docker-compose.yml` (`JWT_SECRET: dev-secret-change-in-production` in compose — dev only). No `.env` file committed. No secrets manager integration.
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- None
+- None. No webhook receiver endpoints exist.
 
 **Outgoing:**
-- None (no email, no SMS, no webhook dispatch; approvals and notifications are in-app only)
+- None. The application does not call external webhooks.
+
+## Other Integrations
+
+**Excel/CSV Export:**
+- `github.com/xuri/excelize/v2` generates `.xlsx`/`.csv` timesheet, expense, and combined reports streamed to the browser (`internal/adapters/primary/http/export.go:136-178`). Output is set with `Content-Disposition: attachment` — no external service involved.
+
+**Test Infrastructure:**
+- `github.com/testcontainers/testcontainers-go` launches a throwaway Postgres container for Go integration tests (`*_integration_test.go` across `internal/core/services/*` and `internal/adapters/secondary/postgres/*`). This is a dev-time dependency only, not a runtime integration.
 
 ---
 
-*Integration audit: 2026-08-12*
+*Integration audit: 2026-08-25*

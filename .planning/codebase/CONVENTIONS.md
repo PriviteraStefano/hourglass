@@ -1,99 +1,106 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-08-12
+**Analysis Date:** 2026-08-25
 
-## Naming Patterns
+This document covers both the Go backend (`./`) and the TypeScript React frontend (`./web`). They use different toolchains and conventions.
+
+## Languages
+
+**Primary (Backend):**
+- Go 1.26.1 — `go.mod`. All backend code under `cmd/`, `internal/`, `pkg/`.
+
+**Primary (Frontend):**
+- TypeScript (strict) — `web/tsconfig.json`. React 19 with JSX (`"jsx": "react-jsx"`).
+
+## Backend Conventions (Go)
+
+### Naming Patterns
 
 **Files:**
-- Go: snake_case matching the primary type, suffixed by layer — `user_repository.go`, `time_entry_repository.go`, `auth.go`, `handler_test_helper.go` (`internal/adapters/secondary/postgres/`, `internal/adapters/primary/http/`, `internal/core/services/`)
-- Frontend: kebab-case — `status-badge.tsx`, `app-shell.tsx`, `entries-filters.tsx`, `time-entries-list.tsx` (`web/src/components/`, `web/src/routes/_authenticated/.../-components/`)
-- shadcn primitives live in `web/src/components/ui/` (lowercase single-word files: `button.tsx`, `dialog.tsx`, `table.tsx`)
-- Test files: `*_test.go` co-located with source (Go); `*.test.ts`/`*.test.tsx` inside a `__tests__/` folder next to the source (frontend)
+- `snake_case.go` for all source and test files (e.g., `auth.go`, `user_repository_test.go`).
+- Tests are siblings: `auth_test.go`, `auth_integration_test.go`. Integration tests use the `*_integration_test.go` suffix.
+
+**Packages:**
+- Lowercase single-word package names matching the directory (e.g., `package http`, `package auth`, `package postgres`).
+- Hexagonal layers: `internal/core/services/<domain>` (business logic), `internal/adapters/primary/http` (HTTP handlers), `internal/adapters/secondary/postgres` (repositories).
+
+**Types / Structs:**
+- `PascalCase` exported types, `camelCase` unexported fields.
+- Handler structs use the `*Handler` suffix: `AuthHandler` (`internal/adapters/primary/http/auth.go`).
+- Constructors are `NewXxx(...)` and return a pointer: `NewAuthHandler(...)` (`internal/adapters/primary/http/auth.go:22`).
 
 **Functions:**
-- Go: exported methods on `*Handler`/`*Repository` receivers in PascalCase (`(h *AuthHandler) Register`, `(r *UserRepository) GetByEmail`); constructors `NewAuthHandler(...)`, `NewUserRepository(pool)`; doc comment on every exported function: `// GetByEmail returns the first user matching the given email, or ErrUserNotFound.`
-- Go test helpers always call `t.Helper()` first (see `internal/adapters/secondary/postgres/exported_test_helpers.go`, `internal/adapters/primary/http/handler_test_helper.go`)
-- Frontend: exported named function components (`export function StatusBadge(...)`) — never default exports; hooks prefixed `use` (`use-mobile.ts`); React Query option factories named `xxxQueryOpts` / `xxxMutationOpts` and aggregated under a PascalCase `XxxApis` namespace object (`web/src/api/auth.ts` exports `AuthApis.profileQueryOpts`, `loginMutationOpts`, ...)
+- Receivers use a short, consistent abbreviation of the type (`h *AuthHandler`, `m *MockUserRepo`).
+- HTTP handler methods: `func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request)`.
 
-**Variables:**
-- Go: short camelCase; receivers `h`, `r`, `f` (fixture), `svc`
-- Frontend: camelCase locals; request/response field names use snake_case to mirror the Go JSON contract (`organization_name`, `is_active`, `created_at` in `web/src/types/api.ts`); `const PREFIX = \`auth_${Date.now()}\`` style for e2e uniqueness
+**Errors:**
+- Sentinel errors defined as package-level `var`/`const` and compared with `errors.Is` / `switch err`: `auth.ErrEmailExists`, `auth.ErrUsernameExists` (`internal/adapters/primary/http/auth.go:67-70`).
+- Port-level not-found errors live in `internal/core/ports`: `ports.ErrUserNotFound` (`internal/adapters/secondary/postgres/user_repository_test.go:44`).
+
+### Code Style
+
+**Formatting:** `gofmt` / `go fmt` is the de-facto standard (no custom formatter configured). No Makefile or CI step for `gofmt` is present, but Go idioms are followed.
+
+**Linting:** No `golangci-lint` config (`.golangci.yml` absent). CI runs Qodana only (`.github/workflows/qodana_code_quality.yml`).
+
+**Imports:** Grouped standard-library first, then third-party (`github.com/...`), then internal `github.com/stefanoprivitera/hourglass/...`.
+
+### Error Handling
+
+- Handlers decode JSON, validate string lengths via `validateStringLengths(w, lengthField(...))` helpers, then delegate to a service. On error they map domain sentinels to HTTP status via `api.RespondWithError(w, status, msg)` (`internal/adapters/primary/http/auth.go:41-74`).
+- Success via `api.RespondWithJSON(w, http.StatusOK, payload)` using the envelope in `pkg/api` (`Data`/`Error` fields).
+- Services return `error` as the last return value; callers use `require.NoError` / `require.ErrorIs` in tests.
+- No `panic` for control flow; errors propagate up to handlers.
+
+### Module / API Design
+
+- Handlers stay thin — all business logic is in `internal/core/services/*` (hexagonal architecture; see `plans/hexagonal-migration.md`).
+- Request/response DTOs are declared as local structs inside the handler file (e.g., `RegisterRequest` in `internal/adapters/primary/http/auth.go:26`).
+- Domain services depend on repository interfaces defined in `internal/core/ports`, not concrete implementations.
+
+## Frontend Conventions (TypeScript / React)
+
+### Naming Patterns
+
+**Files:**
+- `kebab-case.ts(x)` for component and utility files (e.g., `entries-table.tsx`, `status-badge.tsx`, `api.ts`). See `AGENTS.md`.
+- Test files are co-located in a `__tests__/` directory beside the source and named `*.test.ts(x)` (e.g., `web/src/api/__tests__/auth.test.ts`, `web/src/components/shared/__tests__/entries-table.test.tsx`).
+
+**React Components:**
+- `PascalCase` component names exported from `kebab-case` files.
 
 **Types:**
-- Go: domain structs in `internal/core/domain/*` (`auth.User`, `time_entry.TimeEntry`); service request/response types named `<Verb>Request`/`<Verb>Response` or `RegisterRequest`/`LoginResponse` (`internal/core/services/auth/auth.go`); JSON tags snake_case with `omitempty` for optionals: `json:"activated_at,omitempty"`
-- Frontend: `interface` for API shapes in `web/src/types/api.ts` and `web/src/types/models.ts`, re-exported through the barrel `web/src/types/index.ts`; components declare `export interface XxxProps`; `import type` for type-only imports (`.oxlintrc` + codebase practice)
+- Shared API types live in `web/src/types/` (e.g., `web/src/types/unit.ts`, `web/src/types/api.ts`) and are imported via `@/types` path alias.
+- Domain schemas are Zod schemas (`z.object(...)`, `z.enum(...)`) — see `web/src/lib/__tests__/validation.test.ts:12-44`.
 
-## Code Style
+**Variables / Functions:**
+- `camelCase` for variables and functions; `PascalCase` for types/classes.
+- TanStack Query options are exported as `const`: `profileQueryOpts`, `loginMutationOpts` (`web/src/api/auth.ts:14-50`).
 
-**Formatting:**
-- Go: `gofmt` standard (no `.golangci.yml`, no format config file); go.mod requires Go 1.26.1; imports grouped stdlib first, then third-party (`internal/core/services/auth/auth_test.go`)
-- Frontend: oxfmt (`web/.oxfmtrc.json`) — printWidth 80, tabWidth 2, semicolons, **double quotes**, trailing commas (es5). Run with `bun run fmt` / check `bun run fmt:check`
-- Frontend imports use explicit `.ts`/`.tsx` extensions for relative and `@/` imports (`allowImportingTsExtensions: true` in `web/tsconfig.json`): `import { Body } from "@/components/layout/body.tsx"`
+### Code Style
 
-**Linting:**
-- Frontend: oxlint (`web/.oxlintrc.json`) — plugins `typescript`, `react`, `jsx-a11y`, `unicorn`, `import`; `typeAware: true`; correctness category at `warn`; ignores `dist`, `node_modules`, `src/routeTree.gen.ts`, `e2e`, `**/*.gen.ts`. Run: `bun run lint`, auto-fix `bun run lint:fix`
-- Go: static analysis via Qodana CI (`qodana.yaml`, `qodana.starter` profile, `jetbrains/qodana-jvm-community:2026.1`, GitHub workflow `.github/workflows/qodana_code_quality.yml`)
+**Formatting:** `oxfmt` — config in `web/.oxfmtrc.json`: `printWidth: 80`, `tabWidth: 2`, spaces (no tabs), `semi: true`, `singleQuote: false`, `trailingComma: "es5"`. Run via `bun run fmt` / `bun run fmt:check`.
 
-## Import Organization
+**Linting:** `oxlint` (type-aware) — config in `web/.oxlintrc.json`. Plugins: `typescript`, `react`, `jsx-a11y`, `unicorn`, `import`. `correctness` category is `warn`. Env: `browser`. Ignores `dist`, `node_modules`, `src/routeTree.gen.ts`, `e2e`, `test-results`, `**/*.gen.ts`. Run via `bun run lint` / `bun run lint:fix`.
 
-**Order:**
-1. React/external packages (`react`, `@tanstack/react-query`, `lucide-react`)
-2. `@/` aliased internal modules (components, api, lib, types)
-3. Relative imports within feature folders
+**Type checking:** `tsc -b` (strict). `noUnusedLocals`/`noUnusedParameters` are `false` but `strict: true` is on. `erasableSyntaxOnly: true`. Path alias `@/*` -> `./src/*` (`web/tsconfig.json`).
 
-**Path Aliases:**
-- `@/*` → `./src/*` (`web/tsconfig.json`, mirrored in `web/vitest.config.ts` and `web/vite.config.ts`); use `@/lib/api.ts`, `@/components/ui/button`, `@/types` — never deep relative paths
+**Import organization:** Internal imports use the `@/` alias (e.g., `import { api } from "@/lib/api.ts"`). `verbatimModuleSyntax`-style type imports use `import type`.
 
-## Error Handling
+### Error Handling
 
-**Backend (Go):**
-- Sentinel errors declared per domain/service package: `var ErrTimeEntryNotFound = errors.New("time entry not found")` in `internal/core/domain/time_entry/time_entry.go`, service-level in `internal/core/services/auth/auth.go` (`ErrEmailExists`, `ErrInvalidCreds`, ...)
-- Services return sentinel errors; handlers map them to HTTP status via `switch err` — `case auth.ErrEmailExists: api.RespondWithError(w, http.StatusConflict, "email already registered")` (`internal/adapters/primary/http/auth.go:65-74`)
-- Repositories wrap with context: `return wrapPGError(err, "add user")` (`internal/adapters/secondary/postgres/user_repository.go:31`, helper in `internal/adapters/secondary/postgres/postgres.go`); not-found sentinel errors live on ports interfaces (`internal/core/ports/user_repository.go:11`)
-- Shared response envelope from `pkg/api/response.go`: `RespondWithJSON(w, status, payload)` → `{"data": ...}`; `RespondWithError(w, status, msg)` → `{"error": ...}`
-- Handler validation before service call: `validateStringLengths(w, lengthField("email", req.Email, MaxEmailLength))` (`internal/adapters/primary/http/auth.go:45-54`)
+- Central HTTP client `api<T>()` in `web/src/lib/api.ts:36` throws `UnauthorizedError` when auth refresh fails (`web/src/lib/api.ts:11-16`), otherwise `new Error(error.message || error.error || "Request failed")` (`web/src/lib/api.ts:86`).
+- `api()` auto-retries once through `POST /auth/refresh` on 401 unless the path is an auth path (`AUTH_PATHS`, `web/src/lib/api.ts:23-32`). Prevents recursion/redirect loops.
+- 204 No Content returns `undefined` (avoids JSON parse error on DELETE).
+- React Query `queryOptions`/`mutationOptions` defined in `web/src/api/*` modules; `onSuccess` handlers update the query cache via `client.setQueryData(["auth", "me"], ...)` (`web/src/api/auth.ts:27-35`).
 
-**Frontend (TypeScript):**
-- Single HTTP client `api<T>()` in `web/src/lib/api.ts` throws `Error(message)` from the `{error}` envelope; custom `UnauthorizedError` for expired sessions; 401 triggers one single-flight refresh attempt (`refreshPromise`) then retries once; auth paths never trigger refresh
-- **The HTTP client never navigates** — route guards catch `UnauthorizedError` and call `redirect({ to: "/login" })` (`web/src/routes/_authenticated.tsx`)
-- Route loader/query failures render `RouteError` (`web/src/components/layout/route-error.tsx`) with `router.invalidate()` retry; leaf-level `errorComponent` per route (`web/src/routes/_authenticated/time-entries/index.tsx:33`)
-- Mutations set cache in `onSuccess` (`client.setQueryData`) rather than refetch; auth mutations never hard-redirect (documented at `web/src/api/auth.ts:79-84`)
+### Module Design
 
-## Logging
-
-**Framework:** Go standard library `log` — no slog/logrus. Request logging middleware in `internal/middleware/middleware.go:145-153`: `log.Printf("%s %s %d %dms", r.Method, r.URL.Path, rw.statusCode, duration.Milliseconds())`. Tests capture output via `log.SetOutput(&buf)` (`internal/middleware/logging_test.go`).
-
-**Frontend:** `console.error` only inside dev-gated blocks (`if (import.meta.env.DEV) console.error("[route-error] loader/query failed:", error)` in `web/src/components/layout/route-error.tsx`); `console.log` not used in src.
-
-## Comments
-
-**When to Comment:**
-- Go: exported declarations get `//` doc comments; section separators in tests: `// ---------------------------------------------------------------------------` / `// TestService_Register` banners (`internal/core/services/auth/auth_test.go`)
-- Frontend: JSDoc `/** */` blocks explain *why* and cite plan/ADR references — e.g. `web/src/lib/api.ts:5-10` (refresh loop root cause), `web/src/components/layout/route-error.tsx:14-24` (invalidate vs reset), `web/src/routes/_authenticated/-components/today-page.tsx:40-49` (ADR-P-011). Plan codes are cited inline: `(Plan 10-04)`, `(ADR-FE-017)`, `(D-13-18..23)`
-
-## Function Design
-
-**Size:** Handlers stay thin — decode → validate → call service → respond (`internal/adapters/primary/http/auth.go`). Business logic lives in `internal/core/services/*`, never in handlers.
-
-**Parameters:** Go methods take `ctx context.Context` first, then domain values; repositories take `uuid.UUID` IDs. Frontend component props are `interface XxxProps` objects; generic components use generics (`EntriesTable<T>` in `web/src/components/shared/entries-table.tsx`).
-
-**Return Values:** Services return `(*T, error)`; not-found returned as typed sentinel error (no nil-checks by callers beyond `errors.Is`). Frontend query options return `queryOptions<T>({ queryKey, queryFn })`; mutations return `mutationOptions` with `mutationFn` receiving the request payload typed (`web/src/api/auth.ts`).
-
-## Module Design
-
-**Exports:** Go — one constructor + receiver methods per package; frontend — named exports only; `XxxApis` object aggregates all options per domain (`AuthApis`, `TimeEntriesApis`, `ActivitiesApis`, `ExpensesApis`, `ContractsApis`, `CustomersApis` in `web/src/api/*.ts`).
-
-**Barrel Files:** `web/src/types/index.ts` re-exports `api.ts` + `models.ts` types (import as `import type { TimeEntry } from "@/types"`); `web/src/components/layout/index.ts` exists; feature pages import from explicit file paths rather than index barrels.
-
-## Frontend State & Data Conventions
-
-- All server state via TanStack Query; shared client in `web/src/lib/query-client.ts` (`retry: false`, `staleTime: 30000`, `refetchOnWindowFocus: false`), passed to both `QueryClientProvider` and router context (`context.client` in `web/src/main.tsx`)
-- Route loaders use `client.ensureQueryData(XxxApis.xxxQueryOpts(...))` inside `Promise.all` (`web/src/routes/_authenticated/time-entries/index.tsx:19-29`); component-level data uses `useQuery` (non-suspense) with `Skeleton`/locked error states (`web/src/routes/_authenticated/-components/today-page.tsx`)
-- URL state: `validateSearch` with zod schemas (`z.object({ date: z.coerce.date().default(new Date()), ... })`), `loaderDeps: ({ search }) => search` (`web/src/routes/_authenticated/time-entries/index.tsx:10-18`)
-- Validation schemas: zod; shared schemas exported from `web/src/types/unit.ts` (`CreateUnitRequestSchema`), route-local schemas recreated inline in tests (`web/src/lib/__tests__/validation.test.ts`)
-- Form validation: react-hook-form with zod resolver; UI primitives from `web/src/components/ui/` (shadcn-style, configured in `web/components.json`)
-- Styling: Tailwind CSS v4 (`@tailwindcss/vite`), `cn()` helper from `web/src/lib/utils.ts` (clsx + tailwind-merge); icons from `lucide-react` with `Icon` suffix (`LoaderIcon`, `ChevronRightIcon`)
+- API calls are centralized as TanStack Query `queryOptions`/`mutationOptions` in `web/src/api/*.ts` (one file per domain: `auth.ts`, `time-entries.ts`, `customers.ts`, etc.).
+- Shared client `web/src/lib/api.ts` provides the `api<T>()` helper used by all query/mutation fns.
+- `web/src/routes/` uses TanStack Router file-based routing; protected routes use `beforeLoad` to hydrate auth (`web/src/routes/_authenticated.tsx`).
+- No barrel `index.ts` re-export pattern is enforced; imports target specific files.
 
 ---
 
-*Convention analysis: 2026-08-12*
+*Convention analysis: 2026-08-25*

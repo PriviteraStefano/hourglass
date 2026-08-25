@@ -1,203 +1,202 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-08-12
+**Analysis Date:** 2026-08-25
 
 ## Directory Layout
 
 ```
 hourglass/
 ├── cmd/
-│   ├── server/main.go          # Composition root: builds services, wires all routes
-│   └── migrate/main.go         # PostgreSQL migration CLI (-up / -down)
+│   ├── server/main.go          # Backend HTTP server entry + route wiring (composition root)
+│   └── migrate/main.go         # PostgreSQL migration/seeding CLI
 ├── internal/
 │   ├── adapters/
-│   │   ├── primary/http/       # Thin HTTP handlers (one file per domain + tests)
-│   │   └── secondary/postgres/ # PostgreSQL repository implementations + tests
-│   ├── auth/                   # JWT validation, token service, bcrypt hasher
+│   │   ├── primary/http/       # Thin HTTP handlers (one file per domain + co-located _test.go)
+│   │   └── secondary/postgres/ # PostgreSQL repository implementations of core ports
+│   ├── auth/                   # JWT service, token service, password hasher
 │   ├── cookies/                # HttpOnly cookie helpers (auth_token/refresh_token)
 │   ├── core/
-│   │   ├── domain/<context>/   # Pure entities, request structs, sentinel errors
-│   │   ├── ports/              # Repository/service interfaces (hex ports)
-│   │   └── services/<context>/ # Business logic services (+ routing, testdata)
-│   ├── db/                     # pgxpool construction from DATABASE_URL
-│   ├── handlers/               # Legacy glue: health handler
-│   ├── middleware/             # Auth, TryAuth, CORS, rate limit, logging, API version
-│   └── models/                 # Legacy shared models/constants (models.go)
+│   │   ├── domain/             # Entities, request/response DTOs, sentinel errors (per domain)
+│   │   ├── ports/              # Repository + token/hasher interfaces (abstractions)
+│   │   └── services/           # Application business logic (18 service packages)
+│   ├── db/                     # PostgreSQL pool (pgx) + migrate helper
+│   ├── handlers/               # Cross-cutting handlers (health)
+│   ├── middleware/             # Auth, TryAuth, RateLimiter, Logging, CORS, APIVersion
+│   └── models/                 # Shared constants (Role, Status, Governance) + data structs
 ├── pkg/
-│   └── api/                    # {data,error} response envelope + uploads/
-├── migrations/                 # NNN_name.up.sql / NNN_name.down.sql (44 migrations)
-├── web/                        # Frontend (React 19 + Vite + TanStack)
-│   ├── e2e/                    # Playwright specs + helpers.ts
-│   └── src/
-│       ├── api/                # Per-domain queryOptions/mutationOptions modules
-│       ├── components/         # Shared + feature UI components (ui/, layout/, shared/)
-│       ├── hooks/              # React hooks (use-mobile.ts)
-│       ├── lib/                # api.ts HTTP client, query-client, filters, utils
-│       ├── routes/             # TanStack Router file-based routes
-│       ├── types/              # Shared API/domain TypeScript types
-│       └── main.tsx            # SPA bootstrap (router + QueryClientProvider)
-├── deploy/demo/                # Demo deployment topology
-├── scripts/                    # seed_demo.sql, helper scripts
-├── plans/                      # Architecture/feature plans (hexagonal-migration.md)
-├── openwiki/                   # Generated project wiki (architecture/domain/testing/operations)
-├── docs/, wiki/, graphify-out/, hourglass-vault/  # Knowledge bases
-└── .planning/                  # GSD planning state (codebase/ holds this file)
+│   └── api/response.go         # JSON envelope writers ({data}/{error})
+├── migrations/                 # 19 SQL up/down migrations (cmd/migrate applies)
+├── web/                        # React 19 + TanStack frontend (see below)
+├── openwiki/                   # Repo documentation (quickstart, architecture notes)
+├── graphify-out/               # Knowledge-graph output
+├── plans/                      # GSD phase plans + hexagonal-migration.md
+└── Makefile / Dockerfile / docker-compose.yml
+```
+
+### Frontend (`web/`) layout
+```
+web/
+├── src/
+│   ├── main.tsx                # React root: QueryClientProvider + RouterProvider
+│   ├── routeTree.gen.ts       # Generated TanStack Router tree (do not edit by hand)
+│   ├── routes/                 # File-based routing
+│   │   ├── __root.tsx          # Root layout
+│   │   ├── _authenticated.tsx  # Protected layout guard (hydrates /auth/me)
+│   │   ├── _auth/              # Public auth routes (login, register, invite, password-reset, bootstrap)
+│   │   └── _authenticated/     # Protected feature routes (time-entries, activities, expenses, contracts, customers, working-groups, approvals, org-hierarchy, exports)
+│   ├── api/                    # Per-domain query/mutation option objects (auth.ts, time-entries.ts, activities.ts, ...)
+│   ├── lib/                    # api.ts (HTTP client w/ refresh), query-client.ts, list-filters.ts, utils.ts, role-visibility.ts, use-download.ts
+│   ├── hooks/                  # Shared hooks (use-mobile.ts)
+│   ├── components/             # app/, layout/, shared/, approval/, exports/, ui/ (shadcn), theme-provider.tsx
+│   ├── types/                  # Shared TS types (api.ts mirrors backend models)
+│   └── assets/
+├── vite.config.ts              # Dev server + /api proxy → http://localhost:8080
+├── package.json                # bun + vite + tanstack deps
+└── e2e/                        # Playwright tests
 ```
 
 ## Directory Purposes
 
-**`cmd/server/`:**
-- Purpose: Server binary — the only place concrete types are wired together
-- Key files: `main.go` (route table for the whole API; read it first to see the full surface)
+**`cmd/server/`**
+- Purpose: Composition root — wiring of repos, services, handlers, middleware, and route registration.
+- Contains: `main.go` (360 lines).
+- Key files: `cmd/server/main.go`
 
-**`cmd/migrate/`:**
-- Purpose: Migration runner; applies `migrations/*.up.sql` in sorted order (idempotent skip on "already exists")
-- Key files: `main.go`
+**`internal/core/services/`**
+- Purpose: All business logic, one package per domain (activity, time_entry, expense, coverage, direction, contract, customer, organization, working_group, unit, ticket, invitation, password_reset, orgsettings, auth, export, routing).
+- Contains: `service.go` (or `*.go` split) + co-located `_test.go` + `testdata/`.
+- Key files: `internal/core/services/activity/service.go`, `internal/core/services/time_entry/service.go`, `internal/core/services/routing/service.go`
 
-**`internal/core/domain/`:**
-- Purpose: Pure domain layer, one package per bounded context
-- Contains: `auth/`, `activity/`, `audit/`, `availability/`, `contract/`, `coverage/`, `customer/`, `direction/`, `expense/`, `invitation/`, `organization/`, `orgsettings/`, `password_reset/`, `ticket/`, `time_entry/`, `unit/`, `working_group/`
-- Key files: each package's `<context>.go` (entities + `Err*` sentinels + request structs)
+**`internal/core/ports/`**
+- Purpose: Interface definitions (repository ports, `TokenService`, `PasswordHasher`, `UserFinder`). The dependency-inversion seam.
+- Key files: `internal/core/ports/activity_repository.go`, `internal/core/ports/errors.go`
 
-**`internal/core/ports/`:**
-- Purpose: Hexagonal ports — interfaces the core needs (`<name>_repository.go`, `token_service.go`, `password_hasher.go`, `user_finder.go`, `refresh_token_repo.go`, `errors.go`)
-- Key files: `errors.go` (shared `ErrNotFound`/`ErrConflict`/`ErrForeignKey`)
+**`internal/core/domain/`**
+- Purpose: Entities, DTOs, and sentinel errors per domain. No I/O.
+- Key files: `internal/core/domain/activity/activity.go`, `internal/core/domain/auth/`, `internal/core/domain/coverage/`
 
-**`internal/core/services/`:**
-- Purpose: Application services, one package per domain; `routing/` is the shared approval-routing service; `testdata/` holds mocks + factories for service tests
-- Key files: `<context>/<context>.go` per domain
+**`internal/adapters/primary/http/`**
+- Purpose: Thin request/response translation layer mapped to service calls.
+- Contains: `<domain>_handler.go` + `<domain>_handler_test.go`; shared `handler_test_helper.go`, `validate.go`.
+- Key files: `internal/adapters/primary/http/activity_handler.go`, `time_entry.go`, `auth.go`
 
-**`internal/adapters/primary/http/`:**
-- Purpose: HTTP boundary — handlers, request DTOs, shared validation
-- Contains: `<domain>.go` handler + `<domain>_test.go` (integration tests), `validate.go`, `handler_test_helper.go`
-- Key files: `validate.go` (string-length caps), `auth.go` (auth endpoints)
+**`internal/adapters/secondary/postgres/`**
+- Purpose: PostgreSQL implementations of the core ports (`pgx`), plus `*_repository_test.go` and `test_setup.go`.
+- Key files: `internal/adapters/secondary/postgres/activity_repository.go`, `postgres.go`, `test_setup.go`
 
-**`internal/adapters/secondary/postgres/`:**
-- Purpose: PostgreSQL persistence — one `<name>_repository.go` per port, plus schema/migration tests
-- Contains: `postgres.go` (pool/scan base), `test_setup.go` (testcontainers pool), `exported_test_helpers.go`, `*_ontology_migration_test.go`, `*_repository_test.go`
-- Key files: `time_entry_repository.go`, `activity_repository.go`, `refresh_token_repo.go` (rotation + reuse detection)
+**`internal/middleware/`**
+- Purpose: HTTP cross-cutting concerns.
+- Key files: `middleware.go` (Auth/TryAuth/RequireRole/Logging), `ratelimit.go`, `cors.go`, `version.go`
 
-**`internal/middleware/`:**
-- Purpose: HTTP middleware + context claim helpers
-- Key files: `middleware.go` (`Auth`, `TryAuth`, `RequireRole`, claim getters/setters), `ratelimit.go`, `cors.go`, `version.go`
-
-**`internal/auth/`:**
-- Purpose: JWT validation (used by middleware) and token/password infrastructure
+**`internal/auth/`**
+- Purpose: JWT creation/validation and bcrypt password hashing.
 - Key files: `auth.go`, `token_service.go`, `password_hasher.go`
 
-**`web/src/api/`:**
-- Purpose: TanStack Query options per domain — query keys, staleTime, invalidation, toasts
-- Contains: `auth.ts`, `activities.ts`, `contracts.ts`, `customers.ts`, `expenses.ts`, `exports.ts`, `time-entries.ts`, `units.ts`, `working-groups.ts` (+ `__tests__/`)
-- Note: no `tickets.ts`/`coverage.ts`/`direction.ts`/`availability.ts` — those v0.2 APIs are backend-only
+**`pkg/api/`**
+- Purpose: Shared JSON response envelope (`{data}` / `{error}`).
+- Key files: `pkg/api/response.go`
 
-**`web/src/routes/`:**
-- Purpose: File-based routing; `_authenticated/` (guarded, `AppShell`), `_auth/` (login/register/invite/password-reset/bootstrap)
-- Contains: `__root.tsx`, `_authenticated.tsx`, `_auth.tsx` guards; feature dirs with `index.tsx`/`$id.tsx` plus `-components/` (route-private components) and `-context/` (feature contexts)
+**`migrations/`**
+- Purpose: Versioned SQL schema (`*.up.sql` / `*.down.sql`), applied by `cmd/migrate`.
+- Count: 19 up migrations.
 
-**`web/src/types/`:**
-- Purpose: Shared TypeScript types mirroring backend JSON
-- Key files: `models.ts` (domain models), `api.ts` (envelope + error types), `unit.ts`, `expense-types.ts`, `index.ts`
-
-**`migrations/`:**
-- Purpose: SQL schema; `000_full_schema` baseline + numbered deltas through `025_certificate_attachments`
-- Contains: `NNN_name.up.sql` / `NNN_name.down.sql` pairs (44 files)
+**`web/src/`**
+- Purpose: Frontend SPA source.
+- Key files: `web/src/main.tsx`, `web/src/lib/api.ts`, `web/src/api/auth.ts`, `web/src/routes/_authenticated.tsx`
 
 ## Key File Locations
 
 **Entry Points:**
-- `cmd/server/main.go` — HTTP server + full route table
-- `cmd/migrate/main.go` — migration CLI
-- `web/src/main.tsx` — SPA bootstrap
-- `web/e2e/*.spec.ts` — Playwright E2E
-- `scripts/seed_demo.sql` — demo data (`make seed`)
+- Backend server: `cmd/server/main.go`
+- Migration CLI: `cmd/migrate/main.go`
+- Frontend root: `web/src/main.tsx`
 
 **Configuration:**
-- `go.mod` / `go.sum` — Go modules (Go 1.26.1)
-- `web/package.json` + `bun.lock` (root) / `web/bun.lock` — frontend deps
-- `web/vite.config.ts` — `@` alias → `./src`, `/api` proxy → `:8080`, TanStack router plugin
-- `web/src/lib/query-client.ts` — React Query defaults
-- `docker-compose.yml`, `Dockerfile`, `deploy/demo/` — containerized deployment
-- `Makefile` — build/test/seed targets
+- `go.mod` / `go.sum` (Go 1.26.1 module)
+- `web/package.json`, `web/vite.config.ts`, `web/tsconfig.json`
+- `Makefile`, `Dockerfile`, `docker-compose.yml`
+- `.mcp.json`, `qodana.yaml`
 
 **Core Logic:**
-- `internal/core/services/routing/routing.go` — shared approval routing (ADR-BE-014)
-- `internal/core/services/time_entry/time_entry.go` — approval workflow orchestrator
-- `internal/core/services/coverage/coverage.go` — allocation loop
-- `internal/core/services/direction/direction.go`, `availability/availability.go` — v0.2 planes
-- `internal/adapters/primary/http/time_entry.go` — reference handler (thin + service delegation)
+- Services: `internal/core/services/*/service.go`
+- Ports: `internal/core/ports/*.go`
+- Domain: `internal/core/domain/*/*.go`
 
 **Testing:**
-- `internal/adapters/secondary/postgres/test_setup.go` — testcontainers per-package pool
-- `internal/core/services/testdata/` — mocks + factories for service tests
-- `internal/adapters/primary/http/handler_test_helper.go` — handler integration harness
-- `web/src/**/__tests__/` — Vitest unit tests (co-located)
-- `web/e2e/` — Playwright specs + `helpers.ts`
+- Backend: `*_test.go` co-located in `internal/adapters/primary/http/` and `internal/adapters/secondary/postgres/`; `internal/core/services/testdata/`
+- Frontend: `web/e2e/` (Playwright), `*-tests*` dirs inside `web/src/components/**` and `web/src/lib/__tests__`, `web/src/api/__tests__`
 
 ## Naming Conventions
 
-**Files:**
-- Go: snake_case per package; repositories `<name>_repository.go`, handlers `<name>_handler.go` (hex) or `<name>.go` (older handlers like `customer.go`, `expense.go`), domains `<context>.go`, tests `<file>_test.go` co-located
-- Migrations: `NNN_snake_name.up.sql` / `.down.sql`
-- Frontend: kebab-case — `time-entries/index.tsx`, `status-badge.tsx`, `app-shell.tsx`, `query-client.ts`
-- Frontend route dirs: `-components/` and `-context/` prefix with hyphen (non-route dirs in TanStack), feature routes use `index.tsx`; dynamic params as `$id.tsx`
+**Backend files:**
+- Handlers: `<domain>_handler.go` (e.g., `activity_handler.go`), receiver `(h *XxxHandler)`; constructors `NewXxxHandler(...)`.
+- Services: `service.go` within `internal/core/services/<domain>/`, type `Service`, constructor `NewService(...)`.
+- Ports: `<domain>_repository.go` defining `type <Domain>Repository interface`.
+- Repositories: `internal/adapters/secondary/postgres/<domain>_repository.go`, constructors `New<Domain>Repository(pool)`.
+- Domain: `internal/core/domain/<domain>/<domain>.go`; sentinel errors `ErrXxx`; DTOs `<Op><Domain>Request` / `<Domain>Response`.
 
-**Go:**
-- Handlers: `*Handler` receiver type (e.g., `(h *CustomerHandler)`)
-- Services: `*Service` with `NewService(...)` constructors; unexported `managerResolution`-style helpers
-- Repositories: `*Repository` with `New<X>Repository(pool)`; constructors take `*pgxpool.Pool`
-- Packages: short lowercase names; aliased in `cmd/server/main.go` as `<domain>svc` (e.g., `tesvc`, `wgsvc`, `coveragesvc`)
-- IDs: `uuid.UUID` everywhere; `time.Time` for timestamps
+**Backend symbols:**
+- Routes kebab-case: `/time-entries`, `/auth/me`, `/organizations/settings`.
+- IDs use `uuid.UUID`; timestamps `time.Time` (timezone-aware).
+- Constants in `internal/models/models.go` (Role, Status, GovernanceModel).
 
-**Frontend:**
-- API modules: `<Domain>Apis` namespace object; `queryOptions`/`mutationOptions` named `<name>QueryOpts` / `<name>MutationOpts`; query keys as `["resource", id, ...]` tuples
-- Route files: `createFileRoute("/path")` with `validateSearch` (zod), `loader`, `errorComponent: RouteError`, `pendingMs`
-- Components: PascalCase filenames in `components/ui/` (shadcn), kebab-case elsewhere; hooks `use-*.ts`
+**Frontend files:**
+- Routes: TanStack file-based; folder routes use `index.tsx`; dynamic segments `$id`; route groups `_authenticated`, `_auth`; feature subfolders use `-components`, `-context`, `-components/dialogs`.
+- Components: primarily kebab-case (`app-shell.tsx`, `status-badge.tsx`).
+- API modules: kebab-case per domain (`auth.ts`, `time-entries.ts`), exporting a `<Domain>Apis` object of `queryOptions`/`mutationOptions`.
+- Path alias: `@/` → `web/src/` (used in imports like `@/api/auth.ts`, `@/lib/api.ts`).
 
 ## Where to Add New Code
 
-**New backend domain (full hexagonal slice):**
-1. Domain: `internal/core/domain/<name>/<name>.go` — entities, request structs, `Err*` sentinels
-2. Port: `internal/core/ports/<name>_repository.go` — interface
-3. Service: `internal/core/services/<name>/<name>.go` — `Service` + `NewService(...)` (import the ports, not concrete repos)
-4. HTTP handler: `internal/adapters/primary/http/<name>_handler.go` (or `<name>.go` to match existing handler style)
-5. Postgres repo: `internal/adapters/secondary/postgres/<name>_repository.go`
-6. Wire everything + register routes in `cmd/server/main.go` (follow the shared-service rules: reuse `routing`/`orgsettings` instances, never construct second copies)
-7. Migration: `migrations/NNN_<name>.up.sql` + `.down.sql` (next number after 025)
-8. Tests: service mocks in `internal/core/services/testdata/`, repo test in postgres package, handler test in http package
+**New backend domain feature:**
+1. Define entity/DTOs + sentinel errors in `internal/core/domain/<domain>/<domain>.go`.
+2. Define repository port in `internal/core/ports/<domain>_repository.go`.
+3. Implement business logic in `internal/core/services/<domain>/service.go` (constructor `NewService(...)`).
+4. Implement repository in `internal/adapters/secondary/postgres/<domain>_repository.go` (`New<Domain>Repository(pool)`).
+5. Add a thin handler in `internal/adapters/primary/http/<domain>_handler.go`.
+6. Wire repos → service → handler and register routes in `cmd/server/main.go` (use `middleware.Auth(authService, handler)` for protected routes).
+7. Add SQL migration in `migrations/` (`NNN_<name>.up.sql` + `.down.sql`).
 
-**New frontend feature:**
-- Route: `web/src/routes/_authenticated/<feature>/index.tsx` (+ `$id.tsx` for detail pages) with route-private components in `<feature>/-components/`
-- API module: `web/src/api/<feature>.ts` exporting `<Feature>Apis` (query/mutation options using `api<T>()` from `web/src/lib/api.ts`)
-- Types: extend `web/src/types/models.ts`
-- Shared UI: shadcn components in `web/src/components/ui/`; app-level layout in `web/src/components/layout/`
+**New HTTP route on existing domain:**
+- Add the handler method in the existing `internal/adapters/primary/http/<domain>_handler.go` and register it in `cmd/server/main.go`. Keep handler thin.
 
-**New route (no new domain):**
-- Register in `cmd/server/main.go` with `mux.HandleFunc("METHOD /path", middleware.Auth(authService, handler.Method))`; remember ServeMux most-specific-wins for literal vs wildcard paths
+**New frontend page:**
+- Add a route file under `web/src/routes/_authenticated/<feature>/index.tsx` (or `$id/index.tsx` for detail). Use `createFileRoute`, `loader` with `client.ensureQueryData(<Domain>Apis.xxxQueryOpts)`, and `errorComponent: RouteError`.
+- Add API options in `web/src/api/<feature>.ts` following `web/src/api/auth.ts` shape (`queryOptions`/`mutationOptions` calling `api<T>(...)`).
+- Shared UI goes in `web/src/components/<area>/`; reuse `web/src/components/ui/` (shadcn).
+
+**New shared util / hook:**
+- `web/src/lib/` for utilities (`utils.ts`, `list-filters.ts`); `web/src/hooks/` for React hooks.
+
+**New cross-cutting middleware:**
+- `internal/middleware/` (e.g., `version.go`); compose it in the chain at `cmd/server/main.go:356`.
 
 ## Special Directories
 
-**`web/src/routes/_authenticated/<feature>/-components/`** and **`-context/`:**
-- Purpose: Route-private components and React contexts; hyphen prefix keeps TanStack Router from treating them as routes
-- Generated: No
-- Committed: Yes
+**`web/src/routeTree.gen.ts`**
+- Purpose: Auto-generated TanStack Router route tree.
+- Generated: Yes (regenerate via TanStack CLI; do not hand-edit).
+- Committed: Yes.
 
-**`web/src/routeTree.gen.ts`:**
-- Purpose: Generated route tree from file-based routes
-- Generated: Yes (Vite `tanstackRouter` plugin on `bun run dev`/`build`)
-- Committed: Yes
+**`migrations/`**
+- Purpose: Immutable SQL schema history.
+- Generated: No (hand-written).
+- Committed: Yes (applied by `cmd/migrate`).
 
-**`web/dist/`:** Build output — generated, not committed (present locally).
+**`graphify-out/` and `.planning/`**
+- Purpose: Knowledge graph and GSD planning artifacts.
+- Generated: Yes.
+- Committed: `.planning/` typically yes; `graphify-out/` is analysis output.
 
-**`migrations/`:** SQL migration pairs — authoritative schema, committed.
+**`openwiki/` and `plans/` and `wiki/`**
+- Purpose: Human/AI documentation and GSD phase plans (`plans/hexagonal-migration.md` defines the architecture target).
+- Generated: No.
+- Committed: Yes.
 
-**`uploads/` + `pkg/api/uploads/receipts/`:** Receipt upload storage (`POST /expenses/{id}/receipt`); local filesystem-backed.
-
-**`.gsd-worktrees/M001/`:** Stale worktree snapshot containing an older duplicate of the repo — do not add code here; planned for removal.
-
-**`openwiki/`, `wiki/`, `graphify-out/`, `hourglass-vault/`:** Generated/curated knowledge bases — documentation only; `openwiki/` regenerates from source docs.
-
-**`internal/handlers/`:** Legacy handler home (currently only `health_handler.go`) — new handlers go in `internal/adapters/primary/http/`.
+**`web/e2e/`**
+- Purpose: Playwright end-to-end specs; e2e suites raise `ANONYMOUS_RATE_LIMIT` to run full specs (`cmd/server/main.go:343-352`).
+- Generated: No.
 
 ---
 
-*Structure analysis: 2026-08-12*
+*Structure analysis: 2026-08-25*

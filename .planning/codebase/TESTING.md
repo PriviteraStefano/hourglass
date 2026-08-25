@@ -1,198 +1,217 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-08-12
+**Analysis Date:** 2026-08-25
 
-## Test Framework
+Two independent test stacks: Go (`go test`) for the backend and Vitest + Playwright for the `web/` frontend.
 
-**Frontend Runner:**
-- Vitest 4.1.10 (`web/package.json`)
-- Config: `web/vitest.config.ts` — jsdom environment, `globals: true`, setup file `./src/lib/__tests__/setup.ts`, `restoreMocks: true`, excludes `e2e/**` and `node_modules/**`, `passWithNoTests: true`, alias `@` → `./src`
+## Backend (Go)
 
-**Frontend Assertion Library:**
-- Vitest `expect` + `@testing-library/jest-dom/vitest` matchers (loaded in `web/src/lib/__tests__/setup.ts`, which also polyfills `window.matchMedia` for shadcn layout components and calls `cleanup()` after each test)
+### Test Framework
 
-**Frontend API Mocking:**
-- MSW 2.x — `msw/node` `setupServer()` per test file, `server.listen({ onUnhandledRequest: "bypass" })` / `resetHandlers()` / `close()` in beforeAll/afterEach/afterAll
+**Runner:** Go standard `testing` package. Run all with `make test` (`go test -v ./...`) — `Makefile:30`.
 
-**Backend Runner:**
-- Go standard `testing` + testify (`github.com/stretchr/testify` v1.11.1 — `assert`/`require`)
-- Integration containers: `github.com/testcontainers/testcontainers-go/modules/postgres` v0.42.0 (postgres:16-alpine)
+**Assertion Library:** `github.com/stretchr/testify` v1.11.1 (`assert` and `require` subpackages). `require` is used for fatal assertions, `assert` for non-fatal. (`internal/core/services/auth/auth_test.go:10-11`).
 
-**Run Commands:**
+**Run commands:**
 ```bash
-cd web && bun run test          # Vitest run (all unit/component tests)
-cd web && bun run test:watch    # Vitest watch mode
-cd web && bun run lint          # oxlint --type-aware
-cd web && bun run typecheck     # tsc -b
-cd web && bunx playwright test  # E2E (Playwright)
-make test                       # go test -v ./... (whole backend)
+make test                  # go test -v ./...  (all backend tests)
+go test ./internal/core/services/auth/...   # single package
+go test -run TestService_Register ./internal/core/services/auth/   # single test
 ```
 
-## Test File Organization
+**Note:** 87 backend `*_test.go` files exist (excluding `.gsd-worktrees`).
 
-**Location:**
-- Go: co-located `*_test.go` with source — `internal/core/services/auth/auth_test.go`, `internal/adapters/secondary/postgres/user_repository_test.go`, `internal/adapters/primary/http/auth_test.go`, `internal/middleware/logging_test.go`
-- Frontend: `__tests__/` folder next to the unit under test:
-  - `web/src/api/__tests__/*.test.ts` (auth, time-entries, contracts, customers, activities, expenses)
-  - `web/src/lib/__tests__/*.test.ts` (api, validation, role-visibility, `setup.ts`)
-  - `web/src/components/*/__tests__/*.test.tsx` (entries-filters, entries-table, sidebar-groups, route-error)
-  - `web/src/routes/_authenticated/*/-components/__tests__/*.test.tsx` (today-page, time-entries-list, approvals-page, expenses-list)
-- E2E: `web/e2e/*.spec.ts` (auth, customers, time-entries, expenses, approvals, contracts, activities, working-groups, org-hierarchy, error-boundary) + shared `web/e2e/helpers.ts`
+### Test File Organization
 
-**Naming:**
-- Go tests: `TestService_Register`, `TestAuthHandlerIntegration`, subtests `"Register_WithNewOrg_Returns201WithUserData"`, `"Register_InvalidEmail_Returns400"` (PascalCase with underscores); unique-data helpers `uniqueID()`, `uniqueEmail()`, `uniqueOrgName()` (`internal/adapters/primary/http/auth_test.go:18-28`)
-- Frontend: `describe("AuthApis", ...)` / `it("loginMutationOpts sends POST /auth/login with credentials", ...)` — behavioral sentences, not function names
+**Location:** Co-located with source, same package (white-box). Two flavors per package:
+- `*_test.go` — unit tests (mock-based)
+- `*_integration_test.go` — integration tests (real PostgreSQL via testcontainers)
 
-## Test Structure
+Examples: `internal/core/services/auth/auth_test.go` + `auth_integration_test.go`; `internal/adapters/secondary/postgres/user_repository_test.go`.
 
-**Go — service unit tests (table-driven):**
+**Naming:** `TestXxx` functions; subtests via `t.Run(tt.name, func(t *testing.T){...})`. Table-driven tests are the norm (`internal/core/services/auth/auth_test.go:21-90`).
+
+### Test Structure
+
+**Unit test (table-driven):**
 ```go
-// internal/core/services/auth/auth_test.go
 func TestService_Register(t *testing.T) {
-	tests := []struct {
-		name    string
-		req     RegisterRequest
-		setup   func(*testdata.MockUserRepo)
-		wantErr error
-	}{ ... }
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			userRepo := &testdata.MockUserRepo{}
-			tt.setup(userRepo)
-			svc := NewService(userRepo, ...)
-			resp, err := svc.Register(context.Background(), tt.req)
-			if tt.wantErr != nil {
-				assert.ErrorIs(t, err, tt.wantErr)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
+    tests := []struct {
+        name    string
+        req     RegisterRequest
+        setup   func(*testdata.MockUserRepo)
+        wantErr error
+    }{ /* cases */ }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            userRepo := &testdata.MockUserRepo{}
+            // ... build service from mocks
+            resp, err := svc.Register(ctx, tt.req)
+            if tt.wantErr != nil {
+                require.ErrorIs(t, err, tt.wantErr)
+            }
+        })
+    }
 }
 ```
-- Pattern: table cases with a `setup func(mock)` for fixture arrangement; `assert.ErrorIs` for sentinel errors; `require` for fatal assertions, `assert` for continued ones
+(`internal/core/services/auth/auth_test.go:21-90`).
 
-**Go — HTTP handler integration tests:**
+**Integration test (real DB):**
 ```go
-// internal/adapters/primary/http/auth_test.go
-func TestAuthHandlerIntegration(t *testing.T) {
-	pool := postgres.SetupPackageContainer(t)
-	t.Run("Register_WithNewOrg_Returns201WithUserData", func(t *testing.T) {
-		postgres.SetupTestSchema(t, pool)
-		t.Cleanup(func() { postgres.TeardownTestSchema(t, pool) })
-		f := newHandlerFixture(t, pool)
-		// POST to f.ServerURL+"/auth/register" via f.Client (cookie jar)
-		// decode into map[string]interface{}, assert data.user.email...
-	})
+func TestAuthIntegration(t *testing.T) {
+    pool := postgres.SetupPackageContainer(t)   // testcontainers, skips if no Docker
+    t.Run("RegisterWithRealDB", func(t *testing.T) {
+        svc := realRepoFixture(t, pool)          // SetupTestSchema + per-subtest teardown
+        resp, err := svc.Register(ctx, req)
+        require.NoError(t, err)
+        require.Equal(t, "manager", resp.Membership.Role)
+    })
 }
 ```
+(`internal/core/services/auth/auth_integration_test.go:18-60`).
 
-**Frontend — API module tests (MSW):**
+### Mocking
+
+**No mock framework** (no `testify/mock`, no generated mocks). Mocks are hand-written structs in `internal/core/services/testdata/` (package `testdata`), one file per repository/dependency: `mocks.go`, `mock_user_repo.go`, `mock_org_settings_repo.go`, `mock_ticket_repo.go`, etc. (`./internal/core/services/testdata/`).
+
+- Mocks implement the same interface as the real repository (e.g., `MockUserRepo` satisfies the `ports` repo interface).
+- Methods return zero values / empty results by default; some mocks expose state setters like `SetPlanRows(...)` for query stubs (`mock_direction_repo.go:64`).
+- Tests inject mocks into service constructors: `NewService(userRepo, orgRepo, tokenSvc, pwHasher, refreshRepo)` (`internal/core/services/auth/auth_integration_test.go:25-32`).
+- A smoke test, `TestMocks_Instantiate`, asserts all mocks are non-nil (`internal/core/services/testdata/mocks_test.go:7-29`).
+
+**What to mock:** repository ports, token service, password hasher — anything the service depends on. **What NOT to mock:** the DB in `*_integration_test.go` (use the real container).
+
+### Database Integration Tests (testcontainers)
+
+- `internal/adapters/secondary/postgres/test_setup.go:21` — `SetupPackageContainer(t)` spins up a single `postgres:16-alpine` container per package (`sync.Once`). **If Docker is unavailable the test calls `t.Skip(...)`** — integration tests are not run in CI without Docker.
+- `internal/adapters/secondary/postgres/exported_test_helpers.go` provides `TestPool`, `SetupTestSchema`, `TeardownTestSchema` (per-subtest schema, registered with `t.Cleanup`), and `uniqueEmail()`/`uniqueUsername()` helpers.
+- Repository tests follow: `pool := TestPool(t); SetupTestSchema(t, pool); t.Cleanup(...)` then exercise real SQL (`internal/adapters/secondary/postgres/user_repository_test.go:14-45`).
+
+### Coverage
+
+- **No enforced coverage threshold.** Qodana config `qodana.yaml` has `testCoverageThresholds` commented out. `go test` runs without `-cover` in `Makefile`.
+- View coverage manually: `go test -cover ./...` or `go test -coverprofile=cover.out ./... && go tool cover -html=cover.out`.
+
+### Test Types
+
+- **Unit:** service-layer logic with hand-written mocks (`*_test.go`).
+- **Integration:** real PostgreSQL via testcontainers (`*_integration_test.go`).
+- **E2E (backend):** none in Go; E2E is handled by the frontend Playwright suite.
+
+## Frontend (web/)
+
+### Test Framework
+
+**Runner:** Vitest v4 (`vitest`). Config: `web/vitest.config.ts`.
+
+**Environment:** `jsdom` (browser-DOM simulation for React component tests).
+
+**Globals:** `globals: true` — `describe`/`it`/`expect`/`beforeAll`/`afterEach` available without import, though tests also import them explicitly (`web/src/api/__tests__/auth.test.ts:1`).
+
+**Setup file:** `./src/lib/__tests__/setup.ts` — imports `@testing-library/jest-dom/vitest`, polyfills `window.matchMedia` (jsdom lacks it; needed by shadcn sidebar), and calls `cleanup()` after each test.
+
+**Restore mocks:** `restoreMocks: true`.
+
+**Excludes:** `e2e/**` and `node_modules/**`; `passWithNoTests: true`.
+
+**Run commands:**
+```bash
+cd web
+bun run test            # vitest run (all unit/component tests)
+bun run test:watch      # vitest (watch mode)
+bun run typecheck       # tsc -b (type-only, not a test runner)
+```
+
+### Path Alias
+
+- `@/` -> `./src/` (set in both `vitest.config.ts` and `vite.config.ts` and `tsconfig.json`). Tests import source as `@/lib/api.ts`, `@/types/unit`, etc.
+
+### Test File Organization
+
+**Location:** Co-located in `__tests__/` directories beside the module under test. Naming: `*.test.ts` (logic) and `*.test.tsx` (React components).
+
+Examples:
+- `web/src/api/__tests__/auth.test.ts` (API option tests)
+- `web/src/lib/__tests__/api.test.ts`, `validation.test.ts`, `role-visibility.test.ts`
+- `web/src/components/shared/__tests__/entries-table.test.tsx`, `status-badge.test.tsx`
+- `web/src/routes/_authenticated/.../-components/__tests__/*.test.tsx`
+
+**Count:** 16 Vitest test files under `web/src` (e2e excluded).
+
+### Test Structure
+
+**API-layer test (MSW + Vitest):**
 ```typescript
-// web/src/api/__tests__/auth.test.ts
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { AuthApis } from "../auth";
+
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-it("loginMutationOpts sends POST /auth/login with credentials", async () => {
-  let capturedBody: unknown = null;
-  server.use(http.post("/api/auth/login", async ({ request }) => {
-    capturedBody = await request.json();
-    return HttpResponse.json({ data: mockResponse });
-  }));
-  const result = await AuthApis.loginMutationOpts.mutationFn!(creds, undefined as any);
-  expect(capturedBody).toEqual(creds);
-  expect(result).toEqual(mockResponse);
+describe("AuthApis", () => {
+  it("profileQueryOpts calls GET /auth/me and returns user with membership", async () => {
+    server.use(http.get("/api/auth/me", () => HttpResponse.json({ data: mockData })));
+    const result = await AuthApis.profileQueryOpts.queryFn!(undefined as any);
+    expect(result).toEqual(mockData);
+  });
 });
 ```
-- The HTTP client contract (`web/src/lib/__tests__/api.test.ts`) covers: envelope unwrapping, error envelope → thrown Error, 401→refresh→retry (asserts the retried request count), refresh failure → `UnauthorizedError`, Content-Type header, network errors
+(`web/src/api/__tests__/auth.test.ts:1-43`).
 
-**Frontend — component tests:**
-- Pure render/screen assertions (`web/src/components/shared/__tests__/entries-filters.test.tsx`) with `vi.fn()` handlers
-- Full-stack component tests build a real router + QueryClientProvider + MSW (`web/src/components/layout/__tests__/sidebar-groups.test.tsx` uses `createMemoryHistory`, `createRouter`, `RouterProvider`, `routeTree.gen` import) and drive role-dependent UI via mutable per-test MSW state (`let currentRole: Role = "employee"`)
-- Data factories are plain functions with optional overrides: `function wg(overrides?: Partial<WorkingGroup>): WorkingGroup { return { ...defaults, ...overrides } }` (`web/src/lib/__tests__/role-visibility.test.ts:38-54`)
-
-## Mocking
-
-**Backend:** Hand-written mocks implementing ports interfaces, in `internal/core/services/testdata/mocks.go` (e.g. `MockUserRepo`, `MockOrgRepo`, `MockTokenService`, `MockPasswordHasher`, `MockRefreshTokenRepo`) plus per-domain mocks (`mock_ticket_repo.go`, `mock_direction_repo.go`, `mock_coverage_repo.go`, `mock_availability_repo.go`, `mock_audit_log_repo.go`, `mock_org_settings_repo.go`) and `factories.go`; `mocks_test.go` smoke-tests that all mocks instantiate. Mocks expose in-memory maps as public fields (`u.Users = map[uuid.UUID]*authdomain.User{...}`) for direct seeding.
-
-**Frontend:** MSW for all network mocking; `vi.fn()` / `vi.mock` for local functions; `restoreMocks: true` resets spies between tests. E2E uses real backend + real Postgres (no mocking).
-
-**What to Mock:** Network boundary (MSW), ports in Go services. E2E helper docs state the public API cannot produce all workflow states, so E2E seeds rows directly via `psql` (`web/e2e/helpers.ts`).
-
-**What NOT to Mock:** The full route wiring — `newHandlerFixture` builds the real mux with real postgres-backed services so handler tests exercise the true stack (`internal/adapters/primary/http/handler_test_helper.go`, mirrors `cmd/server/main.go`).
-
-## Fixtures and Factories
-
-**Go:**
-- `postgres.SetupPackageContainer(t)` — one postgres:16-alpine container per package via `sync.Once`; **skips tests with `t.Skip` when Docker is unavailable**; cleanup delegated to testcontainers Ryuk (explicitly NOT `t.Cleanup` — see comment in `internal/adapters/secondary/postgres/test_setup.go`)
-- `postgres.SetupTestSchema(t, pool)` applies all `migrations/*.up.sql` (excluding seed) sorted alphabetically; `TeardownTestSchema` drops tables per subtest for isolation (`internal/adapters/secondary/postgres/exported_test_helpers.go`)
-- `newHandlerFixture(t, pool)` returns `handlerFixture{Client (cookie jar), Server, ServerURL, Pool, authSvc}` with `registerAndLogin`/`loginUser` helpers
-
-**Frontend E2E:**
-- `web/e2e/helpers.ts`: `psql()` (docker exec), `registerUser()`, `loginOnce()` (returns Set-Cookie pairs), `useSession()` (injects cookies into browser context), `promoteToFinance()`, `seedBaseEntities()`, `seedTimeEntries()`, `seedExpenses()`, `seedCustomers()` — direct SQL seeding for list states the API can't produce
-- `web/e2e/auth.spec.ts` uses `test.describe.configure({ mode: 'serial' })` and registers/logs in once in `beforeAll`, sharing cookies to stay inside backend rate limits
-
-## Coverage
-
-**Requirements:** None enforced. No thresholds in `web/vitest.config.ts` (no coverage provider configured); `qodana.yaml` has coverage thresholds commented out. Coverage is by convention: every service package has unit + integration tests, every handler has integration tests, every api module has MSW tests, every major feature has an e2e spec.
-
-**View Coverage:**
-```bash
-cd web && bunx vitest run --coverage   # requires installing @vitest/coverage-v8 (not currently a dep)
-go test -cover ./...
-```
-
-## Test Types
-
-**Unit Tests (Go):**
-- Service-level table-driven tests with `testdata` mocks: `internal/core/services/auth/auth_test.go`, `customer_test.go`, `contract_test.go`, `expense_test.go`, `time_entry_test.go`, `activity_test.go`, `unit_test.go`, `working_group_test.go`, `routing_test.go`, `direction_test.go`, `ticket_test.go`, `availability_test.go`, `coverage_test.go`, `invitation_test.go`, `orgsettings_test.go`, `password_reset_test.go`, `export_test.go`
-- Model/domain tests: `internal/models/models_test.go`, `internal/models/models_phase2_test.go`, `internal/core/domain/availability/availability_test.go`
-- Middleware: `internal/middleware/middleware_test.go`, `logging_test.go` (captures `log` output), `ratelimit_test.go`, `version_test.go`; cmd tests: `cmd/migrate/migrate_test.go`, `cmd/server/main_test.go`
-
-**Unit Tests (Frontend):**
-- Pure logic: `web/src/lib/__tests__/role-visibility.test.ts`, `validation.test.ts`, `use-download` (covered via e2e/error-boundary)
-- API option factories via MSW: `web/src/api/__tests__/{auth,time-entries,contracts,customers,activities,expenses}.test.ts`, `contracts.test.ts` + `web/src/lib/__tests__/api.test.ts`
-
-**Integration Tests (Go):** `*_integration_test.go` beside services (`auth_integration_test.go`, `contract_integration_test.go`, `customer_integration_test.go`, `unit_integration_test.go`, `organization_integration_test.go`, `invitation_integration_test.go`, `password_reset_integration_test.go`, `working_group_integration_test.go`, `ticket_integration_test.go`) and handler tests under `internal/adapters/primary/http/*_test.go` — all against real Postgres via testcontainers. Repository tests in `internal/adapters/secondary/postgres/*_test.go` cover migrations (`*_migration_test.go`, `*_migrations_test.go`) and CRUD per repository.
-
-**E2E Tests (Playwright):**
-- Framework: `@playwright/test` ^1.62 (`web/playwright.config.ts` — testDir `./e2e`, chromium only, baseURL `http://localhost:3000`, `webServer: "bun run dev"` with `reuseExistingServer`, `fullyParallel: true`, CI: retries 2, workers 1, `forbidOnly`)
-- Requires backend on :8080 — documented in `web/e2e/helpers.ts` header: `RATE_LIMIT=500 ANONYMOUS_RATE_LIMIT=500 go run ./cmd/server`
-- Suites: auth, customers, time-entries, expenses, approvals, contracts, activities, working-groups, org-hierarchy, error-boundary (`web/e2e/*.spec.ts`)
-
-## Common Patterns
-
-**Async Testing (frontend):**
+**Component test (Testing Library):**
 ```typescript
-// web/src/components/layout/__tests__/sidebar-groups.test.tsx
-await waitFor(() => {
-  expect(screen.getByText("...")).toBeInTheDocument();
-});
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { EntriesTable } from "../entries-table";
+// render(<EntriesTable .../>); screen.getByRole(...); fireEvent.click(...)
 ```
-Route hydration is awaited with `await router.load()` or `waitFor` after MSW handlers respond; e2e uses `await expect(page.getByRole('heading', ...)).toBeVisible({ timeout: 10000 })`.
+(`web/src/components/shared/__tests__/entries-table.test.tsx:1-70`).
 
-**Error Testing (frontend):**
-```typescript
-// web/src/lib/__tests__/api.test.ts
-await expect(api("/protected")).rejects.toThrow("Unauthorized");
-```
-401-refresh flows are asserted with call counters (`let protectedCalls = 0; expect(protectedCalls).toBe(2)`).
+### Mocking
 
-**Error Testing (Go):**
-```go
-if tt.wantErr != nil {
-	assert.ErrorIs(t, err, tt.wantErr)
-	assert.Nil(t, resp)
-} else {
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-}
-```
-HTTP status assertions use `assert.Equal(t, http.StatusBadRequest, resp.StatusCode)` with `require.NoError` on request/parse steps.
+**HTTP mocking:** MSW (`msw` + `msw/node`) intercepts `fetch` to the API. `setupServer()` is started in `beforeAll`, handlers reset in `afterEach`, closed in `afterAll`. Request bodies are captured to assert payloads (`web/src/api/__tests__/auth.test.ts:76-86`).
+
+**Module/function mocking:** Vitest `vi` (e.g., `vi.fn()`, `vi.mock(...)`) available via globals; `restoreMocks: true` resets between tests.
+
+**DOM:** `@testing-library/react` (`render`, `screen`, `fireEvent`, `within`) + `@testing-library/jest-dom` matchers (`toBeInTheDocument`).
+
+**What to mock:** the backend API (via MSW), `matchMedia` (polyfilled in setup). **What NOT to mock:** React Query cache behavior should be exercised through real `queryFn`/`mutationFn` calls.
+
+### Fixtures
+
+- No shared fixture library; test data is built inline as plain objects (e.g., `mockData` literal in `web/src/api/__tests__/auth.test.ts:14-36`).
+- Zod schemas are sometimes re-declared inline in tests for isolation (`web/src/lib/__tests__/validation.test.ts:12-44`).
+
+### Coverage
+
+- **Not enforced.** No `coverage` config in `vitest.config.ts`. View manually: `bun run test --coverage` (Vitest supports `--coverage` if a provider is added; currently none configured).
+
+### Test Types
+
+- **Unit:** pure logic — Zod schemas, API option builders, utility functions (`web/src/lib/__tests__/`).
+- **Component:** React component rendering/interaction via Testing Library (`web/src/**/__tests__/*.test.tsx`).
+- **E2E:** Playwright (see below).
+
+## End-to-End (Playwright)
+
+**Location:** `web/e2e/` (separate from Vitest; excluded from `vitest.config.ts`). Config: `web/playwright.config.ts`.
+
+**Runner:** `@playwright/test` v1.62. Run: `bunx playwright test` (per `AGENTS.md`), or `cd web && bun run build` then the Playwright runner.
+
+**Config highlights:**
+- `testDir: "./e2e"`, `fullyParallel: true`, `retries: CI ? 2 : 0`, `reporter: "html"`.
+- `baseURL: "http://localhost:3000"`; `webServer` runs `bun run dev`, waits for `http://localhost:3000`, `reuseExistingServer` unless CI, timeout 120s.
+- Single project `chromium` (Desktop Chrome).
+- `trace: "on-first-retry"`.
+
+**Test files:** `*.spec.ts` — `auth.spec.ts`, `time-entries.spec.ts`, `expenses.spec.ts`, `approvals.spec.ts`, `contracts.spec.ts`, `customers.spec.ts`, `activities.spec.ts`, `working-groups.spec.ts`, `org-hierarchy.spec.ts`, `error-boundary.spec.ts`.
+
+**Helpers:** `web/e2e/helpers.ts` provides `psql(sql)` (runs SQL via `docker exec hourglass-postgres psql ...`), `registerUser(request, prefix)` (API-based registration), and session-cookie injection. E2E suites register/login ONCE in `beforeAll` and inject cookies into each context; datasets are seeded via direct Postgres inserts (`web/e2e/helpers.ts:1-40`). Note: rate limits should be raised for e2e (`RATE_LIMIT=500 ANONYMOUS_RATE_LIMIT=500 go run ./cmd/server`).
 
 ---
 
-*Testing analysis: 2026-08-12*
+*Testing analysis: 2026-08-25*
