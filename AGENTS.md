@@ -169,6 +169,7 @@ Entries have `status` (draft → submitted → pending_manager → pending_finan
 - `DATABASE_URL` - PostgreSQL connection string for `cmd/migrate` and server (defaults to local hourglass DB)
 - `JWT_SECRET` - Token signing key. Required in all environments; if unset the server refuses to boot **unless** `ALLOW_INSECURE_AUTH=1` is set (explicit local-dev opt-in that uses the insecure default secret). Never set `ALLOW_INSECURE_AUTH=1` outside local development (CONCERNS.md #11).
 - `ALLOWED_ORIGINS` - Comma-separated CORS allowlist (defaults to `http://localhost:3000`)
+- `SECURE_COOKIES` - Set to `1`/`true` to mark auth cookies `Secure` (required when served over HTTPS behind a TLS-terminating proxy). Not derived from `X-Forwarded-Proto` (client-controllable) — operator must set this explicitly (CONCERNS.md #12).
 
 **Frontend** (web/vite.config.ts):
 - `VITE_API_URL` - Backend base URL (defaults to `/api`, proxied to `http://localhost:8080` in dev)

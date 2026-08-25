@@ -2,6 +2,7 @@ package cookies
 
 import (
 	"net/http"
+	"os"
 )
 
 const (
@@ -58,6 +59,13 @@ func GetRefreshTokenFromCookie(r *http.Request) (string, error) {
 	return cookie.Value, nil
 }
 
+// secureCookies is an operator-controlled deployment flag (SECURE_COOKIES=1|true).
+// It is intentionally NOT derived from X-Forwarded-Proto, which a client can
+// spoof: a request over plain HTTP could otherwise force an insecure (HTTP)
+// cookie and expose tokens to network sniffing (CONCERNS.md #12). Set it when
+// the app is served over HTTPS (typically behind a TLS-terminating proxy).
+var secureCookies = os.Getenv("SECURE_COOKIES") == "1" || os.Getenv("SECURE_COOKIES") == "true"
+
 func IsSecureRequest(r *http.Request) bool {
-	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	return r.TLS != nil || secureCookies
 }
