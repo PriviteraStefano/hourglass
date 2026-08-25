@@ -4,6 +4,7 @@ import (
 	"log"
 	stdhttp "net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/stefanoprivitera/hourglass/internal/db"
@@ -195,8 +196,17 @@ func main() {
 		allowedOrigins = []string{"http://localhost:3000"}
 	}
 
+	// Body-size cap (CONCERNS.md #8): 1 MB default for JSON endpoints, tunable
+	// via MAX_BODY_BYTES; multipart (receipt uploads) keeps its own 10 MB limit.
+	maxBodyBytes := int64(1 << 20)
+	if v := os.Getenv("MAX_BODY_BYTES"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			maxBodyBytes = n
+		}
+	}
+
 	log.Printf("Server starting on port %s", port)
-	handler := middleware.TryAuth(g.AuthService, g.RateLimiter.Middleware(middleware.Logging(middleware.APIVersion(middleware.CORS(allowedOrigins)(mux)))))
+	handler := middleware.MaxBody(maxBodyBytes)(middleware.TryAuth(g.AuthService, g.RateLimiter.Middleware(middleware.Logging(middleware.APIVersion(middleware.CORS(allowedOrigins)(mux))))))
 	if err := stdhttp.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
