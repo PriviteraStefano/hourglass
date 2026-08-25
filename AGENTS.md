@@ -167,7 +167,7 @@ Entries have `status` (draft → submitted → pending_manager → pending_finan
 ### Environment Variables
 **Backend** (`cmd/server/main.go`, `cmd/migrate/main.go`):
 - `DATABASE_URL` - PostgreSQL connection string for `cmd/migrate` and server (defaults to local hourglass DB)
-- `JWT_SECRET` - Token signing key (defaults to "dev-secret-change-in-production")
+- `JWT_SECRET` - Token signing key. Required in all environments; if unset the server refuses to boot **unless** `ALLOW_INSECURE_AUTH=1` is set (explicit local-dev opt-in that uses the insecure default secret). Never set `ALLOW_INSECURE_AUTH=1` outside local development (CONCERNS.md #11).
 - `ALLOWED_ORIGINS` - Comma-separated CORS allowlist (defaults to `http://localhost:3000`)
 
 **Frontend** (web/vite.config.ts):

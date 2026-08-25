@@ -13,14 +13,18 @@ import (
 )
 
 func main() {
-	env := os.Getenv("GO_ENV")
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		if env == "production" || env == "staging" {
-			log.Fatal("FATAL: JWT_SECRET is required in production/staging environments")
+		// Fail closed: never boot with the publicly-known dev secret unless an
+		// operator explicitly opts in via ALLOW_INSECURE_AUTH=1. A misconfigured
+		// or unset GO_ENV in production must NOT silently enable auth bypass
+		// (CONCERNS.md #11).
+		if os.Getenv("ALLOW_INSECURE_AUTH") == "1" {
+			log.Println("WARNING: Using default insecure JWT_SECRET because ALLOW_INSECURE_AUTH=1 is set. Never enable this outside local development.")
+			jwtSecret = "dev-secret-change-in-production"
+		} else {
+			log.Fatal("FATAL: JWT_SECRET is not set. Set JWT_SECRET in production, or set ALLOW_INSECURE_AUTH=1 to run with an insecure dev secret.")
 		}
-		log.Println("WARNING: Using default JWT_SECRET. Set JWT_SECRET in production.")
-		jwtSecret = "dev-secret-change-in-production"
 	}
 
 	pool, err := db.NewPool()
