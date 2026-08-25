@@ -177,6 +177,7 @@ None new. See `.planning/todos/` for captured ideas.
 | 260825-panic-recovery | Add Recovery middleware converting panics into clean 500 (CONCERNS #13) | 2026-08-25 | 9737d88 | [260825-panic-recovery](./quick/260825-panic-recovery/) |
 | 260825-server-timeouts | Add HTTP timeouts + graceful shutdown (CONCERNS #14) | 2026-08-25 | 815812b | [260825-server-timeouts](./quick/260825-server-timeouts/) |
 | 260825-db-pool-size | Configure pgxpool MaxConns from DB_MAX_CONNS (default 20) (CONCERNS #15) | 2026-08-25 | beeed42 | [260825-db-pool-size](./quick/260825-db-pool-size/) |
+| 260825-untrack-binaries | Untrack compiled server/migrate binaries from git (CONCERNS #17) | 2026-08-25 | (see commit) | [260825-untrack-binaries](./quick/260825-untrack-binaries/) |
 
 ## Deferred Items
 

@@ -1,5 +1,8 @@
 bin/
 main
+# Compiled binaries (build artifacts — CI builds them, never commit)
+/server
+/migrate
 
 # Frontend dependencies and generated artifacts
 web/node_modules/
