@@ -5,6 +5,8 @@ main
 web/node_modules/
 web/dist/
 web/.tanstack/
+# TanStack Router generated route tree (regenerated on build/dev — keep out of VCS)
+web/src/routeTree.gen.ts
 
 # Playwright output
 web/test-results/

@@ -167,6 +167,7 @@ None new. See `.planning/todos/` for captured ideas.
 |---|-------------|------|--------|-----------|
 | 260825-migration-ledger | Add schema_migrations ledger + per-file transactions to migration runner | 2026-08-25 | 8dc304d | [260825-migration-ledger](./quick/260825-migration-ledger/) |
 | 260825-compose-root | Extract composition root (buildGraph) + explicit time-entry approval port (CONCERNS #2 #3) | 2026-08-25 | 2ee8ae9 | [260825-compose-root](./quick/260825-compose-root/) |
+| 260825-route-tree-gitignore | Untrack generated TanStack route tree (CONCERNS #5) | 2026-08-25 | (see commit) | [260825-route-tree-gitignore](./quick/260825-route-tree-gitignore/) |
 
 ## Deferred Items
 
