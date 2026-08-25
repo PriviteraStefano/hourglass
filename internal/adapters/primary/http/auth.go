@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -69,7 +70,9 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		case auth.ErrUsernameExists:
 			api.RespondWithError(w, http.StatusConflict, "username already taken")
 		default:
-			api.RespondWithError(w, http.StatusBadRequest, err.Error())
+			// Never leak internal error detail to the client; log server-side only.
+			log.Printf("auth.Register failed: %v", err)
+			api.RespondWithError(w, http.StatusBadRequest, "registration failed")
 		}
 		return
 	}
@@ -217,7 +220,8 @@ func (h *AuthHandler) Bootstrap(w http.ResponseWriter, r *http.Request) {
 			api.RespondWithError(w, http.StatusConflict, "already bootstrapped")
 			return
 		}
-		api.RespondWithError(w, http.StatusInternalServerError, "bootstrap failed: "+err.Error())
+		log.Printf("auth.Bootstrap failed: %v", err)
+		api.RespondWithError(w, http.StatusInternalServerError, "bootstrap failed")
 		return
 	}
 
