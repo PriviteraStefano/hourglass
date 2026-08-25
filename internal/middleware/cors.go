@@ -5,7 +5,7 @@ import (
 )
 
 // CORS returns middleware that sets CORS headers based on allowed origins.
-// Signature matches APIVersion, Logging: func(http.Handler) http.Handler.
+// Signature: func(http.Handler) http.Handler, matching the other middleware in this package.
 func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

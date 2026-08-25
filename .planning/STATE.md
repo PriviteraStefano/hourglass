@@ -178,6 +178,7 @@ None new. See `.planning/todos/` for captured ideas.
 | 260825-server-timeouts | Add HTTP timeouts + graceful shutdown (CONCERNS #14) | 2026-08-25 | 815812b | [260825-server-timeouts](./quick/260825-server-timeouts/) |
 | 260825-db-pool-size | Configure pgxpool MaxConns from DB_MAX_CONNS (default 20) (CONCERNS #15) | 2026-08-25 | beeed42 | [260825-db-pool-size](./quick/260825-db-pool-size/) |
 | 260825-untrack-binaries | Untrack compiled server/migrate binaries from git (CONCERNS #17) | 2026-08-25 | 9cd1c8c | [260825-untrack-binaries](./quick/260825-untrack-binaries/) |
+| 260825-remove-api-version | Remove decorative APIVersion middleware (versioning concern) | 2026-08-25 | (see commit) | [260825-remove-api-version](./quick/260825-remove-api-version/) |
 
 ## Deferred Items
 
