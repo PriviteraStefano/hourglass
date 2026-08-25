@@ -122,13 +122,19 @@ v0.2 closed 2026-08-25 with 4 acknowledged audit leftovers (see STATE.md Deferre
 | Coverage allocations editable indefinitely (D-F) | Cutoff is a reporting snapshot, not a lock; realism over enforcement | ✓ Good |
 | v0.2.1 is contract-first job clusters, not route phases | Route-oriented Phases 17–26 would have implemented pages; presentation must be designed as jobs per role, then composed | — Pending |
 
-## Current Milestone: v0.2 archived — next is v0.2.1
+## Current Milestone: v0.2.1 Contract-first presentation — job clusters
 
-**Shipped v0.2 goal (complete):** Extend the activity ontology into the three-plane model (direction → facts → coverage) server-side, freeze UX foundation tokens/components, and close integrity leaks. Presentation was **not** shipped as route/page phases.
+**Goal:** Define how Hourglass is presented — visual language, chrome, five role contracts, and one composition map — then sketch and implement by job cluster. Not by current routes.
 
-**Next milestone (v0.2.1) — not yet initialized:** Contract-first presentation by job cluster. Sequence: design-language contract → chrome contract → five role contracts (Employee, Manager, Finance, HR, Customer) → one cross-role composition map → amend sketch-loop contract only if still ambiguous → sketch → implement by job cluster. No Admin/Settings. No customer portal. Do not recreate Phases 17–26. Do not implement before the contract/map sequence is settled.
+**Target features:**
+- Design-language contract (Phase 15 tokens/components are inputs)
+- Chrome contract (shell, nav, page anatomy; no Admin/Settings)
+- Five role contracts: Employee, Manager, Finance, HR, Customer (Customer may conclude “no app surface”)
+- One cross-role composition map (org tree is manager/HR composition)
+- Sketch-loop contract amended only if still ambiguous after the map
+- Job-cluster implementation **after** contracts + map + sketch — phases inserted then, not pre-drawn as routes
 
-Start with `/gsd-new-milestone`.
+**Hard rules:** Do not recreate cancelled v0.2 Phases 17–26. Do not implement before the contract/map sequence is settled. Do not copy archived SURF/POLS/TICK-06/AVAIL-03..05 as page requirements.
 
 ## Evolution
 
@@ -149,4 +155,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-08-25 after v0.2 milestone close*
+*Last updated: 2026-08-25 after v0.2.1 start*

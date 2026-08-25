@@ -1,19 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.2
-milestone_name: Ontology Extension — Origins, Tickets & Coverage + Direction
-current_phase: 16
-status: completed
-stopped_at: v0.2 milestone completed and archived
-last_updated: "2026-08-25T19:23:40.632Z"
+milestone: v0.2.1
+milestone_name: Contract-first presentation — job clusters
+status: planning
+last_updated: "2026-08-25T19:29:24.234Z"
 last_activity: 2026-08-25
-last_activity_desc: v0.2 milestone completed and archived
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 41
-  completed_plans: 41
-  percent: 100
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -24,14 +21,14 @@ See: .planning/PROJECT.md (updated 2026-08-25)
 
 **Core value:** Role-based approval workflows (employee → manager → finance) with hierarchical organization structures, contract/activity management, and export capabilities.
 
-**Current focus:** v0.2 archived. Next: v0.2.1 contract-first presentation (job clusters). Do not recreate Phases 17–26.
+**Current focus:** v0.2.1 Phase 17 — Design-language contract. Sequence locked: DL → chrome → roles → composition map → sketch-loop amend iff needed → sketch → job clusters. Do not implement yet. Do not recreate cancelled v0.2 Phases 17–26.
 
 ## Current Position
 
-Phase: Milestone v0.2 complete
+Phase: 17 — Design-language contract
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-08-25 — Milestone v0.2 completed and archived
+Status: Ready to discuss
+Last activity: 2026-08-25 — v0.2.1 requirements + contract-only roadmap written
 
 ## Accumulated Context
 
@@ -252,10 +249,10 @@ UAT/verification files 06/08/09/10 are no longer on disk (archived at v0.1 close
 
 ## Session Continuity
 
-Last session: 2026-08-25T19:23:40.632Z
-Stopped at: v0.2 milestone completed and archived
+Last session: 2026-08-25T19:29:24.234Z
+Stopped at: v0.2.1 initialized (requirements + contract-only roadmap)
 Resume file: None
-Next step: `/gsd-new-milestone` — start v0.2.1 (contract-first job clusters). Do not recreate Phases 17–26.
+Next step: `/gsd-discuss-phase 17` — Design-language contract. Do not sketch. Do not implement.
 
 ## Performance Metrics
 
@@ -270,4 +267,4 @@ Next step: `/gsd-new-milestone` — start v0.2.1 (contract-first job clusters). 
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- `/gsd-discuss-phase 17` — Design-language contract (DL-01). Do not sketch. Do not implement.
