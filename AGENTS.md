@@ -167,6 +167,7 @@ Entries have `status` (draft → submitted → pending_manager → pending_finan
 ### Environment Variables
 **Backend** (`cmd/server/main.go`, `cmd/migrate/main.go`):
 - `DATABASE_URL` - PostgreSQL connection string for `cmd/migrate` and server (defaults to local hourglass DB)
+- `DB_MAX_CONNS` - pgxpool max connections for the server (default 20; was unset → pgxpool default 4, serializing traffic under load) (CONCERNS.md #15)
 - `JWT_SECRET` - Token signing key. Required in all environments; if unset the server refuses to boot **unless** `ALLOW_INSECURE_AUTH=1` is set (explicit local-dev opt-in that uses the insecure default secret). Never set `ALLOW_INSECURE_AUTH=1` outside local development (CONCERNS.md #11).
 - `ALLOWED_ORIGINS` - Comma-separated CORS allowlist (defaults to `http://localhost:3000`)
 - `SECURE_COOKIES` - Set to `1`/`true` to mark auth cookies `Secure` (required when served over HTTPS behind a TLS-terminating proxy). Not derived from `X-Forwarded-Proto` (client-controllable) — operator must set this explicitly (CONCERNS.md #12).

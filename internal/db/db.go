@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -57,6 +58,17 @@ func NewPool() (*pgxpool.Pool, error) {
 	// shifted period closes by one day. The handler parses period bounds as
 	// UTC midnights, so UTC is the only correct comparison zone.
 	connConfig.ConnConfig.RuntimeParams["timezone"] = "UTC"
+
+	// Bound the pool size. pgxpool defaults to 4 when unspecified, which
+	// serializes all authenticated traffic under load (CONCERNS.md #15).
+	// Tunable via DB_MAX_CONNS; default 20.
+	const defaultMaxConns = 20
+	connConfig.MaxConns = defaultMaxConns
+	if v := os.Getenv("DB_MAX_CONNS"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 32); err == nil && n > 0 {
+			connConfig.MaxConns = int32(n)
+		}
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, connConfig)
 	if err != nil {
