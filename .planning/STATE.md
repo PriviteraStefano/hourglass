@@ -2,9 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.2.1
 milestone_name: Contract-first presentation — job clusters
-status: planning
-last_updated: "2026-08-25T19:29:24.234Z"
-last_activity: 2026-08-25
+status: Ready to discuss
+stopped_at: Phase 17 context gathered
+last_updated: "2026-08-27T18:51:55.514Z"
+last_activity: 2026-08-25 — v0.2.1 requirements + contract-only roadmap written
 progress:
   total_phases: 4
   completed_phases: 0
@@ -249,9 +250,9 @@ UAT/verification files 06/08/09/10 are no longer on disk (archived at v0.1 close
 
 ## Session Continuity
 
-Last session: 2026-08-25T19:29:24.234Z
-Stopped at: v0.2.1 initialized (requirements + contract-only roadmap)
-Resume file: None
+Last session: 2026-08-27T18:51:55.505Z
+Stopped at: Phase 17 context gathered
+Resume file: .planning/phases/17-design-language-contract/17-CONTEXT.md
 Next step: `/gsd-discuss-phase 17` — Design-language contract. Do not sketch. Do not implement.
 
 ## Performance Metrics
