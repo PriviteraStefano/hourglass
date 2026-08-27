@@ -66,7 +66,11 @@ Job-cluster implementation phases are **inserted after Phase 20**. They are not 
   3. Phase 15 frozen components (PageHeader, FilterBar, DataTable, StatusBadge, EmptyState, ConfirmDialog) are listed as inputs, with gaps called out rather than silently reused
   4. No UI implementation, no sketches, no route work
 
-**Plans**: TBD
+**Plans**: 2 plans
+**Plan list**:
+- [ ] 17-01-PLAN.md — Author docs/design/LANGUAGE.md design-language contract (type, color, density, motion, status vocabulary + overlay + do/don't + Gaps)
+- [ ] 17-02-PLAN.md — Author docs/design/INDEX.md map and insert the AGENTS.md design gate
+
 **UI hint**: no
 
 ### Phase 18: Chrome contract
