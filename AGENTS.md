@@ -1,5 +1,5 @@
 # Hourglass Codebase Guide for AI Agents
-
+Before any `web/src` change to UI, tokens, components, copy, or layout, open `docs/design/INDEX.md` first. Backend-only work skips this. No other design text belongs in `AGENTS.md`.
 ## OpenWiki
 
 This repository has documentation located in the /openwiki directory.
