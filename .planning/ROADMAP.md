@@ -68,6 +68,7 @@ Job-cluster implementation phases are **inserted after Phase 20**. They are not 
 
 **Plans**: 2 plans
 **Plan list**:
+
 - [x] 17-01-PLAN.md — Author docs/design/LANGUAGE.md design-language contract (type, color, density, motion, status vocabulary + overlay + do/don't + Gaps)
 - [x] 17-02-PLAN.md — Author docs/design/INDEX.md map and insert the AGENTS.md design gate
 
@@ -143,7 +144,7 @@ Job-cluster implementation phases are **inserted after Phase 20**. They are not 
 | 14. Availability Backend | v0.2 | 11/11 | Complete | 2026-08-12 |
 | 15. UX Foundation | v0.2 | 4/4 | Complete | 2026-08-24 |
 | 16. Integrity Repair | v0.2 | 1/1 | Complete | 2026-08-24 |
-| 17. Design-language contract | v0.2.1 | 0/TBD | Not started | - |
+| 17. Design-language contract | v0.2.1 | 2/2 | Complete    | 2026-08-29 |
 | 18. Chrome contract | v0.2.1 | 0/TBD | Not started | - |
 | 19. Role contracts | v0.2.1 | 0/TBD | Not started | - |
 | 20. Composition map | v0.2.1 | 0/TBD | Not started | - |
