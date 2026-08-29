@@ -46,7 +46,7 @@ Phases 17–26 (route-oriented surfaces/polish) were **cancelled unbuilt**. Do n
 **Build order (locked):** Design-language contract → chrome contract → five role contracts → one composition map → amend sketch-loop contract only if still ambiguous → sketch → implement by job cluster. Do not implement before the contract/map sequence is settled. Do not recreate cancelled v0.2 Phases 17–26.
 
  - [x] **Phase 17: Design-language contract** - Type, color, density, motion, status vocabulary. Phase 15 tokens/components are inputs. (executed 2026-08-28; pending verification)
-- [ ] **Phase 18: Chrome contract** - App shell, navigation, role-scoped chrome, page anatomy. No Admin/Settings.
+- [x] **Phase 18: Chrome contract** - App shell, navigation, role-scoped chrome, page anatomy. No Admin/Settings.
 - [ ] **Phase 19: Role contracts** - Employee, Manager, Finance, HR, Customer. Customer may conclude "no app surface".
 - [ ] **Phase 20: Composition map + sketch-loop reconcile** - One cross-role map; amend SKETCH-LOOP-CONTRACT.md only if ambiguity remains.
 
@@ -86,7 +86,11 @@ Job-cluster implementation phases are **inserted after Phase 20**. They are not 
   3. ADR-P-011 pillar IA is treated as an input to be confirmed or revised by later composition — not silently kept as the chrome
   4. No UI implementation, no sketches, no route work
 
-**Plans**: TBD
+**Plans**: 2/2 plans executed
+
+- [x] 18-01-PLAN.md
+- [x] 18-02-PLAN.md
+
 **UI hint**: no
 
 ### Phase 19: Role contracts
@@ -145,7 +149,7 @@ Job-cluster implementation phases are **inserted after Phase 20**. They are not 
 | 15. UX Foundation | v0.2 | 4/4 | Complete | 2026-08-24 |
 | 16. Integrity Repair | v0.2 | 1/1 | Complete | 2026-08-24 |
 | 17. Design-language contract | v0.2.1 | 2/2 | Complete    | 2026-08-29 |
-| 18. Chrome contract | v0.2.1 | 0/TBD | Not started | - |
+| 18. Chrome contract | v0.2.1 | 2/2 | Complete | 2026-08-29 |
 | 19. Role contracts | v0.2.1 | 0/TBD | Not started | - |
 | 20. Composition map | v0.2.1 | 0/TBD | Not started | - |
 
