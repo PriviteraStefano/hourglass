@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v0.2.1
 milestone_name: Contract-first presentation — job clusters
-current_phase: 18
+current_phase: 19
 status: completed
-stopped_at: Phase 18 context gathered
-last_updated: "2026-08-29T15:33:34.641Z"
-last_activity: 2026-08-29
-last_activity_desc: Phase 18 marked complete
+stopped_at: Phase 19 complete — role contracts authored
+last_updated: "2026-09-26T09:02:18.679Z"
+last_activity: 2026-09-26
+last_activity_desc: Phase 19 marked complete
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
-  percent: 50
-current_phase_name: chrome-contract
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 6
+  percent: 75
+current_phase_name: role-contracts
 ---
 
 # Project State
@@ -25,14 +25,14 @@ See: .planning/PROJECT.md (updated 2026-08-25)
 
 **Core value:** Role-based approval workflows (employee → manager → finance) with hierarchical organization structures, contract/activity management, and export capabilities.
 
-**Current focus:** Phase 18 — chrome-contract
+**Current focus:** Phase 19 — role-contracts
 
 ## Current Position
 
-Phase: 18 — COMPLETE
+Phase: 19 — COMPLETE
 Plan: 2 of 2
-Status: Phase 18 complete
-Last activity: 2026-08-29 — Phase 18 marked complete
+Status: Phase 19 complete
+Last activity: 2026-09-26 — Phase 19 marked complete
 
 ## Accumulated Context
 
@@ -142,6 +142,8 @@ Only proposed_by is required for employee proposals (research OQ1)
 - [Phase 15-ux-foundation-design-tokens-shared-components]: EmptyTitle 500→600 remap intentionally changes today-page/approvals-page empty-state appearance per the 2-weight typography contract (Pitfall 5); empty-state test negative assertion split-regex'd (/font-(medium)/) to keep the prohibition grep green (Phase 15-01) — EmptyTitle 500→600 remap intentionally changes today-page/approvals-page empty-state appearance per the 2-weight typography contract (Pitfall 5); empty-state test negative assertion split-regex'd (/font-(medium)/) to keep the prohibition grep green (Phase 15-01)
 - [Phase 15-ux-foundation-design-tokens-shared-components]: Frozen ConfirmDialog (D-15-07): controlled presentational destructive confirmation with required-reason gate mirroring the server 400 invariant (D-13-10/D-13-16); error semantics error!==undefined with empty fallback to the default copy; invalidateQueries marked void (TanStack v5 Promise); confirm Button uses variant="destructive" — Frozen ConfirmDialog (D-15-07): controlled presentational destructive confirmation with required-reason gate mirroring the server 400 invariant (D-13-10/D-13-16); error semantics error!==undefined with empty fallback to the default copy; invalidateQueries marked void (TanStack v5 Promise); confirm Button uses variant="destructive"
 - [Phase 15-ux-foundation-design-tokens-shared-components]: User-override: @tanstack/react-table pinned at ^9.1.2 (v9, published 2026-08-09) instead of the plan's ^8.21.3 v8 pin — approved at the Task 1 package gate; the DataTable is implemented entirely against the installed v9 API (useTable + tableFeatures slots + table.FlexRender); the plan's no-v9-leak prohibition is inverted to require the v9 surface while the data-lifecycle prohibition still holds; exports DataTableFeatures so consumers type ColumnDef<DataTableFeatures, T>[]
+- [Phase 19-role-contracts]: Job ids are stable and namespaced (`E-`/`M-`/`F-`/`H-`/`C-`): `docs/design/COMPOSITION.md` (Phase 20) and the job-cluster phases inserted after it cite jobs by id, so the namespaces must never be renumbered; `docs/design/workflows/README.md` carries the job-id scheme and the twelve verified gaps (G1..G12) — one file per role was chosen over a single contract file (D-19-01) and the assembled role×surface matrix stays in Phase 20 (D-19-08).
+- [Phase 19-role-contracts]: The WG manager/delegate hat is **queue visibility only**: `POST /time-entries/{id}/approve` and the expense equivalent return 403 for every JWT role but `manager`/`finance` (`internal/adapters/primary/http/time_entry.go:351`, `expense.go:374`) and the stage-1 transition accepts only `manager` (`internal/core/services/time_entry/time_entry.go:193`) — recorded as G12 after the conformance audit; the client already hides the action for hat-only users, so the follow-up is either admitting the hat to the action or not rendering the queue for it.
 
 ### Pending Decisions (resolve during plan phase)
 
@@ -253,10 +255,11 @@ UAT/verification files 06/08/09/10 are no longer on disk (archived at v0.1 close
 
 ## Session Continuity
 
-Last session: 2026-08-29T14:52:08.251Z
-Stopped at: Phase 18 context gathered
-Resume file: .planning/phases/18-chrome-contract/18-CONTEXT.md
-Next step: `/gsd-verify-work 17` — verify Phase 17 design-language contract (DL-01) before Phase 18.
+Last session: 2026-09-26T09:02:18.679Z
+Stopped at: Phase 19 complete — five role contracts authored under docs/design/workflows/
+Resume file: .planning/phases/19-role-contracts/19-CONTEXT.md
+Next step: `/gsd-plan-phase 20` — one cross-role composition map (COMP-01) + sketch-loop reconcile (SKETCH-01).
+Note: the Phase 18 and Phase 19 verification gates were skipped by user decision on 2026-09-26 — no 18/19 UAT or VERIFICATION files exist by choice. Phase 17 was verified (17-UAT 3/3, 17-VERIFICATION passed).
 
 ## Performance Metrics
 
@@ -271,4 +274,5 @@ Next step: `/gsd-verify-work 17` — verify Phase 17 design-language contract (D
 
 ## Operator Next Steps
 
-- `/gsd-verify-work 17` — Phase 17 design-language contract executed (DL-01); verify before Phase 18 chrome.
+- `/gsd-plan-phase 20` — Phase 19 role contracts are authored (EMP-01, MGR-01, FIN-01, HR-01, CUST-01 complete); Phase 20 delivers one cross-role composition map (COMP-01) and reconciles the sketch-loop contract (SKETCH-01).
+- Optional audit debt: the Phase 18/19 verification gates were skipped by user decision — run `/gsd-verify-work 18` / `19` only if you want the audit trail, not as a blocker.

@@ -47,7 +47,7 @@ Phases 17–26 (route-oriented surfaces/polish) were **cancelled unbuilt**. Do n
 
  - [x] **Phase 17: Design-language contract** - Type, color, density, motion, status vocabulary. Phase 15 tokens/components are inputs. (executed 2026-08-28; verified 2026-08-29 — 17-UAT 3/3, 17-VERIFICATION passed)
 - [x] **Phase 18: Chrome contract** - App shell, navigation, role-scoped chrome, page anatomy. No Admin/Settings.
-- [ ] **Phase 19: Role contracts** - Employee, Manager, Finance, HR, Customer. Customer may conclude "no app surface".
+- [x] **Phase 19: Role contracts** - Employee, Manager, Finance, HR, Customer. Customer may conclude "no app surface".
 - [ ] **Phase 20: Composition map + sketch-loop reconcile** - One cross-role map; amend SKETCH-LOOP-CONTRACT.md only if ambiguity remains.
 
 Job-cluster implementation phases are **inserted after Phase 20**. They are not listed here yet.
@@ -108,7 +108,11 @@ Job-cluster implementation phases are **inserted after Phase 20**. They are not 
   6. Archived v0.2 leftovers (TICK-06, AVAIL-03..05, SURF-*, POLS-*) are used as job-shaped hints, not copied as page requirements
   7. No UI implementation, no sketches, no route work
 
-**Plans**: TBD
+**Plans**: 2/2 plans executed
+
+- [x] 19-01-PLAN.md — author `docs/design/workflows/`: five role contracts + index/gap register
+- [x] 19-02-PLAN.md — design map flip + requirement/status reconciliation
+
 **UI hint**: no
 
 ### Phase 20: Composition map + sketch-loop reconcile
@@ -150,7 +154,7 @@ Job-cluster implementation phases are **inserted after Phase 20**. They are not 
 | 16. Integrity Repair | v0.2 | 1/1 | Complete | 2026-08-24 |
 | 17. Design-language contract | v0.2.1 | 2/2 | Complete    | 2026-08-29 |
 | 18. Chrome contract | v0.2.1 | 2/2 | Complete | 2026-08-29 |
-| 19. Role contracts | v0.2.1 | 0/TBD | Not started | - |
+| 19. Role contracts | v0.2.1 | 2/2 | Complete | 2026-09-26 |
 | 20. Composition map | v0.2.1 | 0/TBD | Not started | - |
 
 *Full v0.1 phase details: [milestones/v0.1-ROADMAP.md](milestones/v0.1-ROADMAP.md)*

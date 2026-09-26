@@ -21,11 +21,11 @@ Phase 15 tokens/components and archived v0.2 presentation leftovers are **inputs
 
 Each contract names the **jobs** that role performs and the surfaces those jobs need. Jobs are not current routes.
 
-- [ ] **EMP-01**: Employee role contract exists (jobs an employee performs in Hourglass).
-- [ ] **MGR-01**: Manager role contract exists (jobs a manager performs, including org-tree work that is composition not Admin).
-- [ ] **FIN-01**: Finance role contract exists (jobs finance performs: cutoffs, coverage money-labeling, reporting).
-- [ ] **HR-01**: HR role contract exists (jobs HR performs, including org-tree / people composition shared with manager).
-- [ ] **CUST-01**: Customer role contract exists. It may conclude **"no app surface"**. A customer portal is out of scope (D-E).
+- [x] **EMP-01**: Employee role contract exists (jobs an employee performs in Hourglass).
+- [x] **MGR-01**: Manager role contract exists (jobs a manager performs, including org-tree work that is composition not Admin).
+- [x] **FIN-01**: Finance role contract exists (jobs finance performs: cutoffs, coverage money-labeling, reporting).
+- [x] **HR-01**: HR role contract exists (jobs HR performs, including org-tree / people composition shared with manager).
+- [x] **CUST-01**: Customer role contract exists. It may conclude **"no app surface"**. A customer portal is out of scope (D-E).
 
 ### Composition
 
@@ -73,11 +73,11 @@ Filled during roadmap creation. JOB-01 is intentionally unmapped until Phase 20 
 |-------------|-------|--------|
 | DL-01 | Phase 17 | Complete |
 | CHR-01 | Phase 18 | Complete |
-| EMP-01 | Phase 19 | Pending |
-| MGR-01 | Phase 19 | Pending |
-| FIN-01 | Phase 19 | Pending |
-| HR-01 | Phase 19 | Pending |
-| CUST-01 | Phase 19 | Pending |
+| EMP-01 | Phase 19 | Complete |
+| MGR-01 | Phase 19 | Complete |
+| FIN-01 | Phase 19 | Complete |
+| HR-01 | Phase 19 | Complete |
+| CUST-01 | Phase 19 | Complete |
 | COMP-01 | Phase 20 | Pending |
 | SKETCH-01 | Phase 20 | Pending |
 | JOB-01 | (insert after Phase 20) | Blocked |
