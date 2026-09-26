@@ -45,7 +45,7 @@ Phases 17–26 (route-oriented surfaces/polish) were **cancelled unbuilt**. Do n
 
 **Build order (locked):** Design-language contract → chrome contract → five role contracts → one composition map → amend sketch-loop contract only if still ambiguous → sketch → implement by job cluster. Do not implement before the contract/map sequence is settled. Do not recreate cancelled v0.2 Phases 17–26.
 
- - [x] **Phase 17: Design-language contract** - Type, color, density, motion, status vocabulary. Phase 15 tokens/components are inputs. (executed 2026-08-28; pending verification)
+ - [x] **Phase 17: Design-language contract** - Type, color, density, motion, status vocabulary. Phase 15 tokens/components are inputs. (executed 2026-08-28; verified 2026-08-29 — 17-UAT 3/3, 17-VERIFICATION passed)
 - [x] **Phase 18: Chrome contract** - App shell, navigation, role-scoped chrome, page anatomy. No Admin/Settings.
 - [ ] **Phase 19: Role contracts** - Employee, Manager, Finance, HR, Customer. Customer may conclude "no app surface".
 - [ ] **Phase 20: Composition map + sketch-loop reconcile** - One cross-role map; amend SKETCH-LOOP-CONTRACT.md only if ambiguity remains.

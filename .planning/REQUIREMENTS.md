@@ -11,11 +11,11 @@ Phase 15 tokens/components and archived v0.2 presentation leftovers are **inputs
 
 ### Design language
 
-- [ ] **DL-01**: A design-language contract exists and is the source of truth for type, color, density, motion, and status vocabulary across all subsequent presentation work. Phase 15 tokens and frozen components are inputs to this contract, not a substitute for it.
+- [x] **DL-01**: A design-language contract exists and is the source of truth for type, color, density, motion, and status vocabulary across all subsequent presentation work. Phase 15 tokens and frozen components are inputs to this contract, not a substitute for it.
 
 ### Chrome
 
-- [ ] **CHR-01**: A chrome contract exists and is the source of truth for the app shell: frame, navigation, role-scoped chrome, and page anatomy. Admin/Settings chrome is out of scope.
+- [x] **CHR-01**: A chrome contract exists and is the source of truth for the app shell: frame, navigation, role-scoped chrome, and page anatomy. Admin/Settings chrome is out of scope.
 
 ### Role contracts
 
@@ -71,8 +71,8 @@ Filled during roadmap creation. JOB-01 is intentionally unmapped until Phase 20 
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DL-01 | Phase 17 | Pending |
-| CHR-01 | Phase 18 | Pending |
+| DL-01 | Phase 17 | Complete |
+| CHR-01 | Phase 18 | Complete |
 | EMP-01 | Phase 19 | Pending |
 | MGR-01 | Phase 19 | Pending |
 | FIN-01 | Phase 19 | Pending |
