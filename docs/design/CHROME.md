@@ -75,7 +75,7 @@ This file is the chrome/shell contract only. Explicitly out of scope here:
 
 ## 15-UI-SPEC note
 
-`.planning/phases/15-ux-foundation-design-tokens-shared-components/15-UI-SPEC.md` is untouched historical input and is **not** authority. If it conflicts with `LANGUAGE.md` on vocabulary, `LANGUAGE.md` wins.
+`docs/history/planning/phases/15-ux-foundation-design-tokens-shared-components/15-UI-SPEC.md` is untouched historical input and is **not** authority. If it conflicts with `LANGUAGE.md` on vocabulary, `LANGUAGE.md` wins.
 
 The Phase 15 frozen components are listed here as *inputs* with live status (2026-08-29), not silently reused:
 

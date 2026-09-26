@@ -185,8 +185,8 @@ The manager `MUST NOT` be offered stage-2 approval, commercial-record writes, me
 - `web/src/components/approval/approval-buttons.tsx` — the existing role × status action gate behind `M-01`.
 - `internal/core/services/routing/routing.go` — the stage-1 approver set, the owner-in-set skip to finance, the unit-manager walk, and the role-gated terminal case.
 - `internal/core/services/coverage/coverage.go` — the manager-only close and the allocation write gates behind `M-04`/`M-05`.
-- `.planning/REQUIREMENTS.md` — MGR-01 (this contract) and the archived leftovers `SURF-01`, `SURF-02`, `SURF-04`, `SURF-05`, `SURF-07`, `AVAIL-04`, `TICK-06` used as job hints.
-- `.planning/phases/19-role-contracts/19-RESEARCH.md` — the verified fact base behind every claim above.
+- `docs/history/planning/REQUIREMENTS.md` — MGR-01 (this contract) and the archived leftovers `SURF-01`, `SURF-02`, `SURF-04`, `SURF-05`, `SURF-07`, `AVAIL-04`, `TICK-06` used as job hints.
+- `docs/history/planning/phases/19-role-contracts/19-RESEARCH.md` — the verified fact base behind every claim above.
 - `employee.md` (`E-01`, `E-02`, `E-05`, `E-09`), `finance.md` (`F-01`, `F-02`, `F-03`, `F-05`, `F-06`, `F-08`), `hr.md` (`H-01`, `H-02`, `H-03`), `customer.md` (`C-01`) — the sibling contracts named in the scope rows.
 
 ## Not in this file

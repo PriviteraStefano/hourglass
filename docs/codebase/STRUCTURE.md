@@ -28,8 +28,10 @@ hourglass/
 ├── migrations/                 # 19 SQL up/down migrations (cmd/migrate applies)
 ├── web/                        # React 19 + TanStack frontend (see below)
 ├── openwiki/                   # Repo documentation (quickstart, architecture notes)
+├── docs/                       # design authority stack, codebase map, agent/tracker config, history
+├── CONTEXT.md                  # Shared domain language (three-plane ontology, vocabulary)
+├── plans/                      # Dated plans (hexagonal-migration.md defines the architecture target)
 ├── graphify-out/               # Knowledge-graph output
-├── plans/                      # GSD phase plans + hexagonal-migration.md
 └── Makefile / Dockerfile / docker-compose.yml
 ```
 
@@ -115,7 +117,7 @@ web/
 - `go.mod` / `go.sum` (Go 1.26.1 module)
 - `web/package.json`, `web/vite.config.ts`, `web/tsconfig.json`
 - `Makefile`, `Dockerfile`, `docker-compose.yml`
-- `.mcp.json`, `qodana.yaml`
+- `qodana.yaml`
 
 **Core Logic:**
 - Services: `internal/core/services/*/service.go`
@@ -183,13 +185,18 @@ web/
 - Generated: No (hand-written).
 - Committed: Yes (applied by `cmd/migrate`).
 
-**`graphify-out/` and `.planning/`**
-- Purpose: Knowledge graph and GSD planning artifacts.
-- Generated: Yes.
-- Committed: `.planning/` typically yes; `graphify-out/` is analysis output.
+**`graphify-out/`**
+- Purpose: Knowledge graph output (read `GRAPH_REPORT.md` before architecture questions).
+- Generated: Yes (analysis output).
+- Committed: No (gitignored).
 
-**`openwiki/` and `plans/` and `wiki/`**
-- Purpose: Human/AI documentation and GSD phase plans (`plans/hexagonal-migration.md` defines the architecture target).
+**`docs/history/planning/`**
+- Purpose: Frozen pre-migration planning record — roadmap, state, requirements, phase plans (GSD era).
+- Generated: No (historical documents).
+- Committed: Yes. Read-only: new work is tracked as GitHub issues, not appended here.
+
+**`openwiki/`, `docs/` and `plans/`**
+- Purpose: Human/AI documentation — `docs/design/` is the design authority stack, `docs/codebase/` this map, `docs/agents/` the skill-set configuration, `plans/hexagonal-migration.md` the architecture target.
 - Generated: No.
 - Committed: Yes.
 

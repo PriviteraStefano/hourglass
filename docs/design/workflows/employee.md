@@ -182,7 +182,7 @@ Per-role rows (the assembled role×surface matrix is Phase 20, D-19-08):
 - `docs/design/CHROME.md` — frame, four lifecycle nav groups, role-scoped chrome.
 - `docs/design/LANGUAGE.md` — status vocabulary for entry/expense states.
 - `web/src/lib/role-visibility.ts` — the predicate mechanism this contract's scope rows agree with.
-- `.planning/REQUIREMENTS.md` — EMP-01 (this contract) and the archived leftovers `TICK-06`, `AVAIL-03`, `SURF-03`, `SURF-06` used as job hints.
+- `docs/history/planning/REQUIREMENTS.md` — EMP-01 (this contract) and the archived leftovers `TICK-06`, `AVAIL-03`, `SURF-03`, `SURF-06` used as job hints.
 - `internal/core/services/routing/routing.go` — approval-stage resolution behind `E-01`/`E-02`.
 
 ## Not in this file

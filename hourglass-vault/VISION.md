@@ -135,7 +135,7 @@ These will tempt. They are rejected here, once, permanently (reopen only via a n
 
 * `LEGACY/01-System-Overview` describes the *mechanics* (what exists). This document describes the *intent* (why it exists). Read this first, then mechanics.
 * `01-Features/` documents should each declare their pillar and purpose at the top (template change).
-* The `.planning/ROADMAP.md` phases 0–7 delivered Capture + Structure + Control. Future phases map to V1–V6 above.
+* The `docs/history/planning/ROADMAP.md` phases 0–7 delivered Capture + Structure + Control. Future phases map to V1–V6 above.
 * The pre-deployment audit (`research/2026-07-28 — Pre-Deployment Audit`) fixes v0.1 stability. It changes no purpose here — it secures the foundation the pillars stand on.
 
 ## 10. Revision Rules
@@ -158,4 +158,4 @@ These will tempt. They are rejected here, once, permanently (reopen only via a n
 
 ---
 
-*Drafted from analysis of 00-Index, LEGACY/01-System-Overview, LEGACY/12-Contracts-Projects, F05/F06 feature docs, STRUCTURE.md, README.md, .planning/ROADMAP.md, and the v0.1 pre-deployment audit.*
+*Drafted from analysis of 00-Index, LEGACY/01-System-Overview, LEGACY/12-Contracts-Projects, F05/F06 feature docs, STRUCTURE.md, README.md, docs/history/planning/ROADMAP.md, and the v0.1 pre-deployment audit.*

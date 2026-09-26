@@ -67,11 +67,11 @@ Gaps `MUST NOT` be closed by editing these contracts; they are the delta list fo
 
 - `docs/design/LANGUAGE.md` — language authority.
 - `docs/design/CHROME.md` — shell/navigation authority.
-- `.planning/REQUIREMENTS.md` — EMP-01, MGR-01, FIN-01, HR-01, CUST-01 and the archived-leftover hint table.
+- `docs/history/planning/REQUIREMENTS.md` — EMP-01, MGR-01, FIN-01, HR-01, CUST-01 and the archived-leftover hint table.
 - `cmd/server/main.go` — the route surface the `API interactions` columns cite.
 
 ## Gaps
 
 - The assembled role×surface matrix does not exist yet (Phase 20, `COMPOSITION.md`).
 - The page-action predicate (CHROME.md GAP A) is not built; contracts state which actions a role may take, not how the UI disables them.
-- `.planning/phases/19-role-contracts/19-RESEARCH.md` carries the full verified fact base and the per-role capability inventory behind these contracts.
+- `docs/history/planning/phases/19-role-contracts/19-RESEARCH.md` carries the full verified fact base and the per-role capability inventory behind these contracts.

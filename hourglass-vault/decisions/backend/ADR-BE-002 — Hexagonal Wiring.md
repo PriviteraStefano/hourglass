@@ -45,11 +45,11 @@ domain  ←  ports  ←  services  ←  primary adapters (HTTP)
 
 * Business logic is testable without HTTP or a database (mock the ports — see `internal/core/services/testdata/`).
 * Database/framework changes stay inside the secondary/primary layers.
-* New features follow the 6-step path in `.planning/codebase/STRUCTURE.md` ("Where to Add New Code").
+* New features follow the 6-step path in `docs/codebase/STRUCTURE.md` ("Where to Add New Code").
 * ⚠️ Legacy remnants (`internal/handlers/health_handler.go`, `internal/models/`) predate the pattern — tolerated as glue, but new code must not be added there.
 
 ## Related
 
 * [[ADR-BE-001 — Error Handling Sentinel Errors]] (error flow across these layers)
 * [[ADR-BE-003 — Data Access pgxpool No ORM]], [[ADR-BE-009 — Testing testcontainers testify]]
-* `.planning/codebase/ARCHITECTURE.md`
+* `docs/codebase/ARCHITECTURE.md`

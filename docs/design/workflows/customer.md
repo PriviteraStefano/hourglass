@@ -120,7 +120,7 @@ Absent that evidence the conclusion stands: `no app surface`.
 - `docs/design/LANGUAGE.md`, `docs/design/CHROME.md` — the two authorities this file must not override.
 - `internal/core/services/ticket/ticket.go` — the customer rejection that grounds `C-01`.
 - `hourglass-vault/decisions/project/ADR-P-003 — Tickets as the Second Capture Layer.md` — D-E policy and the permission gate table.
-- `.planning/REQUIREMENTS.md` — CUST-01.
+- `docs/history/planning/REQUIREMENTS.md` — CUST-01.
 
 ## Not in this file
 

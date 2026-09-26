@@ -113,7 +113,7 @@ These rows are UX scoping, not authorization: reachability is not entitlement, a
 - `docs/design/CHROME.md` — frame, lifecycle nav groups, role-scoped chrome.
 - `docs/design/LANGUAGE.md` — status and warning vocabulary.
 - `web/src/lib/role-visibility.ts` — the predicate mechanism this contract's scope rows agree with.
-- `.planning/REQUIREMENTS.md` — HR-01 (this contract) and the archived leftovers `AVAIL-03`…`AVAIL-05`, `SURF-05` used as job hints.
+- `docs/history/planning/REQUIREMENTS.md` — HR-01 (this contract) and the archived leftovers `AVAIL-03`…`AVAIL-05`, `SURF-05` used as job hints.
 - `internal/adapters/secondary/postgres/direction_repository.go` — the availability read behind `H-01` and the capacity read-model behind `H-04`.
 - `cmd/server/main.go` — the route surface the `API interactions` columns cite.
 - `hourglass-vault/decisions/project/ADR-P-008 — Availability & Employment Validity.md` — D-4 curator/consumer, never approver; D-1a certificate reference.

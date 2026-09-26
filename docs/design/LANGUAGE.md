@@ -6,8 +6,8 @@ This file is the source of truth for the Hourglass design *language* — the voc
 
 - **Authority split:** CSS wins on *values* (the literal oklch/px/rem numbers). `LANGUAGE.md` wins on *meaning and usage* (what a role is for, how it may be combined). LANGUAGE.md wins on type, color, density, motion, and status vocabulary over every later presentation doc.
 - **No invented tokens:** Do not invent CSS tokens inside this document. Point at the live value stores by repo-root path instead of copying their tables.
-- **Authority stack (D-17-09):** This file wins on type, color, density, motion, and status vocabulary. Later design docs (`CHROME.md`, workflow contracts under `docs/design/workflows/`, `COMPOSITION.md`) and later GSD `UI-SPEC.md` files may only add surface, layout, copy, or composition. They `MUST NOT` override this file. If a later surface needs a language change, amend this file first.
-- **Amendment rule (D-17-10):** Only later GSD docs/planning phases may amend this file (in place, via the changelog — no version fork). Implementation or job-cluster work `MUST NOT` amend it as a side effect.
+- **Authority stack (D-17-09):** This file wins on type, color, density, motion, and status vocabulary. Later design docs (`CHROME.md`, workflow contracts under `docs/design/workflows/`, `COMPOSITION.md`) and any later spec, ticket, or UI document may only add surface, layout, copy, or composition. They `MUST NOT` override this file. If a later surface needs a language change, amend this file first.
+- **Amendment rule (D-17-10):** Only a later design or planning document (a spec or ticket that says so) may amend this file (in place, via the changelog — no version fork). Implementation or job-cluster work `MUST NOT` amend it as a side effect.
 
 ## Changelog
 
@@ -114,7 +114,7 @@ Future contracts are workflow-group oriented (a complete workflow spanning pages
 
 ## 15-UI-SPEC note
 
-`.planning/phases/15-ux-foundation-design-tokens-shared-components/15-UI-SPEC.md` is untouched historical input and is **not** authority. If it conflicts with this file on type, color, density, motion, or status vocabulary, this file wins.
+`docs/history/planning/phases/15-ux-foundation-design-tokens-shared-components/15-UI-SPEC.md` is untouched historical input and is **not** authority. If it conflicts with this file on type, color, density, motion, or status vocabulary, this file wins.
 
 Phase 15 frozen components are listed here as *inputs* with their live status, not silently reused:
 

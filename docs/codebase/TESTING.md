@@ -19,7 +19,7 @@ go test ./internal/core/services/auth/...   # single package
 go test -run TestService_Register ./internal/core/services/auth/   # single test
 ```
 
-**Note:** 87 backend `*_test.go` files exist (excluding `.gsd-worktrees`).
+**Note:** 87 backend `*_test.go` files exist.
 
 ### Test File Organization
 

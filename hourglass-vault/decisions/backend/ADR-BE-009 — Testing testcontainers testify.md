@@ -40,4 +40,4 @@ Conventions:
 
 * [[ADR-BE-002 — Hexagonal Wiring]] (why services test clean without a DB)
 * [[ADR-BE-003 — Data Access pgxpool No ORM]], [[ADR-BE-004 — Database Migrations]] (test schema source)
-* `.planning/codebase/TESTING.md`
+* `docs/codebase/TESTING.md`

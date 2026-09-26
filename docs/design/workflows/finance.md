@@ -156,8 +156,8 @@ Finance `MUST NOT` be offered stage-1 approval as a role, coverage allocation wr
 - `web/src/lib/role-visibility.ts` — the predicate mechanism this contract's scope rows agree with.
 - `web/src/components/approval/approval-buttons.tsx` — the existing role × status action gate behind `F-01`.
 - `internal/core/services/routing/routing.go` — stage-1 resolution and the finance claim that closes stage 2.
-- `.planning/REQUIREMENTS.md` — FIN-01 (this contract) and the archived leftovers (`SURF-04`, `SURF-05`) used as job hints.
-- `.planning/phases/19-role-contracts/19-RESEARCH.md` — the verified fact base behind every `file:line` above.
+- `docs/history/planning/REQUIREMENTS.md` — FIN-01 (this contract) and the archived leftovers (`SURF-04`, `SURF-05`) used as job hints.
+- `docs/history/planning/phases/19-role-contracts/19-RESEARCH.md` — the verified fact base behind every `file:line` above.
 - `manager.md` (`M-04`, `M-05`), `employee.md` (`E-01`, `E-02`), `hr.md` (`H-01`, `H-02`), `customer.md` (`C-01`) — the sibling contracts named in the scope rows.
 
 ## Not in this file
