@@ -35,13 +35,8 @@ web/.DS_Store
 # TypeScript build cache
 web/tsconfig.tsbuildinfo
 
-# ── GSD baseline (auto-generated) ──
-.gsd
-.gsd-worktrees/
-.gsd-backups/
-.gsd-id
+# Local agent config + OS/editor junk
 .mcp.json
-.bg-shell/
 Thumbs.db
 nul
 nul.*

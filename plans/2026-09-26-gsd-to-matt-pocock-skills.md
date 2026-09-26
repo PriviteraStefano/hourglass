@@ -1,7 +1,7 @@
 # GSD → Matt Pocock skills migration
 
 **Date:** 2026-09-26
-**Status:** executing
+**Status:** complete (see Outcome)
 **Scope:** retire GSD everywhere (repo + user machine), install and configure the
 [Matt Pocock skill set](https://github.com/mattpocock/skills) as the delivery workflow for Hourglass.
 
@@ -126,6 +126,38 @@ Verify: `npx skills ls`; symlink targets resolve; skill discoverable.
 
 ## Follow-ups (not part of this cutover)
 
-1. Repo-scoped graphify hook (replace `gsd-graphify-update.sh`) if graph staleness becomes a problem.
-2. First run of the new flow for Phase 20: `/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement`; `/wayfinder` for the job-cluster chunk.
+1. ~~Repo-scoped graphify hook~~ — dropped: graphify already owns repo git hooks (`post-commit`, `post-checkout`; "Installed by: graphify hook install"), so the graph rebuilds after commits without GSD.
+2. First run of the new flow for Phase 20 (issue #50): `/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement`; `/wayfinder` for the job-cluster chunk (#51).
 3. Consolidate the remaining doc homes (`docs/superpowers/specs/`, `.opencode/plans/`) if desired.
+
+## Outcome (2026-09-26) — complete
+
+Executed in the Orca `phase-19` worktree on branch `PriviteraStefano/phase-19` (the branch tip equalled `main` when work started). Commits: plan → skills + repo config → archive/relocation → repo GSD removal.
+
+### Evidence
+
+| Check | Result |
+|---|---|
+| GSD files in `~/.claude` | manifest 450/450 present before, 0 after |
+| GSD files in `~/.codex` | manifest 531/531 before, 0 after |
+| GSD files in `~/.config/opencode` | manifest 619/619 before, 0 after |
+| `~/.claude/settings.json` | 15 `gsd-*` hook commands + GSD statusLine removed; 12 Orca hook groups preserved; JSON valid |
+| npm globals | `@opengsd/gsd-pi`, `@opengsd/gsd-browser` uninstalled; `gsd*` bins gone |
+| repo sweep | no live `gsd` / `.planning` references outside `docs/history/planning/` (frozen) and this plan |
+| project skills | 42 in `.agents/skills` (25 new), 42 resolving `.claude/skills` symlinks, `skills-lock.json` merged |
+| global skills | 32 in `~/.agents/skills`, 30 in `~/.claude/skills`, no dangling symlinks, superseded names gone |
+| tracker | milestone `v0.2.1` + issues #50–#55; #51 blocked-by #50 (native dependency); stale #49 closed |
+| docs checks | `docs-check.sh`, `validate-mermaid.sh`, `verify-readme.mjs`, `verify-wiki.mjs` all pass |
+| frontend | `bun run build` green (only after the generated route tree exists — see issue #54) |
+
+### Discovered during execution (beyond the plan)
+
+- GSD also lived in `~/.codex` (33 `[agents.gsd-*]` sections in `config.toml`, `hooks.json` + hooks, 67 skills, 33 agent files) and in `~/.config/opencode` (619 files: `gsd-core`, 71 commands, hooks, scripts, plugin, plus a `gsd` MCP server and permission block in `opencode.jsonc`), mirrored into Orca's `codex-runtime-home`. All removed; Orca's own hooks and runtime config preserved.
+- The `graphify` OpenCode skill had been displaced into GSD's `gsd-user-files-backup`; restored to `~/.config/opencode/skills/graphify`.
+- `260801-o06`'s "migration chain not re-runnable" debt is fixed by the 2026-08-25 `schema_migrations` ledger → not re-filed. The surviving defects became issues #54 (fresh-clone build) and #55 (`-all` flag).
+- Backups kept: `~/.claude/settings.json.pre-gsd-removal-20260926`, `~/.codex/config.toml.pre-gsd-removal-20260926`, `~/.config/opencode/opencode.jsonc.pre-gsd-removal-20260926`, plus the Orca runtime-home `config.toml.pre-gsd-removal-20260926`.
+
+### Not done here
+
+- The commits sit on `PriviteraStefano/phase-19` in this Orca worktree; `origin/main` does not have them yet (merge/push is the owner's call).
+- First run of the new flow for Phase 20 — follow-up 2.
