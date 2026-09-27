@@ -65,3 +65,11 @@ export function isAdminVisible(role: Role): boolean {
   void role;
   return false;
 }
+
+/**
+ * Tickets are internal-only demand records (ADR-P-003 rev, D-E): the server
+ * rejects `customer` on every ticket route with 403. UX scoping only.
+ */
+export function isTicketsVisible(role: Role): boolean {
+  return role !== "customer";
+}

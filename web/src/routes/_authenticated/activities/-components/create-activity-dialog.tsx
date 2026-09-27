@@ -29,26 +29,8 @@ import {
 } from "@/components/ui/combobox";
 import { ActivitiesApis } from "@/api/activities";
 import { ContractsApis } from "@/api/contracts";
+import { GOVERNANCE_OPTIONS } from "@/lib/governance";
 import type { ActivityResponse } from "@/types/models";
-
-const GOVERNANCE_OPTIONS = [
-  {
-    value: "creator_controlled",
-    label: "Creator Controlled",
-    description: "Only your organization can approve changes to this activity",
-  },
-  {
-    value: "unanimous",
-    label: "Unanimous",
-    description: "All organizations using this activity must approve changes",
-  },
-  {
-    value: "majority",
-    label: "Majority",
-    description:
-      "More than half of organizations using this activity must approve changes",
-  },
-];
 
 interface CreateActivityDialogProps {
   open: boolean;

@@ -49,7 +49,9 @@ import {
   isAdminVisible,
   isEconomicsVisible,
   isReviewVisible,
+  isTicketsVisible,
 } from "@/lib/role-visibility.ts";
+import type { Role } from "@/types";
 
 type NavItem = {
   label: string;
@@ -58,6 +60,8 @@ type NavItem = {
   disabled?: boolean;
   /** Tooltip copy for disabled placeholders (locked by UI-SPEC Copywriting Contract). */
   tooltip?: string;
+  /** Item-level UX scoping; absent = every role. Never authorization. */
+  visible?: (role: Role) => boolean;
 };
 
 // D-1 pillar-mapped group structure (render order + exact casing locked by
@@ -76,8 +80,7 @@ const navStructure: Array<{ group: string | null; items: NavItem[] }> = [
         label: "Tickets",
         href: "/tickets",
         icon: TicketIcon,
-        disabled: true,
-        tooltip: "Tickets arrive in v0.2",
+        visible: isTicketsVisible,
       },
     ],
   },
@@ -196,20 +199,22 @@ export function AppSidebar() {
               {group && <SidebarGroupLabel>{group}</SidebarGroupLabel>}
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {items.map((item) => (
-                    <SidebarMenuItem key={String(item.href)}>
-                      <SidebarMenuButton
-                        isActive={!!matchRoute({ to: item.href, fuzzy: item.href !== "/" })}
-                        tooltip={item.tooltip ?? item.label}
-                        render={
-                          <Link to={item.href} disabled={item.disabled}>
-                            <item.icon />
-                            <span>{item.label}</span>
-                          </Link>
-                        }
-                      />
-                    </SidebarMenuItem>
-                  ))}
+                  {items
+                    .filter((item) => !item.visible || item.visible(role))
+                    .map((item) => (
+                      <SidebarMenuItem key={String(item.href)}>
+                        <SidebarMenuButton
+                          isActive={!!matchRoute({ to: item.href, fuzzy: item.href !== "/" })}
+                          tooltip={item.tooltip ?? item.label}
+                          render={
+                            <Link to={item.href} disabled={item.disabled}>
+                              <item.icon />
+                              <span>{item.label}</span>
+                            </Link>
+                          }
+                        />
+                      </SidebarMenuItem>
+                    ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>

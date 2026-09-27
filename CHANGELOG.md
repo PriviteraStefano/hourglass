@@ -10,11 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CSV export page with date-range selection (phase 07).
 - Enforced `JWT_SECRET` requirement in production/staging environments.
+- **Tickets surface** (#56 — E-05 raise internal demand · M-08 triage): `/tickets`
+  lifecycle board (the four live lanes by default, the terminal lanes behind the
+  status filter), a detail drawer carrying the comment thread, the append-only
+  history, the triage panel and the guarded dismissal, plus a raise dialog.
+  Wired to the existing ticket API (`/tickets`, `/tickets/{id}/triage`,
+  `/transition`, `/dismiss`, `/comments`, `/history`).
+- Five semantic status roles (`neutral` · `info` · `success` · `warning` ·
+  `danger`) as `--status-*` token pairs in `web/src/index.css` plus the shared
+  `StatusPill` — `docs/design/LANGUAGE.md` recorded them as gaps.
 
 ### Changed
 
 - Flattened `TimeEntry` type on the frontend; rewrote API module accordingly.
 - Rewrote `MiniCalendar` for client-side status computation.
+- The `Tickets` nav item is live; the disabled placeholder and its tooltip are
+  gone, and nav items can now carry a per-role visibility predicate
+  (`isTicketsVisible`, hidden for `customer` — the server rejects that role).
+- Activity-governance option copy moved to `web/src/lib/governance.ts`, shared
+  by the create-activity dialog and the ticket triage panel.
 
 ### Fixed
 

@@ -186,7 +186,7 @@ describe("AppSidebar D-1 regroup (10-02)", () => {
     expect(groupLabels()).not.toContain("Review");
   });
 
-  it("marks Tickets and Availability disabled with locked tooltip copy", async () => {
+  it("renders Tickets live and Availability as a disabled placeholder", async () => {
     currentRole = "employee";
     renderAt();
 
@@ -194,24 +194,37 @@ describe("AppSidebar D-1 regroup (10-02)", () => {
     const availability = screen.getByRole("link", {
       name: /availability/i,
     });
-    expect(tickets).toHaveAttribute("aria-disabled", "true");
+    expect(tickets).toHaveAttribute("href", "/tickets");
+    expect(tickets).not.toHaveAttribute("aria-disabled", "true");
     expect(availability).toHaveAttribute("aria-disabled", "true");
 
     // Tooltips only render in the collapsed sidebar — collapse, then hover
     // (base-ui opens on mouseenter after the 600ms rest delay).
     fireEvent.click(screen.getByText("Collapse"));
-    const collapsedTickets = await screen.findByRole("link", {
-      name: /tickets/i,
+    const collapsedAvailability = await screen.findByRole("link", {
+      name: /availability/i,
     });
-    fireEvent.mouseEnter(collapsedTickets);
+    fireEvent.mouseEnter(collapsedAvailability);
     await waitFor(
       () => {
         expect(
-          screen.getByText("Tickets arrive in v0.2"),
+          screen.getByText("Availability lands with the staffing schema"),
         ).toBeInTheDocument();
       },
       { timeout: 2000 },
     );
+  });
+
+  it("hides Tickets from customer — the server rejects every ticket route", async () => {
+    currentRole = "customer";
+    renderAt();
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: /time/i })).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("link", { name: /tickets/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("contains no Tracking/Management legacy labels", async () => {

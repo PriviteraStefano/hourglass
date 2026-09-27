@@ -1,5 +1,6 @@
 export * from "./models";
 export * from "./api";
+export * from "./ticket-types";
 export type {
   Expense,
   CreateExpenseRequest,
