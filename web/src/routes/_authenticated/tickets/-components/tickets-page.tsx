@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import {
   useNavigate,
@@ -64,6 +64,14 @@ export function TicketsPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [dismissTarget, setDismissTarget] = useState<Ticket | null>(null);
+  /** A refused drag says why, then fades — see `onRejectMove` on the board. */
+  const [moveNotice, setMoveNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!moveNotice) return;
+    const timer = setTimeout(() => setMoveNotice(null), 8000);
+    return () => clearTimeout(timer);
+  }, [moveNotice]);
 
   const role = profile.membership.role;
   const userId = profile.user.id;
@@ -178,9 +186,9 @@ export function TicketsPage() {
             aria-label="Search tickets"
             className="h-8 w-56 text-xs"
           />
-          <span className="ml-auto text-xs text-muted-foreground">
-            {rows.length} shown
-          </span>
+          <output className="ml-auto text-xs text-muted-foreground">
+            {moveNotice ?? `${rows.length} shown`}
+          </output>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -192,10 +200,12 @@ export function TicketsPage() {
             userId={userId}
             busy={busy}
             onOpen={(id) => setSearch({ ticket: id }, true)}
-            onTransition={(id, status) =>
-              transition.mutate({ id, status })
-            }
+            onTransition={(id, status) => {
+              setMoveNotice(null);
+              transition.mutate({ id, status });
+            }}
             onDismiss={setDismissTarget}
+            onRejectMove={setMoveNotice}
           />
         </div>
 

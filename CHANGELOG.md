@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Five semantic status roles (`neutral` · `info` · `success` · `warning` ·
   `danger`) as `--status-*` token pairs in `web/src/index.css` plus the shared
   `StatusPill` — `docs/design/LANGUAGE.md` recorded them as gaps.
+- Drag-and-drop on the tickets board, on the vendored MIT `Kanban` primitive
+  (`web/src/components/ui/kanban.tsx`, ReUI + `@dnd-kit`) — registered as the
+  `@reui` registry in `web/components.json`. Drops resolve through the same
+  locked matrix and role gate as the buttons: an illegal or unauthorised drop
+  changes nothing, fires no request, and says why.
 
 ### Changed
 

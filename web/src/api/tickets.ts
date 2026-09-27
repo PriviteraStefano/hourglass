@@ -86,7 +86,10 @@ const transitionTicketMutationOpts = mutationOptions({
   onSuccess: (_, __, ___, { client }) => {
     client.invalidateQueries({ queryKey: ["tickets"] });
   },
-  onError: (error: Error) => {
+  onError: (error: Error, __, ___, { client }) => {
+    // A refused transition (illegal status, lost race, no longer assigned to
+    // us) means the card on screen is stale — resync before reporting.
+    client.invalidateQueries({ queryKey: ["tickets"] });
     toast.error(error.message || "Transition failed");
   },
 });
